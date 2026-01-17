@@ -1,69 +1,73 @@
 # Dvele Contract Manager
 
+A full-stack contract and LLC management application for a modular home company to manage construction projects and associated child LLCs.
+
 ## Overview
 
-Dvele Contract Manager is an internal contract management system for a modular home construction company. It handles construction projects, LLCs, and contracts with a focus on clarity, efficiency, and professional workflow management. The application follows a productivity-focused design system inspired by Linear, Notion, and Asana.
+This application helps Dvele manage construction projects through dedicated child entities. Each project creates a specific child LLC (e.g., "Dvele Partners [Project] LLC"), and the app manages this relationship with contract generation.
 
-## User Preferences
+## Tech Stack
 
-Preferred communication style: Simple, everyday language.
+- **Frontend**: React (Vite) with Tailwind CSS and Shadcn UI components
+- **Backend**: Express.js with TypeScript
+- **Database**: PostgreSQL with Drizzle ORM
+- **State Management**: TanStack Query v5
+- **Routing**: wouter
+- **Forms**: react-hook-form with zod validation
 
-## System Architecture
+## Features
 
-### Frontend Architecture
-- **Framework**: React with TypeScript using Vite as the build tool
-- **Routing**: Wouter for lightweight client-side routing
-- **State Management**: TanStack React Query for server state management and caching
-- **UI Components**: shadcn/ui component library built on Radix UI primitives
-- **Styling**: Tailwind CSS with custom CSS variables for theming (light/dark mode support)
-- **Form Handling**: React Hook Form with Zod validation via @hookform/resolvers
+- **Dashboard**: Overview with stats cards showing Active Projects, Pending LLCs, and Total Contract Value (approved/signed contracts only)
+- **LLC Administration**: Create and manage child LLC entities for construction projects
+- **New Agreement**: Create contracts and associate them with LLCs
+- **Settings**: Company configuration, notification preferences, and theme settings
+- **Dark Mode**: Toggle between light and dark themes with localStorage persistence
 
-### Backend Architecture
-- **Framework**: Express 5 running on Node.js with TypeScript
-- **API Design**: RESTful JSON API with `/api` prefix
-- **Build Process**: esbuild for server bundling, Vite for client bundling
-- **Development**: Hot module replacement via Vite dev server middleware
+## Project Structure
 
-### Data Layer
-- **ORM**: Drizzle ORM with PostgreSQL dialect
-- **Schema Location**: Shared schema in `shared/schema.ts` for type safety across client and server
-- **Validation**: Zod schemas generated from Drizzle schemas using drizzle-zod
-- **Database**: PostgreSQL (connection via DATABASE_URL environment variable)
-
-### Project Structure
 ```
-client/           # React frontend
-  src/
-    components/   # UI components (app-specific and shadcn/ui)
-    pages/        # Route pages (Dashboard, LLCAdmin, NewAgreement, Settings)
-    hooks/        # Custom React hooks
-    lib/          # Utilities and query client
-server/           # Express backend
-  routes.ts       # API route definitions
-  storage.ts      # Database access layer
-  db.ts           # Database connection
-shared/           # Shared types and schemas
-  schema.ts       # Drizzle schema definitions
+├── client/
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── app-sidebar.tsx      # Main navigation sidebar
+│   │   │   ├── theme-provider.tsx   # Dark mode context provider
+│   │   │   ├── theme-toggle.tsx     # Theme toggle button
+│   │   │   └── ui/                  # Shadcn UI components
+│   │   ├── pages/
+│   │   │   ├── dashboard.tsx        # Main dashboard with stats
+│   │   │   ├── llc-admin.tsx        # LLC CRUD management
+│   │   │   ├── new-agreement.tsx    # Contract creation form
+│   │   │   └── settings.tsx         # App settings
+│   │   └── App.tsx                  # Main app with routing
+├── server/
+│   ├── routes.ts                    # API endpoints
+│   ├── storage.ts                   # Database operations
+│   └── index.ts                     # Express server
+└── shared/
+    └── schema.ts                    # Drizzle schema with relations
 ```
 
-### Key Data Models
-- **LLCs**: Project entities with status tracking (pending, in_formation, active, dissolved)
-- **Contracts**: Agreements linked to LLCs with status workflow (draft, pending_review, approved, signed, expired)
-- **Users**: Basic authentication support
+## Database Schema
 
-## External Dependencies
+- **llcs**: Stores child LLC entities with name, project, status, formation details
+- **contracts**: Stores agreements linked to LLCs with status, value, dates
 
-### Database
-- PostgreSQL database required via `DATABASE_URL` environment variable
-- Drizzle Kit for schema migrations (`npm run db:push`)
+## API Endpoints
 
-### UI Libraries
-- Radix UI primitives for accessible components
-- Lucide React for icons
-- Embla Carousel for carousel functionality
-- Recharts for charting (via shadcn/ui chart component)
-- Vaul for drawer component
+- `GET /api/dashboard/stats` - Dashboard statistics
+- `GET /api/llcs` - List all LLCs
+- `POST /api/llcs` - Create new LLC
+- `DELETE /api/llcs/:id` - Delete LLC
+- `GET /api/contracts` - List all contracts
+- `POST /api/contracts` - Create new contract
 
-### Development Tools
-- Replit-specific plugins for development (cartographer, dev-banner, runtime-error-modal)
-- tsx for TypeScript execution in development
+## Design Decisions
+
+- Forms use shadcn Form component with react-hook-form and zodResolver
+- Dashboard totalContractValue only counts approved/signed contracts (draft contracts excluded)
+- Dark mode uses ThemeProvider with localStorage sync
+- Schema uses explicit Drizzle relations() for LLC-Contract relationship
+
+## Running the Application
+
+The application starts with `npm run dev` which runs both the Express backend and Vite frontend on port 5000.
