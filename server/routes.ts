@@ -6,6 +6,11 @@ import { z } from "zod";
 import { db as sqliteDb } from "./db/index";
 import { projects, clients, childLlcs, financials } from "./db/schema";
 import { eq } from "drizzle-orm";
+import { mapProjectToVariables } from "./lib/mapper";
+import Docxtemplater from "docxtemplater";
+import PizZip from "pizzip";
+import * as fs from "fs";
+import * as path from "path";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -125,6 +130,55 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error updating project green-light:", error);
       res.status(500).json({ error: "Failed to update project" });
+    }
+  });
+
+  app.post("/api/projects/:id/contract", async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.id, 10);
+
+      const project = await sqliteDb.query.projects.findFirst({
+        where: eq(projects.id, projectId),
+        with: {
+          client: true,
+          childLlc: true,
+          financials: true,
+        },
+      });
+
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      const templatePath = path.join(process.cwd(), "server", "templates", "template.docx");
+      
+      if (!fs.existsSync(templatePath)) {
+        return res.status(500).json({ error: "Contract template not found" });
+      }
+
+      const content = fs.readFileSync(templatePath, "binary");
+      const zip = new PizZip(content);
+      const doc = new Docxtemplater(zip, {
+        paragraphLoop: true,
+        linebreaks: true,
+      });
+
+      const variables = mapProjectToVariables(project);
+      doc.render(variables);
+
+      const buf = doc.getZip().generate({
+        type: "nodebuffer",
+        compression: "DEFLATE",
+      });
+
+      const filename = `Contract_${project.projectNumber || project.id}.docx`;
+      
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+      res.send(buf);
+    } catch (error) {
+      console.error("Error generating contract:", error);
+      res.status(500).json({ error: "Failed to generate contract" });
     }
   });
 
