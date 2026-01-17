@@ -28,7 +28,7 @@ const navigationItems = [
   },
   {
     title: "New Agreement",
-    url: "/new-agreement",
+    url: "/agreements/new",
     icon: FilePlus,
   },
   {

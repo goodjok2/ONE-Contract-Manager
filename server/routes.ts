@@ -34,12 +34,12 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/projects", async (req, res) => {
+  app.post("/api/projects", (req, res) => {
     try {
       const { project, client, llc, financials: financialsData } = req.body;
 
-      const result = await sqliteDb.transaction(async (tx) => {
-        const [newProject] = await tx
+      const newProject = sqliteDb.transaction((tx) => {
+        const [createdProject] = tx
           .insert(projects)
           .values({
             projectNumber: project.projectNumber,
@@ -47,52 +47,54 @@ export async function registerRoutes(
             status: project.status || "Draft",
             state: project.state,
           })
-          .returning();
+          .returning()
+          .all();
 
         const llcLegalName = llc?.legalName?.trim() 
           ? llc.legalName 
           : `Dvele Partners ${project.name} LLC`;
 
-        await tx.insert(clients).values({
-          projectId: newProject.id,
+        tx.insert(clients).values({
+          projectId: createdProject.id,
           legalName: client.legalName,
           address: client.address,
           email: client.email,
           phone: client.phone,
           entityType: client.entityType,
-        });
+        }).run();
 
-        await tx.insert(childLlcs).values({
-          projectId: newProject.id,
+        tx.insert(childLlcs).values({
+          projectId: createdProject.id,
           legalName: llcLegalName,
           ein: llc?.ein,
           insuranceStatus: llc?.insuranceStatus || "Pending",
           formationDate: llc?.formationDate,
-        });
+        }).run();
 
-        await tx.insert(financials).values({
-          projectId: newProject.id,
+        tx.insert(financials).values({
+          projectId: createdProject.id,
           designFee: financialsData?.designFee,
           prelimOffsite: financialsData?.prelimOffsite,
           prelimOnsite: financialsData?.prelimOnsite,
           finalOffsite: financialsData?.finalOffsite,
           refinedOnsite: financialsData?.refinedOnsite,
           isLocked: false,
-        });
+        }).run();
 
-        return newProject;
+        return createdProject;
       });
 
-      const fullProject = await sqliteDb.query.projects.findFirst({
-        where: eq(projects.id, result.id),
-        with: {
-          client: true,
-          childLlc: true,
-          financials: true,
-        },
-      });
+      const projectResult = sqliteDb.select().from(projects).where(eq(projects.id, newProject.id)).get();
+      const clientResult = sqliteDb.select().from(clients).where(eq(clients.projectId, newProject.id)).get();
+      const llcResult = sqliteDb.select().from(childLlcs).where(eq(childLlcs.projectId, newProject.id)).get();
+      const financialsResult = sqliteDb.select().from(financials).where(eq(financials.projectId, newProject.id)).get();
 
-      res.status(201).json(fullProject);
+      res.status(201).json({
+        ...projectResult,
+        client: clientResult,
+        childLlc: llcResult,
+        financials: financialsResult,
+      });
     } catch (error) {
       console.error("Error creating project:", error);
       res.status(500).json({ error: "Failed to create project" });

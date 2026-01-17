@@ -9,7 +9,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
-import NewAgreement from "@/pages/new-agreement";
+import AgreementsNew from "@/pages/agreements-new";
 import LLCAdmin from "@/pages/llc-admin";
 import Settings from "@/pages/settings";
 
@@ -17,7 +17,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Dashboard} />
-      <Route path="/new-agreement" component={NewAgreement} />
+      <Route path="/agreements/new" component={AgreementsNew} />
       <Route path="/llc-admin" component={LLCAdmin} />
       <Route path="/settings" component={Settings} />
       <Route component={NotFound} />
