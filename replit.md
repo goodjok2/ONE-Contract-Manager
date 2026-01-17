@@ -10,18 +10,21 @@ This application helps Dvele manage construction projects through dedicated chil
 
 - **Frontend**: React (Vite) with Tailwind CSS and Shadcn UI components
 - **Backend**: Express.js with TypeScript
-- **Database**: PostgreSQL with Drizzle ORM
+- **Database**: PostgreSQL (legacy contracts/LLCs) + SQLite (projects/clients/financials)
 - **State Management**: TanStack Query v5
 - **Routing**: wouter
 - **Forms**: react-hook-form with zod validation
 
 ## Features
 
-- **Dashboard**: Overview with stats cards showing Active Projects, Pending LLCs, and Total Contract Value (approved/signed contracts only)
-- **LLC Administration**: Create and manage child LLC entities for construction projects
-- **New Agreement**: Create contracts and associate them with LLCs
-- **Settings**: Company configuration, notification preferences, and theme settings
-- **Dark Mode**: Toggle between light and dark themes with localStorage persistence
+- **Dashboard**: Overview with 4 stat cards (Total Contracts, Drafts, Pending Review, Signed), Recent Contracts section, Quick Start Templates, and Contract Value Overview
+- **Contract Builder**: Multi-step wizard for creating new project agreements
+- **Active Contracts**: List and manage all contracts
+- **Templates**: Pre-configured contract templates (DTC Standard, B2B Developer)
+- **Clause Library**: Reusable contract clauses (coming soon)
+- **LLC Administration**: Create and manage child LLC entities
+- **Settings**: Company configuration and theme settings
+- **Dark Mode**: Toggle between light and dark themes
 
 ## Project Structure
 
@@ -29,44 +32,77 @@ This application helps Dvele manage construction projects through dedicated chil
 ├── client/
 │   ├── src/
 │   │   ├── components/
-│   │   │   ├── app-sidebar.tsx      # Main navigation sidebar
+│   │   │   ├── app-sidebar.tsx      # Navigation sidebar (Main + Configuration sections)
 │   │   │   ├── theme-provider.tsx   # Dark mode context provider
 │   │   │   ├── theme-toggle.tsx     # Theme toggle button
 │   │   │   └── ui/                  # Shadcn UI components
 │   │   ├── pages/
-│   │   │   ├── dashboard.tsx        # Main dashboard with stats
+│   │   │   ├── dashboard.tsx        # Main dashboard with stats and templates
+│   │   │   ├── agreements-new.tsx   # Contract creation wizard
+│   │   │   ├── contracts.tsx        # Active contracts list
+│   │   │   ├── templates.tsx        # Contract templates
+│   │   │   ├── clause-library.tsx   # Clause library (placeholder)
+│   │   │   ├── erp-fields.tsx       # ERP integration (placeholder)
+│   │   │   ├── state-requirements.tsx # State requirements (placeholder)
 │   │   │   ├── llc-admin.tsx        # LLC CRUD management
-│   │   │   ├── new-agreement.tsx    # Contract creation form
 │   │   │   └── settings.tsx         # App settings
 │   │   └── App.tsx                  # Main app with routing
 ├── server/
 │   ├── routes.ts                    # API endpoints
-│   ├── storage.ts                   # Database operations
-│   └── index.ts                     # Express server
+│   ├── storage.ts                   # PostgreSQL database operations
+│   ├── db/                          # SQLite database (Drizzle)
+│   │   ├── index.ts                 # Database connection
+│   │   └── schema.ts                # SQLite schema (projects, clients, child_llcs, financials)
+│   └── lib/
+│       └── mapper.ts                # Contract template variable mapper
 └── shared/
-    └── schema.ts                    # Drizzle schema with relations
+    └── schema.ts                    # PostgreSQL schema (llcs, contracts, users)
 ```
 
 ## Database Schema
 
-- **llcs**: Stores child LLC entities with name, project, status, formation details
-- **contracts**: Stores agreements linked to LLCs with status, value, dates
+### PostgreSQL (Legacy)
+- **llcs**: Child LLC entities with name, project, status, formation details
+- **contracts**: Agreements with status, value, dates
+
+### SQLite (New Projects System)
+- **projects**: Project information with number, name, status, state
+- **clients**: Client details linked to projects
+- **child_llcs**: Child LLC entities linked to projects
+- **financials**: Budget information (design fee, prelim offsite/onsite)
 
 ## API Endpoints
 
-- `GET /api/dashboard/stats` - Dashboard statistics
+- `GET /api/dashboard/stats` - Dashboard statistics (contract counts and values by status)
+- `GET /api/contracts` - List all contracts
+- `POST /api/contracts` - Create new contract
+- `GET /api/projects` - List all projects with relations
+- `POST /api/projects` - Create new project with client, LLC, and financials
 - `GET /api/llcs` - List all LLCs
 - `POST /api/llcs` - Create new LLC
 - `DELETE /api/llcs/:id` - Delete LLC
-- `GET /api/contracts` - List all contracts
-- `POST /api/contracts` - Create new contract
+
+## Navigation Structure
+
+### Main Section
+- Dashboard
+- Contract Builder (/agreements/new)
+- Clause Library
+- Active Contracts
+- Templates
+
+### Configuration Section
+- ERP Fields
+- State Requirements
+- Settings
 
 ## Design Decisions
 
+- Dashboard shows 4 stat cards (Total Contracts, Drafts, Pending Review, Signed)
+- Contract Value Overview shows breakdown by status (Drafts, Pending, Signed values)
 - Forms use shadcn Form component with react-hook-form and zodResolver
-- Dashboard totalContractValue only counts approved/signed contracts (draft contracts excluded)
 - Dark mode uses ThemeProvider with localStorage sync
-- Schema uses explicit Drizzle relations() for LLC-Contract relationship
+- Multi-step wizard for creating new agreements with step validation
 
 ## Running the Application
 

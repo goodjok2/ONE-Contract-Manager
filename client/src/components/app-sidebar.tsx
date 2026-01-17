@@ -1,8 +1,12 @@
 import { Link, useLocation } from "wouter";
 import { 
   LayoutDashboard, 
-  FilePlus, 
-  Building2, 
+  FileEdit, 
+  Library, 
+  FileCheck,
+  Files,
+  Database,
+  MapPin,
   Settings,
   FileText
 } from "lucide-react";
@@ -20,21 +24,44 @@ import {
   SidebarSeparator,
 } from "@/components/ui/sidebar";
 
-const navigationItems = [
+const mainNavItems = [
   {
     title: "Dashboard",
     url: "/",
     icon: LayoutDashboard,
   },
   {
-    title: "New Agreement",
+    title: "Contract Builder",
     url: "/agreements/new",
-    icon: FilePlus,
+    icon: FileEdit,
   },
   {
-    title: "LLC Admin",
-    url: "/llc-admin",
-    icon: Building2,
+    title: "Clause Library",
+    url: "/clause-library",
+    icon: Library,
+  },
+  {
+    title: "Active Contracts",
+    url: "/contracts",
+    icon: FileCheck,
+  },
+  {
+    title: "Templates",
+    url: "/templates",
+    icon: Files,
+  },
+];
+
+const configNavItems = [
+  {
+    title: "ERP Fields",
+    url: "/erp-fields",
+    icon: Database,
+  },
+  {
+    title: "State Requirements",
+    url: "/state-requirements",
+    icon: MapPin,
   },
   {
     title: "Settings",
@@ -46,19 +73,24 @@ const navigationItems = [
 export function AppSidebar() {
   const [location] = useLocation();
 
+  const isActive = (url: string) => {
+    if (url === "/") return location === url;
+    return location.startsWith(url);
+  };
+
   return (
     <Sidebar>
       <SidebarHeader className="px-4 py-5">
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
-            <FileText className="h-5 w-5 text-primary-foreground" />
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold">
+            D
           </div>
           <div className="flex flex-col">
             <span className="text-base font-semibold text-sidebar-foreground" data-testid="text-app-title">
-              Dvele
+              Dvele ONE
             </span>
             <span className="text-xs text-muted-foreground">
-              Contract Manager
+              Contract Platform
             </span>
           </div>
         </div>
@@ -69,32 +101,54 @@ export function AppSidebar() {
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Navigation
+            Main
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navigationItems.map((item) => {
-                const isActive = location === item.url || 
-                  (item.url !== "/" && location.startsWith(item.url));
-                
-                return (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton 
-                      asChild 
-                      isActive={isActive}
-                      tooltip={item.title}
+              {mainNavItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton 
+                    asChild 
+                    isActive={isActive(item.url)}
+                    tooltip={item.title}
+                  >
+                    <Link 
+                      href={item.url}
+                      data-testid={`link-nav-${item.title.toLowerCase().replace(/\s+/g, '-')}`}
                     >
-                      <Link 
-                        href={item.url}
-                        data-testid={`link-nav-${item.title.toLowerCase().replace(/\s+/g, '-')}`}
-                      >
-                        <item.icon className="h-4 w-4" />
-                        <span>{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
+                      <item.icon className="h-4 w-4" />
+                      <span>{item.title}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+        
+        <SidebarGroup>
+          <SidebarGroupLabel className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Configuration
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {configNavItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton 
+                    asChild 
+                    isActive={isActive(item.url)}
+                    tooltip={item.title}
+                  >
+                    <Link 
+                      href={item.url}
+                      data-testid={`link-nav-${item.title.toLowerCase().replace(/\s+/g, '-')}`}
+                    >
+                      <item.icon className="h-4 w-4" />
+                      <span>{item.title}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -102,7 +156,7 @@ export function AppSidebar() {
       
       <SidebarFooter className="px-4 py-4">
         <div className="text-xs text-muted-foreground">
-          Dvele Partners LLC
+          Version 1.0.0
         </div>
       </SidebarFooter>
     </Sidebar>

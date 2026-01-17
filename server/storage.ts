@@ -101,28 +101,53 @@ export class DatabaseStorage implements IStorage {
 
   // Dashboard Stats
   async getDashboardStats(): Promise<DashboardStats> {
-    // Count active projects (contracts with status signed or approved)
-    const activeProjectsResult = await db
+    // Total contracts
+    const totalResult = await db.select({ count: count() }).from(contracts);
+    
+    // Drafts count
+    const draftsResult = await db
       .select({ count: count() })
       .from(contracts)
-      .where(sql`${contracts.status} IN ('signed', 'approved', 'pending_review')`);
+      .where(sql`${contracts.status} = 'draft'`);
     
-    // Count pending LLCs
-    const pendingLLCsResult = await db
+    // Pending review count
+    const pendingResult = await db
       .select({ count: count() })
-      .from(llcs)
-      .where(sql`${llcs.status} IN ('pending', 'in_formation')`);
+      .from(contracts)
+      .where(sql`${contracts.status} = 'pending_review'`);
     
-    // Sum total contract value
-    const totalValueResult = await db
+    // Signed count
+    const signedResult = await db
+      .select({ count: count() })
+      .from(contracts)
+      .where(sql`${contracts.status} = 'signed'`);
+    
+    // Drafts value
+    const draftsValueResult = await db
       .select({ total: sql<string>`COALESCE(SUM(${contracts.contractValue}), 0)` })
       .from(contracts)
-      .where(sql`${contracts.status} IN ('signed', 'approved')`);
+      .where(sql`${contracts.status} = 'draft'`);
+    
+    // Pending value
+    const pendingValueResult = await db
+      .select({ total: sql<string>`COALESCE(SUM(${contracts.contractValue}), 0)` })
+      .from(contracts)
+      .where(sql`${contracts.status} = 'pending_review'`);
+    
+    // Signed value
+    const signedValueResult = await db
+      .select({ total: sql<string>`COALESCE(SUM(${contracts.contractValue}), 0)` })
+      .from(contracts)
+      .where(sql`${contracts.status} = 'signed'`);
 
     return {
-      activeProjects: activeProjectsResult[0]?.count ?? 0,
-      pendingLLCs: pendingLLCsResult[0]?.count ?? 0,
-      totalContractValue: parseFloat(totalValueResult[0]?.total ?? "0"),
+      totalContracts: totalResult[0]?.count ?? 0,
+      drafts: draftsResult[0]?.count ?? 0,
+      pendingReview: pendingResult[0]?.count ?? 0,
+      signed: signedResult[0]?.count ?? 0,
+      draftsValue: parseFloat(draftsValueResult[0]?.total ?? "0"),
+      pendingValue: parseFloat(pendingValueResult[0]?.total ?? "0"),
+      signedValue: parseFloat(signedValueResult[0]?.total ?? "0"),
     };
   }
 }

@@ -12,12 +12,22 @@ import Dashboard from "@/pages/dashboard";
 import AgreementsNew from "@/pages/agreements-new";
 import LLCAdmin from "@/pages/llc-admin";
 import Settings from "@/pages/settings";
+import ClauseLibrary from "@/pages/clause-library";
+import Contracts from "@/pages/contracts";
+import Templates from "@/pages/templates";
+import ErpFields from "@/pages/erp-fields";
+import StateRequirements from "@/pages/state-requirements";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Dashboard} />
       <Route path="/agreements/new" component={AgreementsNew} />
+      <Route path="/clause-library" component={ClauseLibrary} />
+      <Route path="/contracts" component={Contracts} />
+      <Route path="/templates" component={Templates} />
+      <Route path="/erp-fields" component={ErpFields} />
+      <Route path="/state-requirements" component={StateRequirements} />
       <Route path="/llc-admin" component={LLCAdmin} />
       <Route path="/settings" component={Settings} />
       <Route component={NotFound} />

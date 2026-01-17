@@ -38,7 +38,8 @@
 
 **Grid Patterns:**
 - Contract List: Single column with full-width rows
-- Dashboard Stats: grid-cols-1 md:grid-cols-3 gap-6
+- Dashboard Stats: grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 (Total Contracts, Drafts, Pending Review, Signed)
+- Dashboard Secondary: grid-cols-1 lg:grid-cols-2 gap-6 (Recent Contracts, Quick Start Templates)
 - Document Details: Two-column split (2/3 main content, 1/3 metadata sidebar)
 
 ## Component Library
@@ -114,9 +115,10 @@
 ## Page Layouts
 
 ### Dashboard
-- Stats cards grid (3 columns): Total Contracts, Pending Approvals, Expiring Soon
-- Recent activity list
-- Quick actions panel
+- Header: Page title with "New Contract" action button (right-aligned)
+- Stats cards grid (4 columns on lg, 2 on sm, 1 on mobile): Total Contracts, Drafts, Pending Review, Signed
+- Secondary content row (2 columns on lg): Recent Contracts list, Quick Start Templates
+- Contract Value Overview: 3-column grid showing Drafts Value, Pending Value, Signed Value
 
 ### Contract List View
 - Search + Filter bar (top, flex gap-4 mb-6)
