@@ -4,9 +4,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
-import { Building2, Bell, Shield, Palette } from "lucide-react";
+import { Building2, Bell, Palette } from "lucide-react";
+import { useTheme } from "@/components/theme-provider";
 
 export default function Settings() {
+  const { theme, setTheme } = useTheme();
+
   return (
     <div className="flex-1 p-6 md:p-8">
       <div className="mb-8">
@@ -21,7 +24,7 @@ export default function Settings() {
       <div className="max-w-2xl space-y-6">
         <Card data-testid="card-company-settings">
           <CardHeader>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
               <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
                 <Building2 className="h-4 w-4 text-primary" />
               </div>
@@ -63,7 +66,7 @@ export default function Settings() {
 
         <Card data-testid="card-notification-settings">
           <CardHeader>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
               <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
                 <Bell className="h-4 w-4 text-primary" />
               </div>
@@ -76,7 +79,7 @@ export default function Settings() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-4 flex-wrap">
               <div className="space-y-0.5">
                 <Label>Contract Status Updates</Label>
                 <p className="text-xs text-muted-foreground">
@@ -86,7 +89,7 @@ export default function Settings() {
               <Switch defaultChecked data-testid="switch-contract-updates" />
             </div>
             <Separator />
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-4 flex-wrap">
               <div className="space-y-0.5">
                 <Label>LLC Formation Alerts</Label>
                 <p className="text-xs text-muted-foreground">
@@ -96,7 +99,7 @@ export default function Settings() {
               <Switch defaultChecked data-testid="switch-llc-alerts" />
             </div>
             <Separator />
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-4 flex-wrap">
               <div className="space-y-0.5">
                 <Label>Expiration Reminders</Label>
                 <p className="text-xs text-muted-foreground">
@@ -110,7 +113,7 @@ export default function Settings() {
 
         <Card data-testid="card-appearance-settings">
           <CardHeader>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
               <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
                 <Palette className="h-4 w-4 text-primary" />
               </div>
@@ -123,19 +126,23 @@ export default function Settings() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-4 flex-wrap">
               <div className="space-y-0.5">
                 <Label>Dark Mode</Label>
                 <p className="text-xs text-muted-foreground">
                   Switch between light and dark themes
                 </p>
               </div>
-              <Switch data-testid="switch-dark-mode" />
+              <Switch 
+                checked={theme === "dark"}
+                onCheckedChange={(checked) => setTheme(checked ? "dark" : "light")}
+                data-testid="switch-dark-mode" 
+              />
             </div>
           </CardContent>
         </Card>
 
-        <div className="flex justify-end gap-3">
+        <div className="flex justify-end gap-3 flex-wrap">
           <Button variant="outline" data-testid="button-cancel">
             Cancel
           </Button>

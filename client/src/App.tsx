@@ -5,6 +5,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
+import { ThemeProvider } from "@/components/theme-provider";
+import { ThemeToggle } from "@/components/theme-toggle";
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
 import NewAgreement from "@/pages/new-agreement";
@@ -30,24 +32,27 @@ function App() {
   };
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <SidebarProvider style={sidebarStyle as React.CSSProperties}>
-          <div className="flex min-h-screen w-full bg-background">
-            <AppSidebar />
-            <div className="flex flex-col flex-1">
-              <header className="flex h-14 items-center gap-4 border-b px-4 md:px-6">
-                <SidebarTrigger data-testid="button-sidebar-toggle" />
-              </header>
-              <main className="flex-1 overflow-auto">
-                <Router />
-              </main>
+    <ThemeProvider defaultTheme="light" storageKey="dvele-ui-theme">
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <SidebarProvider style={sidebarStyle as React.CSSProperties}>
+            <div className="flex min-h-screen w-full bg-background">
+              <AppSidebar />
+              <div className="flex flex-col flex-1">
+                <header className="flex h-14 items-center justify-between gap-4 border-b px-4 md:px-6">
+                  <SidebarTrigger data-testid="button-sidebar-toggle" />
+                  <ThemeToggle />
+                </header>
+                <main className="flex-1 overflow-auto">
+                  <Router />
+                </main>
+              </div>
             </div>
-          </div>
-        </SidebarProvider>
-        <Toaster />
-      </TooltipProvider>
-    </QueryClientProvider>
+          </SidebarProvider>
+          <Toaster />
+        </TooltipProvider>
+      </QueryClientProvider>
+    </ThemeProvider>
   );
 }
 

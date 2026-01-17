@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
@@ -21,21 +23,49 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Building2, MoreHorizontal, Trash2 } from "lucide-react";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { Plus, Building2, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { LLC, InsertLLC } from "@shared/schema";
+import { insertLLCSchema, type LLC } from "@shared/schema";
+
+const llcFormSchema = insertLLCSchema.extend({
+  name: z.string().min(1, "LLC name is required"),
+  projectName: z.string().min(1, "Project name is required"),
+});
+
+type LLCFormValues = z.infer<typeof llcFormSchema>;
 
 export default function LLCAdmin() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const { toast } = useToast();
+
+  const form = useForm<LLCFormValues>({
+    resolver: zodResolver(llcFormSchema),
+    defaultValues: {
+      name: "",
+      projectName: "",
+      status: "pending",
+      stateOfFormation: "Delaware",
+      einNumber: null,
+      registeredAgent: null,
+      formationDate: null,
+    },
+  });
 
   const { data: llcs = [], isLoading } = useQuery<LLC[]>({
     queryKey: ["/api/llcs"],
   });
 
   const createMutation = useMutation({
-    mutationFn: async (data: InsertLLC) => {
+    mutationFn: async (data: LLCFormValues) => {
       const response = await apiRequest("POST", "/api/llcs", data);
       return response.json();
     },
@@ -43,6 +73,7 @@ export default function LLCAdmin() {
       queryClient.invalidateQueries({ queryKey: ["/api/llcs"] });
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
       setIsCreateOpen(false);
+      form.reset();
       toast({
         title: "LLC Created",
         description: "The new LLC has been created successfully.",
@@ -78,15 +109,7 @@ export default function LLCAdmin() {
     },
   });
 
-  const handleCreate = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    const data: InsertLLC = {
-      name: formData.get("name") as string,
-      projectName: formData.get("projectName") as string,
-      status: formData.get("status") as string,
-      stateOfFormation: formData.get("stateOfFormation") as string,
-    };
+  const onSubmit = (data: LLCFormValues) => {
     createMutation.mutate(data);
   };
 
@@ -102,7 +125,10 @@ export default function LLCAdmin() {
           </p>
         </div>
         
-        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+        <Dialog open={isCreateOpen} onOpenChange={(open) => {
+          setIsCreateOpen(open);
+          if (!open) form.reset();
+        }}>
           <DialogTrigger asChild>
             <Button data-testid="button-new-llc">
               <Plus className="h-4 w-4 mr-2" />
@@ -116,62 +142,93 @@ export default function LLCAdmin() {
                 Create a new child LLC entity for a construction project.
               </DialogDescription>
             </DialogHeader>
-            <form onSubmit={handleCreate}>
-              <div className="grid gap-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">LLC Name</Label>
-                  <Input
-                    id="name"
-                    name="name"
-                    placeholder="Dvele Partners [Project] LLC"
-                    required
-                    data-testid="input-llc-name"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="projectName">Project Name</Label>
-                  <Input
-                    id="projectName"
-                    name="projectName"
-                    placeholder="Willow Creek Residence"
-                    required
-                    data-testid="input-project-name"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="status">Status</Label>
-                  <Select name="status" defaultValue="pending">
-                    <SelectTrigger data-testid="select-status">
-                      <SelectValue placeholder="Select status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="pending">Pending</SelectItem>
-                      <SelectItem value="in_formation">In Formation</SelectItem>
-                      <SelectItem value="active">Active</SelectItem>
-                      <SelectItem value="dissolved">Dissolved</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="stateOfFormation">State of Formation</Label>
-                  <Input
-                    id="stateOfFormation"
-                    name="stateOfFormation"
-                    defaultValue="Delaware"
-                    data-testid="input-state"
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button 
-                  type="submit" 
-                  disabled={createMutation.isPending}
-                  data-testid="button-submit-llc"
-                >
-                  {createMutation.isPending ? "Creating..." : "Create LLC"}
-                </Button>
-              </DialogFooter>
-            </form>
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>LLC Name</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Dvele Partners [Project] LLC"
+                          data-testid="input-llc-name"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="projectName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Project Name</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Willow Creek Residence"
+                          data-testid="input-project-name"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="status"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Status</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value || "pending"}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-status">
+                            <SelectValue placeholder="Select status" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="pending">Pending</SelectItem>
+                          <SelectItem value="in_formation">In Formation</SelectItem>
+                          <SelectItem value="active">Active</SelectItem>
+                          <SelectItem value="dissolved">Dissolved</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="stateOfFormation"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>State of Formation</FormLabel>
+                      <FormControl>
+                        <Input
+                          data-testid="input-state"
+                          {...field}
+                          value={field.value || "Delaware"}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <DialogFooter>
+                  <Button 
+                    type="submit" 
+                    disabled={createMutation.isPending}
+                    data-testid="button-submit-llc"
+                  >
+                    {createMutation.isPending ? "Creating..." : "Create LLC"}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </Form>
           </DialogContent>
         </Dialog>
       </div>

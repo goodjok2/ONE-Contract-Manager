@@ -1,5 +1,5 @@
-import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, timestamp, decimal } from "drizzle-orm/pg-core";
+import { sql, relations } from "drizzle-orm";
+import { pgTable, text, varchar, timestamp, decimal } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -39,6 +39,17 @@ export const users = pgTable("users", {
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
 });
+
+export const llcsRelations = relations(llcs, ({ many }) => ({
+  contracts: many(contracts),
+}));
+
+export const contractsRelations = relations(contracts, ({ one }) => ({
+  llc: one(llcs, {
+    fields: [contracts.llcId],
+    references: [llcs.id],
+  }),
+}));
 
 export const insertLLCSchema = createInsertSchema(llcs).omit({
   id: true,

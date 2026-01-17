@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -13,22 +15,52 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { FilePlus, Upload, ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { LLC, InsertContract } from "@shared/schema";
+import { insertContractSchema, type LLC } from "@shared/schema";
+
+const contractFormSchema = insertContractSchema.extend({
+  title: z.string().min(1, "Contract title is required"),
+  clientName: z.string().min(1, "Client name is required"),
+  contractValue: z.string().nullable().optional(),
+});
+
+type ContractFormValues = z.infer<typeof contractFormSchema>;
 
 export default function NewAgreement() {
   const [showForm, setShowForm] = useState(false);
   const [, navigate] = useLocation();
   const { toast } = useToast();
 
+  const form = useForm<ContractFormValues>({
+    resolver: zodResolver(contractFormSchema),
+    defaultValues: {
+      title: "",
+      clientName: "",
+      status: "draft",
+      description: null,
+      llcId: null,
+      contractValue: null,
+      startDate: null,
+      endDate: null,
+    },
+  });
+
   const { data: llcs = [] } = useQuery<LLC[]>({
     queryKey: ["/api/llcs"],
   });
 
   const createMutation = useMutation({
-    mutationFn: async (data: InsertContract) => {
+    mutationFn: async (data: ContractFormValues) => {
       const response = await apiRequest("POST", "/api/contracts", data);
       return response.json();
     },
@@ -50,19 +82,7 @@ export default function NewAgreement() {
     },
   });
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    const contractValue = formData.get("contractValue") as string;
-    
-    const data: InsertContract = {
-      title: formData.get("title") as string,
-      clientName: formData.get("clientName") as string,
-      status: formData.get("status") as string,
-      description: formData.get("description") as string || null,
-      llcId: (formData.get("llcId") as string) || null,
-      contractValue: contractValue ? contractValue : null,
-    };
+  const onSubmit = (data: ContractFormValues) => {
     createMutation.mutate(data);
   };
 
@@ -73,7 +93,10 @@ export default function NewAgreement() {
           <Button 
             variant="ghost" 
             className="mb-4 -ml-2"
-            onClick={() => setShowForm(false)}
+            onClick={() => {
+              setShowForm(false);
+              form.reset();
+            }}
             data-testid="button-back"
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
@@ -93,105 +116,160 @@ export default function NewAgreement() {
               <CardTitle className="text-lg">Contract Details</CardTitle>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleSubmit} className="space-y-6">
-                <div className="space-y-2">
-                  <Label htmlFor="title">Contract Title</Label>
-                  <Input
-                    id="title"
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                  <FormField
+                    control={form.control}
                     name="title"
-                    placeholder="Enter contract title"
-                    required
-                    data-testid="input-title"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Contract Title</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="Enter contract title"
+                            data-testid="input-title"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
                   />
-                </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="clientName">Client Name</Label>
-                  <Input
-                    id="clientName"
+                  <FormField
+                    control={form.control}
                     name="clientName"
-                    placeholder="Enter client name"
-                    required
-                    data-testid="input-client"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Client Name</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="Enter client name"
+                            data-testid="input-client"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
                   />
-                </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="status">Status</Label>
-                    <Select name="status" defaultValue="draft">
-                      <SelectTrigger data-testid="select-status">
-                        <SelectValue placeholder="Select status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="draft">Draft</SelectItem>
-                        <SelectItem value="pending_review">Pending Review</SelectItem>
-                        <SelectItem value="approved">Approved</SelectItem>
-                        <SelectItem value="signed">Signed</SelectItem>
-                        <SelectItem value="expired">Expired</SelectItem>
-                      </SelectContent>
-                    </Select>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="status"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Status</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value || "draft"}>
+                            <FormControl>
+                              <SelectTrigger data-testid="select-status">
+                                <SelectValue placeholder="Select status" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="draft">Draft</SelectItem>
+                              <SelectItem value="pending_review">Pending Review</SelectItem>
+                              <SelectItem value="approved">Approved</SelectItem>
+                              <SelectItem value="signed">Signed</SelectItem>
+                              <SelectItem value="expired">Expired</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="llcId"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Associated LLC</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value || undefined}>
+                            <FormControl>
+                              <SelectTrigger data-testid="select-llc">
+                                <SelectValue placeholder="Select LLC (optional)" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {llcs.map((llc) => (
+                                <SelectItem key={llc.id} value={llc.id}>
+                                  {llc.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="llcId">Associated LLC</Label>
-                    <Select name="llcId">
-                      <SelectTrigger data-testid="select-llc">
-                        <SelectValue placeholder="Select LLC (optional)" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {llcs.map((llc) => (
-                          <SelectItem key={llc.id} value={llc.id}>
-                            {llc.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="contractValue">Contract Value ($)</Label>
-                  <Input
-                    id="contractValue"
+                  <FormField
+                    control={form.control}
                     name="contractValue"
-                    type="number"
-                    placeholder="Enter contract value"
-                    min="0"
-                    step="0.01"
-                    data-testid="input-value"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Contract Value ($)</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            placeholder="Enter contract value"
+                            min="0"
+                            step="0.01"
+                            data-testid="input-value"
+                            {...field}
+                            value={field.value || ""}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
                   />
-                </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="description">Description</Label>
-                  <Textarea
-                    id="description"
+                  <FormField
+                    control={form.control}
                     name="description"
-                    placeholder="Enter contract description (optional)"
-                    className="min-h-32"
-                    data-testid="input-description"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Description</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            placeholder="Enter contract description (optional)"
+                            className="min-h-32"
+                            data-testid="input-description"
+                            {...field}
+                            value={field.value || ""}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
                   />
-                </div>
 
-                <div className="flex justify-end gap-3 pt-4">
-                  <Button 
-                    type="button" 
-                    variant="outline"
-                    onClick={() => setShowForm(false)}
-                    data-testid="button-cancel"
-                  >
-                    Cancel
-                  </Button>
-                  <Button 
-                    type="submit" 
-                    disabled={createMutation.isPending}
-                    data-testid="button-submit"
-                  >
-                    {createMutation.isPending ? "Creating..." : "Create Contract"}
-                  </Button>
-                </div>
-              </form>
+                  <div className="flex justify-end gap-3 pt-4 flex-wrap">
+                    <Button 
+                      type="button" 
+                      variant="outline"
+                      onClick={() => {
+                        setShowForm(false);
+                        form.reset();
+                      }}
+                      data-testid="button-cancel"
+                    >
+                      Cancel
+                    </Button>
+                    <Button 
+                      type="submit" 
+                      disabled={createMutation.isPending}
+                      data-testid="button-submit"
+                    >
+                      {createMutation.isPending ? "Creating..." : "Create Contract"}
+                    </Button>
+                  </div>
+                </form>
+              </Form>
             </CardContent>
           </Card>
         </div>
