@@ -76,6 +76,11 @@ export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 
 export interface DashboardStats {
+  // Original stats
+  activeProjects: number;
+  pendingLLCs: number;
+  totalContractValue: number;
+  // New contract status stats
   totalContracts: number;
   drafts: number;
   pendingReview: number;

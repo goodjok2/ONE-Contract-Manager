@@ -101,6 +101,24 @@ export class DatabaseStorage implements IStorage {
 
   // Dashboard Stats
   async getDashboardStats(): Promise<DashboardStats> {
+    // Original stats: Active projects (contracts not in draft or expired status)
+    const activeProjectsResult = await db
+      .select({ count: count() })
+      .from(contracts)
+      .where(sql`${contracts.status} IN ('pending_review', 'approved', 'signed')`);
+    
+    // Original stats: Pending LLCs
+    const pendingLLCsResult = await db
+      .select({ count: count() })
+      .from(llcs)
+      .where(sql`${llcs.status} = 'pending'`);
+    
+    // Original stats: Total contract value (approved/signed only)
+    const totalValueResult = await db
+      .select({ total: sql<string>`COALESCE(SUM(${contracts.contractValue}), 0)` })
+      .from(contracts)
+      .where(sql`${contracts.status} IN ('approved', 'signed')`);
+
     // Total contracts
     const totalResult = await db.select({ count: count() }).from(contracts);
     
@@ -141,6 +159,11 @@ export class DatabaseStorage implements IStorage {
       .where(sql`${contracts.status} = 'signed'`);
 
     return {
+      // Original stats
+      activeProjects: activeProjectsResult[0]?.count ?? 0,
+      pendingLLCs: pendingLLCsResult[0]?.count ?? 0,
+      totalContractValue: parseFloat(totalValueResult[0]?.total ?? "0"),
+      // New stats
       totalContracts: totalResult[0]?.count ?? 0,
       drafts: draftsResult[0]?.count ?? 0,
       pendingReview: pendingResult[0]?.count ?? 0,
