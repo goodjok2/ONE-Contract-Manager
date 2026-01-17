@@ -1,4 +1,5 @@
 import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
+import { relations } from "drizzle-orm";
 
 export const projects = sqliteTable("projects", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -44,6 +45,42 @@ export const financials = sqliteTable("financials", {
   refinedOnsite: integer("refined_onsite"),
   isLocked: integer("is_locked", { mode: "boolean" }).default(false),
 });
+
+export const projectsRelations = relations(projects, ({ one }) => ({
+  client: one(clients, {
+    fields: [projects.id],
+    references: [clients.projectId],
+  }),
+  childLlc: one(childLlcs, {
+    fields: [projects.id],
+    references: [childLlcs.projectId],
+  }),
+  financials: one(financials, {
+    fields: [projects.id],
+    references: [financials.projectId],
+  }),
+}));
+
+export const clientsRelations = relations(clients, ({ one }) => ({
+  project: one(projects, {
+    fields: [clients.projectId],
+    references: [projects.id],
+  }),
+}));
+
+export const childLlcsRelations = relations(childLlcs, ({ one }) => ({
+  project: one(projects, {
+    fields: [childLlcs.projectId],
+    references: [projects.id],
+  }),
+}));
+
+export const financialsRelations = relations(financials, ({ one }) => ({
+  project: one(projects, {
+    fields: [financials.projectId],
+    references: [projects.id],
+  }),
+}));
 
 export type Project = typeof projects.$inferSelect;
 export type NewProject = typeof projects.$inferInsert;

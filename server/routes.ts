@@ -3,12 +3,131 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertLLCSchema, insertContractSchema } from "@shared/schema";
 import { z } from "zod";
+import { db as sqliteDb } from "./db/index";
+import { projects, clients, childLlcs, financials } from "./db/schema";
+import { eq } from "drizzle-orm";
 
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
   
+  // Projects API
+  app.get("/api/projects", async (req, res) => {
+    try {
+      const allProjects = await sqliteDb.query.projects.findMany({
+        with: {
+          client: true,
+          childLlc: true,
+          financials: true,
+        },
+      });
+      res.json(allProjects);
+    } catch (error) {
+      console.error("Error fetching projects:", error);
+      res.status(500).json({ error: "Failed to fetch projects" });
+    }
+  });
+
+  app.post("/api/projects", async (req, res) => {
+    try {
+      const { project, client, llc, financials: financialsData } = req.body;
+
+      const result = await sqliteDb.transaction(async (tx) => {
+        const [newProject] = await tx
+          .insert(projects)
+          .values({
+            projectNumber: project.projectNumber,
+            name: project.name,
+            status: project.status || "Draft",
+            state: project.state,
+          })
+          .returning();
+
+        const llcLegalName = llc?.legalName?.trim() 
+          ? llc.legalName 
+          : `Dvele Partners ${project.name} LLC`;
+
+        await tx.insert(clients).values({
+          projectId: newProject.id,
+          legalName: client.legalName,
+          address: client.address,
+          email: client.email,
+          phone: client.phone,
+          entityType: client.entityType,
+        });
+
+        await tx.insert(childLlcs).values({
+          projectId: newProject.id,
+          legalName: llcLegalName,
+          ein: llc?.ein,
+          insuranceStatus: llc?.insuranceStatus || "Pending",
+          formationDate: llc?.formationDate,
+        });
+
+        await tx.insert(financials).values({
+          projectId: newProject.id,
+          designFee: financialsData?.designFee,
+          prelimOffsite: financialsData?.prelimOffsite,
+          prelimOnsite: financialsData?.prelimOnsite,
+          finalOffsite: financialsData?.finalOffsite,
+          refinedOnsite: financialsData?.refinedOnsite,
+          isLocked: false,
+        });
+
+        return newProject;
+      });
+
+      const fullProject = await sqliteDb.query.projects.findFirst({
+        where: eq(projects.id, result.id),
+        with: {
+          client: true,
+          childLlc: true,
+          financials: true,
+        },
+      });
+
+      res.status(201).json(fullProject);
+    } catch (error) {
+      console.error("Error creating project:", error);
+      res.status(500).json({ error: "Failed to create project" });
+    }
+  });
+
+  app.patch("/api/projects/:id/green-light", async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.id, 10);
+      const { finalOffsite, refinedOnsite } = req.body;
+
+      await sqliteDb
+        .update(financials)
+        .set({
+          isLocked: true,
+          finalOffsite: finalOffsite,
+          refinedOnsite: refinedOnsite,
+        })
+        .where(eq(financials.projectId, projectId));
+
+      const updatedProject = await sqliteDb.query.projects.findFirst({
+        where: eq(projects.id, projectId),
+        with: {
+          client: true,
+          childLlc: true,
+          financials: true,
+        },
+      });
+
+      if (!updatedProject) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      res.json(updatedProject);
+    } catch (error) {
+      console.error("Error updating project green-light:", error);
+      res.status(500).json({ error: "Failed to update project" });
+    }
+  });
+
   // Dashboard Stats
   app.get("/api/dashboard/stats", async (req, res) => {
     try {
