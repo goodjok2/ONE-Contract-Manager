@@ -5,6 +5,7 @@ import {
   Library, 
   FileCheck,
   Files,
+  Building2,
   Database,
   MapPin,
   Settings,
@@ -53,6 +54,11 @@ const mainNavItems = [
 ];
 
 const configNavItems = [
+  {
+    title: "LLC Admin",
+    url: "/llc-admin",
+    icon: Building2,
+  },
   {
     title: "ERP Fields",
     url: "/erp-fields",
