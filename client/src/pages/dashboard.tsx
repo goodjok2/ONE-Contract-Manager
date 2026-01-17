@@ -1,71 +1,177 @@
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Building2, Clock, DollarSign } from "lucide-react";
-import type { DashboardStats, Contract, LLC } from "@shared/schema";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Download, Zap } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
-interface StatCardProps {
-  title: string;
-  value: string | number;
-  description?: string;
-  icon: React.ComponentType<{ className?: string }>;
-  testId: string;
-  isLoading?: boolean;
-}
-
-function StatCard({ title, value, description, icon: Icon, testId, isLoading }: StatCardProps) {
-  return (
-    <Card data-testid={testId}>
-      <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">
-          {title}
-        </CardTitle>
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
-          <Icon className="h-4 w-4 text-primary" />
-        </div>
-      </CardHeader>
-      <CardContent>
-        {isLoading ? (
-          <Skeleton className="h-8 w-24" />
-        ) : (
-          <div className="text-2xl font-bold" data-testid={`${testId}-value`}>
-            {value}
-          </div>
-        )}
-        {description && (
-          <p className="text-xs text-muted-foreground mt-1">
-            {description}
-          </p>
-        )}
-      </CardContent>
-    </Card>
-  );
+interface Project {
+  id: number;
+  projectNumber: string;
+  name: string;
+  status: string;
+  state: string | null;
+  createdAt: string | null;
+  client: {
+    id: number;
+    legalName: string;
+    email: string | null;
+  } | null;
+  childLlc: {
+    id: number;
+    legalName: string;
+  } | null;
+  financials: {
+    id: number;
+    designFee: number | null;
+    prelimOffsite: number | null;
+    prelimOnsite: number | null;
+    finalOffsite: number | null;
+    refinedOnsite: number | null;
+    isLocked: boolean | null;
+  } | null;
 }
 
 export default function Dashboard() {
-  const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
-    queryKey: ["/api/dashboard/stats"],
+  const { toast } = useToast();
+  const [greenLightModal, setGreenLightModal] = useState<{
+    open: boolean;
+    project: Project | null;
+  }>({ open: false, project: null });
+  const [finalOffsite, setFinalOffsite] = useState<number>(0);
+  const [refinedOnsite, setRefinedOnsite] = useState<number>(0);
+
+  const { data: projects = [], isLoading } = useQuery<Project[]>({
+    queryKey: ["/api/projects"],
   });
 
-  const { data: contracts = [], isLoading: contractsLoading } = useQuery<Contract[]>({
-    queryKey: ["/api/contracts"],
+  const greenLightMutation = useMutation({
+    mutationFn: async ({
+      projectId,
+      finalOffsite,
+      refinedOnsite,
+    }: {
+      projectId: number;
+      finalOffsite: number;
+      refinedOnsite: number;
+    }) => {
+      const response = await apiRequest(
+        "PATCH",
+        `/api/projects/${projectId}/green-light`,
+        { finalOffsite, refinedOnsite }
+      );
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      toast({
+        title: "Green Light Approved",
+        description: "The project financials have been locked.",
+      });
+      setGreenLightModal({ open: false, project: null });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to approve green light. Please try again.",
+        variant: "destructive",
+      });
+    },
   });
 
-  const { data: llcs = [], isLoading: llcsLoading } = useQuery<LLC[]>({
-    queryKey: ["/api/llcs"],
-  });
+  const handleDownloadContract = async (project: Project) => {
+    try {
+      const response = await fetch(`/api/projects/${project.id}/contract`, {
+        method: "POST",
+      });
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
+      if (!response.ok) {
+        throw new Error("Failed to download contract");
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${project.projectNumber}-contract.docx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast({
+        title: "Contract Downloaded",
+        description: "The contract has been downloaded successfully.",
+      });
+    } catch {
+      toast({
+        title: "Error",
+        description: "Failed to download contract. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
-  const recentContracts = contracts.slice(-3).reverse();
-  const recentLLCs = llcs.slice(-3).reverse();
+  const openGreenLightModal = (project: Project) => {
+    setFinalOffsite(project.financials?.finalOffsite ?? project.financials?.prelimOffsite ?? 0);
+    setRefinedOnsite(project.financials?.refinedOnsite ?? project.financials?.prelimOnsite ?? 0);
+    setGreenLightModal({ open: true, project });
+  };
+
+  const handleApprove = () => {
+    if (greenLightModal.project) {
+      greenLightMutation.mutate({
+        projectId: greenLightModal.project.id,
+        finalOffsite,
+        refinedOnsite,
+      });
+    }
+  };
+
+  const formatCurrency = (value: number | null | undefined) => {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(value ?? 0);
+  };
+
+  const getStatusBadge = (status: string) => {
+    const statusConfig: Record<string, { variant: "default" | "secondary" | "destructive" | "outline"; label: string }> = {
+      Draft: { variant: "secondary", label: "Draft" },
+      "In Progress": { variant: "default", label: "In Progress" },
+      "Green Lit": { variant: "default", label: "Green Lit" },
+      Completed: { variant: "outline", label: "Completed" },
+    };
+    const config = statusConfig[status] || { variant: "secondary" as const, label: status };
+    return (
+      <Badge variant={config.variant} data-testid={`badge-status-${status.toLowerCase().replace(/\s+/g, "-")}`}>
+        {config.label}
+      </Badge>
+    );
+  };
 
   return (
     <div className="flex-1 p-6 md:p-8">
@@ -74,184 +180,158 @@ export default function Dashboard() {
           Dashboard
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Overview of your contracts and LLC entities
+          Manage your projects and contracts
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <StatCard
-          title="Active Projects"
-          value={stats?.activeProjects ?? 0}
-          description="Projects currently in progress"
-          icon={Building2}
-          testId="card-active-projects"
-          isLoading={statsLoading}
-        />
-        <StatCard
-          title="Pending LLCs"
-          value={stats?.pendingLLCs ?? 0}
-          description="Awaiting formation"
-          icon={Clock}
-          testId="card-pending-llcs"
-          isLoading={statsLoading}
-        />
-        <StatCard
-          title="Total Contract Value"
-          value={formatCurrency(stats?.totalContractValue ?? 0)}
-          description="Across all active contracts"
-          icon={DollarSign}
-          testId="card-total-value"
-          isLoading={statsLoading}
-        />
-      </div>
+      <Card data-testid="card-projects-table">
+        <CardHeader>
+          <CardTitle className="text-lg font-semibold">Projects</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="space-y-4">
+              {[1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-12 w-full" />
+              ))}
+            </div>
+          ) : projects.length === 0 ? (
+            <div className="py-8 text-center text-muted-foreground">
+              <p className="text-sm">No projects yet</p>
+              <p className="text-xs mt-1">Create your first agreement to get started</p>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Project #</TableHead>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>LLC Name</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {projects.map((project) => (
+                  <TableRow key={project.id} data-testid={`row-project-${project.id}`}>
+                    <TableCell
+                      className="font-medium"
+                      data-testid={`text-project-number-${project.id}`}
+                    >
+                      {project.projectNumber}
+                    </TableCell>
+                    <TableCell data-testid={`text-project-name-${project.id}`}>
+                      {project.name}
+                    </TableCell>
+                    <TableCell>{getStatusBadge(project.status)}</TableCell>
+                    <TableCell data-testid={`text-llc-name-${project.id}`}>
+                      {project.childLlc?.legalName ?? "-"}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-2 flex-wrap">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDownloadContract(project)}
+                          data-testid={`button-download-contract-${project.id}`}
+                        >
+                          <Download className="h-4 w-4 mr-1" />
+                          Download
+                        </Button>
+                        <Button
+                          variant="default"
+                          size="sm"
+                          onClick={() => openGreenLightModal(project)}
+                          disabled={project.financials?.isLocked === true}
+                          data-testid={`button-green-light-${project.id}`}
+                        >
+                          <Zap className="h-4 w-4 mr-1" />
+                          Green Light
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card data-testid="card-recent-contracts">
-          <CardHeader>
-            <CardTitle className="text-lg font-semibold">Recent Contracts</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {contractsLoading ? (
-              <div className="space-y-4">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="flex items-center justify-between py-3 border-b last:border-b-0">
-                    <div className="space-y-2">
-                      <Skeleton className="h-4 w-40" />
-                      <Skeleton className="h-3 w-24" />
-                    </div>
-                    <Skeleton className="h-5 w-20 rounded-full" />
-                  </div>
-                ))}
-              </div>
-            ) : recentContracts.length > 0 ? (
-              <div className="space-y-4">
-                {recentContracts.map((contract, index) => (
-                  <div 
-                    key={contract.id} 
-                    className="flex items-center justify-between py-3 border-b last:border-b-0"
-                    data-testid={`row-contract-${index}`}
-                  >
-                    <div>
-                      <p className="text-sm font-medium">{contract.title}</p>
-                      <p className="text-xs text-muted-foreground">{contract.clientName}</p>
-                    </div>
-                    <StatusBadge status={contract.status} />
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="py-8 text-center text-muted-foreground">
-                <p className="text-sm">No contracts yet</p>
-                <p className="text-xs mt-1">Create your first agreement to get started</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+      <Dialog
+        open={greenLightModal.open}
+        onOpenChange={(open) => {
+          if (!open) {
+            setGreenLightModal({ open: false, project: null });
+          }
+        }}
+      >
+        <DialogContent data-testid="modal-green-light">
+          <DialogHeader>
+            <DialogTitle>Green Light Approval</DialogTitle>
+            <DialogDescription>
+              Review and finalize the project financials for{" "}
+              {greenLightModal.project?.name}
+            </DialogDescription>
+          </DialogHeader>
 
-        <Card data-testid="card-recent-llcs">
-          <CardHeader>
-            <CardTitle className="text-lg font-semibold">Recent LLCs</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {llcsLoading ? (
-              <div className="space-y-4">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="flex items-center justify-between py-3 border-b last:border-b-0">
-                    <Skeleton className="h-4 w-48" />
-                    <Skeleton className="h-5 w-20 rounded-full" />
-                  </div>
-                ))}
-              </div>
-            ) : recentLLCs.length > 0 ? (
-              <div className="space-y-4">
-                {recentLLCs.map((llc, index) => (
-                  <div 
-                    key={llc.id} 
-                    className="flex items-center justify-between py-3 border-b last:border-b-0"
-                    data-testid={`row-llc-${index}`}
-                  >
-                    <p className="text-sm font-medium">{llc.name}</p>
-                    <LLCStatusBadge status={llc.status} />
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="py-8 text-center text-muted-foreground">
-                <p className="text-sm">No LLCs yet</p>
-                <p className="text-xs mt-1">Create your first LLC to get started</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="prelimOffsite">Preliminary Offsite Price</Label>
+              <Input
+                id="prelimOffsite"
+                type="text"
+                value={formatCurrency(greenLightModal.project?.financials?.prelimOffsite)}
+                disabled
+                data-testid="input-prelim-offsite-readonly"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="finalOffsite">Final Offsite Price</Label>
+              <Input
+                id="finalOffsite"
+                type="number"
+                value={finalOffsite}
+                onChange={(e) => setFinalOffsite(Number(e.target.value))}
+                disabled={greenLightModal.project?.financials?.isLocked === true}
+                data-testid="input-final-offsite"
+              />
+              {greenLightModal.project?.financials?.isLocked && (
+                <p className="text-xs text-muted-foreground">Locked</p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="refinedOnsite">Refined Onsite Price</Label>
+              <Input
+                id="refinedOnsite"
+                type="number"
+                value={refinedOnsite}
+                onChange={(e) => setRefinedOnsite(Number(e.target.value))}
+                data-testid="input-refined-onsite"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setGreenLightModal({ open: false, project: null })}
+              data-testid="button-modal-cancel"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleApprove}
+              disabled={greenLightMutation.isPending}
+              data-testid="button-modal-approve"
+            >
+              {greenLightMutation.isPending ? "Approving..." : "Approve"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
-  );
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const statusConfig: Record<string, { label: string; className: string }> = {
-    draft: { 
-      label: "Draft", 
-      className: "bg-muted text-muted-foreground" 
-    },
-    pending_review: { 
-      label: "Pending Review", 
-      className: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400" 
-    },
-    approved: { 
-      label: "Approved", 
-      className: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400" 
-    },
-    signed: { 
-      label: "Signed", 
-      className: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400" 
-    },
-    expired: { 
-      label: "Expired", 
-      className: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400" 
-    },
-  };
-
-  const config = statusConfig[status] || statusConfig.draft;
-
-  return (
-    <span 
-      className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${config.className}`}
-      data-testid={`badge-status-${status}`}
-    >
-      {config.label}
-    </span>
-  );
-}
-
-function LLCStatusBadge({ status }: { status: string }) {
-  const statusConfig: Record<string, { label: string; className: string }> = {
-    pending: { 
-      label: "Pending", 
-      className: "bg-muted text-muted-foreground" 
-    },
-    in_formation: { 
-      label: "In Formation", 
-      className: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400" 
-    },
-    active: { 
-      label: "Active", 
-      className: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400" 
-    },
-    dissolved: { 
-      label: "Dissolved", 
-      className: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400" 
-    },
-  };
-
-  const config = statusConfig[status] || statusConfig.pending;
-
-  return (
-    <span 
-      className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${config.className}`}
-      data-testid={`badge-llc-status-${status}`}
-    >
-      {config.label}
-    </span>
   );
 }
