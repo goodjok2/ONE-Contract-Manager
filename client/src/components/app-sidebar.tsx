@@ -37,9 +37,9 @@ const mainNavItems = [
     icon: FileEdit,
   },
   {
-    title: "Clause Library",
-    url: "/clause-library",
-    icon: Library,
+    title: "LLC Admin",
+    url: "/llc-admin",
+    icon: Building2,
   },
   {
     title: "Active Contracts",
@@ -55,9 +55,9 @@ const mainNavItems = [
 
 const configNavItems = [
   {
-    title: "LLC Admin",
-    url: "/llc-admin",
-    icon: Building2,
+    title: "Clause Library",
+    url: "/clause-library",
+    icon: Library,
   },
   {
     title: "ERP Fields",
