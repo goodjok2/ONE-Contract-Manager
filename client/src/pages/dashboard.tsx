@@ -4,7 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { FileText, Clock, CheckCircle, Plus, Users, Building2, DollarSign } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { FileText, Clock, CheckCircle, Plus, Users, Building2, DollarSign, TrendingUp } from "lucide-react";
 import type { DashboardStats, Contract, LLC } from "@shared/schema";
 
 interface StatCardProps {
@@ -49,13 +50,13 @@ const TEMPLATES = [
   {
     id: "dtc",
     name: "DTC Standard Agreement",
-    description: "Standard contract for Direct-to-Consumer individual home buyers....",
+    description: "Direct-to-Consumer home buyers",
     icon: Users,
   },
   {
     id: "b2b",
     name: "B2B Developer Agreement", 
-    description: "Standard contract for Business-to-Business developers and landowners....",
+    description: "Business-to-Business developers",
     icon: Building2,
   },
 ];
@@ -82,18 +83,19 @@ export default function Dashboard() {
     }).format(value);
   };
 
-  const recentContracts = contracts.slice(-3).reverse();
-  const recentLLCs = llcs.slice(-3).reverse();
+  const recentContracts = contracts.slice(-4).reverse();
+  const recentLLCs = llcs.slice(-4).reverse();
 
   return (
-    <div className="flex-1 p-6 md:p-8">
-      <div className="flex items-center justify-between gap-4 flex-wrap mb-8">
+    <div className="flex-1 p-6 md:p-8 overflow-auto">
+      {/* Header */}
+      <div className="flex items-center justify-between gap-4 flex-wrap mb-6">
         <div>
           <h1 className="text-2xl font-semibold text-foreground" data-testid="text-page-title">
             Dashboard
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Overview of your contracts and LLC entities
+            Contract and LLC management overview
           </p>
         </div>
         <Link href="/agreements/new">
@@ -104,36 +106,8 @@ export default function Dashboard() {
         </Link>
       </div>
 
-      {/* Original Stats Row */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <StatCard
-          title="Active Projects"
-          value={stats?.activeProjects ?? 0}
-          description="Projects currently in progress"
-          icon={Building2}
-          testId="card-active-projects"
-          isLoading={statsLoading}
-        />
-        <StatCard
-          title="Pending LLCs"
-          value={stats?.pendingLLCs ?? 0}
-          description="Awaiting formation"
-          icon={Clock}
-          testId="card-pending-llcs"
-          isLoading={statsLoading}
-        />
-        <StatCard
-          title="Total Contract Value"
-          value={formatCurrency(stats?.totalContractValue ?? 0)}
-          description="Across all active contracts"
-          icon={DollarSign}
-          testId="card-total-value"
-          isLoading={statsLoading}
-        />
-      </div>
-
-      {/* Contract Status Stats Row (New) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      {/* Primary KPIs - Contract Pipeline Status */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard
           title="Total Contracts"
           value={stats?.totalContracts ?? 0}
@@ -168,184 +142,216 @@ export default function Dashboard() {
         />
       </div>
 
-      {/* Recent Activity Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        <Card data-testid="card-recent-contracts">
-          <CardHeader>
-            <CardTitle className="text-lg font-semibold">Recent Contracts</CardTitle>
-            <CardDescription>Your most recently updated contracts</CardDescription>
+      {/* Secondary Row - Operations & Financials */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        {/* Operations Overview */}
+        <Card data-testid="card-operations">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg font-semibold flex items-center gap-2">
+              <Building2 className="h-5 w-5 text-muted-foreground" />
+              Operations
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            {contractsLoading ? (
-              <div className="space-y-4">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="flex items-center justify-between py-3 border-b last:border-b-0">
-                    <div className="space-y-2">
-                      <Skeleton className="h-4 w-40" />
-                      <Skeleton className="h-3 w-24" />
-                    </div>
-                    <Skeleton className="h-5 w-20 rounded-full" />
-                  </div>
-                ))}
+            <div className="grid grid-cols-3 gap-4">
+              <div className="text-center p-3 rounded-lg bg-muted/50" data-testid="stat-active-projects">
+                <p className="text-xs text-muted-foreground mb-1">Active Projects</p>
+                {statsLoading ? (
+                  <Skeleton className="h-7 w-10 mx-auto" />
+                ) : (
+                  <p className="text-xl font-bold">{stats?.activeProjects ?? 0}</p>
+                )}
               </div>
-            ) : recentContracts.length > 0 ? (
-              <div className="space-y-2">
-                {recentContracts.map((contract, index) => (
-                  <div 
-                    key={contract.id} 
-                    className="flex items-center justify-between gap-4 py-3 px-3 rounded-lg hover-elevate"
-                    data-testid={`row-contract-${index}`}
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted shrink-0">
-                        <Users className="h-4 w-4 text-muted-foreground" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium truncate">{contract.title}</p>
-                        <p className="text-xs text-muted-foreground truncate">
-                          {contract.id.slice(0, 16)} • {contract.clientName}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <StatusBadge status={contract.status} />
-                    </div>
-                  </div>
-                ))}
+              <div className="text-center p-3 rounded-lg bg-muted/50" data-testid="stat-pending-llcs">
+                <p className="text-xs text-muted-foreground mb-1">Pending LLCs</p>
+                {statsLoading ? (
+                  <Skeleton className="h-7 w-10 mx-auto" />
+                ) : (
+                  <p className="text-xl font-bold">{stats?.pendingLLCs ?? 0}</p>
+                )}
               </div>
-            ) : (
-              <div className="py-8 text-center text-muted-foreground">
-                <p className="text-sm">No contracts yet</p>
-                <p className="text-xs mt-1">Create your first agreement to get started</p>
+              <div className="text-center p-3 rounded-lg bg-muted/50" data-testid="stat-total-value">
+                <p className="text-xs text-muted-foreground mb-1">Total Value</p>
+                {statsLoading ? (
+                  <Skeleton className="h-7 w-16 mx-auto" />
+                ) : (
+                  <p className="text-xl font-bold">{formatCurrency(stats?.totalContractValue ?? 0)}</p>
+                )}
               </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card data-testid="card-recent-llcs">
-          <CardHeader>
-            <CardTitle className="text-lg font-semibold">Recent LLCs</CardTitle>
-            <CardDescription>Recently created child entities</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {llcsLoading ? (
-              <div className="space-y-4">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="flex items-center justify-between py-3 border-b last:border-b-0">
-                    <div className="space-y-2">
-                      <Skeleton className="h-4 w-40" />
-                      <Skeleton className="h-3 w-24" />
-                    </div>
-                    <Skeleton className="h-5 w-20 rounded-full" />
-                  </div>
-                ))}
-              </div>
-            ) : recentLLCs.length > 0 ? (
-              <div className="space-y-2">
-                {recentLLCs.map((llc, index) => (
-                  <div 
-                    key={llc.id} 
-                    className="flex items-center justify-between gap-4 py-3 px-3 rounded-lg hover-elevate"
-                    data-testid={`row-llc-${index}`}
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted shrink-0">
-                        <Building2 className="h-4 w-4 text-muted-foreground" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium truncate">{llc.name}</p>
-                        <p className="text-xs text-muted-foreground truncate">
-                          {llc.projectName}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <LLCStatusBadge status={llc.status} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="py-8 text-center text-muted-foreground">
-                <p className="text-sm">No LLCs yet</p>
-                <p className="text-xs mt-1">Create an LLC in the admin section</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Quick Start Templates (New) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        <Card data-testid="card-quick-templates">
-          <CardHeader>
-            <CardTitle className="text-lg font-semibold">Quick Start Templates</CardTitle>
-            <CardDescription>Start a new contract from a template</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {TEMPLATES.map((template) => (
-                <div 
-                  key={template.id}
-                  className="flex items-center justify-between gap-4 py-3 px-3 rounded-lg hover-elevate"
-                  data-testid={`template-${template.id}`}
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted shrink-0">
-                      <template.icon className="h-4 w-4 text-muted-foreground" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium">{template.name}</p>
-                      <p className="text-xs text-muted-foreground truncate">
-                        {template.description}
-                      </p>
-                    </div>
-                  </div>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    data-testid={`button-use-template-${template.id}`}
-                  >
-                    Use Template
-                  </Button>
-                </div>
-              ))}
             </div>
           </CardContent>
         </Card>
 
-        {/* Contract Value Overview (New) */}
+        {/* Contract Value Breakdown */}
         <Card data-testid="card-value-overview">
-          <CardHeader>
-            <CardTitle className="text-lg font-semibold">Contract Value Overview</CardTitle>
-            <CardDescription>Summary of contract values by status</CardDescription>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg font-semibold flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-muted-foreground" />
+              Value by Status
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="p-4 rounded-lg bg-muted/50 text-center" data-testid="value-drafts">
-                <p className="text-sm text-muted-foreground mb-1">Drafts Value</p>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="text-center p-3 rounded-lg bg-muted/50" data-testid="value-drafts">
+                <p className="text-xs text-muted-foreground mb-1">Drafts</p>
                 {statsLoading ? (
-                  <Skeleton className="h-8 w-20 mx-auto" />
+                  <Skeleton className="h-7 w-16 mx-auto" />
                 ) : (
-                  <p className="text-2xl font-bold">{formatCurrency(stats?.draftsValue ?? 0)}</p>
+                  <p className="text-xl font-bold">{formatCurrency(stats?.draftsValue ?? 0)}</p>
                 )}
               </div>
-              <div className="p-4 rounded-lg bg-muted/50 text-center" data-testid="value-pending">
-                <p className="text-sm text-muted-foreground mb-1">Pending Value</p>
+              <div className="text-center p-3 rounded-lg bg-muted/50" data-testid="value-pending">
+                <p className="text-xs text-muted-foreground mb-1">Pending</p>
                 {statsLoading ? (
-                  <Skeleton className="h-8 w-20 mx-auto" />
+                  <Skeleton className="h-7 w-16 mx-auto" />
                 ) : (
-                  <p className="text-2xl font-bold">{formatCurrency(stats?.pendingValue ?? 0)}</p>
+                  <p className="text-xl font-bold">{formatCurrency(stats?.pendingValue ?? 0)}</p>
                 )}
               </div>
-              <div className="p-4 rounded-lg bg-muted/50 text-center" data-testid="value-signed">
-                <p className="text-sm text-muted-foreground mb-1">Signed Value</p>
+              <div className="text-center p-3 rounded-lg bg-muted/50" data-testid="value-signed">
+                <p className="text-xs text-muted-foreground mb-1">Signed</p>
                 {statsLoading ? (
-                  <Skeleton className="h-8 w-20 mx-auto" />
+                  <Skeleton className="h-7 w-16 mx-auto" />
                 ) : (
-                  <p className="text-2xl font-bold">{formatCurrency(stats?.signedValue ?? 0)}</p>
+                  <p className="text-xl font-bold">{formatCurrency(stats?.signedValue ?? 0)}</p>
                 )}
               </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Activity Section - Tabbed Recent Items + Quick Actions */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Recent Activity with Tabs */}
+        <Card className="lg:col-span-2" data-testid="card-recent-activity">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg font-semibold">Recent Activity</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Tabs defaultValue="contracts" className="w-full">
+              <TabsList className="mb-4">
+                <TabsTrigger value="contracts" data-testid="tab-contracts">Contracts</TabsTrigger>
+                <TabsTrigger value="llcs" data-testid="tab-llcs">LLCs</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="contracts" className="mt-0">
+                {contractsLoading ? (
+                  <div className="space-y-3">
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} className="flex items-center justify-between py-2">
+                        <div className="space-y-2">
+                          <Skeleton className="h-4 w-40" />
+                          <Skeleton className="h-3 w-24" />
+                        </div>
+                        <Skeleton className="h-5 w-16 rounded-full" />
+                      </div>
+                    ))}
+                  </div>
+                ) : recentContracts.length > 0 ? (
+                  <div className="space-y-1">
+                    {recentContracts.map((contract, index) => (
+                      <div 
+                        key={contract.id} 
+                        className="flex items-center justify-between gap-4 py-2 px-3 rounded-lg hover-elevate"
+                        data-testid={`row-contract-${index}`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-muted shrink-0">
+                            <FileText className="h-4 w-4 text-muted-foreground" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium truncate">{contract.title}</p>
+                            <p className="text-xs text-muted-foreground truncate">{contract.clientName}</p>
+                          </div>
+                        </div>
+                        <StatusBadge status={contract.status} />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="py-6 text-center text-muted-foreground">
+                    <p className="text-sm">No contracts yet</p>
+                  </div>
+                )}
+              </TabsContent>
+              
+              <TabsContent value="llcs" className="mt-0">
+                {llcsLoading ? (
+                  <div className="space-y-3">
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} className="flex items-center justify-between py-2">
+                        <div className="space-y-2">
+                          <Skeleton className="h-4 w-40" />
+                          <Skeleton className="h-3 w-24" />
+                        </div>
+                        <Skeleton className="h-5 w-16 rounded-full" />
+                      </div>
+                    ))}
+                  </div>
+                ) : recentLLCs.length > 0 ? (
+                  <div className="space-y-1">
+                    {recentLLCs.map((llc, index) => (
+                      <div 
+                        key={llc.id} 
+                        className="flex items-center justify-between gap-4 py-2 px-3 rounded-lg hover-elevate"
+                        data-testid={`row-llc-${index}`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-muted shrink-0">
+                            <Building2 className="h-4 w-4 text-muted-foreground" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium truncate">{llc.name}</p>
+                            <p className="text-xs text-muted-foreground truncate">{llc.projectName}</p>
+                          </div>
+                        </div>
+                        <LLCStatusBadge status={llc.status} />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="py-6 text-center text-muted-foreground">
+                    <p className="text-sm">No LLCs yet</p>
+                  </div>
+                )}
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
+
+        {/* Quick Start */}
+        <Card data-testid="card-quick-templates">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg font-semibold">Quick Start</CardTitle>
+            <CardDescription>Create from template</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {TEMPLATES.map((template) => (
+                <Link key={template.id} href={`/agreements/new?template=${template.id}`}>
+                  <div 
+                    className="flex items-center gap-3 p-3 rounded-lg hover-elevate cursor-pointer"
+                    data-testid={`template-${template.id}`}
+                  >
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 shrink-0">
+                      <template.icon className="h-4 w-4 text-primary" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium">{template.name}</p>
+                      <p className="text-xs text-muted-foreground">{template.description}</p>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+            <div className="mt-4 pt-4 border-t">
+              <Link href="/llc-admin">
+                <Button variant="outline" className="w-full" data-testid="button-manage-llcs">
+                  <Building2 className="h-4 w-4 mr-2" />
+                  Manage LLCs
+                </Button>
+              </Link>
             </div>
           </CardContent>
         </Card>
@@ -356,30 +362,13 @@ export default function Dashboard() {
 
 function StatusBadge({ status }: { status: string }) {
   const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-    draft: { 
-      label: "Draft", 
-      variant: "secondary"
-    },
-    pending_review: { 
-      label: "Pending Review", 
-      variant: "outline"
-    },
-    approved: { 
-      label: "Approved", 
-      variant: "default"
-    },
-    signed: { 
-      label: "Signed", 
-      variant: "default"
-    },
-    expired: { 
-      label: "Expired", 
-      variant: "destructive"
-    },
+    draft: { label: "Draft", variant: "secondary" },
+    pending_review: { label: "Pending", variant: "outline" },
+    approved: { label: "Approved", variant: "default" },
+    signed: { label: "Signed", variant: "default" },
+    expired: { label: "Expired", variant: "destructive" },
   };
-
   const config = statusConfig[status] || statusConfig.draft;
-
   return (
     <Badge variant={config.variant} data-testid={`badge-status-${status}`}>
       {config.label}
@@ -389,22 +378,11 @@ function StatusBadge({ status }: { status: string }) {
 
 function LLCStatusBadge({ status }: { status: string }) {
   const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-    pending: { 
-      label: "Pending", 
-      variant: "outline"
-    },
-    formed: { 
-      label: "Formed", 
-      variant: "default"
-    },
-    dissolved: { 
-      label: "Dissolved", 
-      variant: "destructive"
-    },
+    pending: { label: "Pending", variant: "outline" },
+    formed: { label: "Formed", variant: "default" },
+    dissolved: { label: "Dissolved", variant: "destructive" },
   };
-
   const config = statusConfig[status] || statusConfig.pending;
-
   return (
     <Badge variant={config.variant} data-testid={`badge-llc-status-${status}`}>
       {config.label}
