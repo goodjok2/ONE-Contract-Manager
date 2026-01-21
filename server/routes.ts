@@ -1,335 +1,1048 @@
 import type { Express } from "express";
-import { createServer, type Server } from "http";
-import { storage } from "./storage";
-import { insertLLCSchema, insertContractSchema } from "@shared/schema";
-import { z } from "zod";
-import { db as sqliteDb } from "./db/index";
-import { projects, clients, childLlcs, financials } from "./db/schema";
+import type { Server } from "http";
+import { db } from "./db/index";
+import {
+  projects,
+  clients,
+  childLlcs,
+  projectDetails,
+  financials,
+  milestones,
+  warrantyTerms,
+  contractors,
+  contracts,
+  erpFieldMappings,
+} from "../shared/schema";
 import { eq } from "drizzle-orm";
-import { mapProjectToVariables } from "./lib/mapper";
 import Docxtemplater from "docxtemplater";
 import PizZip from "pizzip";
 import * as fs from "fs";
 import * as path from "path";
+import * as crypto from "crypto";
+import { 
+  mapProjectToVariables, 
+  validateVariablesForContract, 
+  extractTemplateVariables,
+  getVariableCoverage,
+  type ProjectWithRelations 
+} from "./lib/mapper";
 
-export async function registerRoutes(
-  httpServer: Server,
-  app: Express
-): Promise<Server> {
+// =============================================================================
+// HELPER: Fetch project with all relations
+// =============================================================================
+
+async function getProjectWithRelations(projectId: number): Promise<ProjectWithRelations | null> {
+  const [project] = await db.select().from(projects).where(eq(projects.id, projectId));
+  if (!project) return null;
+
+  const [client] = await db.select().from(clients).where(eq(clients.projectId, projectId));
+  const [childLlc] = await db.select().from(childLlcs).where(eq(childLlcs.projectId, projectId));
+  const [projectDetail] = await db.select().from(projectDetails).where(eq(projectDetails.projectId, projectId));
+  const [financial] = await db.select().from(financials).where(eq(financials.projectId, projectId));
+  const [warranty] = await db.select().from(warrantyTerms).where(eq(warrantyTerms.projectId, projectId));
+  const projectMilestones = await db.select().from(milestones).where(eq(milestones.projectId, projectId));
+  const projectContractors = await db.select().from(contractors).where(eq(contractors.projectId, projectId));
+
+  return {
+    project,
+    client: client || null,
+    childLlc: childLlc || null,
+    projectDetails: projectDetail || null,
+    financials: financial || null,
+    warrantyTerms: warranty || null,
+    milestones: projectMilestones,
+    contractors: projectContractors,
+  };
+}
+
+// =============================================================================
+// HELPER: Generate contract from template
+// =============================================================================
+
+interface GenerateContractOptions {
+  projectId: number;
+  contractType: "one_agreement" | "manufacturing_sub" | "onsite_sub";
+  templatePath?: string;
+  outputDir?: string;
+  generatedBy?: string;
+}
+
+interface GenerateContractResult {
+  success: boolean;
+  filePath?: string;
+  fileName?: string;
+  contractId?: number;
+  errors?: string[];
+  warnings?: string[];
+}
+
+async function generateContract(options: GenerateContractOptions): Promise<GenerateContractResult> {
+  const { projectId, contractType, generatedBy = "system" } = options;
   
-  // Projects API
+  // Default template paths - adjust to your project structure
+  const templateDir = options.templatePath || path.join(process.cwd(), "templates");
+  const outputDir = options.outputDir || path.join(process.cwd(), "generated");
+  
+  // Template file mapping
+  const templateFiles: Record<string, string> = {
+    one_agreement: "ONE_Agreement_Template.docx",
+    manufacturing_sub: "Manufacturing_Subcontract_Template.docx",
+    onsite_sub: "OnSite_Subcontract_Template.docx",
+  };
+
+  const templateFile = templateFiles[contractType];
+  const templatePath = path.join(templateDir, templateFile);
+
+  // Check template exists
+  if (!fs.existsSync(templatePath)) {
+    return {
+      success: false,
+      errors: [`Template not found: ${templatePath}`],
+    };
+  }
+
+  // Fetch project data
+  const projectData = await getProjectWithRelations(projectId);
+  if (!projectData) {
+    return {
+      success: false,
+      errors: [`Project not found: ${projectId}`],
+    };
+  }
+
+  // Map to variables
+  const variables = mapProjectToVariables(projectData);
+
+  // Validate
+  const validation = validateVariablesForContract(variables, contractType);
+  if (validation.missing.length > 0) {
+    return {
+      success: false,
+      errors: [`Missing required variables: ${validation.missing.join(", ")}`],
+      warnings: validation.warnings,
+    };
+  }
+
+  try {
+    // Load template
+    const content = fs.readFileSync(templatePath, "binary");
+    const zip = new PizZip(content);
+    const doc = new Docxtemplater(zip, {
+      paragraphLoop: true,
+      linebreaks: true,
+      nullGetter: () => "", // Return empty string for missing variables
+    });
+
+    // Render with variables
+    doc.render(variables);
+
+    // Generate output
+    const buf = doc.getZip().generate({
+      type: "nodebuffer",
+      compression: "DEFLATE",
+    });
+
+    // Ensure output directory exists
+    if (!fs.existsSync(outputDir)) {
+      fs.mkdirSync(outputDir, { recursive: true });
+    }
+
+    // Create output filename
+    const timestamp = new Date().toISOString().slice(0, 10);
+    const safeProjectNumber = projectData.project.projectNumber.replace(/[^a-zA-Z0-9-]/g, "_");
+    const fileName = `${safeProjectNumber}_${contractType}_${timestamp}.docx`;
+    const outputPath = path.join(outputDir, fileName);
+
+    // Write file
+    fs.writeFileSync(outputPath, buf);
+
+    // Calculate file hash for integrity
+    const fileHash = crypto.createHash("sha256").update(buf).digest("hex");
+
+    // Get current version number for this contract type
+    const existingContracts = await db
+      .select()
+      .from(contracts)
+      .where(eq(contracts.projectId, projectId));
+    const sameTypeContracts = existingContracts.filter(c => c.contractType === contractType);
+    const newVersion = sameTypeContracts.length + 1;
+
+    // Record in database
+    const [result] = await db.insert(contracts).values({
+      projectId,
+      contractType,
+      version: newVersion,
+      status: "Draft",
+      generatedBy,
+      filePath: outputPath,
+      fileName,
+      fileHash,
+      variablesSnapshot: JSON.stringify(variables),
+    }).returning();
+
+    return {
+      success: true,
+      filePath: outputPath,
+      fileName,
+      contractId: result?.id,
+      warnings: validation.warnings,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      errors: [`Generation failed: ${error instanceof Error ? error.message : "Unknown error"}`],
+    };
+  }
+}
+
+// =============================================================================
+// ROUTES
+// =============================================================================
+
+export async function registerRoutes(httpServer: Server, app: Express): Promise<void> {
+  
+  // ---------------------------------------------------------------------------
+  // PROJECTS
+  // ---------------------------------------------------------------------------
+  
+  // List all projects
   app.get("/api/projects", async (req, res) => {
     try {
-      const allProjects = await sqliteDb.query.projects.findMany({
-        with: {
-          client: true,
-          childLlc: true,
-          financials: true,
-        },
-      });
+      const allProjects = await db.select().from(projects);
       res.json(allProjects);
     } catch (error) {
-      console.error("Error fetching projects:", error);
+      console.error("Failed to fetch projects:", error);
       res.status(500).json({ error: "Failed to fetch projects" });
     }
   });
 
-  app.post("/api/projects", (req, res) => {
+  // Get single project with all relations
+  app.get("/api/projects/:id", async (req, res) => {
     try {
-      const { project, client, llc, financials: financialsData } = req.body;
-
-      const newProject = sqliteDb.transaction((tx) => {
-        const [createdProject] = tx
-          .insert(projects)
-          .values({
-            projectNumber: project.projectNumber,
-            name: project.name,
-            status: project.status || "Draft",
-            state: project.state,
-          })
-          .returning()
-          .all();
-
-        const llcLegalName = llc?.legalName?.trim() 
-          ? llc.legalName 
-          : `Dvele Partners ${project.name} LLC`;
-
-        tx.insert(clients).values({
-          projectId: createdProject.id,
-          legalName: client.legalName,
-          address: client.address,
-          email: client.email,
-          phone: client.phone,
-          entityType: client.entityType,
-        }).run();
-
-        tx.insert(childLlcs).values({
-          projectId: createdProject.id,
-          legalName: llcLegalName,
-          ein: llc?.ein,
-          insuranceStatus: llc?.insuranceStatus || "Pending",
-          formationDate: llc?.formationDate,
-        }).run();
-
-        tx.insert(financials).values({
-          projectId: createdProject.id,
-          designFee: financialsData?.designFee,
-          prelimOffsite: financialsData?.prelimOffsite,
-          prelimOnsite: financialsData?.prelimOnsite,
-          finalOffsite: financialsData?.finalOffsite,
-          refinedOnsite: financialsData?.refinedOnsite,
-          isLocked: false,
-        }).run();
-
-        return createdProject;
-      });
-
-      const projectResult = sqliteDb.select().from(projects).where(eq(projects.id, newProject.id)).get();
-      const clientResult = sqliteDb.select().from(clients).where(eq(clients.projectId, newProject.id)).get();
-      const llcResult = sqliteDb.select().from(childLlcs).where(eq(childLlcs.projectId, newProject.id)).get();
-      const financialsResult = sqliteDb.select().from(financials).where(eq(financials.projectId, newProject.id)).get();
-
-      res.status(201).json({
-        ...projectResult,
-        client: clientResult,
-        childLlc: llcResult,
-        financials: financialsResult,
-      });
+      const projectId = parseInt(req.params.id);
+      const data = await getProjectWithRelations(projectId);
+      if (!data) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+      res.json(data);
     } catch (error) {
-      console.error("Error creating project:", error);
+      console.error("Failed to fetch project:", error);
+      res.status(500).json({ error: "Failed to fetch project" });
+    }
+  });
+
+  // Create project
+  app.post("/api/projects", async (req, res) => {
+    try {
+      const [result] = await db.insert(projects).values(req.body).returning();
+      res.json(result);
+    } catch (error) {
+      console.error("Failed to create project:", error);
       res.status(500).json({ error: "Failed to create project" });
     }
   });
 
-  app.patch("/api/projects/:id/green-light", async (req, res) => {
+  // Update project
+  app.patch("/api/projects/:id", async (req, res) => {
     try {
-      const projectId = parseInt(req.params.id, 10);
-      const { finalOffsite, refinedOnsite } = req.body;
-
-      await sqliteDb
-        .update(financials)
-        .set({
-          isLocked: true,
-          finalOffsite: finalOffsite,
-          refinedOnsite: refinedOnsite,
-        })
-        .where(eq(financials.projectId, projectId));
-
-      const updatedProject = await sqliteDb.query.projects.findFirst({
-        where: eq(projects.id, projectId),
-        with: {
-          client: true,
-          childLlc: true,
-          financials: true,
-        },
-      });
-
-      if (!updatedProject) {
-        return res.status(404).json({ error: "Project not found" });
-      }
-
-      res.json(updatedProject);
+      const projectId = parseInt(req.params.id);
+      const [result] = await db
+        .update(projects)
+        .set({ ...req.body, updatedAt: new Date() })
+        .where(eq(projects.id, projectId))
+        .returning();
+      res.json(result);
     } catch (error) {
-      console.error("Error updating project green-light:", error);
+      console.error("Failed to update project:", error);
       res.status(500).json({ error: "Failed to update project" });
     }
   });
 
-  app.post("/api/projects/:id/contract", async (req, res) => {
+  // Delete project
+  app.delete("/api/projects/:id", async (req, res) => {
     try {
-      const projectId = parseInt(req.params.id, 10);
+      const projectId = parseInt(req.params.id);
+      await db.delete(projects).where(eq(projects.id, projectId));
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Failed to delete project:", error);
+      res.status(500).json({ error: "Failed to delete project" });
+    }
+  });
 
-      const project = await sqliteDb.query.projects.findFirst({
-        where: eq(projects.id, projectId),
-        with: {
-          client: true,
-          childLlc: true,
-          financials: true,
-        },
-      });
+  // ---------------------------------------------------------------------------
+  // CLIENTS
+  // ---------------------------------------------------------------------------
 
-      if (!project) {
+  app.get("/api/projects/:projectId/client", async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.projectId);
+      const [client] = await db.select().from(clients).where(eq(clients.projectId, projectId));
+      res.json(client || null);
+    } catch (error) {
+      console.error("Failed to fetch client:", error);
+      res.status(500).json({ error: "Failed to fetch client" });
+    }
+  });
+
+  app.post("/api/projects/:projectId/client", async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.projectId);
+      const [result] = await db.insert(clients).values({ ...req.body, projectId }).returning();
+      res.json(result);
+    } catch (error) {
+      console.error("Failed to create client:", error);
+      res.status(500).json({ error: "Failed to create client" });
+    }
+  });
+
+  app.patch("/api/projects/:projectId/client", async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.projectId);
+      const [existing] = await db.select().from(clients).where(eq(clients.projectId, projectId));
+      if (existing) {
+        const [result] = await db
+          .update(clients)
+          .set(req.body)
+          .where(eq(clients.projectId, projectId))
+          .returning();
+        res.json(result);
+      } else {
+        const [result] = await db.insert(clients).values({ ...req.body, projectId }).returning();
+        res.json(result);
+      }
+    } catch (error) {
+      console.error("Failed to update client:", error);
+      res.status(500).json({ error: "Failed to update client" });
+    }
+  });
+
+  // ---------------------------------------------------------------------------
+  // CHILD LLC
+  // ---------------------------------------------------------------------------
+
+  app.get("/api/projects/:projectId/child-llc", async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.projectId);
+      const [llc] = await db.select().from(childLlcs).where(eq(childLlcs.projectId, projectId));
+      res.json(llc || null);
+    } catch (error) {
+      console.error("Failed to fetch child LLC:", error);
+      res.status(500).json({ error: "Failed to fetch child LLC" });
+    }
+  });
+
+  app.post("/api/projects/:projectId/child-llc", async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.projectId);
+      const [result] = await db.insert(childLlcs).values({ ...req.body, projectId }).returning();
+      res.json(result);
+    } catch (error) {
+      console.error("Failed to create child LLC:", error);
+      res.status(500).json({ error: "Failed to create child LLC" });
+    }
+  });
+
+  app.patch("/api/projects/:projectId/child-llc", async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.projectId);
+      const [existing] = await db.select().from(childLlcs).where(eq(childLlcs.projectId, projectId));
+      if (existing) {
+        const [result] = await db
+          .update(childLlcs)
+          .set(req.body)
+          .where(eq(childLlcs.projectId, projectId))
+          .returning();
+        res.json(result);
+      } else {
+        const [result] = await db.insert(childLlcs).values({ ...req.body, projectId }).returning();
+        res.json(result);
+      }
+    } catch (error) {
+      console.error("Failed to update child LLC:", error);
+      res.status(500).json({ error: "Failed to update child LLC" });
+    }
+  });
+
+  // ---------------------------------------------------------------------------
+  // PROJECT DETAILS
+  // ---------------------------------------------------------------------------
+
+  app.get("/api/projects/:projectId/details", async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.projectId);
+      const [details] = await db.select().from(projectDetails).where(eq(projectDetails.projectId, projectId));
+      res.json(details || null);
+    } catch (error) {
+      console.error("Failed to fetch project details:", error);
+      res.status(500).json({ error: "Failed to fetch project details" });
+    }
+  });
+
+  app.patch("/api/projects/:projectId/details", async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.projectId);
+      const [existing] = await db.select().from(projectDetails).where(eq(projectDetails.projectId, projectId));
+      if (existing) {
+        const [result] = await db
+          .update(projectDetails)
+          .set(req.body)
+          .where(eq(projectDetails.projectId, projectId))
+          .returning();
+        res.json(result);
+      } else {
+        const [result] = await db.insert(projectDetails).values({ ...req.body, projectId }).returning();
+        res.json(result);
+      }
+    } catch (error) {
+      console.error("Failed to update project details:", error);
+      res.status(500).json({ error: "Failed to update project details" });
+    }
+  });
+
+  // ---------------------------------------------------------------------------
+  // FINANCIALS
+  // ---------------------------------------------------------------------------
+
+  app.get("/api/projects/:projectId/financials", async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.projectId);
+      const [financial] = await db.select().from(financials).where(eq(financials.projectId, projectId));
+      res.json(financial || null);
+    } catch (error) {
+      console.error("Failed to fetch financials:", error);
+      res.status(500).json({ error: "Failed to fetch financials" });
+    }
+  });
+
+  app.patch("/api/projects/:projectId/financials", async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.projectId);
+      const [existing] = await db.select().from(financials).where(eq(financials.projectId, projectId));
+      if (existing) {
+        const [result] = await db
+          .update(financials)
+          .set(req.body)
+          .where(eq(financials.projectId, projectId))
+          .returning();
+        res.json(result);
+      } else {
+        const [result] = await db.insert(financials).values({ ...req.body, projectId }).returning();
+        res.json(result);
+      }
+    } catch (error) {
+      console.error("Failed to update financials:", error);
+      res.status(500).json({ error: "Failed to update financials" });
+    }
+  });
+
+  // Lock pricing
+  app.post("/api/projects/:projectId/financials/lock", async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.projectId);
+      const { lockedBy } = req.body;
+      
+      const [result] = await db
+        .update(financials)
+        .set({
+          isLocked: true,
+          lockedAt: new Date(),
+          lockedBy: lockedBy || "system",
+        })
+        .where(eq(financials.projectId, projectId))
+        .returning();
+      
+      if (!result) {
+        return res.status(404).json({ error: "Financials not found for project" });
+      }
+      
+      res.json(result);
+    } catch (error) {
+      console.error("Failed to lock pricing:", error);
+      res.status(500).json({ error: "Failed to lock pricing" });
+    }
+  });
+
+  // ---------------------------------------------------------------------------
+  // WARRANTY TERMS
+  // ---------------------------------------------------------------------------
+
+  app.get("/api/projects/:projectId/warranty-terms", async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.projectId);
+      const [warranty] = await db.select().from(warrantyTerms).where(eq(warrantyTerms.projectId, projectId));
+      res.json(warranty || null);
+    } catch (error) {
+      console.error("Failed to fetch warranty terms:", error);
+      res.status(500).json({ error: "Failed to fetch warranty terms" });
+    }
+  });
+
+  app.patch("/api/projects/:projectId/warranty-terms", async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.projectId);
+      const [existing] = await db.select().from(warrantyTerms).where(eq(warrantyTerms.projectId, projectId));
+      if (existing) {
+        const [result] = await db
+          .update(warrantyTerms)
+          .set(req.body)
+          .where(eq(warrantyTerms.projectId, projectId))
+          .returning();
+        res.json(result);
+      } else {
+        const [result] = await db.insert(warrantyTerms).values({ ...req.body, projectId }).returning();
+        res.json(result);
+      }
+    } catch (error) {
+      console.error("Failed to update warranty terms:", error);
+      res.status(500).json({ error: "Failed to update warranty terms" });
+    }
+  });
+
+  // ---------------------------------------------------------------------------
+  // MILESTONES
+  // ---------------------------------------------------------------------------
+
+  app.get("/api/projects/:projectId/milestones", async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.projectId);
+      const projectMilestones = await db.select().from(milestones).where(eq(milestones.projectId, projectId));
+      res.json(projectMilestones);
+    } catch (error) {
+      console.error("Failed to fetch milestones:", error);
+      res.status(500).json({ error: "Failed to fetch milestones" });
+    }
+  });
+
+  // Get milestones by type
+  app.get("/api/projects/:projectId/milestones/:type", async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.projectId);
+      const milestoneType = req.params.type;
+      const projectMilestones = await db
+        .select()
+        .from(milestones)
+        .where(eq(milestones.projectId, projectId));
+      const filtered = projectMilestones.filter(m => m.milestoneType === milestoneType);
+      res.json(filtered);
+    } catch (error) {
+      console.error("Failed to fetch milestones:", error);
+      res.status(500).json({ error: "Failed to fetch milestones" });
+    }
+  });
+
+  app.post("/api/projects/:projectId/milestones", async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.projectId);
+      const [result] = await db.insert(milestones).values({ ...req.body, projectId }).returning();
+      res.json(result);
+    } catch (error) {
+      console.error("Failed to create milestone:", error);
+      res.status(500).json({ error: "Failed to create milestone" });
+    }
+  });
+
+  app.patch("/api/milestones/:id", async (req, res) => {
+    try {
+      const milestoneId = parseInt(req.params.id);
+      const [result] = await db
+        .update(milestones)
+        .set(req.body)
+        .where(eq(milestones.id, milestoneId))
+        .returning();
+      res.json(result);
+    } catch (error) {
+      console.error("Failed to update milestone:", error);
+      res.status(500).json({ error: "Failed to update milestone" });
+    }
+  });
+
+  // Mark milestone as paid
+  app.post("/api/milestones/:id/pay", async (req, res) => {
+    try {
+      const milestoneId = parseInt(req.params.id);
+      const { paidAmount, invoiceNumber } = req.body;
+      
+      const [result] = await db
+        .update(milestones)
+        .set({
+          status: "Paid",
+          paidDate: new Date().toISOString(),
+          paidAmount,
+          invoiceNumber,
+        })
+        .where(eq(milestones.id, milestoneId))
+        .returning();
+      
+      res.json(result);
+    } catch (error) {
+      console.error("Failed to mark milestone as paid:", error);
+      res.status(500).json({ error: "Failed to mark milestone as paid" });
+    }
+  });
+
+  app.delete("/api/milestones/:id", async (req, res) => {
+    try {
+      const milestoneId = parseInt(req.params.id);
+      await db.delete(milestones).where(eq(milestones.id, milestoneId));
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Failed to delete milestone:", error);
+      res.status(500).json({ error: "Failed to delete milestone" });
+    }
+  });
+
+  // Bulk create default milestones for a project
+  app.post("/api/projects/:projectId/milestones/create-defaults", async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.projectId);
+      const { milestoneType } = req.body; // 'client', 'manufacturing', or 'onsite'
+      
+      const defaults: Record<string, Array<{ name: string; percentage: number; dueUpon: string }>> = {
+        client: [
+          { name: "Deposit", percentage: 10, dueUpon: "Contract Execution" },
+          { name: "Design Completion", percentage: 15, dueUpon: "Design Approval" },
+          { name: "Green Light", percentage: 25, dueUpon: "Green Light Approval" },
+          { name: "Production Start", percentage: 20, dueUpon: "Production Commencement" },
+          { name: "Delivery", percentage: 20, dueUpon: "Module Delivery" },
+          { name: "Final", percentage: 10, dueUpon: "Final Inspection" },
+        ],
+        manufacturing: [
+          { name: "Production Start", percentage: 30, dueUpon: "Production Commencement" },
+          { name: "Mid-Production", percentage: 30, dueUpon: "50% Production Complete" },
+          { name: "Production Complete", percentage: 30, dueUpon: "Production Complete" },
+          { name: "Delivery", percentage: 10, dueUpon: "Module Delivery" },
+        ],
+        onsite: [
+          { name: "Site Prep Start", percentage: 20, dueUpon: "Site Work Commencement" },
+          { name: "Foundation Complete", percentage: 25, dueUpon: "Foundation Inspection" },
+          { name: "Set Complete", percentage: 25, dueUpon: "Module Set Complete" },
+          { name: "Systems Complete", percentage: 20, dueUpon: "MEP Rough Complete" },
+          { name: "Final", percentage: 10, dueUpon: "Certificate of Occupancy" },
+        ],
+      };
+      
+      const milestonesToCreate = defaults[milestoneType] || [];
+      const results = [];
+      
+      for (let i = 0; i < milestonesToCreate.length; i++) {
+        const m = milestonesToCreate[i];
+        const [result] = await db.insert(milestones).values({
+          projectId,
+          milestoneType,
+          milestoneNumber: i + 1,
+          name: m.name,
+          percentage: m.percentage,
+          dueUpon: m.dueUpon,
+          status: "Pending",
+        }).returning();
+        results.push(result);
+      }
+      
+      res.json(results);
+    } catch (error) {
+      console.error("Failed to create default milestones:", error);
+      res.status(500).json({ error: "Failed to create default milestones" });
+    }
+  });
+
+  // ---------------------------------------------------------------------------
+  // CONTRACTORS
+  // ---------------------------------------------------------------------------
+
+  app.get("/api/projects/:projectId/contractors", async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.projectId);
+      const projectContractors = await db.select().from(contractors).where(eq(contractors.projectId, projectId));
+      res.json(projectContractors);
+    } catch (error) {
+      console.error("Failed to fetch contractors:", error);
+      res.status(500).json({ error: "Failed to fetch contractors" });
+    }
+  });
+
+  // Get contractor by type
+  app.get("/api/projects/:projectId/contractors/:type", async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.projectId);
+      const contractorType = req.params.type;
+      const projectContractors = await db
+        .select()
+        .from(contractors)
+        .where(eq(contractors.projectId, projectId));
+      const filtered = projectContractors.filter(c => c.contractorType === contractorType);
+      res.json(filtered[0] || null);
+    } catch (error) {
+      console.error("Failed to fetch contractor:", error);
+      res.status(500).json({ error: "Failed to fetch contractor" });
+    }
+  });
+
+  app.post("/api/projects/:projectId/contractors", async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.projectId);
+      const [result] = await db.insert(contractors).values({ ...req.body, projectId }).returning();
+      res.json(result);
+    } catch (error) {
+      console.error("Failed to create contractor:", error);
+      res.status(500).json({ error: "Failed to create contractor" });
+    }
+  });
+
+  app.patch("/api/contractors/:id", async (req, res) => {
+    try {
+      const contractorId = parseInt(req.params.id);
+      const [result] = await db
+        .update(contractors)
+        .set(req.body)
+        .where(eq(contractors.id, contractorId))
+        .returning();
+      res.json(result);
+    } catch (error) {
+      console.error("Failed to update contractor:", error);
+      res.status(500).json({ error: "Failed to update contractor" });
+    }
+  });
+
+  app.delete("/api/contractors/:id", async (req, res) => {
+    try {
+      const contractorId = parseInt(req.params.id);
+      await db.delete(contractors).where(eq(contractors.id, contractorId));
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Failed to delete contractor:", error);
+      res.status(500).json({ error: "Failed to delete contractor" });
+    }
+  });
+
+  // ---------------------------------------------------------------------------
+  // CONTRACT GENERATION
+  // ---------------------------------------------------------------------------
+
+  // Preview variables for a project (without generating)
+  app.get("/api/projects/:projectId/contract-variables", async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.projectId);
+      const data = await getProjectWithRelations(projectId);
+      if (!data) {
         return res.status(404).json({ error: "Project not found" });
       }
-
-      const templatePath = path.join(process.cwd(), "server", "templates", "template.docx");
-      
-      if (!fs.existsSync(templatePath)) {
-        return res.status(500).json({ error: "Contract template not found" });
-      }
-
-      const content = fs.readFileSync(templatePath, "binary");
-      const zip = new PizZip(content);
-      const doc = new Docxtemplater(zip, {
-        paragraphLoop: true,
-        linebreaks: true,
-      });
-
-      const variables = mapProjectToVariables(project);
-      doc.render(variables);
-
-      const buf = doc.getZip().generate({
-        type: "nodebuffer",
-        compression: "DEFLATE",
-      });
-
-      const filename = `Contract_${project.projectNumber || project.id}.docx`;
-      
-      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
-      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-      res.send(buf);
+      const variables = mapProjectToVariables(data);
+      res.json(variables);
     } catch (error) {
-      console.error("Error generating contract:", error);
+      console.error("Failed to get contract variables:", error);
+      res.status(500).json({ error: "Failed to get contract variables" });
+    }
+  });
+
+  // Validate variables for a specific contract type
+  app.get("/api/projects/:projectId/validate/:contractType", async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.projectId);
+      const contractType = req.params.contractType as "one_agreement" | "manufacturing_sub" | "onsite_sub";
+      
+      const data = await getProjectWithRelations(projectId);
+      if (!data) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+      
+      const variables = mapProjectToVariables(data);
+      const validation = validateVariablesForContract(variables, contractType);
+      
+      res.json({
+        valid: validation.missing.length === 0,
+        missing: validation.missing,
+        warnings: validation.warnings,
+      });
+    } catch (error) {
+      console.error("Failed to validate:", error);
+      res.status(500).json({ error: "Failed to validate" });
+    }
+  });
+
+  // Analyze a template file
+  app.post("/api/templates/analyze", async (req, res) => {
+    try {
+      const { templatePath: reqTemplatePath } = req.body;
+      
+      if (!fs.existsSync(reqTemplatePath)) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+      
+      const content = fs.readFileSync(reqTemplatePath, "binary");
+      const zip = new PizZip(content);
+      const doc = zip.file("word/document.xml")?.asText() || "";
+      
+      const templateVars = extractTemplateVariables(doc);
+      const coverage = getVariableCoverage(templateVars);
+      
+      res.json({
+        templatePath: reqTemplatePath,
+        variables: templateVars,
+        coverage,
+      });
+    } catch (error) {
+      console.error("Failed to analyze template:", error);
+      res.status(500).json({ error: "Failed to analyze template" });
+    }
+  });
+
+  // Generate a single contract
+  app.post("/api/projects/:projectId/generate/:contractType", async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.projectId);
+      const contractType = req.params.contractType as "one_agreement" | "manufacturing_sub" | "onsite_sub";
+      const { generatedBy } = req.body;
+      
+      const result = await generateContract({ projectId, contractType, generatedBy });
+      
+      if (result.success) {
+        res.json({
+          success: true,
+          fileName: result.fileName,
+          contractId: result.contractId,
+          downloadUrl: `/api/contracts/download/${encodeURIComponent(result.fileName!)}`,
+          warnings: result.warnings,
+        });
+      } else {
+        res.status(400).json({
+          success: false,
+          errors: result.errors,
+          warnings: result.warnings,
+        });
+      }
+    } catch (error) {
+      console.error("Failed to generate contract:", error);
       res.status(500).json({ error: "Failed to generate contract" });
     }
   });
 
-  // Dashboard Stats
-  app.get("/api/dashboard/stats", async (req, res) => {
+  // Generate all contracts for a project
+  app.post("/api/projects/:projectId/generate-all", async (req, res) => {
     try {
-      const stats = await storage.getDashboardStats();
-      res.json(stats);
-    } catch (error) {
-      console.error("Error fetching dashboard stats:", error);
-      res.status(500).json({ error: "Failed to fetch dashboard stats" });
-    }
-  });
-
-  // LLCs CRUD
-  app.get("/api/llcs", async (req, res) => {
-    try {
-      const llcs = await storage.getLLCs();
-      res.json(llcs);
-    } catch (error) {
-      console.error("Error fetching LLCs:", error);
-      res.status(500).json({ error: "Failed to fetch LLCs" });
-    }
-  });
-
-  app.get("/api/llcs/:id", async (req, res) => {
-    try {
-      const llc = await storage.getLLC(req.params.id);
-      if (!llc) {
-        return res.status(404).json({ error: "LLC not found" });
+      const projectId = parseInt(req.params.projectId);
+      const { generatedBy } = req.body;
+      
+      const data = await getProjectWithRelations(projectId);
+      
+      if (!data) {
+        return res.status(404).json({ error: "Project not found" });
       }
-      res.json(llc);
+
+      const contractTypes: ("one_agreement" | "manufacturing_sub" | "onsite_sub")[] = [
+        "one_agreement",
+        "manufacturing_sub",
+      ];
+
+      // Only include onsite_sub if CMOS selected
+      if (data.project.onSiteSelection === "CMOS") {
+        contractTypes.push("onsite_sub");
+      }
+
+      const results: Record<string, GenerateContractResult> = {};
+      
+      for (const contractType of contractTypes) {
+        results[contractType] = await generateContract({ projectId, contractType, generatedBy });
+      }
+
+      const allSuccessful = Object.values(results).every(r => r.success);
+      const successfulContracts = Object.entries(results)
+        .filter(([_, r]) => r.success)
+        .map(([type, r]) => ({
+          type,
+          fileName: r.fileName,
+          contractId: r.contractId,
+          downloadUrl: `/api/contracts/download/${encodeURIComponent(r.fileName!)}`,
+        }));
+      
+      res.json({
+        success: allSuccessful,
+        contracts: successfulContracts,
+        results,
+        summary: {
+          total: contractTypes.length,
+          successful: Object.values(results).filter(r => r.success).length,
+          failed: Object.values(results).filter(r => !r.success).length,
+        },
+      });
     } catch (error) {
-      console.error("Error fetching LLC:", error);
-      res.status(500).json({ error: "Failed to fetch LLC" });
+      console.error("Failed to generate contracts:", error);
+      res.status(500).json({ error: "Failed to generate contracts" });
     }
   });
 
-  app.post("/api/llcs", async (req, res) => {
+  // Download generated contract
+  app.get("/api/contracts/download/:fileName", async (req, res) => {
     try {
-      const validated = insertLLCSchema.parse(req.body);
-      const llc = await storage.createLLC(validated);
-      res.status(201).json(llc);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: "Validation failed", details: error.errors });
+      const fileName = req.params.fileName;
+      const outputDir = path.join(process.cwd(), "generated");
+      const filePath = path.join(outputDir, fileName);
+
+      if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ error: "File not found" });
       }
-      console.error("Error creating LLC:", error);
-      res.status(500).json({ error: "Failed to create LLC" });
+
+      res.download(filePath, fileName);
+    } catch (error) {
+      console.error("Failed to download contract:", error);
+      res.status(500).json({ error: "Failed to download contract" });
     }
   });
 
-  app.patch("/api/llcs/:id", async (req, res) => {
+  // List generated contracts for a project
+  app.get("/api/projects/:projectId/contracts", async (req, res) => {
     try {
-      const validated = insertLLCSchema.partial().parse(req.body);
-      const llc = await storage.updateLLC(req.params.id, validated);
-      if (!llc) {
-        return res.status(404).json({ error: "LLC not found" });
-      }
-      res.json(llc);
+      const projectId = parseInt(req.params.projectId);
+      const projectContracts = await db
+        .select()
+        .from(contracts)
+        .where(eq(contracts.projectId, projectId));
+      res.json(projectContracts);
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: "Validation failed", details: error.errors });
-      }
-      console.error("Error updating LLC:", error);
-      res.status(500).json({ error: "Failed to update LLC" });
-    }
-  });
-
-  app.delete("/api/llcs/:id", async (req, res) => {
-    try {
-      const deleted = await storage.deleteLLC(req.params.id);
-      if (!deleted) {
-        return res.status(404).json({ error: "LLC not found" });
-      }
-      res.status(204).send();
-    } catch (error) {
-      console.error("Error deleting LLC:", error);
-      res.status(500).json({ error: "Failed to delete LLC" });
-    }
-  });
-
-  // Contracts CRUD
-  app.get("/api/contracts", async (req, res) => {
-    try {
-      const contracts = await storage.getContracts();
-      res.json(contracts);
-    } catch (error) {
-      console.error("Error fetching contracts:", error);
+      console.error("Failed to fetch contracts:", error);
       res.status(500).json({ error: "Failed to fetch contracts" });
     }
   });
 
+  // Get single contract
   app.get("/api/contracts/:id", async (req, res) => {
     try {
-      const contract = await storage.getContract(req.params.id);
+      const contractId = parseInt(req.params.id);
+      const [contract] = await db.select().from(contracts).where(eq(contracts.id, contractId));
       if (!contract) {
         return res.status(404).json({ error: "Contract not found" });
       }
       res.json(contract);
     } catch (error) {
-      console.error("Error fetching contract:", error);
+      console.error("Failed to fetch contract:", error);
       res.status(500).json({ error: "Failed to fetch contract" });
     }
   });
 
-  app.post("/api/contracts", async (req, res) => {
-    try {
-      const validated = insertContractSchema.parse(req.body);
-      const contract = await storage.createContract(validated);
-      res.status(201).json(contract);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: "Validation failed", details: error.errors });
-      }
-      console.error("Error creating contract:", error);
-      res.status(500).json({ error: "Failed to create contract" });
-    }
-  });
-
+  // Update contract status
   app.patch("/api/contracts/:id", async (req, res) => {
     try {
-      const validated = insertContractSchema.partial().parse(req.body);
-      const contract = await storage.updateContract(req.params.id, validated);
-      if (!contract) {
-        return res.status(404).json({ error: "Contract not found" });
-      }
-      res.json(contract);
+      const contractId = parseInt(req.params.id);
+      const [result] = await db
+        .update(contracts)
+        .set(req.body)
+        .where(eq(contracts.id, contractId))
+        .returning();
+      res.json(result);
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: "Validation failed", details: error.errors });
-      }
-      console.error("Error updating contract:", error);
+      console.error("Failed to update contract:", error);
       res.status(500).json({ error: "Failed to update contract" });
     }
   });
 
-  app.delete("/api/contracts/:id", async (req, res) => {
+  // Mark contract as sent
+  app.post("/api/contracts/:id/send", async (req, res) => {
     try {
-      const deleted = await storage.deleteContract(req.params.id);
-      if (!deleted) {
-        return res.status(404).json({ error: "Contract not found" });
-      }
-      res.status(204).send();
+      const contractId = parseInt(req.params.id);
+      const { sentTo } = req.body;
+      
+      const [result] = await db
+        .update(contracts)
+        .set({
+          status: "Sent",
+          sentAt: new Date(),
+          sentTo,
+        })
+        .where(eq(contracts.id, contractId))
+        .returning();
+      
+      res.json(result);
     } catch (error) {
-      console.error("Error deleting contract:", error);
-      res.status(500).json({ error: "Failed to delete contract" });
+      console.error("Failed to mark contract as sent:", error);
+      res.status(500).json({ error: "Failed to mark contract as sent" });
     }
   });
 
-  return httpServer;
+  // Mark contract as executed
+  app.post("/api/contracts/:id/execute", async (req, res) => {
+    try {
+      const contractId = parseInt(req.params.id);
+      const { executedFilePath } = req.body;
+      
+      const [result] = await db
+        .update(contracts)
+        .set({
+          status: "Executed",
+          executedAt: new Date(),
+          executedFilePath,
+        })
+        .where(eq(contracts.id, contractId))
+        .returning();
+      
+      res.json(result);
+    } catch (error) {
+      console.error("Failed to mark contract as executed:", error);
+      res.status(500).json({ error: "Failed to mark contract as executed" });
+    }
+  });
+
+  // ---------------------------------------------------------------------------
+  // ERP FIELD MAPPINGS
+  // ---------------------------------------------------------------------------
+
+  app.get("/api/erp-mappings", async (req, res) => {
+    try {
+      const mappings = await db.select().from(erpFieldMappings);
+      res.json(mappings);
+    } catch (error) {
+      console.error("Failed to fetch ERP mappings:", error);
+      res.status(500).json({ error: "Failed to fetch ERP mappings" });
+    }
+  });
+
+  // Get mappings by category
+  app.get("/api/erp-mappings/category/:category", async (req, res) => {
+    try {
+      const category = req.params.category;
+      const mappings = await db.select().from(erpFieldMappings);
+      const filtered = mappings.filter(m => m.variableCategory === category);
+      res.json(filtered);
+    } catch (error) {
+      console.error("Failed to fetch ERP mappings:", error);
+      res.status(500).json({ error: "Failed to fetch ERP mappings" });
+    }
+  });
+
+  app.post("/api/erp-mappings", async (req, res) => {
+    try {
+      const [result] = await db.insert(erpFieldMappings).values(req.body).returning();
+      res.json(result);
+    } catch (error) {
+      console.error("Failed to create ERP mapping:", error);
+      res.status(500).json({ error: "Failed to create ERP mapping" });
+    }
+  });
+
+  app.patch("/api/erp-mappings/:id", async (req, res) => {
+    try {
+      const mappingId = parseInt(req.params.id);
+      const [result] = await db
+        .update(erpFieldMappings)
+        .set(req.body)
+        .where(eq(erpFieldMappings.id, mappingId))
+        .returning();
+      res.json(result);
+    } catch (error) {
+      console.error("Failed to update ERP mapping:", error);
+      res.status(500).json({ error: "Failed to update ERP mapping" });
+    }
+  });
+
+  app.delete("/api/erp-mappings/:id", async (req, res) => {
+    try {
+      const mappingId = parseInt(req.params.id);
+      await db.delete(erpFieldMappings).where(eq(erpFieldMappings.id, mappingId));
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Failed to delete ERP mapping:", error);
+      res.status(500).json({ error: "Failed to delete ERP mapping" });
+    }
+  });
+
+  // Routes registered successfully
 }

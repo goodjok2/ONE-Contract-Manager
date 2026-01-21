@@ -1,13 +1,20 @@
-import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
 import { relations } from "drizzle-orm";
+
+// =============================================================================
+// CORE TABLES
+// =============================================================================
 
 export const projects = sqliteTable("projects", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   projectNumber: text("project_number").unique().notNull(),
   name: text("name").notNull(),
-  status: text("status").default("Draft").notNull(),
-  state: text("state"),
+  status: text("status").default("Draft").notNull(), // Draft, Design, GreenLight, Production, Delivered, Complete
+  state: text("state"), // Project state (CA, TX, AZ, etc.)
+  onSiteSelection: text("on_site_selection").default("CRC"), // CRC or CMOS
+  odooProjectId: integer("odoo_project_id"), // Link to Odoo
   createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
+  updatedAt: text("updated_at"),
 });
 
 export const clients = sqliteTable("clients", {
@@ -15,11 +22,30 @@ export const clients = sqliteTable("clients", {
   projectId: integer("project_id")
     .references(() => projects.id)
     .notNull(),
+  
+  // Primary Client
   legalName: text("legal_name").notNull(),
+  entityType: text("entity_type"), // Individual, LLC, Corporation, Trust
+  formationState: text("formation_state"), // State where client entity was formed
+  
+  // Address
   address: text("address"),
+  city: text("city"),
+  state: text("state"),
+  zip: text("zip"),
+  
+  // Contact
   email: text("email"),
   phone: text("phone"),
-  entityType: text("entity_type"),
+  
+  // For Trusts
+  trustDate: text("trust_date"),
+  trusteeName: text("trustee_name"),
+  
+  // Secondary Client (if applicable)
+  client2LegalName: text("client2_legal_name"),
+  client2EntityType: text("client2_entity_type"),
+  ownershipSplit: text("ownership_split"), // e.g., "50/50", "60/40"
 });
 
 export const childLlcs = sqliteTable("child_llcs", {
@@ -27,26 +53,310 @@ export const childLlcs = sqliteTable("child_llcs", {
   projectId: integer("project_id")
     .references(() => projects.id)
     .notNull(),
-  legalName: text("legal_name").notNull(),
+  
+  // Entity Info
+  legalName: text("legal_name").notNull(), // "Dvele Partners {ProjectName} LLC"
+  formationState: text("formation_state").default("Delaware"),
+  entityType: text("entity_type").default("LLC"),
   ein: text("ein"),
-  insuranceStatus: text("insurance_status").default("Pending").notNull(),
   formationDate: text("formation_date"),
+  
+  // Registered Agent
+  registeredAgent: text("registered_agent"),
+  registeredAgentAddress: text("registered_agent_address"),
+  
+  // Address (if different from registered agent)
+  address: text("address"),
+  city: text("city"),
+  state: text("state"),
+  zip: text("zip"),
+  
+  // Status Tracking
+  insuranceStatus: text("insurance_status").default("Pending").notNull(), // Pending, Active, Expired
+  insuranceExpiration: text("insurance_expiration"),
+  annualReportDue: text("annual_report_due"),
 });
+
+// =============================================================================
+// PROJECT DETAILS
+// =============================================================================
+
+export const projectDetails = sqliteTable("project_details", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  projectId: integer("project_id")
+    .references(() => projects.id)
+    .notNull(),
+  
+  // Site/Delivery Information
+  deliveryAddress: text("delivery_address"),
+  deliveryCity: text("delivery_city"),
+  deliveryState: text("delivery_state"),
+  deliveryZip: text("delivery_zip"),
+  deliveryCounty: text("delivery_county"),
+  deliveryApn: text("delivery_apn"), // Assessor's Parcel Number
+  siteAcreage: text("site_acreage"),
+  siteZoning: text("site_zoning"),
+  
+  // Home Specifications
+  homeModel: text("home_model"),
+  homeSqFt: integer("home_sq_ft"),
+  homeBedrooms: integer("home_bedrooms"),
+  homeBathrooms: real("home_bathrooms"),
+  homeStories: integer("home_stories"),
+  homeGarage: text("home_garage"), // "2-car attached", "none", etc.
+  totalUnits: integer("total_units").default(1),
+  moduleCount: integer("module_count"),
+  
+  // Building Code & Engineering
+  buildingCodeReference: text("building_code_reference"),
+  climateZone: text("climate_zone"),
+  windSpeed: text("wind_speed"),
+  snowLoad: text("snow_load"),
+  seismicZone: text("seismic_zone"),
+  
+  // Key Dates
+  agreementExecutionDate: text("agreement_execution_date"),
+  designStartDate: text("design_start_date"),
+  designCompleteDate: text("design_complete_date"),
+  greenLightDate: text("green_light_date"),
+  productionStartDate: text("production_start_date"),
+  estimatedDeliveryDate: text("estimated_delivery_date"),
+  actualDeliveryDate: text("actual_delivery_date"),
+  
+  // Legal
+  governingLawState: text("governing_law_state"),
+  arbitrationLocation: text("arbitration_location"),
+});
+
+// =============================================================================
+// FINANCIALS
+// =============================================================================
 
 export const financials = sqliteTable("financials", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   projectId: integer("project_id")
     .references(() => projects.id)
     .notNull(),
-  designFee: integer("design_fee"),
+  
+  // Design Phase
+  designFee: integer("design_fee"), // Store in cents
+  designRevisionRounds: integer("design_revision_rounds").default(3),
+  designRevisionCostOverage: integer("design_revision_cost_overage"),
+  
+  // Preliminary Pricing (at Design Agreement)
   prelimOffsite: integer("prelim_offsite"),
   prelimOnsite: integer("prelim_onsite"),
-  finalOffsite: integer("final_offsite"),
-  refinedOnsite: integer("refined_onsite"),
+  prelimContractPrice: integer("prelim_contract_price"), // Total preliminary
+  
+  // Final Pricing (at Green Light)
+  homeBasePrice: integer("home_base_price"),
+  homeCustomizations: integer("home_customizations").default(0),
+  finalOffsite: integer("final_offsite"), // Locked at Green Light
+  refinedOnsite: integer("refined_onsite"), // Refined estimate
+  finalContractPrice: integer("final_contract_price"),
+  
+  // Price Lock Status
   isLocked: integer("is_locked", { mode: "boolean" }).default(false),
+  lockedAt: text("locked_at"),
+  lockedBy: text("locked_by"),
+  
+  // Inflation/Adjustment Triggers
+  inflationTriggerDate: text("inflation_trigger_date"),
+  inflationAdjustmentPercent: real("inflation_adjustment_percent").default(5.0),
+  materialIncreaseThreshold: real("material_increase_threshold").default(10.0),
+  
+  // Liquidated Damages
+  liquidatedDamagesPerDay: integer("liquidated_damages_per_day"),
+  liquidatedDamagesCap: integer("liquidated_damages_cap"),
+  onsiteLiquidatedDamagesPerDay: integer("onsite_liquidated_damages_per_day"),
+  onsiteLiquidatedDamagesCap: integer("onsite_liquidated_damages_cap"),
 });
 
-export const projectsRelations = relations(projects, ({ one }) => ({
+// =============================================================================
+// MILESTONES
+// =============================================================================
+
+export const milestones = sqliteTable("milestones", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  projectId: integer("project_id")
+    .references(() => projects.id)
+    .notNull(),
+  
+  // Milestone Identity
+  milestoneType: text("milestone_type").notNull(), // 'client', 'manufacturing', 'onsite'
+  milestoneNumber: integer("milestone_number").notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  
+  // Payment Details
+  percentage: real("percentage"),
+  amount: integer("amount"), // Store in cents
+  
+  // Timing
+  dueUpon: text("due_upon"), // Description of trigger (e.g., "Contract Execution", "Green Light")
+  targetDate: text("target_date"),
+  completedDate: text("completed_date"),
+  
+  // Status
+  status: text("status").default("Pending"), // Pending, Due, Paid, Overdue
+  paidDate: text("paid_date"),
+  paidAmount: integer("paid_amount"),
+  invoiceNumber: text("invoice_number"),
+  
+  // Notes
+  notes: text("notes"),
+});
+
+// =============================================================================
+// WARRANTY TERMS
+// =============================================================================
+
+export const warrantyTerms = sqliteTable("warranty_terms", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  projectId: integer("project_id")
+    .references(() => projects.id)
+    .notNull(),
+  
+  // Dvele (Off-Site) Warranties
+  dveleFitFinishMonths: integer("dvele_fit_finish_months").default(12),
+  dveleStructuralMonths: integer("dvele_structural_months").default(120), // 10 years
+  dveleSystemsMonths: integer("dvele_systems_months").default(24),
+  dveleBuildingEnvelopeMonths: integer("dvele_building_envelope_months").default(60), // 5 years
+  
+  // On-Site Warranties (Company Managed)
+  onsiteFitFinishMonths: integer("onsite_fit_finish_months").default(12),
+  onsiteStructuralMonths: integer("onsite_structural_months").default(120),
+  onsiteSystemsMonths: integer("onsite_systems_months").default(24),
+  
+  // Client-Retained Contractor Warranties (CRC)
+  clientFitFinishMonths: integer("client_fit_finish_months").default(12),
+  clientStructuralMonths: integer("client_structural_months").default(120),
+  clientBuildingEnvelopeMonths: integer("client_building_envelope_months").default(60),
+  
+  // Custom Terms
+  customWarrantyTerms: text("custom_warranty_terms"), // JSON for any non-standard terms
+  warrantyStartDate: text("warranty_start_date"),
+});
+
+// =============================================================================
+// CONTRACTORS
+// =============================================================================
+
+export const contractors = sqliteTable("contractors", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  projectId: integer("project_id")
+    .references(() => projects.id)
+    .notNull(),
+  
+  // Contractor Type
+  contractorType: text("contractor_type").notNull(), // 'manufacturer', 'onsite_general', 'onsite_sub'
+  
+  // Entity Info
+  legalName: text("legal_name").notNull(),
+  state: text("state"),
+  entityType: text("entity_type"), // LLC, Corporation, etc.
+  
+  // Address
+  address: text("address"),
+  city: text("city"),
+  stateAddress: text("state_address"),
+  zip: text("zip"),
+  
+  // Licensing
+  licenseNumber: text("license_number"),
+  licenseState: text("license_state"),
+  licenseExpiration: text("license_expiration"),
+  
+  // Contact
+  contactName: text("contact_name"),
+  contactEmail: text("contact_email"),
+  contactPhone: text("contact_phone"),
+  
+  // Insurance & Bonding
+  bondAmount: integer("bond_amount"),
+  insuranceAmount: integer("insurance_amount"),
+  insuranceExpiration: text("insurance_expiration"),
+  insuranceCarrier: text("insurance_carrier"),
+  
+  // Status
+  isActive: integer("is_active", { mode: "boolean" }).default(true),
+});
+
+// =============================================================================
+// GENERATED CONTRACTS
+// =============================================================================
+
+export const contracts = sqliteTable("contracts", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  projectId: integer("project_id")
+    .references(() => projects.id)
+    .notNull(),
+  
+  // Contract Identity
+  contractType: text("contract_type").notNull(), // 'one_agreement', 'manufacturing_sub', 'onsite_sub'
+  version: integer("version").default(1),
+  
+  // Status Tracking
+  status: text("status").default("Draft"), // Draft, PendingReview, Approved, Sent, Executed, Amended
+  
+  // Generation Info
+  generatedAt: text("generated_at").default("CURRENT_TIMESTAMP"),
+  generatedBy: text("generated_by"),
+  templateVersion: text("template_version"),
+  
+  // File Storage
+  filePath: text("file_path"),
+  fileName: text("file_name"),
+  fileHash: text("file_hash"), // For integrity verification
+  
+  // Variable Snapshot
+  variablesSnapshot: text("variables_snapshot"), // JSON of all variables at generation time
+  
+  // Execution
+  sentAt: text("sent_at"),
+  sentTo: text("sent_to"),
+  executedAt: text("executed_at"),
+  executedFilePath: text("executed_file_path"),
+  
+  // Notes
+  notes: text("notes"),
+});
+
+// =============================================================================
+// ERP FIELD MAPPINGS (Odoo Integration)
+// =============================================================================
+
+export const erpFieldMappings = sqliteTable("erp_field_mappings", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  
+  // Contract Variable
+  variableName: text("variable_name").notNull().unique(), // e.g., "CLIENT_LEGAL_NAME"
+  variableDescription: text("variable_description"),
+  variableCategory: text("variable_category"), // client, project, financial, dates, warranty
+  
+  // Odoo Mapping
+  odooModel: text("odoo_model"), // e.g., "res.partner", "sale.order"
+  odooField: text("odoo_field"), // e.g., "name", "amount_total"
+  odooRelatedField: text("odoo_related_field"), // For nested fields like "partner_id.name"
+  
+  // Transformation
+  transformFunction: text("transform_function"), // Optional JS function name for transformation
+  defaultValue: text("default_value"),
+  
+  // Validation
+  isRequired: integer("is_required", { mode: "boolean" }).default(false),
+  validationRegex: text("validation_regex"),
+  
+  // Status
+  isActive: integer("is_active", { mode: "boolean" }).default(true),
+  lastSyncedAt: text("last_synced_at"),
+});
+
+// =============================================================================
+// RELATIONS
+// =============================================================================
+
+export const projectsRelations = relations(projects, ({ one, many }) => ({
   client: one(clients, {
     fields: [projects.id],
     references: [clients.projectId],
@@ -55,10 +365,21 @@ export const projectsRelations = relations(projects, ({ one }) => ({
     fields: [projects.id],
     references: [childLlcs.projectId],
   }),
+  projectDetails: one(projectDetails, {
+    fields: [projects.id],
+    references: [projectDetails.projectId],
+  }),
   financials: one(financials, {
     fields: [projects.id],
     references: [financials.projectId],
   }),
+  warrantyTerms: one(warrantyTerms, {
+    fields: [projects.id],
+    references: [warrantyTerms.projectId],
+  }),
+  milestones: many(milestones),
+  contractors: many(contractors),
+  contracts: many(contracts),
 }));
 
 export const clientsRelations = relations(clients, ({ one }) => ({
@@ -75,12 +396,51 @@ export const childLlcsRelations = relations(childLlcs, ({ one }) => ({
   }),
 }));
 
+export const projectDetailsRelations = relations(projectDetails, ({ one }) => ({
+  project: one(projects, {
+    fields: [projectDetails.projectId],
+    references: [projects.id],
+  }),
+}));
+
 export const financialsRelations = relations(financials, ({ one }) => ({
   project: one(projects, {
     fields: [financials.projectId],
     references: [projects.id],
   }),
 }));
+
+export const warrantyTermsRelations = relations(warrantyTerms, ({ one }) => ({
+  project: one(projects, {
+    fields: [warrantyTerms.projectId],
+    references: [projects.id],
+  }),
+}));
+
+export const milestonesRelations = relations(milestones, ({ one }) => ({
+  project: one(projects, {
+    fields: [milestones.projectId],
+    references: [projects.id],
+  }),
+}));
+
+export const contractorsRelations = relations(contractors, ({ one }) => ({
+  project: one(projects, {
+    fields: [contractors.projectId],
+    references: [projects.id],
+  }),
+}));
+
+export const contractsRelations = relations(contracts, ({ one }) => ({
+  project: one(projects, {
+    fields: [contracts.projectId],
+    references: [projects.id],
+  }),
+}));
+
+// =============================================================================
+// TYPE EXPORTS
+// =============================================================================
 
 export type Project = typeof projects.$inferSelect;
 export type NewProject = typeof projects.$inferInsert;
@@ -91,5 +451,23 @@ export type NewClient = typeof clients.$inferInsert;
 export type ChildLlc = typeof childLlcs.$inferSelect;
 export type NewChildLlc = typeof childLlcs.$inferInsert;
 
+export type ProjectDetails = typeof projectDetails.$inferSelect;
+export type NewProjectDetails = typeof projectDetails.$inferInsert;
+
 export type Financial = typeof financials.$inferSelect;
 export type NewFinancial = typeof financials.$inferInsert;
+
+export type Milestone = typeof milestones.$inferSelect;
+export type NewMilestone = typeof milestones.$inferInsert;
+
+export type WarrantyTerm = typeof warrantyTerms.$inferSelect;
+export type NewWarrantyTerm = typeof warrantyTerms.$inferInsert;
+
+export type Contractor = typeof contractors.$inferSelect;
+export type NewContractor = typeof contractors.$inferInsert;
+
+export type Contract = typeof contracts.$inferSelect;
+export type NewContract = typeof contracts.$inferInsert;
+
+export type ErpFieldMapping = typeof erpFieldMappings.$inferSelect;
+export type NewErpFieldMapping = typeof erpFieldMappings.$inferInsert;
