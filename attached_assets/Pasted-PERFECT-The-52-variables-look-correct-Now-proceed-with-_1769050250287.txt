@@ -1,0 +1,60 @@
+PERFECT! The 52 variables look correct. Now proceed with all three steps:
+
+STEP A: INSERT ALL 52 VARIABLES
+Insert all 52 contract_variables into the database with the structure you've identified.
+
+STEP B: CREATE CLAUSE STRUCTURE
+Start creating clauses in this exact order:
+
+1. DOCUMENT SUMMARY (Preamble)
+   - clause_code: 'ONE-0'
+   - hierarchy_level: 1
+   - sort_order: 10
+   - name: 'Document Summary'
+   - category: 'preamble'
+   - Extract the entire "What the Client is Signing" through "Peace of Mind Guarantee" text
+   - Preserve ALL {{VARIABLES}}
+
+2. RECITALS
+   - clause_code: 'ONE-RECITALS'
+   - hierarchy_level: 1
+   - sort_order: 50
+   - name: 'RECITALS'
+   
+   Then create subsections:
+   - ONE-RECITAL-1 through ONE-RECITAL-9 (hierarchy_level: 2)
+   
+   CRITICAL for Recital G (the On-Site Services election):
+   Create THREE clauses:
+   a) ONE-RECITAL-G-BASE (the intro text explaining both options)
+   b) ONE-RECITAL-G-CRC (Option A text)
+      - conditions: {"ON_SITE_SERVICES_SELECTION": "CLIENT-RETAINED CONTRACTOR"}
+   c) ONE-RECITAL-G-CMOS (Option B text)
+      - conditions: {"ON_SITE_SERVICES_SELECTION": "COMPANY-MANAGED ON-SITE SERVICES"}
+
+3. ATTACHMENTS LIST
+   - clause_code: 'ONE-ATTACHMENTS'
+   - hierarchy_level: 1
+   - sort_order: 90
+   - List of 6 exhibits
+
+4. SECTION 1: Scope of Services
+   - ONE-1 (main section, level 1, sort_order: 100)
+   - ONE-1.1, ONE-1.2, ONE-1.3, ONE-1.4, ONE-1.5, ONE-1.6 (subsections, level 2)
+   
+   HANDLE CONDITIONAL TEXT:
+   When you see [IF CLIENT HAS ELECTED 'CLIENT-RETAINED CONTRACTOR (CRC)':], create separate clauses:
+   - ONE-1.1-CRC (with CRC condition)
+   - ONE-1.1-CMOS (with CMOS condition)
+   
+   Same pattern for Section 1.5 which has conditional text.
+
+STEP C: SHOW ME THE RESULTS
+After inserting:
+1. Show me count: SELECT COUNT(*) FROM contract_variables;
+2. Show me first 5 clauses: SELECT clause_code, name, hierarchy_level, sort_order FROM clauses ORDER BY sort_order LIMIT 10;
+3. Show me conditional clauses: SELECT clause_code, name, conditions FROM clauses WHERE conditions IS NOT NULL;
+
+Once I verify these look correct, I'll approve moving to Section 2 and beyond.
+
+START NOW with these three steps.
