@@ -85,7 +85,7 @@ const HOME_MODELS = [
   { value: "Custom", sqft: 0, beds: 0, baths: 0 },
 ];
 
-const contractSchema = z.object({
+const baseContractSchema = z.object({
   projectNumber: z.string().min(1, "Project number is required"),
   projectName: z.string().min(1, "Project name is required"),
   serviceModel: z.enum(["CRC", "CMOS"], { required_error: "Service model is required" }),
@@ -123,9 +123,19 @@ const contractSchema = z.object({
   warrantyStructural: z.coerce.number().min(1).default(120),
   projectState: z.string().min(1, "Project state is required"),
   projectCounty: z.string().min(1, "County is required"),
+}).refine((data) => {
+  if (data.serviceModel === "CRC") {
+    return data.onsiteContractorName && data.onsiteContractorName.length > 0;
+  }
+  return true;
+}, {
+  message: "Contractor name is required for CRC service model",
+  path: ["onsiteContractorName"],
 });
 
-type ContractFormValues = z.infer<typeof contractSchema>;
+const contractSchema = baseContractSchema;
+
+type ContractFormValues = z.infer<typeof baseContractSchema>;
 
 const STORAGE_KEY = "dvele-contract-wizard-draft";
 
@@ -389,11 +399,44 @@ export default function ContractBuilder() {
     },
   });
 
+  const previewMutation = useMutation({
+    mutationFn: async (data: ContractFormValues) => {
+      const response = await apiRequest("POST", "/api/contracts/preview-clauses", {
+        contractType: "ONE",
+        projectData: {
+          SERVICE_MODEL: data.serviceModel,
+          ON_SITE_SERVICES_SELECTION: data.serviceModel === "CRC" ? "CLIENT-RETAINED CONTRACTOR" : "COMPANY-MANAGED ON-SITE SERVICES",
+          TOTAL_UNITS: String(data.totalUnits),
+        },
+      });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      const conditionalCount = data.conditionalClauses?.length || 0;
+      setClausePreview({
+        oneAgreement: { total: data.summary?.totalClauses || 129, conditional: conditionalCount },
+        manufacturing: { total: 61 },
+        onsite: { total: 79 },
+      });
+    },
+    onError: () => {
+      setClausePreview({
+        oneAgreement: { total: 129, conditional: serviceModel === "CRC" ? 7 : 8 },
+        manufacturing: { total: 61 },
+        onsite: { total: 79 },
+      });
+    },
+  });
+
   const getStepFields = (step: number): (keyof ContractFormValues)[] => {
+    const currentServiceModel = form.getValues("serviceModel");
     switch (step) {
       case 1:
         return ["projectNumber", "projectName", "serviceModel", "totalUnits"];
       case 2:
+        if (currentServiceModel === "CRC") {
+          return ["clientLegalName", "clientEntityType", "clientState", "spvLegalName", "onsiteContractorName"];
+        }
         return ["clientLegalName", "clientEntityType", "clientState", "spvLegalName"];
       case 3:
         return ["deliveryAddress", "siteAddress", "homeModel", "homeSqft", "homeBedrooms", "homeBathrooms"];
@@ -418,13 +461,8 @@ export default function ContractBuilder() {
       setCurrentStep(currentStep + 1);
       
       if (currentStep === 5) {
-        const crcClauses = serviceModel === "CRC" ? 7 : 0;
-        const cmosClauses = serviceModel === "CMOS" ? 8 : 0;
-        setClausePreview({
-          oneAgreement: { total: 129 + crcClauses + cmosClauses, conditional: crcClauses + cmosClauses },
-          manufacturing: { total: 61 },
-          onsite: { total: 79 },
-        });
+        const values = form.getValues();
+        previewMutation.mutate(values);
       }
     }
   };
@@ -441,15 +479,24 @@ export default function ContractBuilder() {
   };
 
   const handleDownload = (contract: GeneratedContract) => {
-    const blob = new Blob([contract.content], { type: "text/plain" });
+    const blob = new Blob([contract.content], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = contract.filename.replace(".docx", ".txt");
+    const txtFilename = contract.filename.endsWith(".docx") 
+      ? contract.filename.replace(".docx", ".txt")
+      : contract.filename.endsWith(".txt") 
+        ? contract.filename 
+        : `${contract.filename}.txt`;
+    a.download = txtFilename;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+    toast({
+      title: "Download Started",
+      description: `${txtFilename} is downloading...`,
+    });
   };
 
   const handleDownloadAll = () => {
@@ -843,10 +890,11 @@ export default function ContractBuilder() {
                             name="onsiteContractorName"
                             render={({ field }) => (
                               <FormItem>
-                                <FormLabel>Contractor Name</FormLabel>
+                                <FormLabel>Contractor Name <span className="text-destructive">*</span></FormLabel>
                                 <FormControl>
                                   <Input placeholder="e.g., Premier Site Builders Inc." data-testid="input-contractor-name" {...field} />
                                 </FormControl>
+                                <FormDescription>Required for CRC service model</FormDescription>
                                 <FormMessage />
                               </FormItem>
                             )}
