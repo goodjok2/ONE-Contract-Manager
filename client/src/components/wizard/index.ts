@@ -4,7 +4,8 @@ export {
   US_STATES,
   ENTITY_TYPES,
   FEDERAL_DISTRICTS,
-  initialProjectData 
+  initialProjectData,
+  SHELL_TESTING_MODE
 } from './WizardContext';
 
 export { WizardShell } from './WizardShell';

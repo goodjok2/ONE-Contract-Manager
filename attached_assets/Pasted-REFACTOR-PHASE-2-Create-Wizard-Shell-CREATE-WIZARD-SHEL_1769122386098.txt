@@ -1,0 +1,541 @@
+REFACTOR PHASE 2: Create Wizard Shell
+CREATE WIZARD SHELL COMPONENT
+
+Create the main wizard container that manages step progression and navigation.
+
+Location: client/src/components/wizard/WizardShell.tsx
+
+REQUIREMENTS:
+
+1. IMPORT NECESSARY DEPENDENCIES:
+```typescript
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
+import { useWizard } from './WizardContext';
+import { 
+  Check, 
+  ChevronLeft, 
+  ChevronRight, 
+  Save,
+  FileText,
+  Settings2,
+  Users,
+  Building2,
+  Home,
+  Calendar,
+  DollarSign,
+  Shield,
+  ClipboardCheck
+} from 'lucide-react';
+```
+
+2. DEFINE STEPS ARRAY:
+```typescript
+const STEPS = [
+  { number: 1, title: "Project Info", description: "Basic project details", icon: FileText },
+  { number: 2, title: "Service Model", description: "CRC or CMOS selection", icon: Settings2 },
+  { number: 3, title: "Party Info", description: "Client & SPV details", icon: Users },
+  { number: 4, title: "Child LLC", description: "LLC entity setup", icon: Building2 },
+  { number: 5, title: "Site & Home", description: "Property details", icon: Home },
+  { number: 6, title: "Dates & Schedule", description: "Timeline", icon: Calendar },
+  { number: 7, title: "Pricing", description: "Financial terms", icon: DollarSign },
+  { number: 8, title: "Schedule & Warranty", description: "Timeline & terms", icon: Shield },
+  { number: 9, title: "Review & Generate", description: "Final review", icon: ClipboardCheck },
+];
+```
+
+3. CREATE WIZARD SHELL COMPONENT:
+```typescript
+export const WizardShell: React.FC = () => {
+  const { 
+    wizardState, 
+    nextStep, 
+    prevStep, 
+    goToStep, 
+    saveDraft,
+    validateStep 
+  } = useWizard();
+  
+  const currentStepInfo = STEPS[wizardState.currentStep - 1];
+  const canProceed = validateStep(wizardState.currentStep);
+  
+  return (
+    <div className="max-w-5xl mx-auto space-y-6">
+      {/* Progress Indicator */}
+      <Card className="p-6">
+        <div className="mb-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium">
+              Step {wizardState.currentStep} of {STEPS.length}
+            </span>
+            <span className="text-sm text-muted-foreground">
+              {Math.round((wizardState.currentStep / STEPS.length) * 100)}% Complete
+            </span>
+          </div>
+          <Progress value={(wizardState.currentStep / STEPS.length) * 100} />
+        </div>
+        
+        {/* Step Pills */}
+        <div className="flex items-center justify-between gap-2 overflow-x-auto pb-2">
+          {STEPS.map((step, index) => {
+            const isCompleted = wizardState.completedSteps.has(step.number);
+            const isCurrent = step.number === wizardState.currentStep;
+            const isAccessible = step.number === 1 || 
+                                isCompleted || 
+                                wizardState.completedSteps.has(step.number - 1) ||
+                                step.number < wizardState.currentStep;
+            const StepIcon = step.icon;
+            
+            return (
+              <div key={step.number} className="flex items-center">
+                <button
+                  onClick={() => isAccessible && goToStep(step.number)}
+                  disabled={!isAccessible}
+                  className={`
+                    flex flex-col items-center gap-1 p-2 rounded-lg transition-all
+                    ${isCurrent ? 'bg-primary text-primary-foreground' : ''}
+                    ${isCompleted && !isCurrent ? 'bg-green-500/10 text-green-600' : ''}
+                    ${!isAccessible ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer hover:bg-muted'}
+                    ${!isCurrent && !isCompleted && isAccessible ? 'text-muted-foreground' : ''}
+                  `}
+                  data-testid={`step-indicator-${step.number}`}
+                >
+                  <div className={`
+                    flex items-center justify-center w-10 h-10 rounded-full border-2
+                    ${isCurrent ? 'border-primary-foreground' : ''}
+                    ${isCompleted && !isCurrent ? 'border-green-600 bg-green-500' : ''}
+                    ${!isCurrent && !isCompleted ? 'border-border' : ''}
+                  `}>
+                    {isCompleted && !isCurrent ? (
+                      <Check className="h-5 w-5 text-white" />
+                    ) : (
+                      <StepIcon className="h-5 w-5" />
+                    )}
+                  </div>
+                  <div className="text-center min-w-[80px]">
+                    <div className="text-xs font-medium truncate">{step.title}</div>
+                    <div className="text-[10px] truncate">{step.description}</div>
+                  </div>
+                </button>
+                
+                {/* Connector Line */}
+                {index < STEPS.length - 1 && (
+                  <div className={`
+                    h-0.5 w-8 mx-1 
+                    ${isCompleted ? 'bg-green-500' : 'bg-border'}
+                  `} />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+      
+      {/* Current Step Title */}
+      <div className="text-center">
+        <h2 className="text-2xl font-bold">{currentStepInfo.title}</h2>
+        <p className="text-muted-foreground">{currentStepInfo.description}</p>
+      </div>
+      
+      {/* Step Content - Placeholder for now */}
+      <Card className="p-6 min-h-[400px]">
+        <div className="flex items-center justify-center h-full">
+          <div className="text-center space-y-4">
+            <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
+              {React.createElement(currentStepInfo.icon, { className: "h-10 w-10 text-primary" })}
+            </div>
+            <div>
+              <h3 className="text-xl font-semibold mb-2">Step {wizardState.currentStep}</h3>
+              <p className="text-muted-foreground">
+                Step content will be rendered here
+              </p>
+            </div>
+          </div>
+        </div>
+      </Card>
+      
+      {/* Navigation Buttons */}
+      <div className="flex items-center justify-between gap-4">
+        <Button
+          variant="outline"
+          onClick={prevStep}
+          disabled={wizardState.currentStep === 1}
+          data-testid="button-prev-step"
+        >
+          <ChevronLeft className="h-4 w-4 mr-2" />
+          Back
+        </Button>
+        
+        <Button
+          variant="outline"
+          onClick={saveDraft}
+          data-testid="button-save-draft"
+        >
+          <Save className="h-4 w-4 mr-2" />
+          Save Draft
+        </Button>
+        
+        <Button
+          onClick={nextStep}
+          disabled={!canProceed}
+          data-testid="button-next-step"
+        >
+          {wizardState.currentStep === STEPS.length ? 'Review' : 'Next'}
+          <ChevronRight className="h-4 w-4 ml-2" />
+        </Button>
+      </div>
+      
+      {/* Validation Errors Display */}
+      {Object.keys(wizardState.validationErrors).length > 0 && (
+        <Card className="border-red-500 bg-red-500/5">
+          <div className="p-4">
+            <h4 className="font-semibold text-red-600 mb-2">Please fix the following errors:</h4>
+            <ul className="list-disc list-inside space-y-1 text-sm text-red-600">
+              {Object.entries(wizardState.validationErrors).map(([field, error]) => (
+                <li key={field}>{error}</li>
+              ))}
+            </ul>
+          </div>
+        </Card>
+      )}
+    </div>
+  );
+};
+```
+
+4. UPDATE MAIN PAGE:
+
+Update client/src/pages/generate-contracts.tsx to use the new components:
+```typescript
+import { WizardProvider } from '@/components/wizard/WizardContext';
+import { WizardShell } from '@/components/wizard/WizardShell';
+
+export default function GenerateContractsPage() {
+  return (
+    <div className="container mx-auto py-8">
+      <div className="mb-8 text-center">
+        <h1 className="text-3xl font-bold mb-2">Generate Contracts</h1>
+        <p className="text-muted-foreground">
+          Create contract package for your project in 9 easy steps
+        </p>
+      </div>
+      
+      <WizardProvider>
+        <WizardShell />
+      </WizardProvider>
+    </div>
+  );
+}
+```
+
+KEEP THE OLD FILE:
+- Do NOT delete the current generate-contracts.tsx yet
+- Rename it to generate-contracts.old.tsx as backup
+- We'll use it as reference when extracting steps
+
+TESTING:
+After this is complete:
+1. The wizard should load and show the progress bar
+2. Navigation buttons should work (next/back)
+3. Step indicators should be clickable for completed steps
+4. The placeholder "Step content will be rendered here" should show
+5. Save Draft button should work
+6. No errors in console
+
+Verify the shell works before proceeding to extract individual steps.
+
+After Replit Agent completes this:
+
+Test that the wizard loads
+Test navigation (next/back/jump to step)
+Test save draft
+Verify no console errors
+
+Then let me know and we'll start extracting Step 1! We'll do steps one at a time to ensure each works before moving to the next.lets move to next2:52 PMPerfect! Now let's extract Step 1. Here's the prompt:
+
+🤖 REPLIT AGENT PROMPT - REFACTOR PHASE 3A: Extract Step 1 (Project Info)
+EXTRACT STEP 1: PROJECT INFO COMPONENT
+
+Create a dedicated component for Step 1 (Project Info) by extracting it from the old generate-contracts.tsx file.
+
+Location: client/src/components/wizard/steps/Step1ProjectInfo.tsx
+
+STEP 1: CREATE THE COMPONENT FILE
+```typescript
+import { useWizard } from '../WizardContext';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { HelpCircle, RefreshCw } from 'lucide-react';
+
+export const Step1ProjectInfo: React.FC = () => {
+  const { 
+    wizardState, 
+    updateProjectData, 
+    validationErrors 
+  } = useWizard();
+  
+  const { projectData } = wizardState;
+  
+  // Generate project number function
+  const generateProjectNumber = () => {
+    const year = new Date().getFullYear();
+    const random = Math.floor(Math.random() * 900) + 100;
+    return `${year}-${random}`;
+  };
+  
+  // Auto-generate project number on first load if empty
+  if (!projectData.projectNumber) {
+    updateProjectData({ projectNumber: generateProjectNumber() });
+  }
+  
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Project Information</CardTitle>
+          <CardDescription>
+            Enter the basic details for your project
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Project Number */}
+          <div className="space-y-2">
+            <Label htmlFor="projectNumber" className="flex items-center gap-2">
+              Project Number <span className="text-red-500">*</span>
+              <Tooltip>
+                <TooltipTrigger>
+                  <HelpCircle className="h-4 w-4 text-muted-foreground" />
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Format: YYYY-### (e.g., 2025-042)</p>
+                </TooltipContent>
+              </Tooltip>
+            </Label>
+            <div className="flex gap-2">
+              <Input
+                id="projectNumber"
+                value={projectData.projectNumber}
+                onChange={(e) => updateProjectData({ projectNumber: e.target.value })}
+                placeholder="2025-042"
+                className={validationErrors.projectNumber ? 'border-red-500' : ''}
+                data-testid="input-project-number"
+              />
+              <Button
+                variant="outline"
+                onClick={() => updateProjectData({ projectNumber: generateProjectNumber() })}
+                data-testid="button-regenerate-number"
+              >
+                <RefreshCw className="h-4 w-4" />
+              </Button>
+            </div>
+            {validationErrors.projectNumber && (
+              <p className="text-sm text-red-500">{validationErrors.projectNumber}</p>
+            )}
+          </div>
+          
+          {/* Project Name */}
+          <div className="space-y-2">
+            <Label htmlFor="projectName" className="flex items-center gap-2">
+              Project Name <span className="text-red-500">*</span>
+            </Label>
+            <Input
+              id="projectName"
+              value={projectData.projectName}
+              onChange={(e) => updateProjectData({ projectName: e.target.value })}
+              placeholder="e.g., Smith Residence"
+              className={validationErrors.projectName ? 'border-red-500' : ''}
+              data-testid="input-project-name"
+            />
+            {validationErrors.projectName && (
+              <p className="text-sm text-red-500">{validationErrors.projectName}</p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              A descriptive name for the project
+            </p>
+          </div>
+          
+          {/* Total Units */}
+          <div className="space-y-2">
+            <Label htmlFor="totalUnits" className="flex items-center gap-2">
+              Total Units <span className="text-red-500">*</span>
+              <Tooltip>
+                <TooltipTrigger>
+                  <HelpCircle className="h-4 w-4 text-muted-foreground" />
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Number of dwelling units in this project (1-50)</p>
+                </TooltipContent>
+              </Tooltip>
+            </Label>
+            <div className="flex items-center gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => updateProjectData({ 
+                  totalUnits: Math.max(1, projectData.totalUnits - 1) 
+                })}
+                disabled={projectData.totalUnits <= 1}
+                data-testid="button-decrease-units"
+              >
+                -
+              </Button>
+              <Input
+                id="totalUnits"
+                type="number"
+                value={projectData.totalUnits}
+                onChange={(e) => updateProjectData({ 
+                  totalUnits: parseInt(e.target.value) || 1 
+                })}
+                min="1"
+                max="50"
+                className={`w-24 text-center ${validationErrors.totalUnits ? 'border-red-500' : ''}`}
+                data-testid="input-total-units"
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => updateProjectData({ 
+                  totalUnits: Math.min(50, projectData.totalUnits + 1) 
+                })}
+                disabled={projectData.totalUnits >= 50}
+                data-testid="button-increase-units"
+              >
+                +
+              </Button>
+            </div>
+            {projectData.totalUnits > 10 && (
+              <div className="flex items-center gap-2 text-sm text-orange-600">
+                <HelpCircle className="h-4 w-4" />
+                <span>Multi-unit project will use extended exhibits</span>
+              </div>
+            )}
+            {validationErrors.totalUnits && (
+              <p className="text-sm text-red-500">{validationErrors.totalUnits}</p>
+            )}
+          </div>
+          
+          {/* Agreement Execution Date */}
+          <div className="space-y-2">
+            <Label htmlFor="agreementDate" className="flex items-center gap-2">
+              Agreement Execution Date <span className="text-red-500">*</span>
+            </Label>
+            <Input
+              id="agreementDate"
+              type="date"
+              value={projectData.agreementDate}
+              onChange={(e) => updateProjectData({ agreementDate: e.target.value })}
+              className={validationErrors.agreementDate ? 'border-red-500' : ''}
+              data-testid="input-agreement-date"
+            />
+            {validationErrors.agreementDate && (
+              <p className="text-sm text-red-500">{validationErrors.agreementDate}</p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Date when the contract will be signed
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+      
+      {/* Variables Mapped Info */}
+      <Card className="bg-muted/30">
+        <CardContent className="pt-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium">Contract Variables</p>
+              <p className="text-xs text-muted-foreground">
+                This step populates 4 contract variables
+              </p>
+            </div>
+            <Badge variant="secondary">
+              PROJECT_NUMBER, PROJECT_NAME, TOTAL_UNITS, AGREEMENT_DATE
+            </Badge>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+```
+
+STEP 2: UPDATE WIZARD SHELL TO USE STEP 1
+
+In client/src/components/wizard/WizardShell.tsx:
+
+1. Import Step1:
+```typescript
+import { Step1ProjectInfo } from './steps/Step1ProjectInfo';
+```
+
+2. Replace the placeholder content section with:
+```typescript
+      {/* Step Content */}
+      <div>
+        {wizardState.currentStep === 1 && <Step1ProjectInfo />}
+        
+        {/* Placeholder for other steps */}
+        {wizardState.currentStep !== 1 && (
+          <Card className="p-6 min-h-[400px]">
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center space-y-4">
+                <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
+                  {React.createElement(currentStepInfo.icon, { className: "h-10 w-10 text-primary" })}
+                </div>
+                <div>
+                  <h3 className="text-xl font-semibold mb-2">Step {wizardState.currentStep}</h3>
+                  <p className="text-muted-foreground">
+                    Step content will be rendered here
+                  </p>
+                </div>
+              </div>
+            </div>
+          </Card>
+        )}
+      </div>
+```
+
+STEP 3: ENSURE VALIDATION LOGIC EXISTS
+
+In WizardContext.tsx, make sure the validateStep function handles Step 1:
+```typescript
+case 1:
+  if (!projectData.projectNumber) {
+    errors.projectNumber = 'Project number is required';
+    isValid = false;
+  }
+  if (!projectData.projectName || projectData.projectName.length < 3) {
+    errors.projectName = 'Project name is required (minimum 3 characters)';
+    isValid = false;
+  }
+  if (!projectData.totalUnits || projectData.totalUnits < 1 || projectData.totalUnits > 50) {
+    errors.totalUnits = 'Total units must be between 1 and 50';
+    isValid = false;
+  }
+  if (!projectData.agreementDate) {
+    errors.agreementDate = 'Agreement date is required';
+    isValid = false;
+  }
+  break;
+```
+
+TESTING CHECKLIST:
+
+After implementing:
+1. ✓ Navigate to Step 1 - should show the form
+2. ✓ Project number auto-generates on load
+3. ✓ Regenerate button creates new project number
+4. ✓ All 4 fields are editable
+5. ✓ +/- buttons work for total units
+6. ✓ Validation shows errors for empty fields
+7. ✓ "Next" button is disabled if validation fails
+8. ✓ "Next" button is enabled when all fields are valid
+9. ✓ Can successfully proceed to Step 2 (placeholder)
+10. ✓ Can navigate back to Step 1 and data persists
+
+Implement this and test thoroughly before proceeding to Step 2.

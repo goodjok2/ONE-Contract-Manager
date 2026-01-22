@@ -3,6 +3,10 @@ import { useToast } from '@/hooks/use-toast';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 
+// Shell Testing Mode: Set to false when step content components are added
+// When true: skips form validation and allows navigation to all steps without completing forms
+export const SHELL_TESTING_MODE = true;
+
 // US States for dropdown
 export const US_STATES = [
   { value: 'AL', label: 'Alabama' }, { value: 'AK', label: 'Alaska' },
@@ -651,8 +655,13 @@ export const WizardProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setWizardState(prev => ({ ...prev, validationErrors: errors }));
   }, []);
 
-  // Validate step
+  // Validate step  
   const validateStep = useCallback((stepNumber: number): { valid: boolean; errors: Record<string, string> } => {
+    // Skip validation during shell testing phase
+    if (SHELL_TESTING_MODE) {
+      return { valid: true, errors: {} };
+    }
+    
     const errors: Record<string, string> = {};
     const data = wizardState.projectData;
 

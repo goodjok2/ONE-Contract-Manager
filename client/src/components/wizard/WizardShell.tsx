@@ -1,7 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { useWizard } from './WizardContext';
+import { useWizard, SHELL_TESTING_MODE } from './WizardContext';
 import { 
   Check, 
   ChevronLeft, 
@@ -41,7 +41,8 @@ export const WizardShell: React.FC = () => {
   } = useWizard();
   
   const currentStepInfo = STEPS[wizardState.currentStep - 1];
-  const canProceed = validateStep(wizardState.currentStep);
+  const validationResult = validateStep(wizardState.currentStep);
+  const canProceed = validationResult.valid;
   const CurrentIcon = currentStepInfo.icon;
   
   return (
@@ -65,7 +66,8 @@ export const WizardShell: React.FC = () => {
           {STEPS.map((step, index) => {
             const isCompleted = wizardState.completedSteps.has(step.number);
             const isCurrent = step.number === wizardState.currentStep;
-            const isAccessible = step.number === 1 || 
+            const isAccessible = SHELL_TESTING_MODE || 
+                                step.number === 1 || 
                                 isCompleted || 
                                 wizardState.completedSteps.has(step.number - 1) ||
                                 step.number < wizardState.currentStep;
@@ -73,14 +75,14 @@ export const WizardShell: React.FC = () => {
             
             return (
               <div key={step.number} className="flex items-center">
-                <button
+                <Button
+                  variant={isCurrent ? "default" : isCompleted ? "ghost" : "ghost"}
                   onClick={() => isAccessible && goToStep(step.number)}
                   disabled={!isAccessible}
                   className={`
-                    flex flex-col items-center gap-1 p-2 rounded-lg transition-all
+                    h-auto flex flex-col items-center gap-1 p-2 rounded-lg
                     ${isCurrent ? 'bg-primary text-primary-foreground' : ''}
-                    ${isCompleted && !isCurrent ? 'bg-green-500/10 text-green-600' : ''}
-                    ${!isAccessible ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer hover:bg-muted'}
+                    ${isCompleted && !isCurrent ? 'bg-green-500/10 text-green-600 dark:text-green-400' : ''}
                     ${!isCurrent && !isCompleted && isAccessible ? 'text-muted-foreground' : ''}
                   `}
                   data-testid={`step-indicator-${step.number}`}
@@ -101,7 +103,7 @@ export const WizardShell: React.FC = () => {
                     <div className="text-xs font-medium truncate">{step.title}</div>
                     <div className="text-[10px] truncate">{step.description}</div>
                   </div>
-                </button>
+                </Button>
                 
                 {/* Connector Line */}
                 {index < STEPS.length - 1 && (

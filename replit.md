@@ -62,8 +62,9 @@ This application helps Dvele manage construction projects through dedicated chil
 │   │   │   ├── app-sidebar.tsx      # Navigation sidebar (Main + Configuration sections)
 │   │   │   ├── theme-provider.tsx   # Dark mode context provider
 │   │   │   ├── theme-toggle.tsx     # Theme toggle button
-│   │   │   ├── wizard/              # Contract wizard components
+│   │   │   ├── wizard/              # Contract wizard components (modular refactor)
 │   │   │   │   ├── WizardContext.tsx # Centralized wizard state management (React Context)
+│   │   │   │   ├── WizardShell.tsx   # Main wizard container with progress, navigation
 │   │   │   │   └── index.ts         # Barrel exports for wizard module
 │   │   │   └── ui/                  # Shadcn UI components
 │   │   ├── pages/
@@ -144,3 +145,34 @@ This application helps Dvele manage construction projects through dedicated chil
 ## Running the Application
 
 The application starts with `npm run dev` which runs both the Express backend and Vite frontend on port 5000.
+
+## Development Notes
+
+### Wizard Module Refactoring
+
+The Generate Contracts wizard is being refactored into modular components:
+
+- **WizardContext.tsx**: Centralized state management using React Context
+  - Provides `useWizard` hook for accessing wizard state and actions
+  - Exports: `WizardProvider`, `useWizard`, constants (`US_STATES`, `ENTITY_TYPES`, `FEDERAL_DISTRICTS`)
+  - Contains `SHELL_TESTING_MODE` flag for development
+  
+- **WizardShell.tsx**: Main wizard container component
+  - Progress indicator with step count and percentage
+  - Step pills for navigation between steps
+  - Navigation buttons (Back, Save Draft, Next)
+  - Validation error display
+
+- **Shell Testing Mode**: 
+  - Single source of truth: Exported from `WizardContext.tsx` as `SHELL_TESTING_MODE`
+  - Imported by `WizardShell.tsx` for consistent behavior
+  - When `SHELL_TESTING_MODE = true`:
+    - Form validation is skipped (can advance without filling fields)
+    - All step indicators are clickable (can jump to any step)
+    - Enables testing wizard navigation and UI without implementing forms
+  - **Important**: Set `SHELL_TESTING_MODE = false` before adding actual step content components
+  - To disable: Change the export in `WizardContext.tsx` line 7
+
+### Backup Files
+
+- `generate-contracts.old.tsx`: Full implementation backup of the original 9-step wizard for reference when extracting step components
