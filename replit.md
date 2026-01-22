@@ -26,7 +26,11 @@ This application helps Dvele manage construction projects through dedicated chil
   - Step 4: Child LLC (auto-generated name)
   - Step 5: Site & Property (address, multi-unit specifications with add/remove)
   - Step 6: Key Dates (effective, manufacturing start, completion)
-  - Step 7: Pricing & Fees (design fee, offsite/onsite costs)
+  - Step 7: Financial Terms (comprehensive pricing and payment configuration):
+    - Design Phase: Design fee ($1k-$100k), revision rounds
+    - Preliminary Pricing: Offsite/delivery costs, CMOS-specific fields
+    - Payment Milestones: 5 milestones summing to 95%, retainage settings
+    - Manufacturing Payments: Design/production/delivery payment schedule
   - Step 8: Review & Generate
 - **Active Contracts**: List and manage all contracts
 - **Templates**: Pre-configured contract templates (DTC Standard, B2B Developer)
