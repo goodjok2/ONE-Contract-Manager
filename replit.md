@@ -21,7 +21,8 @@ This application helps Dvele manage construction projects through dedicated chil
 - **Contract Builder**: Multi-step wizard for creating new project agreements
 - **Active Contracts**: List and manage all contracts
 - **Templates**: Pre-configured contract templates (DTC Standard, B2B Developer)
-- **Clause Library**: Reusable contract clauses (coming soon)
+- **Clause Library**: Browse 276 contract clauses with filtering by contract type (ONE/MANUFACTURING/ONSITE), hierarchy level (Sections/Subsections/Paragraphs), search, expandable rows showing conditional logic, and edit capability for legal team
+- **Contract Preview**: Preview clauses with CRC/CMOS service model toggle, variable preview showing populated/empty status, and comparison view between service models
 - **LLC Administration**: Create and manage child LLC entities with auto-generated names, status tracking (forming/active/closed), member management, and compliance monitoring
 - **LLC Detail Page**: Tabbed interface (Overview, Documents, Members, Compliance) for detailed LLC management
 - **Settings**: Company configuration and theme settings
@@ -85,6 +86,10 @@ This application helps Dvele manage construction projects through dedicated chil
 - `POST /api/llcs` - Create new LLC
 - `PATCH /api/llcs/:id` - Update LLC fields (status, members, compliance, etc.)
 - `DELETE /api/llcs/:id` - Delete LLC
+- `GET /api/clauses` - List clauses with optional filters (contractType, hierarchyLevel, search)
+- `PATCH /api/clauses/:id` - Update clause (name, content, risk_level, negotiable)
+- `GET /api/variables` - List all contract variables by category
+- `POST /api/contracts/compare-service-models` - Compare CRC vs CMOS clause differences
 
 ## Navigation Structure
 
