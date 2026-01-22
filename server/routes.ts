@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import type { Server } from "http";
 import { db } from "./db/index";
+import { pool } from "./db";
 import {
   projects,
   clients,
@@ -1041,6 +1042,303 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     } catch (error) {
       console.error("Failed to delete ERP mapping:", error);
       res.status(500).json({ error: "Failed to delete ERP mapping" });
+    }
+  });
+
+  // ---------------------------------------------------------------------------
+  // CONTRACT PACKAGE GENERATION (Clause-based)
+  // ---------------------------------------------------------------------------
+
+  // Get required variables for a contract type
+  app.get("/api/contracts/variables/:contractType", async (req, res) => {
+    try {
+      const { contractType } = req.params;
+      
+      const query = `
+        SELECT DISTINCT 
+          cv.variable_name,
+          cv.display_name,
+          cv.data_type,
+          cv.category,
+          cv.description,
+          cv.default_value,
+          cv.is_required
+        FROM contract_variables cv
+        WHERE $1 = ANY(cv.used_in_contracts)
+        ORDER BY cv.category, cv.variable_name
+      `;
+      
+      const result = await pool.query(query, [contractType.toUpperCase()]);
+      
+      // Group by category
+      const byCategory = result.rows.reduce((acc: Record<string, any[]>, variable: any) => {
+        const category = variable.category || 'other';
+        if (!acc[category]) acc[category] = [];
+        acc[category].push(variable);
+        return acc;
+      }, {});
+      
+      res.json({
+        contractType: contractType.toUpperCase(),
+        totalVariables: result.rows.length,
+        categories: Object.keys(byCategory),
+        variablesByCategory: byCategory,
+        allVariables: result.rows
+      });
+      
+    } catch (error) {
+      console.error("Error fetching required variables:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch required variables",
+        message: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
+  // Preview which clauses will be included for given project parameters
+  app.post("/api/contracts/preview-clauses", async (req, res) => {
+    try {
+      const { contractType, projectData } = req.body;
+      
+      if (!contractType || !projectData) {
+        return res.status(400).json({ 
+          error: "Both contractType and projectData are required" 
+        });
+      }
+      
+      // Get the template
+      const templateQuery = `
+        SELECT * FROM contract_templates
+        WHERE contract_type = $1 AND status = 'active'
+        LIMIT 1
+      `;
+      
+      const templateResult = await pool.query(templateQuery, [contractType.toUpperCase()]);
+      
+      if (templateResult.rows.length === 0) {
+        return res.status(404).json({ 
+          error: `No active template found for: ${contractType}` 
+        });
+      }
+      
+      const template = templateResult.rows[0];
+      
+      // Get base clause IDs
+      let clauseIds = [...(template.base_clause_ids || [])];
+      
+      // Process conditional rules
+      const conditionalRules = template.conditional_rules || {};
+      for (const [conditionKey, ruleSet] of Object.entries(conditionalRules)) {
+        const projectValue = projectData[conditionKey];
+        const rules = ruleSet as Record<string, number[]>;
+        if (projectValue !== undefined && rules[String(projectValue)]) {
+          clauseIds.push(...rules[String(projectValue)]);
+        }
+      }
+      
+      // Fetch the clauses
+      if (clauseIds.length === 0) {
+        return res.json({
+          contractType: contractType.toUpperCase(),
+          template: template.display_name,
+          summary: { totalClauses: 0, sections: 0, subsections: 0, paragraphs: 0 },
+          allClauses: []
+        });
+      }
+      
+      const clausesQuery = `
+        SELECT 
+          id, clause_code, parent_clause_id, hierarchy_level, sort_order,
+          name, category, contract_type, content, variables_used, conditions,
+          risk_level, negotiable
+        FROM clauses
+        WHERE id = ANY($1)
+        ORDER BY sort_order
+      `;
+      
+      const clausesResult = await pool.query(clausesQuery, [clauseIds]);
+      const clauses = clausesResult.rows;
+      
+      // Organize by hierarchy
+      const sections = clauses.filter((c: any) => c.hierarchy_level === 1);
+      const subsections = clauses.filter((c: any) => c.hierarchy_level === 2);
+      const paragraphs = clauses.filter((c: any) => c.hierarchy_level === 3);
+      const conditionalIncluded = clauses.filter((c: any) => c.conditions !== null);
+      
+      res.json({
+        contractType: contractType.toUpperCase(),
+        template: template.display_name,
+        summary: {
+          totalClauses: clauses.length,
+          sections: sections.length,
+          subsections: subsections.length,
+          paragraphs: paragraphs.length,
+          conditionalIncluded: conditionalIncluded.length
+        },
+        conditionalClauses: conditionalIncluded.map((c: any) => ({
+          code: c.clause_code,
+          name: c.name,
+          conditions: c.conditions,
+          category: c.category
+        })),
+        allClauses: clauses.map((c: any) => ({
+          code: c.clause_code,
+          level: c.hierarchy_level,
+          name: c.name,
+          category: c.category,
+          variablesUsed: c.variables_used,
+          conditional: c.conditions !== null
+        }))
+      });
+      
+    } catch (error) {
+      console.error("Error previewing clauses:", error);
+      res.status(500).json({ 
+        error: "Failed to preview clauses",
+        message: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
+  // Generate full contract package (ONE + Manufacturing + OnSite)
+  app.post("/api/contracts/generate-package", async (req, res) => {
+    try {
+      const { projectData } = req.body;
+      
+      if (!projectData) {
+        return res.status(400).json({ 
+          error: "Project data is required",
+          message: "Please provide projectData object with all required variables"
+        });
+      }
+      
+      console.log("Generating contract package for project:", projectData.PROJECT_NAME);
+      
+      // Add calculated/derived fields
+      const enrichedData = {
+        ...projectData,
+        IS_CRC: projectData.SERVICE_MODEL === "CRC",
+        IS_CMOS: projectData.SERVICE_MODEL === "CMOS",
+        CONTRACT_DATE: projectData.CONTRACT_DATE || new Date().toISOString().split("T")[0]
+      };
+      
+      // Helper function to generate a single contract
+      async function generateSingleContract(contractType: string) {
+        // Get the template
+        const templateQuery = `
+          SELECT * FROM contract_templates
+          WHERE contract_type = $1 AND status = 'active'
+          LIMIT 1
+        `;
+        
+        const templateResult = await pool.query(templateQuery, [contractType]);
+        
+        if (templateResult.rows.length === 0) {
+          throw new Error(`No active template found for contract type: ${contractType}`);
+        }
+        
+        const template = templateResult.rows[0];
+        
+        // Get clause IDs
+        let clauseIds = [...(template.base_clause_ids || [])];
+        const conditionalRules = template.conditional_rules || {};
+        
+        for (const [conditionKey, ruleSet] of Object.entries(conditionalRules)) {
+          const projectValue = enrichedData[conditionKey];
+          const rules = ruleSet as Record<string, number[]>;
+          if (projectValue !== undefined && rules[String(projectValue)]) {
+            clauseIds.push(...rules[String(projectValue)]);
+          }
+        }
+        
+        // Fetch clauses
+        if (clauseIds.length === 0) {
+          return { content: "", filename: `${contractType}_empty.docx`, clauseCount: 0 };
+        }
+        
+        const clausesQuery = `
+          SELECT clause_code, hierarchy_level, name, content, variables_used
+          FROM clauses
+          WHERE id = ANY($1)
+          ORDER BY sort_order
+        `;
+        
+        const clausesResult = await pool.query(clausesQuery, [clauseIds]);
+        const clauses = clausesResult.rows;
+        
+        // Build document text
+        let documentText = "";
+        for (const clause of clauses) {
+          if (clause.hierarchy_level === 1) {
+            documentText += `\n\n${clause.name.toUpperCase()}\n\n`;
+          } else if (clause.hierarchy_level === 2) {
+            documentText += `\n${clause.name}\n\n`;
+          } else {
+            documentText += "\n";
+          }
+          documentText += clause.content + "\n";
+        }
+        
+        // Replace variables
+        documentText = documentText.replace(/\{\{([A-Z_]+)\}\}/g, (match, varName) => {
+          const value = enrichedData[varName];
+          if (value === undefined || value === null) {
+            return `[${varName}]`;
+          }
+          if (typeof value === "boolean") return value ? "Yes" : "No";
+          if (typeof value === "number") return value.toLocaleString();
+          return String(value);
+        });
+        
+        const projectName = enrichedData.PROJECT_NAME || "Unnamed";
+        const sanitizedName = projectName.replace(/[^a-z0-9]/gi, "_");
+        const filename = `${sanitizedName}_${contractType}_${Date.now()}.docx`;
+        
+        return {
+          content: documentText,
+          filename,
+          clauseCount: clauses.length
+        };
+      }
+      
+      // Generate all three contracts
+      const [oneAgreement, manufacturing, onsite] = await Promise.all([
+        generateSingleContract("ONE"),
+        generateSingleContract("MANUFACTURING"),
+        generateSingleContract("ONSITE")
+      ]);
+      
+      res.json({
+        success: true,
+        message: "Contract package generated successfully",
+        projectName: enrichedData.PROJECT_NAME,
+        serviceModel: enrichedData.SERVICE_MODEL,
+        contracts: {
+          one_agreement: {
+            filename: oneAgreement.filename,
+            content: oneAgreement.content,
+            clauseCount: oneAgreement.clauseCount
+          },
+          manufacturing_subcontract: {
+            filename: manufacturing.filename,
+            content: manufacturing.content,
+            clauseCount: manufacturing.clauseCount
+          },
+          onsite_subcontract: {
+            filename: onsite.filename,
+            content: onsite.content,
+            clauseCount: onsite.clauseCount
+          }
+        },
+        generatedAt: new Date().toISOString()
+      });
+      
+    } catch (error) {
+      console.error("Error generating contract package:", error);
+      res.status(500).json({ 
+        error: "Failed to generate contract package",
+        message: error instanceof Error ? error.message : "Unknown error"
+      });
     }
   });
 
