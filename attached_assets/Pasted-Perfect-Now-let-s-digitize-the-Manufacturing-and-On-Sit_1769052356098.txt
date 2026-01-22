@@ -1,0 +1,123 @@
+Perfect! Now let's digitize the Manufacturing and On-Site Installation subcontracts.
+
+I have both documents uploaded:
+- 8__Manufacturing_Subcontractor_Agreement_-_Company_to_Dvele_Manufacturing.docx
+- 9__On-Site_Installation_Subcontractor_Agreement_-_Company_to_Service_Provider.docx
+
+PARSE BOTH CONTRACTS IN THIS ORDER:
+
+════════════════════════════════════════════════════════════════
+PART 1: MANUFACTURING SUBCONTRACT
+════════════════════════════════════════════════════════════════
+
+STEP 1: Extract all {{VARIABLES}} from the Manufacturing contract
+Expected new variables (not in ONE Agreement):
+- DP_X (the SPV entity - same as DVELE_PARTNERS_XYZ)
+- Manufacturing-specific pricing variables
+- Manufacturing schedule variables
+- Any other manufacturing-specific variables
+
+Add these to contract_variables with used_in_contracts including 'MANUFACTURING'
+
+For variables that appear in BOTH ONE and MANUFACTURING:
+UPDATE the existing variable to add 'MANUFACTURING' to the used_in_contracts array
+Example: UPDATE contract_variables SET used_in_contracts = array_append(used_in_contracts, 'MANUFACTURING') WHERE variable_name = 'PROJECT_NAME';
+
+STEP 2: Parse Manufacturing contract structure
+The document has:
+- RECITALS section
+- ARTICLE 1: Scope of Services (1.1, 1.2, etc.)
+- ARTICLE 2: Contract Price and Payment Terms
+- ARTICLE 3: Schedule and Delivery
+- ARTICLE 4: Quality Standards
+- ARTICLE 5: Change Orders
+- ARTICLE 6: Warranties
+- ARTICLE 7: Insurance
+- ARTICLE 8: Termination
+- ARTICLE 9: Dispute Resolution
+- ARTICLE 10: General Provisions
+- EXHIBITS
+
+Create clauses with:
+- contract_type: 'MANUFACTURING'
+- clause_code pattern: 'MFG-RECITALS', 'MFG-1', 'MFG-1.1', 'MFG-2', etc.
+- hierarchy_level: 1 for articles, 2 for subsections
+- sort_order: 100, 110, 120 for Article 1 subsections, 200, 210, 220 for Article 2, etc.
+
+Watch for any [IF...] conditional blocks (though there may be fewer than in ONE Agreement)
+
+════════════════════════════════════════════════════════════════
+PART 2: ON-SITE INSTALLATION SUBCONTRACT
+════════════════════════════════════════════════════════════════
+
+STEP 3: Extract all {{VARIABLES}} from the On-Site contract
+Expected new variables:
+- ONSITE_PROVIDER_NAME (the contractor name)
+- On-site specific pricing variables
+- On-site schedule variables
+- Any other on-site-specific variables
+
+Add to contract_variables with used_in_contracts including 'ONSITE'
+
+For shared variables:
+UPDATE existing variables to add 'ONSITE' to used_in_contracts array
+
+STEP 4: Parse On-Site contract structure
+Similar structure to Manufacturing:
+- RECITALS section
+- ARTICLE 1: Scope of Services
+- ARTICLE 2: Contract Price and Payment
+- ... (follow the document structure)
+
+Create clauses with:
+- contract_type: 'ONSITE'
+- clause_code pattern: 'ONSITE-RECITALS', 'ONSITE-1', 'ONSITE-1.1', etc.
+- Same hierarchy and sort_order patterns
+
+════════════════════════════════════════════════════════════════
+IMPORTANT REMINDERS FOR BOTH CONTRACTS:
+════════════════════════════════════════════════════════════════
+
+1. Preserve ALL {{VARIABLES}} exactly as they appear
+2. Keep all legal language verbatim - no paraphrasing
+3. Handle any conditional blocks with separate clauses
+4. Use consistent sort_order spacing (100, 200, 300 for main articles)
+5. Extract variables from BOTH main body AND any exhibits
+
+════════════════════════════════════════════════════════════════
+WHEN BOTH ARE COMPLETE, SHOW ME:
+════════════════════════════════════════════════════════════════
+
+1. Total variables: SELECT COUNT(*), COUNT(DISTINCT variable_name) FROM contract_variables;
+2. Variables by contract:
+   SELECT 
+     CASE 
+       WHEN 'ONE' = ANY(used_in_contracts) THEN 'ONE ' ELSE '' 
+     END ||
+     CASE 
+       WHEN 'MANUFACTURING' = ANY(used_in_contracts) THEN 'MFG ' ELSE '' 
+     END ||
+     CASE 
+       WHEN 'ONSITE' = ANY(used_in_contracts) THEN 'ONSITE' ELSE '' 
+     END as contracts,
+     COUNT(*) 
+   FROM contract_variables 
+   GROUP BY contracts;
+
+3. Clause counts:
+   SELECT contract_type, COUNT(*), 
+          COUNT(*) FILTER (WHERE hierarchy_level = 1) as articles,
+          COUNT(*) FILTER (WHERE hierarchy_level = 2) as subsections
+   FROM clauses 
+   GROUP BY contract_type;
+
+4. Sample from each contract:
+   SELECT clause_code, name FROM clauses WHERE contract_type = 'MANUFACTURING' ORDER BY sort_order LIMIT 10;
+   SELECT clause_code, name FROM clauses WHERE contract_type = 'ONSITE' ORDER BY sort_order LIMIT 10;
+
+Expected totals:
+- Variables: 70-90 total (with shared variables across contracts)
+- Manufacturing clauses: 60-80
+- On-Site clauses: 80-100
+
+PROCEED NOW - parse both Manufacturing and On-Site contracts.
