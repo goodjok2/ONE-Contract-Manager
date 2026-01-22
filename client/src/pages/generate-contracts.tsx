@@ -444,7 +444,7 @@ export default function GenerateContracts() {
     }
   }, [toast]);
 
-  const progressPercent = ((wizardState.currentStep - 1) / 6) * 100;
+  const progressPercent = ((wizardState.currentStep - 1) / (STEPS.length - 1)) * 100;
 
   const renderStepContent = () => {
     const { currentStep, projectData, validationErrors } = wizardState;
@@ -457,7 +457,7 @@ export default function GenerateContracts() {
         return (
           <StepContent
             title="Project Information"
-            description="Enter the basic project details and select the service model"
+            description="Enter the basic project details"
           >
             <div className="grid gap-6">
               {/* Project Number */}
