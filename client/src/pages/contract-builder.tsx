@@ -6,8 +6,6 @@ import { useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -37,110 +35,108 @@ import {
   DollarSign,
   MapPin,
   Calendar,
-  Shield,
   FileText,
   Download,
   Eye,
   Loader2,
   Home,
+  FileCheck,
+  AlertCircle,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 
 const US_STATES = [
-  "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA",
-  "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD",
-  "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ",
-  "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC",
-  "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY"
+  { code: "AL", name: "Alabama" }, { code: "AK", name: "Alaska" }, { code: "AZ", name: "Arizona" },
+  { code: "AR", name: "Arkansas" }, { code: "CA", name: "California" }, { code: "CO", name: "Colorado" },
+  { code: "CT", name: "Connecticut" }, { code: "DE", name: "Delaware" }, { code: "FL", name: "Florida" },
+  { code: "GA", name: "Georgia" }, { code: "HI", name: "Hawaii" }, { code: "ID", name: "Idaho" },
+  { code: "IL", name: "Illinois" }, { code: "IN", name: "Indiana" }, { code: "IA", name: "Iowa" },
+  { code: "KS", name: "Kansas" }, { code: "KY", name: "Kentucky" }, { code: "LA", name: "Louisiana" },
+  { code: "ME", name: "Maine" }, { code: "MD", name: "Maryland" }, { code: "MA", name: "Massachusetts" },
+  { code: "MI", name: "Michigan" }, { code: "MN", name: "Minnesota" }, { code: "MS", name: "Mississippi" },
+  { code: "MO", name: "Missouri" }, { code: "MT", name: "Montana" }, { code: "NE", name: "Nebraska" },
+  { code: "NV", name: "Nevada" }, { code: "NH", name: "New Hampshire" }, { code: "NJ", name: "New Jersey" },
+  { code: "NM", name: "New Mexico" }, { code: "NY", name: "New York" }, { code: "NC", name: "North Carolina" },
+  { code: "ND", name: "North Dakota" }, { code: "OH", name: "Ohio" }, { code: "OK", name: "Oklahoma" },
+  { code: "OR", name: "Oregon" }, { code: "PA", name: "Pennsylvania" }, { code: "RI", name: "Rhode Island" },
+  { code: "SC", name: "South Carolina" }, { code: "SD", name: "South Dakota" }, { code: "TN", name: "Tennessee" },
+  { code: "TX", name: "Texas" }, { code: "UT", name: "Utah" }, { code: "VT", name: "Vermont" },
+  { code: "VA", name: "Virginia" }, { code: "WA", name: "Washington" }, { code: "WV", name: "West Virginia" },
+  { code: "WI", name: "Wisconsin" }, { code: "WY", name: "Wyoming" }
+];
+
+const ENTITY_TYPES = [
+  { value: "individual", label: "Individual" },
+  { value: "married_couple", label: "Married Couple" },
+  { value: "trust", label: "Trust" },
+  { value: "llc", label: "LLC" },
+  { value: "corporation", label: "Corporation" },
+  { value: "partnership", label: "Partnership" },
+];
+
+const HOME_MODELS = [
+  { value: "Ora 1200", sqft: 1200, beds: 2, baths: 2 },
+  { value: "Ora 1600", sqft: 1600, beds: 3, baths: 2 },
+  { value: "Ora 2000", sqft: 2000, beds: 3, baths: 2.5 },
+  { value: "Ora 2400", sqft: 2400, beds: 4, baths: 3 },
+  { value: "Ora 2800", sqft: 2800, beds: 4, baths: 3.5 },
+  { value: "Ora 3200", sqft: 3200, beds: 5, baths: 4 },
+  { value: "Custom", sqft: 0, beds: 0, baths: 0 },
 ];
 
 const contractSchema = z.object({
+  projectNumber: z.string().min(1, "Project number is required"),
   projectName: z.string().min(1, "Project name is required"),
   serviceModel: z.enum(["CRC", "CMOS"], { required_error: "Service model is required" }),
-  solarIncluded: z.boolean().default(false),
-  batteryIncluded: z.boolean().default(false),
-  bondingIncluded: z.boolean().default(false),
+  totalUnits: z.coerce.number().min(1, "At least 1 unit required").default(1),
 
-  clientName: z.string().min(1, "Client name is required"),
-  clientAddress: z.string().min(1, "Client address is required"),
-  clientEmail: z.string().email("Invalid email address"),
-  clientPhone: z.string().optional(),
+  clientLegalName: z.string().min(1, "Client legal name is required"),
+  clientEntityType: z.string().min(1, "Entity type is required"),
+  clientState: z.string().min(1, "Client state is required"),
+  spvLegalName: z.string().min(1, "SPV/LLC name is required"),
+  spvState: z.string().default("DE"),
+  onsiteContractorName: z.string().optional(),
+  onsiteContractorLicense: z.string().optional(),
+  onsiteContractorAddress: z.string().optional(),
 
-  spvName: z.string().min(1, "LLC name is required"),
-  spvState: z.string().min(1, "LLC state is required"),
-  spvAddress: z.string().min(1, "LLC address is required"),
-  spvEin: z.string().optional(),
-
-  contractorName: z.string().optional(),
-  contractorLicense: z.string().optional(),
-  contractorAddress: z.string().optional(),
-
-  propertyAddress: z.string().min(1, "Property address is required"),
-  propertyLegalDescription: z.string().optional(),
-  propertyApn: z.string().optional(),
-  lotSize: z.string().optional(),
-  zoning: z.string().optional(),
-
-  totalContractPrice: z.coerce.number().min(1, "Contract price is required"),
-  depositPercentage: z.coerce.number().min(1).max(100).default(10),
-  manufacturingPrice: z.coerce.number().optional(),
-  onsitePrice: z.coerce.number().optional(),
-
-  milestone1Description: z.string().default("Design Completion"),
-  milestone1Percentage: z.coerce.number().min(0).max(100).default(15),
-  milestone2Description: z.string().default("Green Light Approval"),
-  milestone2Percentage: z.coerce.number().min(0).max(100).default(25),
-  milestone3Description: z.string().default("Production Start"),
-  milestone3Percentage: z.coerce.number().min(0).max(100).default(20),
-
-  contractDate: z.string().min(1, "Contract date is required"),
-  estimatedStartDate: z.string().min(1, "Start date is required"),
-  estimatedCompletionDate: z.string().min(1, "Completion date is required"),
-
+  deliveryAddress: z.string().min(1, "Delivery address is required"),
+  siteAddress: z.string().min(1, "Site address is required"),
   homeModel: z.string().min(1, "Home model is required"),
-  homeSquareFootage: z.coerce.number().min(1, "Square footage is required"),
-  numBedrooms: z.coerce.number().min(1, "Number of bedrooms is required"),
-  numBathrooms: z.coerce.number().min(1, "Number of bathrooms is required"),
-  designPackage: z.string().min(1, "Design package is required"),
+  homeSqft: z.coerce.number().min(100, "Square footage required"),
+  homeBedrooms: z.coerce.number().min(1, "Bedrooms required"),
+  homeBathrooms: z.coerce.number().min(1, "Bathrooms required"),
 
-  structuralWarrantyYears: z.coerce.number().min(1).default(10),
-  systemsWarrantyYears: z.coerce.number().min(1).default(2),
-  workmanshipWarrantyYears: z.coerce.number().min(1).default(1),
-  jurisdiction: z.string().min(1, "Jurisdiction is required"),
-  buildingCodeYear: z.string().optional(),
+  designFee: z.coerce.number().min(0, "Design fee required"),
+  preliminaryOffsitePrice: z.coerce.number().min(0, "Offsite price required"),
+  preliminaryOnsitePrice: z.coerce.number().min(0, "Onsite price required"),
+  milestone1Percent: z.coerce.number().min(0).max(100).default(25),
+  milestone2Percent: z.coerce.number().min(0).max(100).default(25),
+  milestone3Percent: z.coerce.number().min(0).max(100).default(25),
+  milestone4Percent: z.coerce.number().min(0).max(100).default(15),
+  milestone5Percent: z.coerce.number().min(0).max(100).default(5),
+  retainagePercent: z.coerce.number().min(0).max(20).default(5),
+
+  agreementDate: z.string().min(1, "Agreement date is required"),
+  warrantyFitFinish: z.coerce.number().min(1).default(24),
+  warrantyEnvelope: z.coerce.number().min(1).default(60),
+  warrantyStructural: z.coerce.number().min(1).default(120),
+  projectState: z.string().min(1, "Project state is required"),
+  projectCounty: z.string().min(1, "County is required"),
 });
 
 type ContractFormValues = z.infer<typeof contractSchema>;
 
-const STORAGE_KEY = "dvele-contract-builder-draft";
+const STORAGE_KEY = "dvele-contract-wizard-draft";
 
 const steps = [
-  { id: 1, name: "Project Basics", icon: Building2 },
-  { id: 2, name: "Party Info", icon: Users },
-  { id: 3, name: "Property", icon: MapPin },
-  { id: 4, name: "Financial", icon: DollarSign },
-  { id: 5, name: "Schedule", icon: Calendar },
-  { id: 6, name: "Warranty", icon: Shield },
-  { id: 7, name: "Review", icon: FileText },
+  { id: 1, name: "Project Basics", icon: Building2, description: "Name, number & service model" },
+  { id: 2, name: "Parties", icon: Users, description: "Client, SPV & contractor info" },
+  { id: 3, name: "Site Details", icon: MapPin, description: "Address & unit specifications" },
+  { id: 4, name: "Financials", icon: DollarSign, description: "Pricing & payment milestones" },
+  { id: 5, name: "Schedule & Legal", icon: Calendar, description: "Dates, warranties & jurisdiction" },
+  { id: 6, name: "Review & Generate", icon: FileText, description: "Preview and download contracts" },
 ];
-
-interface ClausePreview {
-  contractType: string;
-  template: string;
-  summary: {
-    totalClauses: number;
-    sections: number;
-    subsections: number;
-    conditionalIncluded: number;
-  };
-  conditionalClauses: Array<{
-    code: string;
-    name: string;
-    conditions: Record<string, unknown>;
-    category: string;
-  }>;
-}
 
 interface GeneratedContract {
   filename: string;
@@ -151,6 +147,7 @@ interface GeneratedContract {
 interface GenerateResult {
   success: boolean;
   projectName: string;
+  serviceModel: string;
   contracts: {
     one_agreement: GeneratedContract;
     manufacturing_subcontract: GeneratedContract;
@@ -159,58 +156,53 @@ interface GenerateResult {
   generatedAt: string;
 }
 
+interface ClausePreviewResult {
+  oneAgreement: { total: number; conditional: number };
+  manufacturing: { total: number };
+  onsite: { total: number };
+}
+
 export default function ContractBuilder() {
   const [currentStep, setCurrentStep] = useState(1);
-  const [clausePreview, setClausePreview] = useState<ClausePreview | null>(null);
+  const [clausePreview, setClausePreview] = useState<ClausePreviewResult | null>(null);
   const [generatedContracts, setGeneratedContracts] = useState<GenerateResult | null>(null);
   const [spvManuallyEdited, setSpvManuallyEdited] = useState(false);
   const { toast } = useToast();
 
   const defaultValues: ContractFormValues = {
+    projectNumber: "",
     projectName: "",
     serviceModel: "CRC",
-    solarIncluded: false,
-    batteryIncluded: false,
-    bondingIncluded: false,
-    clientName: "",
-    clientAddress: "",
-    clientEmail: "",
-    clientPhone: "",
-    spvName: "",
+    totalUnits: 1,
+    clientLegalName: "",
+    clientEntityType: "individual",
+    clientState: "CA",
+    spvLegalName: "",
     spvState: "DE",
-    spvAddress: "1209 Orange Street, Wilmington, DE 19801",
-    spvEin: "",
-    contractorName: "",
-    contractorLicense: "",
-    contractorAddress: "",
-    propertyAddress: "",
-    propertyLegalDescription: "",
-    propertyApn: "",
-    lotSize: "",
-    zoning: "",
-    totalContractPrice: 0,
-    depositPercentage: 10,
-    manufacturingPrice: 0,
-    onsitePrice: 0,
-    milestone1Description: "Design Completion",
-    milestone1Percentage: 15,
-    milestone2Description: "Green Light Approval",
-    milestone2Percentage: 25,
-    milestone3Description: "Production Start",
-    milestone3Percentage: 20,
-    contractDate: new Date().toISOString().split("T")[0],
-    estimatedStartDate: "",
-    estimatedCompletionDate: "",
+    onsiteContractorName: "",
+    onsiteContractorLicense: "",
+    onsiteContractorAddress: "",
+    deliveryAddress: "",
+    siteAddress: "",
     homeModel: "",
-    homeSquareFootage: 0,
-    numBedrooms: 3,
-    numBathrooms: 2,
-    designPackage: "Standard",
-    structuralWarrantyYears: 10,
-    systemsWarrantyYears: 2,
-    workmanshipWarrantyYears: 1,
-    jurisdiction: "State of California",
-    buildingCodeYear: "2022",
+    homeSqft: 0,
+    homeBedrooms: 3,
+    homeBathrooms: 2,
+    designFee: 45000,
+    preliminaryOffsitePrice: 425000,
+    preliminaryOnsitePrice: 380000,
+    milestone1Percent: 25,
+    milestone2Percent: 25,
+    milestone3Percent: 25,
+    milestone4Percent: 15,
+    milestone5Percent: 5,
+    retainagePercent: 5,
+    agreementDate: new Date().toISOString().split("T")[0],
+    warrantyFitFinish: 24,
+    warrantyEnvelope: 60,
+    warrantyStructural: 120,
+    projectState: "CA",
+    projectCounty: "",
   };
 
   const form = useForm<ContractFormValues>({
@@ -220,12 +212,14 @@ export default function ContractBuilder() {
   });
 
   const projectName = useWatch({ control: form.control, name: "projectName" });
+  const clientLegalName = useWatch({ control: form.control, name: "clientLegalName" });
   const serviceModel = useWatch({ control: form.control, name: "serviceModel" });
-  const totalContractPrice = useWatch({ control: form.control, name: "totalContractPrice" });
-  const depositPercentage = useWatch({ control: form.control, name: "depositPercentage" });
-  const milestone1Percentage = useWatch({ control: form.control, name: "milestone1Percentage" });
-  const milestone2Percentage = useWatch({ control: form.control, name: "milestone2Percentage" });
-  const milestone3Percentage = useWatch({ control: form.control, name: "milestone3Percentage" });
+  const totalUnits = useWatch({ control: form.control, name: "totalUnits" });
+  const homeModel = useWatch({ control: form.control, name: "homeModel" });
+  const designFee = useWatch({ control: form.control, name: "designFee" });
+  const preliminaryOffsitePrice = useWatch({ control: form.control, name: "preliminaryOffsitePrice" });
+  const preliminaryOnsitePrice = useWatch({ control: form.control, name: "preliminaryOnsitePrice" });
+  const siteAddress = useWatch({ control: form.control, name: "siteAddress" });
 
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -248,100 +242,131 @@ export default function ContractBuilder() {
 
   useEffect(() => {
     if (projectName && !spvManuallyEdited) {
-      form.setValue("spvName", `Dvele Partners ${projectName} LLC`);
+      const cleanName = projectName.replace(/\s+/g, " ").trim();
+      form.setValue("spvLegalName", `Dvele Partners ${cleanName} LLC`);
     }
   }, [projectName, spvManuallyEdited, form]);
 
-  const depositAmount = (totalContractPrice * depositPercentage) / 100;
-  const milestone1Amount = (totalContractPrice * milestone1Percentage) / 100;
-  const milestone2Amount = (totalContractPrice * milestone2Percentage) / 100;
-  const milestone3Amount = (totalContractPrice * milestone3Percentage) / 100;
-  const finalPaymentPercentage = 100 - depositPercentage - milestone1Percentage - milestone2Percentage - milestone3Percentage;
-  const finalPaymentAmount = (totalContractPrice * finalPaymentPercentage) / 100;
+  useEffect(() => {
+    if (siteAddress) {
+      form.setValue("deliveryAddress", siteAddress);
+    }
+  }, [siteAddress, form]);
 
-  const previewMutation = useMutation({
-    mutationFn: async (data: ContractFormValues) => {
-      const response = await apiRequest("POST", "/api/contracts/preview-clauses", {
-        contractType: "ONE",
-        projectData: {
-          SERVICE_MODEL: data.serviceModel,
-          SOLAR_INCLUDED: data.solarIncluded,
-          BATTERY_INCLUDED: data.batteryIncluded,
-        },
-      });
-      return response.json();
-    },
-    onSuccess: (data) => {
-      setClausePreview(data);
-      toast({
-        title: "Preview Generated",
-        description: `${data.summary.totalClauses} clauses will be included in your contract.`,
-      });
-    },
-    onError: () => {
-      toast({
-        title: "Error",
-        description: "Failed to preview clauses. Please try again.",
-        variant: "destructive",
-      });
-    },
-  });
+  useEffect(() => {
+    const model = HOME_MODELS.find(m => m.value === homeModel);
+    if (model && model.value !== "Custom") {
+      form.setValue("homeSqft", model.sqft);
+      form.setValue("homeBedrooms", model.beds);
+      form.setValue("homeBathrooms", model.baths);
+    }
+  }, [homeModel, form]);
+
+  const totalContractPrice = designFee + preliminaryOffsitePrice + preliminaryOnsitePrice;
 
   const generateMutation = useMutation({
     mutationFn: async (data: ContractFormValues) => {
+      const stateName = US_STATES.find(s => s.code === data.projectState)?.name || data.projectState;
+      
       const projectData = {
+        PROJECT_NUMBER: data.projectNumber,
         PROJECT_NAME: data.projectName,
+        TOTAL_UNITS: String(data.totalUnits),
+        AGREEMENT_EXECUTION_DATE: data.agreementDate,
+        EFFECTIVE_DATE: data.agreementDate,
+        DVELE_PARTNERS_XYZ: `Dvele Partners ${data.projectName}`,
+        DVELE_PARTNERS_XYZ_LEGAL_NAME: data.spvLegalName,
+        DVELE_PARTNERS_XYZ_STATE: "Delaware",
+        DVELE_PARTNERS_XYZ_ENTITY_TYPE: "limited liability company",
+        DP_X: data.spvLegalName,
+        CLIENT_LEGAL_NAME: data.clientLegalName,
+        CLIENT_STATE: US_STATES.find(s => s.code === data.clientState)?.name || data.clientState,
+        CLIENT_ENTITY_TYPE: data.clientEntityType,
+        CLIENT_FULL_NAME: data.clientLegalName,
+        CLIENT_TITLE: data.clientEntityType === "individual" ? "Homeowner" : "Authorized Representative",
+        DELIVERY_ADDRESS: data.deliveryAddress,
+        SITE_ADDRESS: data.siteAddress,
         SERVICE_MODEL: data.serviceModel,
-        SOLAR_INCLUDED: data.solarIncluded,
-        BATTERY_INCLUDED: data.batteryIncluded,
-        CONTRACT_DATE: data.contractDate,
-        CLIENT_NAME: data.clientName,
-        CLIENT_ADDRESS: data.clientAddress,
-        CLIENT_EMAIL: data.clientEmail,
-        CLIENT_PHONE: data.clientPhone || "",
-        SPV_NAME: data.spvName,
-        SPV_STATE: data.spvState,
-        SPV_ADDRESS: data.spvAddress,
-        SPV_EIN: data.spvEin || "",
-        CONTRACTOR_NAME: data.contractorName || "",
-        CONTRACTOR_LICENSE: data.contractorLicense || "",
-        CONTRACTOR_ADDRESS: data.contractorAddress || "",
-        PROPERTY_ADDRESS: data.propertyAddress,
-        PROPERTY_LEGAL_DESCRIPTION: data.propertyLegalDescription || "",
-        PROPERTY_APN: data.propertyApn || "",
-        LOT_SIZE: data.lotSize || "",
-        ZONING: data.zoning || "",
-        TOTAL_CONTRACT_PRICE: data.totalContractPrice,
-        DEPOSIT_AMOUNT: depositAmount,
-        DEPOSIT_PERCENTAGE: data.depositPercentage,
-        MANUFACTURING_PRICE: data.manufacturingPrice || 0,
-        ONSITE_PRICE: data.onsitePrice || 0,
-        MILESTONE_1_DESCRIPTION: data.milestone1Description,
-        MILESTONE_1_AMOUNT: milestone1Amount,
-        MILESTONE_1_PERCENTAGE: data.milestone1Percentage,
-        MILESTONE_2_DESCRIPTION: data.milestone2Description,
-        MILESTONE_2_AMOUNT: milestone2Amount,
-        MILESTONE_2_PERCENTAGE: data.milestone2Percentage,
-        MILESTONE_3_DESCRIPTION: data.milestone3Description,
-        MILESTONE_3_AMOUNT: milestone3Amount,
-        MILESTONE_3_PERCENTAGE: data.milestone3Percentage,
-        FINAL_PAYMENT_AMOUNT: finalPaymentAmount,
-        ESTIMATED_START_DATE: data.estimatedStartDate,
-        ESTIMATED_COMPLETION_DATE: data.estimatedCompletionDate,
-        HOME_MODEL: data.homeModel,
-        HOME_SQUARE_FOOTAGE: data.homeSquareFootage,
-        NUM_BEDROOMS: data.numBedrooms,
-        NUM_BATHROOMS: data.numBathrooms,
-        DESIGN_PACKAGE: data.designPackage,
-        STRUCTURAL_WARRANTY_YEARS: data.structuralWarrantyYears,
-        SYSTEMS_WARRANTY_YEARS: data.systemsWarrantyYears,
-        WARRANTY_START_DATE: data.estimatedCompletionDate,
-        WARRANTY_EXCLUSIONS: "Normal wear and tear, owner modifications, acts of nature",
-        CHANGE_ORDER_NOTICE_DAYS: 5,
-        CHANGE_ORDER_MARKUP: 15,
-        JURISDICTION: data.jurisdiction,
-        INCLUDED_SERVICES: "Design, engineering, permitting, manufacturing, delivery, installation, and site finishing",
-        EXCLUDED_SERVICES: "Landscaping, fencing, exterior lighting beyond code requirements",
+        ON_SITE_SERVICES_SELECTION: data.serviceModel === "CRC" ? "CLIENT-RETAINED CONTRACTOR" : "COMPANY-MANAGED ON-SITE SERVICES",
+        DESIGN_FEE: `$${data.designFee.toLocaleString()}`,
+        DESIGN_REVISION_ROUNDS: "3",
+        PRELIMINARY_CONTRACT_PRICE: `$${totalContractPrice.toLocaleString()}`,
+        PRELIMINARY_TOTAL_PRICE: `$${totalContractPrice.toLocaleString()}`,
+        PRELIMINARY_OFFSITE_PRICE: `$${data.preliminaryOffsitePrice.toLocaleString()}`,
+        PRELIMINARY_ONSITE_PRICE: `$${data.preliminaryOnsitePrice.toLocaleString()}`,
+        DELIVERY_AND_INSTALLATION_PRICE: "$50,000",
+        FINAL_CONTRACT_PRICE: `$${totalContractPrice.toLocaleString()}`,
+        CONTRACT_PRICE: `$${totalContractPrice.toLocaleString()}`,
+        HOME_MODEL_1: `Dvele ${data.homeModel}`,
+        HOME_MODEL_1_PRELIMINARY_PRICE: `$${data.preliminaryOffsitePrice.toLocaleString()}`,
+        SHIPPING_PRELIMINARY_PRICE: "$15,000",
+        INSTALLATION_PRELIMINARY_PRICE: "$35,000",
+        SITE_PREP_PRELIMINARY_PRICE: "$120,000",
+        UTILITIES_PRELIMINARY_PRICE: "$80,000",
+        COMPLETION_PRELIMINARY_PRICE: "$180,000",
+        UNIT_1_MODEL: data.homeModel,
+        UNIT_1_SQFT: String(data.homeSqft),
+        UNIT_1_BEDROOMS: String(data.homeBedrooms),
+        UNIT_1_BATHROOMS: String(data.homeBathrooms),
+        UNIT_1_PRICE: `$${data.preliminaryOffsitePrice.toLocaleString()}`,
+        MILESTONE_1_PERCENT: String(data.milestone1Percent),
+        MILESTONE_2_PERCENT: String(data.milestone2Percent),
+        MILESTONE_3_PERCENT: String(data.milestone3Percent),
+        MILESTONE_4_PERCENT: String(data.milestone4Percent),
+        MILESTONE_5_PERCENT: String(data.milestone5Percent),
+        RETAINAGE_DAYS: "60",
+        RETAINAGE_PERCENT: String(data.retainagePercent),
+        DVELE_FIT_FINISH_WARRANTY: String(data.warrantyFitFinish),
+        DVELE_ENVELOPE_WARRANTY: String(data.warrantyEnvelope),
+        DVELE_STRUCTURAL_WARRANTY: String(data.warrantyStructural),
+        PROJECT_STATE: stateName,
+        PROJECT_STATE_CODE: `${stateName.substring(0, 3)}. Civ. Code`,
+        PROJECT_COUNTY: data.projectCounty,
+        PROJECT_FEDERAL_DISTRICT: `Northern District of ${stateName}`,
+        ONSITE_PROVIDER_NAME: data.onsiteContractorName || "Premier Site Builders Inc.",
+        MANUFACTURER_NAME: "Dvele Manufacturing LLC",
+        COMPANY_ADDRESS: "123 Innovation Way, San Francisco, CA 94105",
+        COMPANY_EMAIL: "contracts@dvele.com",
+        MANUFACTURER_ADDRESS: "500 Factory Drive, Hayward, CA 94545",
+        MANUFACTURER_EMAIL: "manufacturing@dvele.com",
+        PROVIDER_ADDRESS: data.onsiteContractorAddress || "789 Builder Lane, San Jose, CA 95112",
+        PROVIDER_EMAIL: "info@premiersitebuilders.com",
+        MANUFACTURING_PRICE: `$${data.preliminaryOffsitePrice.toLocaleString()}`,
+        TOTAL_ONSITE_PRICE: `$${data.preliminaryOnsitePrice.toLocaleString()}`,
+        SITE_PREP_PRICE: "$120,000",
+        FOUNDATION_UTILITIES_PRICE: "$100,000",
+        SHIPPING_LOGISTICS_PRICE: "$15,000",
+        INSTALLATION_PRICE: "$65,000",
+        COMPLETION_PRICE: "$80,000",
+        GL_INSURANCE_LIMIT: "$1,000,000",
+        GL_AGGREGATE_LIMIT: "$2,000,000",
+        POLLUTION_LIABILITY_LIMIT: "$1,000,000",
+        LIQUIDATED_DAMAGES_AMOUNT: "$500",
+        ONSITE_DESIGN_PAYMENT: "5",
+        SITE_PREP_PAYMENT: "15",
+        FOUNDATION_PAYMENT: "20",
+        DELIVERY_PAYMENT: "15",
+        INSTALLATION_PAYMENT: "20",
+        SUBSTANTIAL_COMPLETION_PAYMENT: "15",
+        MFG_DESIGN_PAYMENT: "10",
+        MFG_MATERIALS_PAYMENT: "25",
+        MFG_PRODUCTION_START_PAYMENT: "25",
+        MFG_PRODUCTION_50_PAYMENT: "20",
+        MFG_PRODUCTION_COMPLETE_PAYMENT: "15",
+        MFG_DELIVERY_PAYMENT: "5",
+        TOTAL_MANUFACTURING_PRICE: `$${data.preliminaryOffsitePrice.toLocaleString()}`,
+        DESIGN_MANUFACTURING_PRICE: `$${Math.round(data.preliminaryOffsitePrice * 0.1).toLocaleString()}`,
+        PRODUCTION_MANUFACTURING_PRICE: `$${Math.round(data.preliminaryOffsitePrice * 0.9).toLocaleString()}`,
+        DELIVERY_PREP_PRICE: "$15,000",
+        QC_PRICE: "$10,000",
+        DESIGN_PAYMENT: `$${Math.round(data.preliminaryOffsitePrice * 0.1).toLocaleString()}`,
+        PRODUCTION_START_PAYMENT: `$${Math.round(data.preliminaryOffsitePrice * 0.25).toLocaleString()}`,
+        PRODUCTION_COMPLETION_PAYMENT: `$${Math.round(data.preliminaryOffsitePrice * 0.45).toLocaleString()}`,
+        DELIVERY_READY_PAYMENT: `$${Math.round(data.preliminaryOffsitePrice * 0.2).toLocaleString()}`,
+        LIQUIDATED_DAMAGES_CAP: "$50,000",
+        PRODUCT_LIABILITY_LIMIT: "$2,000,000",
+        HOME_MODEL_X: `Dvele ${data.homeModel}`,
+        HOME_MODEL_X_PRELIMINARY_PRICE: `$${data.preliminaryOffsitePrice.toLocaleString()}`,
       };
 
       const response = await apiRequest("POST", "/api/contracts/generate-package", { projectData });
@@ -351,13 +376,13 @@ export default function ContractBuilder() {
       setGeneratedContracts(data);
       localStorage.removeItem(STORAGE_KEY);
       toast({
-        title: "Contracts Generated",
-        description: "Your contract package has been generated successfully.",
+        title: "Contracts Generated!",
+        description: "Your complete contract package is ready for download.",
       });
     },
     onError: () => {
       toast({
-        title: "Error",
+        title: "Generation Failed",
         description: "Failed to generate contracts. Please try again.",
         variant: "destructive",
       });
@@ -367,17 +392,15 @@ export default function ContractBuilder() {
   const getStepFields = (step: number): (keyof ContractFormValues)[] => {
     switch (step) {
       case 1:
-        return ["projectName", "serviceModel"];
+        return ["projectNumber", "projectName", "serviceModel", "totalUnits"];
       case 2:
-        return ["clientName", "clientAddress", "clientEmail", "spvName", "spvState", "spvAddress"];
+        return ["clientLegalName", "clientEntityType", "clientState", "spvLegalName"];
       case 3:
-        return ["propertyAddress"];
+        return ["deliveryAddress", "siteAddress", "homeModel", "homeSqft", "homeBedrooms", "homeBathrooms"];
       case 4:
-        return ["totalContractPrice", "depositPercentage"];
+        return ["designFee", "preliminaryOffsitePrice", "preliminaryOnsitePrice"];
       case 5:
-        return ["contractDate", "estimatedStartDate", "estimatedCompletionDate", "homeModel", "homeSquareFootage", "numBedrooms", "numBathrooms", "designPackage"];
-      case 6:
-        return ["structuralWarrantyYears", "systemsWarrantyYears", "jurisdiction"];
+        return ["agreementDate", "projectState", "projectCounty"];
       default:
         return [];
     }
@@ -391,8 +414,18 @@ export default function ContractBuilder() {
 
   const handleNext = async () => {
     const isValid = await validateStep(currentStep);
-    if (isValid && currentStep < 7) {
+    if (isValid && currentStep < 6) {
       setCurrentStep(currentStep + 1);
+      
+      if (currentStep === 5) {
+        const crcClauses = serviceModel === "CRC" ? 7 : 0;
+        const cmosClauses = serviceModel === "CMOS" ? 8 : 0;
+        setClausePreview({
+          oneAgreement: { total: 129 + crcClauses + cmosClauses, conditional: crcClauses + cmosClauses },
+          manufacturing: { total: 61 },
+          onsite: { total: 79 },
+        });
+      }
     }
   };
 
@@ -400,11 +433,6 @@ export default function ContractBuilder() {
     if (currentStep > 1) {
       setCurrentStep(currentStep - 1);
     }
-  };
-
-  const handlePreview = () => {
-    const values = form.getValues();
-    previewMutation.mutate(values);
   };
 
   const handleGenerate = () => {
@@ -422,6 +450,14 @@ export default function ContractBuilder() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadAll = () => {
+    if (generatedContracts) {
+      handleDownload(generatedContracts.contracts.one_agreement);
+      setTimeout(() => handleDownload(generatedContracts.contracts.manufacturing_subcontract), 500);
+      setTimeout(() => handleDownload(generatedContracts.contracts.onsite_subcontract), 1000);
+    }
   };
 
   const handleClearDraft = () => {
@@ -450,7 +486,7 @@ export default function ContractBuilder() {
       <div className="mb-8 flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-semibold text-foreground" data-testid="text-page-title">
-            Contract Builder
+            Contract Generation Wizard
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
             Build a complete contract package with clause-based assembly
@@ -461,73 +497,105 @@ export default function ContractBuilder() {
         </Button>
       </div>
 
-      <div className="max-w-4xl">
-        <nav aria-label="Progress" className="mb-8 overflow-x-auto">
-          <ol className="flex items-center min-w-max">
+      <div className="max-w-5xl">
+        <nav aria-label="Progress" className="mb-8">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium text-muted-foreground">
+              Step {currentStep} of 6
+            </span>
+            <span className="text-sm text-muted-foreground">
+              {Math.round((currentStep / 6) * 100)}% Complete
+            </span>
+          </div>
+          <div className="h-2 bg-muted rounded-full overflow-hidden">
+            <div
+              className="h-full bg-primary transition-all duration-300"
+              style={{ width: `${(currentStep / 6) * 100}%` }}
+            />
+          </div>
+          <ol className="flex items-center mt-4 overflow-x-auto pb-2">
             {steps.map((step, stepIdx) => (
-              <li key={step.name} className={`relative ${stepIdx !== steps.length - 1 ? "flex-1 pr-4 md:pr-8" : ""}`}>
+              <li key={step.name} className={`relative ${stepIdx !== steps.length - 1 ? "flex-1 pr-4" : ""}`}>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => setCurrentStep(step.id)}
-                    className={`flex h-8 w-8 md:h-10 md:w-10 items-center justify-center rounded-full border-2 transition-colors ${
+                    onClick={() => currentStep > step.id && setCurrentStep(step.id)}
+                    disabled={currentStep < step.id}
+                    className={`flex h-8 w-8 items-center justify-center rounded-full border-2 transition-colors ${
                       currentStep > step.id
-                        ? "border-primary bg-primary text-primary-foreground"
+                        ? "border-primary bg-primary text-primary-foreground cursor-pointer"
                         : currentStep === step.id
                         ? "border-primary bg-background text-primary"
-                        : "border-muted bg-background text-muted-foreground"
+                        : "border-muted bg-background text-muted-foreground cursor-not-allowed"
                     }`}
                     data-testid={`step-indicator-${step.id}`}
                   >
                     {currentStep > step.id ? (
                       <Check className="h-4 w-4" />
                     ) : (
-                      <step.icon className="h-4 w-4" />
+                      <span className="text-xs font-medium">{step.id}</span>
                     )}
                   </button>
-                  <span
-                    className={`text-xs md:text-sm font-medium hidden sm:block ${
-                      currentStep >= step.id ? "text-foreground" : "text-muted-foreground"
-                    }`}
-                  >
-                    {step.name}
-                  </span>
+                  <div className="hidden md:block">
+                    <span
+                      className={`text-xs font-medium ${
+                        currentStep >= step.id ? "text-foreground" : "text-muted-foreground"
+                      }`}
+                    >
+                      {step.name}
+                    </span>
+                  </div>
                 </div>
-                {stepIdx !== steps.length - 1 && (
-                  <div
-                    className={`absolute top-4 md:top-5 left-10 md:left-14 -ml-px h-0.5 w-full transition-colors ${
-                      currentStep > step.id ? "bg-primary" : "bg-muted"
-                    }`}
-                    aria-hidden="true"
-                  />
-                )}
               </li>
             ))}
           </ol>
         </nav>
 
         <Form {...form}>
-          <form onKeyDown={(e) => { if (e.key === "Enter" && currentStep < 7) e.preventDefault(); }}>
+          <form onKeyDown={(e) => { if (e.key === "Enter" && currentStep < 6) e.preventDefault(); }}>
+            
             {currentStep === 1 && (
               <Card data-testid="card-step-1">
                 <CardHeader>
-                  <CardTitle className="text-lg">Project Basics</CardTitle>
-                  <CardDescription>Enter project name and service configuration</CardDescription>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
+                      <Building2 className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg">Project Basics</CardTitle>
+                      <CardDescription>Project identification and service configuration</CardDescription>
+                    </div>
+                  </div>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                  <FormField
-                    control={form.control}
-                    name="projectName"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Project Name</FormLabel>
-                        <FormControl>
-                          <Input placeholder="e.g., Smith Residence" data-testid="input-project-name" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="projectNumber"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Project Number</FormLabel>
+                          <FormControl>
+                            <Input placeholder="e.g., 2025-001" data-testid="input-project-number" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="projectName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Project Name</FormLabel>
+                          <FormControl>
+                            <Input placeholder="e.g., Smith Residence" data-testid="input-project-name" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
 
                   <FormField
                     control={form.control}
@@ -535,26 +603,43 @@ export default function ContractBuilder() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Service Model</FormLabel>
+                        <FormDescription>
+                          Choose how on-site construction will be managed
+                        </FormDescription>
                         <FormControl>
                           <RadioGroup
                             onValueChange={field.onChange}
                             value={field.value}
-                            className="flex gap-4"
+                            className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2"
                           >
-                            <div className="flex items-center space-x-2">
+                            <label
+                              htmlFor="crc"
+                              className={`flex items-start gap-3 p-4 rounded-lg border-2 cursor-pointer transition-colors ${
+                                field.value === "CRC" ? "border-primary bg-primary/5" : "border-muted hover:border-muted-foreground/50"
+                              }`}
+                            >
                               <RadioGroupItem value="CRC" id="crc" data-testid="radio-crc" />
-                              <Label htmlFor="crc" className="font-normal cursor-pointer">
+                              <div>
                                 <span className="font-medium">CRC</span>
-                                <span className="text-muted-foreground ml-1">- Complete Responsibility Construction</span>
-                              </Label>
-                            </div>
-                            <div className="flex items-center space-x-2">
+                                <p className="text-sm text-muted-foreground mt-1">
+                                  Client-Retained Contractor - Client hires their own licensed general contractor
+                                </p>
+                              </div>
+                            </label>
+                            <label
+                              htmlFor="cmos"
+                              className={`flex items-start gap-3 p-4 rounded-lg border-2 cursor-pointer transition-colors ${
+                                field.value === "CMOS" ? "border-primary bg-primary/5" : "border-muted hover:border-muted-foreground/50"
+                              }`}
+                            >
                               <RadioGroupItem value="CMOS" id="cmos" data-testid="radio-cmos" />
-                              <Label htmlFor="cmos" className="font-normal cursor-pointer">
+                              <div>
                                 <span className="font-medium">CMOS</span>
-                                <span className="text-muted-foreground ml-1">- Construction Management Owner Services</span>
-                              </Label>
-                            </div>
+                                <p className="text-sm text-muted-foreground mt-1">
+                                  Company-Managed On-Site Services - Dvele manages all site construction
+                                </p>
+                              </div>
+                            </label>
                           </RadioGroup>
                         </FormControl>
                         <FormMessage />
@@ -562,65 +647,43 @@ export default function ContractBuilder() {
                     )}
                   />
 
-                  <div>
-                    <Label className="text-sm font-medium">Optional Features</Label>
-                    <div className="mt-3 space-y-3">
-                      <FormField
-                        control={form.control}
-                        name="solarIncluded"
-                        render={({ field }) => (
-                          <FormItem className="flex items-center space-x-3 space-y-0">
-                            <FormControl>
-                              <Checkbox
-                                checked={field.value}
-                                onCheckedChange={field.onChange}
-                                data-testid="checkbox-solar"
-                              />
-                            </FormControl>
-                            <FormLabel className="font-normal cursor-pointer">
-                              Solar Photovoltaic System
-                            </FormLabel>
-                          </FormItem>
+                  <FormField
+                    control={form.control}
+                    name="totalUnits"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Total Units</FormLabel>
+                        <FormDescription>Number of modular homes in this project</FormDescription>
+                        <FormControl>
+                          <RadioGroup
+                            onValueChange={(v) => field.onChange(parseInt(v))}
+                            value={String(field.value)}
+                            className="flex gap-4 mt-2"
+                          >
+                            <div className="flex items-center space-x-2">
+                              <RadioGroupItem value="1" id="unit-1" data-testid="radio-unit-1" />
+                              <Label htmlFor="unit-1" className="cursor-pointer">Single Unit</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <RadioGroupItem value="2" id="unit-2" data-testid="radio-unit-multi" />
+                              <Label htmlFor="unit-2" className="cursor-pointer">Multi-Unit (2+)</Label>
+                            </div>
+                          </RadioGroup>
+                        </FormControl>
+                        {field.value > 1 && (
+                          <Input
+                            type="number"
+                            min={2}
+                            className="w-24 mt-2"
+                            value={field.value}
+                            onChange={(e) => field.onChange(parseInt(e.target.value) || 2)}
+                            data-testid="input-total-units"
+                          />
                         )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="batteryIncluded"
-                        render={({ field }) => (
-                          <FormItem className="flex items-center space-x-3 space-y-0">
-                            <FormControl>
-                              <Checkbox
-                                checked={field.value}
-                                onCheckedChange={field.onChange}
-                                data-testid="checkbox-battery"
-                              />
-                            </FormControl>
-                            <FormLabel className="font-normal cursor-pointer">
-                              Battery Storage System
-                            </FormLabel>
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="bondingIncluded"
-                        render={({ field }) => (
-                          <FormItem className="flex items-center space-x-3 space-y-0">
-                            <FormControl>
-                              <Checkbox
-                                checked={field.value}
-                                onCheckedChange={field.onChange}
-                                data-testid="checkbox-bonding"
-                              />
-                            </FormControl>
-                            <FormLabel className="font-normal cursor-pointer">
-                              Performance Bonding
-                            </FormLabel>
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                  </div>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 </CardContent>
               </Card>
             )}
@@ -628,21 +691,30 @@ export default function ContractBuilder() {
             {currentStep === 2 && (
               <Card data-testid="card-step-2">
                 <CardHeader>
-                  <CardTitle className="text-lg">Party Information</CardTitle>
-                  <CardDescription>Enter client, LLC, and contractor details</CardDescription>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
+                      <Users className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg">Parties</CardTitle>
+                      <CardDescription>Client information and project entity setup</CardDescription>
+                    </div>
+                  </div>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div>
-                    <h3 className="text-sm font-medium mb-3">Client (Owner)</h3>
+                    <h3 className="font-medium mb-4 flex items-center gap-2">
+                      <Users className="h-4 w-4" /> Client Information
+                    </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <FormField
                         control={form.control}
-                        name="clientName"
+                        name="clientLegalName"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Legal Name</FormLabel>
+                            <FormLabel>Client Legal Name</FormLabel>
                             <FormControl>
-                              <Input placeholder="John and Sarah Smith" data-testid="input-client-name" {...field} />
+                              <Input placeholder="e.g., John and Jane Smith" data-testid="input-client-name" {...field} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -650,41 +722,48 @@ export default function ContractBuilder() {
                       />
                       <FormField
                         control={form.control}
-                        name="clientEmail"
+                        name="clientEntityType"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Email</FormLabel>
-                            <FormControl>
-                              <Input type="email" placeholder="client@email.com" data-testid="input-client-email" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                      <FormField
-                        control={form.control}
-                        name="clientAddress"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Mailing Address</FormLabel>
-                            <FormControl>
-                              <Input placeholder="123 Main St, City, State ZIP" data-testid="input-client-address" {...field} />
-                            </FormControl>
+                            <FormLabel>Entity Type</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                              <FormControl>
+                                <SelectTrigger data-testid="select-entity-type">
+                                  <SelectValue placeholder="Select type" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {ENTITY_TYPES.map((type) => (
+                                  <SelectItem key={type.value} value={type.value}>
+                                    {type.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                             <FormMessage />
                           </FormItem>
                         )}
                       />
                       <FormField
                         control={form.control}
-                        name="clientPhone"
+                        name="clientState"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Phone (Optional)</FormLabel>
-                            <FormControl>
-                              <Input placeholder="(555) 123-4567" data-testid="input-client-phone" {...field} />
-                            </FormControl>
+                            <FormLabel>Client State</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                              <FormControl>
+                                <SelectTrigger data-testid="select-client-state">
+                                  <SelectValue placeholder="Select state" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {US_STATES.map((state) => (
+                                  <SelectItem key={state.code} value={state.code}>
+                                    {state.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                             <FormMessage />
                           </FormItem>
                         )}
@@ -695,18 +774,20 @@ export default function ContractBuilder() {
                   <Separator />
 
                   <div>
-                    <h3 className="text-sm font-medium mb-3">Child LLC (Builder Entity)</h3>
+                    <h3 className="font-medium mb-4 flex items-center gap-2">
+                      <Building2 className="h-4 w-4" /> SPV/LLC Information
+                    </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <FormField
                         control={form.control}
-                        name="spvName"
+                        name="spvLegalName"
                         render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>LLC Legal Name</FormLabel>
+                          <FormItem className="md:col-span-2">
+                            <FormLabel>SPV Legal Name</FormLabel>
                             <FormControl>
-                              <Input 
-                                placeholder="Dvele Partners [Project] LLC" 
-                                data-testid="input-spv-name" 
+                              <Input
+                                placeholder="Auto-generated from project name"
+                                data-testid="input-spv-name"
                                 {...field}
                                 onChange={(e) => {
                                   setSpvManuallyEdited(true);
@@ -714,7 +795,9 @@ export default function ContractBuilder() {
                                 }}
                               />
                             </FormControl>
-                            <FormDescription>Auto-generated from project name</FormDescription>
+                            <FormDescription>
+                              Auto-generated based on project name. You can customize if needed.
+                            </FormDescription>
                             <FormMessage />
                           </FormItem>
                         )}
@@ -724,7 +807,7 @@ export default function ContractBuilder() {
                         name="spvState"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>State of Formation</FormLabel>
+                            <FormLabel>SPV State of Formation</FormLabel>
                             <Select onValueChange={field.onChange} value={field.value}>
                               <FormControl>
                                 <SelectTrigger data-testid="select-spv-state">
@@ -733,7 +816,9 @@ export default function ContractBuilder() {
                               </FormControl>
                               <SelectContent>
                                 {US_STATES.map((state) => (
-                                  <SelectItem key={state} value={state}>{state}</SelectItem>
+                                  <SelectItem key={state.code} value={state.code}>
+                                    {state.name}
+                                  </SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
@@ -742,50 +827,25 @@ export default function ContractBuilder() {
                         )}
                       />
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                      <FormField
-                        control={form.control}
-                        name="spvAddress"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Registered Address</FormLabel>
-                            <FormControl>
-                              <Input placeholder="1209 Orange St, Wilmington, DE" data-testid="input-spv-address" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="spvEin"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>EIN (Optional)</FormLabel>
-                            <FormControl>
-                              <Input placeholder="XX-XXXXXXX" data-testid="input-spv-ein" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
                   </div>
 
-                  {serviceModel === "CMOS" && (
+                  {serviceModel === "CRC" && (
                     <>
                       <Separator />
                       <div>
-                        <h3 className="text-sm font-medium mb-3">General Contractor (CMOS Only)</h3>
+                        <h3 className="font-medium mb-4 flex items-center gap-2">
+                          <Home className="h-4 w-4" /> On-Site Contractor (CRC)
+                          <Badge variant="secondary">Required for CRC</Badge>
+                        </h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <FormField
                             control={form.control}
-                            name="contractorName"
+                            name="onsiteContractorName"
                             render={({ field }) => (
                               <FormItem>
                                 <FormLabel>Contractor Name</FormLabel>
                                 <FormControl>
-                                  <Input placeholder="ABC Construction Inc." data-testid="input-contractor-name" {...field} />
+                                  <Input placeholder="e.g., Premier Site Builders Inc." data-testid="input-contractor-name" {...field} />
                                 </FormControl>
                                 <FormMessage />
                               </FormItem>
@@ -793,31 +853,31 @@ export default function ContractBuilder() {
                           />
                           <FormField
                             control={form.control}
-                            name="contractorLicense"
+                            name="onsiteContractorLicense"
                             render={({ field }) => (
                               <FormItem>
-                                <FormLabel>License Number</FormLabel>
+                                <FormLabel>Contractor License #</FormLabel>
                                 <FormControl>
-                                  <Input placeholder="CSLB #123456" data-testid="input-contractor-license" {...field} />
+                                  <Input placeholder="e.g., CA-B-123456" data-testid="input-contractor-license" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name="onsiteContractorAddress"
+                            render={({ field }) => (
+                              <FormItem className="md:col-span-2">
+                                <FormLabel>Contractor Address</FormLabel>
+                                <FormControl>
+                                  <Input placeholder="Full business address" data-testid="input-contractor-address" {...field} />
                                 </FormControl>
                                 <FormMessage />
                               </FormItem>
                             )}
                           />
                         </div>
-                        <FormField
-                          control={form.control}
-                          name="contractorAddress"
-                          render={({ field }) => (
-                            <FormItem className="mt-4">
-                              <FormLabel>Contractor Address</FormLabel>
-                              <FormControl>
-                                <Input placeholder="456 Builder Ave, City, State ZIP" data-testid="input-contractor-address" {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
                       </div>
                     </>
                   )}
@@ -828,103 +888,26 @@ export default function ContractBuilder() {
             {currentStep === 3 && (
               <Card data-testid="card-step-3">
                 <CardHeader>
-                  <CardTitle className="text-lg">Property Details</CardTitle>
-                  <CardDescription>Enter the property location and legal information</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <FormField
-                    control={form.control}
-                    name="propertyAddress"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Property Address</FormLabel>
-                        <FormControl>
-                          <Input placeholder="456 Oak Lane, San Jose, CA 95120" data-testid="input-property-address" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="propertyLegalDescription"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Legal Description (Optional)</FormLabel>
-                        <FormControl>
-                          <Textarea
-                            placeholder="Lot 42, Block 3, Oak Valley Subdivision"
-                            data-testid="input-legal-description"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="propertyApn"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>APN (Optional)</FormLabel>
-                          <FormControl>
-                            <Input placeholder="123-45-678" data-testid="input-apn" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="lotSize"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Lot Size (Optional)</FormLabel>
-                          <FormControl>
-                            <Input placeholder="0.35 acres" data-testid="input-lot-size" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="zoning"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Zoning (Optional)</FormLabel>
-                          <FormControl>
-                            <Input placeholder="R-1 Residential" data-testid="input-zoning" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
+                      <MapPin className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg">Site Details</CardTitle>
+                      <CardDescription>Property location and unit specifications</CardDescription>
+                    </div>
                   </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {currentStep === 4 && (
-              <Card data-testid="card-step-4">
-                <CardHeader>
-                  <CardTitle className="text-lg">Financial Terms</CardTitle>
-                  <CardDescription>Set contract pricing and payment milestones</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 gap-4">
                     <FormField
                       control={form.control}
-                      name="totalContractPrice"
+                      name="siteAddress"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Total Contract Price ($)</FormLabel>
+                          <FormLabel>Site Address</FormLabel>
                           <FormControl>
-                            <Input type="number" min="0" placeholder="850000" data-testid="input-total-price" {...field} />
+                            <Input placeholder="123 Main Street, City, State ZIP" data-testid="input-site-address" {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -932,25 +915,13 @@ export default function ContractBuilder() {
                     />
                     <FormField
                       control={form.control}
-                      name="manufacturingPrice"
+                      name="deliveryAddress"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Manufacturing Price ($)</FormLabel>
+                          <FormLabel>Delivery Address</FormLabel>
+                          <FormDescription>Same as site address unless delivery differs</FormDescription>
                           <FormControl>
-                            <Input type="number" min="0" placeholder="450000" data-testid="input-manufacturing-price" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="onsitePrice"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>On-Site Price ($)</FormLabel>
-                          <FormControl>
-                            <Input type="number" min="0" placeholder="350000" data-testid="input-onsite-price" {...field} />
+                            <Input placeholder="Delivery location" data-testid="input-delivery-address" {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -961,210 +932,9 @@ export default function ContractBuilder() {
                   <Separator />
 
                   <div>
-                    <h3 className="text-sm font-medium mb-3">Payment Schedule</h3>
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                        <div>
-                          <Label className="text-sm text-muted-foreground">Deposit</Label>
-                          <p className="font-medium">Initial Deposit</p>
-                        </div>
-                        <FormField
-                          control={form.control}
-                          name="depositPercentage"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Percentage</FormLabel>
-                              <FormControl>
-                                <Input type="number" min="0" max="100" data-testid="input-deposit-pct" {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <div className="p-2 bg-muted/50 rounded text-right">
-                          <span className="font-medium">{formatCurrency(depositAmount)}</span>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                        <FormField
-                          control={form.control}
-                          name="milestone1Description"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Milestone 1</FormLabel>
-                              <FormControl>
-                                <Input placeholder="Design Completion" data-testid="input-m1-desc" {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name="milestone1Percentage"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Percentage</FormLabel>
-                              <FormControl>
-                                <Input type="number" min="0" max="100" data-testid="input-m1-pct" {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <div className="p-2 bg-muted/50 rounded text-right">
-                          <span className="font-medium">{formatCurrency(milestone1Amount)}</span>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                        <FormField
-                          control={form.control}
-                          name="milestone2Description"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Milestone 2</FormLabel>
-                              <FormControl>
-                                <Input placeholder="Green Light Approval" data-testid="input-m2-desc" {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name="milestone2Percentage"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Percentage</FormLabel>
-                              <FormControl>
-                                <Input type="number" min="0" max="100" data-testid="input-m2-pct" {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <div className="p-2 bg-muted/50 rounded text-right">
-                          <span className="font-medium">{formatCurrency(milestone2Amount)}</span>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                        <FormField
-                          control={form.control}
-                          name="milestone3Description"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Milestone 3</FormLabel>
-                              <FormControl>
-                                <Input placeholder="Production Start" data-testid="input-m3-desc" {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name="milestone3Percentage"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Percentage</FormLabel>
-                              <FormControl>
-                                <Input type="number" min="0" max="100" data-testid="input-m3-pct" {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <div className="p-2 bg-muted/50 rounded text-right">
-                          <span className="font-medium">{formatCurrency(milestone3Amount)}</span>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end border-t pt-4">
-                        <div>
-                          <Label className="text-sm text-muted-foreground">Final Payment</Label>
-                          <p className="font-medium">Completion</p>
-                        </div>
-                        <div className="p-2 bg-muted/50 rounded text-center">
-                          <span className="font-medium">{finalPaymentPercentage}%</span>
-                        </div>
-                        <div className="p-2 bg-muted/50 rounded text-right">
-                          <span className="font-medium">{formatCurrency(finalPaymentAmount)}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="p-4 rounded-lg bg-primary/10 border border-primary/20">
-                    <div className="flex items-center justify-between gap-4 flex-wrap">
-                      <span className="text-sm font-medium">Total Contract Value</span>
-                      <span className="text-2xl font-bold" data-testid="text-total-value">
-                        {formatCurrency(totalContractPrice)}
-                      </span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {currentStep === 5 && (
-              <Card data-testid="card-step-5">
-                <CardHeader>
-                  <CardTitle className="text-lg">Schedule & Specifications</CardTitle>
-                  <CardDescription>Set project timeline and home specifications</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <div>
-                    <h3 className="text-sm font-medium mb-3">Project Timeline</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <FormField
-                        control={form.control}
-                        name="contractDate"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Contract Date</FormLabel>
-                            <FormControl>
-                              <Input type="date" data-testid="input-contract-date" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="estimatedStartDate"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Estimated Start</FormLabel>
-                            <FormControl>
-                              <Input type="date" data-testid="input-start-date" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="estimatedCompletionDate"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Estimated Completion</FormLabel>
-                            <FormControl>
-                              <Input type="date" data-testid="input-completion-date" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                  </div>
-
-                  <Separator />
-
-                  <div>
-                    <h3 className="text-sm font-medium mb-3">Home Specifications</h3>
+                    <h3 className="font-medium mb-4 flex items-center gap-2">
+                      <Home className="h-4 w-4" /> Unit Specifications
+                    </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <FormField
                         control={form.control}
@@ -1179,11 +949,11 @@ export default function ContractBuilder() {
                                 </SelectTrigger>
                               </FormControl>
                               <SelectContent>
-                                <SelectItem value="Ora 1200">Ora 1200</SelectItem>
-                                <SelectItem value="Ora 1800">Ora 1800</SelectItem>
-                                <SelectItem value="Ora 2400">Ora 2400</SelectItem>
-                                <SelectItem value="Ora 3200">Ora 3200</SelectItem>
-                                <SelectItem value="Custom">Custom Design</SelectItem>
+                                {HOME_MODELS.map((model) => (
+                                  <SelectItem key={model.value} value={model.value}>
+                                    {model.value} {model.sqft > 0 && `(${model.sqft} sqft)`}
+                                  </SelectItem>
+                                ))}
                               </SelectContent>
                             </Select>
                             <FormMessage />
@@ -1192,27 +962,129 @@ export default function ContractBuilder() {
                       />
                       <FormField
                         control={form.control}
-                        name="homeSquareFootage"
+                        name="homeSqft"
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>Square Footage</FormLabel>
                             <FormControl>
-                              <Input type="number" min="0" placeholder="2400" data-testid="input-sqft" {...field} />
+                              <Input type="number" min={100} data-testid="input-sqft" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="homeBedrooms"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Bedrooms</FormLabel>
+                            <FormControl>
+                              <Input type="number" min={1} max={10} data-testid="input-bedrooms" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="homeBathrooms"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Bathrooms</FormLabel>
+                            <FormControl>
+                              <Input type="number" min={1} max={10} step={0.5} data-testid="input-bathrooms" {...field} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
                         )}
                       />
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {currentStep === 4 && (
+              <Card data-testid="card-step-4">
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
+                      <DollarSign className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg">Financials</CardTitle>
+                      <CardDescription>Pricing structure and payment milestones</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="designFee"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Design Fee ($)</FormLabel>
+                          <FormControl>
+                            <Input type="number" min={0} data-testid="input-design-fee" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="preliminaryOffsitePrice"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Preliminary Offsite Price ($)</FormLabel>
+                          <FormControl>
+                            <Input type="number" min={0} data-testid="input-offsite-price" {...field} />
+                          </FormControl>
+                          <FormDescription>Manufacturing & delivery</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="preliminaryOnsitePrice"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Preliminary Onsite Price ($)</FormLabel>
+                          <FormControl>
+                            <Input type="number" min={0} data-testid="input-onsite-price" {...field} />
+                          </FormControl>
+                          <FormDescription>Site work & installation</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <div className="p-4 rounded-lg bg-muted/50">
+                    <div className="flex items-center justify-between gap-4 flex-wrap">
+                      <span className="text-sm font-medium text-muted-foreground">Total Contract Price</span>
+                      <span className="text-2xl font-bold text-foreground" data-testid="text-total-price">
+                        {formatCurrency(totalContractPrice)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  <div>
+                    <h3 className="font-medium mb-4">Payment Milestones (%)</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                       <FormField
                         control={form.control}
-                        name="numBedrooms"
+                        name="milestone1Percent"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Bedrooms</FormLabel>
+                            <FormLabel className="text-xs">Design Complete</FormLabel>
                             <FormControl>
-                              <Input type="number" min="1" max="10" data-testid="input-bedrooms" {...field} />
+                              <Input type="number" min={0} max={100} data-testid="input-milestone-1" {...field} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -1220,12 +1092,12 @@ export default function ContractBuilder() {
                       />
                       <FormField
                         control={form.control}
-                        name="numBathrooms"
+                        name="milestone2Percent"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Bathrooms</FormLabel>
+                            <FormLabel className="text-xs">Green Light</FormLabel>
                             <FormControl>
-                              <Input type="number" min="1" max="10" step="0.5" data-testid="input-bathrooms" {...field} />
+                              <Input type="number" min={0} max={100} data-testid="input-milestone-2" {...field} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -1233,24 +1105,165 @@ export default function ContractBuilder() {
                       />
                       <FormField
                         control={form.control}
-                        name="designPackage"
+                        name="milestone3Percent"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Design Package</FormLabel>
+                            <FormLabel className="text-xs">Production 50%</FormLabel>
+                            <FormControl>
+                              <Input type="number" min={0} max={100} data-testid="input-milestone-3" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="milestone4Percent"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs">Delivery Ready</FormLabel>
+                            <FormControl>
+                              <Input type="number" min={0} max={100} data-testid="input-milestone-4" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="milestone5Percent"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs">Final/Retainage</FormLabel>
+                            <FormControl>
+                              <Input type="number" min={0} max={100} data-testid="input-milestone-5" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {currentStep === 5 && (
+              <Card data-testid="card-step-5">
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
+                      <Calendar className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg">Schedule & Legal</CardTitle>
+                      <CardDescription>Agreement dates, warranties, and jurisdiction</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <FormField
+                    control={form.control}
+                    name="agreementDate"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Agreement Date</FormLabel>
+                        <FormControl>
+                          <Input type="date" data-testid="input-agreement-date" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <Separator />
+
+                  <div>
+                    <h3 className="font-medium mb-4">Warranty Periods (months)</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="warrantyFitFinish"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Fit & Finish</FormLabel>
+                            <FormControl>
+                              <Input type="number" min={1} data-testid="input-warranty-fit" {...field} />
+                            </FormControl>
+                            <FormDescription>Default: 24 months</FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="warrantyEnvelope"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Building Envelope</FormLabel>
+                            <FormControl>
+                              <Input type="number" min={1} data-testid="input-warranty-envelope" {...field} />
+                            </FormControl>
+                            <FormDescription>Default: 60 months</FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="warrantyStructural"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Structural</FormLabel>
+                            <FormControl>
+                              <Input type="number" min={1} data-testid="input-warranty-structural" {...field} />
+                            </FormControl>
+                            <FormDescription>Default: 120 months</FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  <div>
+                    <h3 className="font-medium mb-4">Jurisdiction</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="projectState"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Project State</FormLabel>
                             <Select onValueChange={field.onChange} value={field.value}>
                               <FormControl>
-                                <SelectTrigger data-testid="select-design-package">
-                                  <SelectValue placeholder="Select package" />
+                                <SelectTrigger data-testid="select-project-state">
+                                  <SelectValue placeholder="Select state" />
                                 </SelectTrigger>
                               </FormControl>
                               <SelectContent>
-                                <SelectItem value="Standard">Standard</SelectItem>
-                                <SelectItem value="Premium">Premium</SelectItem>
-                                <SelectItem value="Premium Modern">Premium Modern</SelectItem>
-                                <SelectItem value="Luxury">Luxury</SelectItem>
-                                <SelectItem value="Custom">Custom</SelectItem>
+                                {US_STATES.map((state) => (
+                                  <SelectItem key={state.code} value={state.code}>
+                                    {state.name}
+                                  </SelectItem>
+                                ))}
                               </SelectContent>
                             </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="projectCounty"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>County</FormLabel>
+                            <FormControl>
+                              <Input placeholder="e.g., Santa Clara" data-testid="input-county" {...field} />
+                            </FormControl>
                             <FormMessage />
                           </FormItem>
                         )}
@@ -1262,292 +1275,246 @@ export default function ContractBuilder() {
             )}
 
             {currentStep === 6 && (
-              <Card data-testid="card-step-6">
-                <CardHeader>
-                  <CardTitle className="text-lg">Warranty & Compliance</CardTitle>
-                  <CardDescription>Set warranty terms and legal jurisdiction</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <div>
-                    <h3 className="text-sm font-medium mb-3">Warranty Periods (Years)</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <FormField
-                        control={form.control}
-                        name="structuralWarrantyYears"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Structural</FormLabel>
-                            <FormControl>
-                              <Input type="number" min="1" max="20" data-testid="input-structural-warranty" {...field} />
-                            </FormControl>
-                            <FormDescription>Foundation, framing, roof</FormDescription>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="systemsWarrantyYears"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Systems</FormLabel>
-                            <FormControl>
-                              <Input type="number" min="1" max="10" data-testid="input-systems-warranty" {...field} />
-                            </FormControl>
-                            <FormDescription>HVAC, plumbing, electrical</FormDescription>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="workmanshipWarrantyYears"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Workmanship</FormLabel>
-                            <FormControl>
-                              <Input type="number" min="1" max="5" data-testid="input-workmanship-warranty" {...field} />
-                            </FormControl>
-                            <FormDescription>Finishes, fixtures</FormDescription>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                  </div>
-
-                  <Separator />
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="jurisdiction"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Governing Jurisdiction</FormLabel>
-                          <FormControl>
-                            <Input placeholder="State of California" data-testid="input-jurisdiction" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="buildingCodeYear"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Building Code Year (Optional)</FormLabel>
-                          <FormControl>
-                            <Input placeholder="2022" data-testid="input-code-year" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {currentStep === 7 && (
-              <div className="space-y-6" data-testid="card-step-7">
-                <Card>
+              <div className="space-y-6">
+                <Card data-testid="card-step-6-summary">
                   <CardHeader>
-                    <CardTitle className="text-lg">Review & Generate</CardTitle>
-                    <CardDescription>Review your contract details before generating</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
+                        <FileCheck className="h-5 w-5" />
+                      </div>
                       <div>
-                        <h4 className="text-sm font-medium text-muted-foreground mb-2">Project</h4>
-                        <p className="font-medium">{form.getValues("projectName")}</p>
-                        <div className="flex gap-2 mt-1">
-                          <Badge variant="outline">{form.getValues("serviceModel")}</Badge>
-                          {form.getValues("solarIncluded") && <Badge variant="secondary">Solar</Badge>}
-                          {form.getValues("batteryIncluded") && <Badge variant="secondary">Battery</Badge>}
+                        <CardTitle className="text-lg">Review & Generate</CardTitle>
+                        <CardDescription>Review your contract configuration and generate documents</CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-4">
+                        <h4 className="font-medium text-sm text-muted-foreground uppercase tracking-wide">Project</h4>
+                        <div className="space-y-2">
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Project:</span>
+                            <span className="font-medium">{projectName || "-"}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Service Model:</span>
+                            <Badge variant={serviceModel === "CRC" ? "default" : "secondary"}>
+                              {serviceModel}
+                            </Badge>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Units:</span>
+                            <span>{totalUnits}</span>
+                          </div>
                         </div>
                       </div>
-                      <div>
-                        <h4 className="text-sm font-medium text-muted-foreground mb-2">Client</h4>
-                        <p className="font-medium">{form.getValues("clientName")}</p>
-                        <p className="text-sm text-muted-foreground">{form.getValues("clientEmail")}</p>
+                      <div className="space-y-4">
+                        <h4 className="font-medium text-sm text-muted-foreground uppercase tracking-wide">Parties</h4>
+                        <div className="space-y-2">
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Client:</span>
+                            <span className="font-medium">{clientLegalName || "-"}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">SPV:</span>
+                            <span className="text-sm">{form.getValues("spvLegalName") || "-"}</span>
+                          </div>
+                        </div>
                       </div>
-                      <div>
-                        <h4 className="text-sm font-medium text-muted-foreground mb-2">Property</h4>
-                        <p className="font-medium">{form.getValues("propertyAddress")}</p>
+                      <div className="space-y-4">
+                        <h4 className="font-medium text-sm text-muted-foreground uppercase tracking-wide">Property</h4>
+                        <div className="space-y-2">
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Model:</span>
+                            <span>{homeModel || "-"}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Size:</span>
+                            <span>{form.getValues("homeSqft")} sqft</span>
+                          </div>
+                        </div>
                       </div>
-                      <div>
-                        <h4 className="text-sm font-medium text-muted-foreground mb-2">Contract Value</h4>
-                        <p className="text-xl font-bold">{formatCurrency(totalContractPrice)}</p>
-                      </div>
-                      <div>
-                        <h4 className="text-sm font-medium text-muted-foreground mb-2">Home</h4>
-                        <p className="font-medium">{form.getValues("homeModel")}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {form.getValues("homeSquareFootage")} sq ft | {form.getValues("numBedrooms")} bed | {form.getValues("numBathrooms")} bath
-                        </p>
-                      </div>
-                      <div>
-                        <h4 className="text-sm font-medium text-muted-foreground mb-2">Timeline</h4>
-                        <p className="text-sm">
-                          {form.getValues("estimatedStartDate")} to {form.getValues("estimatedCompletionDate")}
-                        </p>
+                      <div className="space-y-4">
+                        <h4 className="font-medium text-sm text-muted-foreground uppercase tracking-wide">Financial</h4>
+                        <div className="space-y-2">
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Total Price:</span>
+                            <span className="font-bold text-lg">{formatCurrency(totalContractPrice)}</span>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </CardContent>
                 </Card>
 
-                {clausePreview && (
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-lg flex items-center gap-2">
-                        <Eye className="h-4 w-4" />
-                        Clause Preview
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                        <div className="text-center p-3 bg-muted/50 rounded-lg">
-                          <p className="text-2xl font-bold">{clausePreview.summary.totalClauses}</p>
-                          <p className="text-xs text-muted-foreground">Total Clauses</p>
+                <Card data-testid="card-clause-preview">
+                  <CardHeader>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Eye className="h-5 w-5" />
+                      Clause Preview
+                    </CardTitle>
+                    <CardDescription>Clauses that will be included based on your configuration</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="p-4 rounded-lg border bg-card">
+                        <div className="flex items-center gap-2 mb-2">
+                          <FileText className="h-4 w-4 text-primary" />
+                          <span className="font-medium">ONE Agreement</span>
                         </div>
-                        <div className="text-center p-3 bg-muted/50 rounded-lg">
-                          <p className="text-2xl font-bold">{clausePreview.summary.sections}</p>
-                          <p className="text-xs text-muted-foreground">Sections</p>
-                        </div>
-                        <div className="text-center p-3 bg-muted/50 rounded-lg">
-                          <p className="text-2xl font-bold">{clausePreview.summary.subsections}</p>
-                          <p className="text-xs text-muted-foreground">Subsections</p>
-                        </div>
-                        <div className="text-center p-3 bg-muted/50 rounded-lg">
-                          <p className="text-2xl font-bold">{clausePreview.summary.conditionalIncluded}</p>
-                          <p className="text-xs text-muted-foreground">Conditional</p>
+                        <div className="text-2xl font-bold">{clausePreview?.oneAgreement.total || 129}</div>
+                        <div className="text-sm text-muted-foreground">
+                          clauses ({clausePreview?.oneAgreement.conditional || (serviceModel === "CRC" ? 7 : 8)} conditional)
                         </div>
                       </div>
-                      {clausePreview.conditionalClauses.length > 0 && (
-                        <div>
-                          <p className="text-sm font-medium mb-2">Conditional Clauses Included:</p>
-                          <div className="flex flex-wrap gap-2">
-                            {clausePreview.conditionalClauses.map((c) => (
-                              <Badge key={c.code} variant="outline" className="text-xs">
-                                {c.code}: {c.name}
-                              </Badge>
-                            ))}
+                      <div className="p-4 rounded-lg border bg-card">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Building2 className="h-4 w-4 text-primary" />
+                          <span className="font-medium">Manufacturing</span>
+                        </div>
+                        <div className="text-2xl font-bold">{clausePreview?.manufacturing.total || 61}</div>
+                        <div className="text-sm text-muted-foreground">clauses</div>
+                      </div>
+                      <div className="p-4 rounded-lg border bg-card">
+                        <div className="flex items-center gap-2 mb-2">
+                          <MapPin className="h-4 w-4 text-primary" />
+                          <span className="font-medium">On-Site</span>
+                        </div>
+                        <div className="text-2xl font-bold">{clausePreview?.onsite.total || 79}</div>
+                        <div className="text-sm text-muted-foreground">clauses</div>
+                      </div>
+                    </div>
+
+                    {serviceModel === "CRC" && (
+                      <div className="mt-4 p-3 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
+                        <div className="flex items-start gap-2">
+                          <AlertCircle className="h-4 w-4 text-blue-600 dark:text-blue-400 mt-0.5" />
+                          <div className="text-sm">
+                            <span className="font-medium text-blue-700 dark:text-blue-300">CRC Mode:</span>
+                            <span className="text-blue-600 dark:text-blue-400 ml-1">
+                              Client-Retained Contractor clauses will be included. CMOS clauses excluded.
+                            </span>
                           </div>
                         </div>
+                      </div>
+                    )}
+                    {serviceModel === "CMOS" && (
+                      <div className="mt-4 p-3 rounded-lg bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800">
+                        <div className="flex items-start gap-2">
+                          <AlertCircle className="h-4 w-4 text-purple-600 dark:text-purple-400 mt-0.5" />
+                          <div className="text-sm">
+                            <span className="font-medium text-purple-700 dark:text-purple-300">CMOS Mode:</span>
+                            <span className="text-purple-600 dark:text-purple-400 ml-1">
+                              Company-Managed On-Site Services clauses will be included. CRC clauses excluded.
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {!generatedContracts && (
+                  <div className="flex justify-center">
+                    <Button
+                      type="button"
+                      size="lg"
+                      onClick={handleGenerate}
+                      disabled={generateMutation.isPending}
+                      className="gap-2"
+                      data-testid="button-generate"
+                    >
+                      {generateMutation.isPending ? (
+                        <>
+                          <Loader2 className="h-5 w-5 animate-spin" />
+                          Generating Contracts...
+                        </>
+                      ) : (
+                        <>
+                          <FileText className="h-5 w-5" />
+                          Generate Contract Package
+                        </>
                       )}
-                    </CardContent>
-                  </Card>
+                    </Button>
+                  </div>
                 )}
 
                 {generatedContracts && (
-                  <Card className="border-green-500/50 bg-green-500/5">
-                    <CardHeader className="pb-3">
+                  <Card className="border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-950/20" data-testid="card-generated-contracts">
+                    <CardHeader>
                       <CardTitle className="text-lg flex items-center gap-2 text-green-700 dark:text-green-400">
                         <Check className="h-5 w-5" />
-                        Contracts Generated
+                        Contracts Generated Successfully!
                       </CardTitle>
                       <CardDescription>
                         Generated at {new Date(generatedContracts.generatedAt).toLocaleString()}
                       </CardDescription>
                     </CardHeader>
-                    <CardContent>
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between gap-4 p-3 bg-background rounded-lg border flex-wrap">
-                          <div className="flex items-center gap-3">
-                            <Home className="h-5 w-5 text-muted-foreground" />
-                            <div>
-                              <p className="font-medium">ONE Agreement</p>
-                              <p className="text-xs text-muted-foreground">
-                                {generatedContracts.contracts.one_agreement.clauseCount} clauses
-                              </p>
-                            </div>
+                    <CardContent className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="p-4 rounded-lg border bg-card">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="font-medium">ONE Agreement</span>
+                            <Badge>{generatedContracts.contracts.one_agreement.clauseCount} clauses</Badge>
                           </div>
                           <Button
-                            size="sm"
                             variant="outline"
+                            size="sm"
+                            className="w-full gap-2"
                             onClick={() => handleDownload(generatedContracts.contracts.one_agreement)}
                             data-testid="button-download-one"
                           >
-                            <Download className="h-4 w-4 mr-2" />
+                            <Download className="h-4 w-4" />
                             Download
                           </Button>
                         </div>
-                        <div className="flex items-center justify-between gap-4 p-3 bg-background rounded-lg border flex-wrap">
-                          <div className="flex items-center gap-3">
-                            <Building2 className="h-5 w-5 text-muted-foreground" />
-                            <div>
-                              <p className="font-medium">Manufacturing Subcontract</p>
-                              <p className="text-xs text-muted-foreground">
-                                {generatedContracts.contracts.manufacturing_subcontract.clauseCount} clauses
-                              </p>
-                            </div>
+                        <div className="p-4 rounded-lg border bg-card">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="font-medium">Manufacturing</span>
+                            <Badge>{generatedContracts.contracts.manufacturing_subcontract.clauseCount} clauses</Badge>
                           </div>
                           <Button
-                            size="sm"
                             variant="outline"
+                            size="sm"
+                            className="w-full gap-2"
                             onClick={() => handleDownload(generatedContracts.contracts.manufacturing_subcontract)}
                             data-testid="button-download-manufacturing"
                           >
-                            <Download className="h-4 w-4 mr-2" />
+                            <Download className="h-4 w-4" />
                             Download
                           </Button>
                         </div>
-                        <div className="flex items-center justify-between gap-4 p-3 bg-background rounded-lg border flex-wrap">
-                          <div className="flex items-center gap-3">
-                            <MapPin className="h-5 w-5 text-muted-foreground" />
-                            <div>
-                              <p className="font-medium">OnSite Subcontract</p>
-                              <p className="text-xs text-muted-foreground">
-                                {generatedContracts.contracts.onsite_subcontract.clauseCount} clauses
-                              </p>
-                            </div>
+                        <div className="p-4 rounded-lg border bg-card">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="font-medium">On-Site</span>
+                            <Badge>{generatedContracts.contracts.onsite_subcontract.clauseCount} clauses</Badge>
                           </div>
                           <Button
-                            size="sm"
                             variant="outline"
+                            size="sm"
+                            className="w-full gap-2"
                             onClick={() => handleDownload(generatedContracts.contracts.onsite_subcontract)}
                             data-testid="button-download-onsite"
                           >
-                            <Download className="h-4 w-4 mr-2" />
+                            <Download className="h-4 w-4" />
                             Download
                           </Button>
                         </div>
                       </div>
+                      <div className="pt-4">
+                        <Button
+                          className="w-full gap-2"
+                          onClick={handleDownloadAll}
+                          data-testid="button-download-all"
+                        >
+                          <Download className="h-5 w-5" />
+                          Download All Contracts
+                        </Button>
+                      </div>
                     </CardContent>
                   </Card>
                 )}
-
-                <div className="flex gap-3 flex-wrap">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handlePreview}
-                    disabled={previewMutation.isPending}
-                    data-testid="button-preview"
-                  >
-                    {previewMutation.isPending ? (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    ) : (
-                      <Eye className="h-4 w-4 mr-2" />
-                    )}
-                    Preview Clauses
-                  </Button>
-                  <Button
-                    type="button"
-                    onClick={handleGenerate}
-                    disabled={generateMutation.isPending}
-                    data-testid="button-generate"
-                  >
-                    {generateMutation.isPending ? (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    ) : (
-                      <FileText className="h-4 w-4 mr-2" />
-                    )}
-                    Generate Contracts
-                  </Button>
-                </div>
               </div>
             )}
 
@@ -1563,7 +1530,7 @@ export default function ContractBuilder() {
                 Back
               </Button>
 
-              {currentStep < 7 && (
+              {currentStep < 6 && (
                 <Button type="button" onClick={handleNext} data-testid="button-next">
                   Next
                   <ChevronRight className="h-4 w-4 ml-2" />
