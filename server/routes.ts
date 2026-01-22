@@ -206,6 +206,55 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // PROJECTS
   // ---------------------------------------------------------------------------
   
+  // Get next available project number (format: YYYY-###)
+  app.get("/api/projects/next-number", async (req, res) => {
+    try {
+      const currentYear = new Date().getFullYear();
+      const yearPrefix = `${currentYear}-`;
+      
+      // Get all project numbers for the current year
+      const allProjects = await db.select({ projectNumber: projects.projectNumber }).from(projects);
+      
+      // Filter for current year and find the highest number
+      let maxNumber = 0;
+      allProjects.forEach(p => {
+        if (p.projectNumber && p.projectNumber.startsWith(yearPrefix)) {
+          const numPart = parseInt(p.projectNumber.split('-')[1]);
+          if (!isNaN(numPart) && numPart > maxNumber) {
+            maxNumber = numPart;
+          }
+        }
+      });
+      
+      const nextNumber = maxNumber + 1;
+      const nextProjectNumber = `${currentYear}-${String(nextNumber).padStart(3, '0')}`;
+      
+      res.json({ projectNumber: nextProjectNumber });
+    } catch (error) {
+      console.error("Failed to generate project number:", error);
+      res.status(500).json({ error: "Failed to generate project number" });
+    }
+  });
+
+  // Check if project number is unique
+  app.get("/api/projects/check-number/:projectNumber", async (req, res) => {
+    try {
+      const projectNumber = req.params.projectNumber;
+      const existingProjects = await db
+        .select({ id: projects.id })
+        .from(projects)
+        .where(eq(projects.projectNumber, projectNumber));
+      
+      res.json({ 
+        isUnique: existingProjects.length === 0,
+        exists: existingProjects.length > 0 
+      });
+    } catch (error) {
+      console.error("Failed to check project number:", error);
+      res.status(500).json({ error: "Failed to check project number" });
+    }
+  });
+
   // List all projects
   app.get("/api/projects", async (req, res) => {
     try {

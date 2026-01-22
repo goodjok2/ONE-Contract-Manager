@@ -1,9 +1,14 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import { 
   Check, 
   ChevronLeft, 
@@ -15,7 +20,13 @@ import {
   Home,
   Calendar,
   DollarSign,
-  ClipboardCheck
+  ClipboardCheck,
+  RefreshCw,
+  Plus,
+  Minus,
+  AlertTriangle,
+  HelpCircle,
+  Loader2
 } from "lucide-react";
 
 interface WizardState {
@@ -139,12 +150,97 @@ const initialProjectData: WizardState['projectData'] = {
 
 export default function GenerateContracts() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [draftProjectId, setDraftProjectId] = useState<number | null>(null);
+  const [isCheckingNumber, setIsCheckingNumber] = useState(false);
+  const [numberIsUnique, setNumberIsUnique] = useState<boolean | null>(null);
+  
   const [wizardState, setWizardState] = useState<WizardState>({
     currentStep: 1,
     projectData: initialProjectData,
     completedSteps: new Set<number>(),
     validationErrors: {},
   });
+
+  // Fetch next project number on mount
+  const { data: nextNumberData, refetch: refetchNextNumber, isLoading: isLoadingNumber } = useQuery<{ projectNumber: string }>({
+    queryKey: ['/api/projects/next-number'],
+    staleTime: 0,
+  });
+
+  // Auto-populate project number on first load
+  useEffect(() => {
+    if (nextNumberData?.projectNumber && !wizardState.projectData.projectNumber) {
+      setWizardState(prev => ({
+        ...prev,
+        projectData: { ...prev.projectData, projectNumber: nextNumberData.projectNumber },
+      }));
+      setNumberIsUnique(true);
+    }
+  }, [nextNumberData]);
+
+  // Check project number uniqueness when it changes
+  const checkProjectNumberUniqueness = useCallback(async (projectNumber: string) => {
+    if (!projectNumber || projectNumber.length < 4) {
+      setNumberIsUnique(null);
+      return;
+    }
+    
+    setIsCheckingNumber(true);
+    try {
+      const response = await fetch(`/api/projects/check-number/${encodeURIComponent(projectNumber)}`);
+      const data = await response.json();
+      setNumberIsUnique(data.isUnique);
+    } catch (error) {
+      console.error('Failed to check project number:', error);
+      setNumberIsUnique(null);
+    } finally {
+      setIsCheckingNumber(false);
+    }
+  }, []);
+
+  // Create draft project mutation
+  const createDraftProjectMutation = useMutation({
+    mutationFn: async (projectData: { projectNumber: string; name: string; status: string; onSiteSelection: string }) => {
+      const response = await apiRequest('POST', '/api/projects', projectData);
+      return response.json();
+    },
+    onSuccess: (data) => {
+      setDraftProjectId(data.id);
+      queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
+    },
+  });
+
+  // Update project mutation
+  const updateProjectMutation = useMutation({
+    mutationFn: async ({ id, ...data }: { id: number; [key: string]: any }) => {
+      const response = await apiRequest('PATCH', `/api/projects/${id}`, data);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
+    },
+  });
+
+  // Create project details mutation
+  const createProjectDetailsMutation = useMutation({
+    mutationFn: async (data: { projectId: number; totalUnits: number; agreementExecutionDate: string }) => {
+      const response = await apiRequest('POST', `/api/projects/${data.projectId}/details`, data);
+      return response.json();
+    },
+  });
+
+  const regenerateProjectNumber = useCallback(async () => {
+    const result = await refetchNextNumber();
+    if (result.data?.projectNumber) {
+      setWizardState(prev => ({
+        ...prev,
+        projectData: { ...prev.projectData, projectNumber: result.data.projectNumber },
+        validationErrors: { ...prev.validationErrors, projectNumber: '' },
+      }));
+      setNumberIsUnique(true);
+    }
+  }, [refetchNextNumber]);
 
   const updateProjectData = useCallback((updates: Partial<WizardState['projectData']>) => {
     setWizardState(prev => ({
@@ -160,8 +256,26 @@ export default function GenerateContracts() {
 
     switch (stepNumber) {
       case 1:
-        if (!data.projectNumber.trim()) errors.projectNumber = 'Project number is required';
-        if (!data.projectName.trim()) errors.projectName = 'Project name is required';
+        if (!data.projectNumber.trim()) {
+          errors.projectNumber = 'Project number is required';
+        } else if (!/^\d{4}-\d{3}$/.test(data.projectNumber)) {
+          errors.projectNumber = 'Project number must be in format YYYY-### (e.g., 2026-001)';
+        } else if (numberIsUnique === false) {
+          errors.projectNumber = 'This project number already exists';
+        }
+        if (!data.projectName.trim()) {
+          errors.projectName = 'Project name is required';
+        } else if (data.projectName.trim().length < 3) {
+          errors.projectName = 'Project name must be at least 3 characters';
+        } else if (data.projectName.trim().length > 100) {
+          errors.projectName = 'Project name must be 100 characters or less';
+        }
+        if (data.totalUnits < 1 || data.totalUnits > 50) {
+          errors.totalUnits = 'Total units must be between 1 and 50';
+        }
+        if (!data.agreementDate) {
+          errors.agreementDate = 'Agreement date is required';
+        }
         if (!data.serviceModel) errors.serviceModel = 'Service model is required';
         break;
       case 2:
@@ -186,9 +300,9 @@ export default function GenerateContracts() {
     }
 
     return { valid: Object.keys(errors).length === 0, errors };
-  }, [wizardState.projectData]);
+  }, [wizardState.projectData, numberIsUnique]);
 
-  const nextStep = useCallback(() => {
+  const nextStep = useCallback(async () => {
     const { valid, errors } = validateStep(wizardState.currentStep);
     
     if (!valid) {
@@ -201,6 +315,37 @@ export default function GenerateContracts() {
       return;
     }
 
+    // Step 1: Create or update draft project in database
+    if (wizardState.currentStep === 1) {
+      try {
+        if (!draftProjectId) {
+          // Create new draft project
+          await createDraftProjectMutation.mutateAsync({
+            projectNumber: wizardState.projectData.projectNumber,
+            name: wizardState.projectData.projectName,
+            status: 'Draft',
+            onSiteSelection: wizardState.projectData.serviceModel,
+          });
+        } else {
+          // Update existing draft
+          await updateProjectMutation.mutateAsync({
+            id: draftProjectId,
+            projectNumber: wizardState.projectData.projectNumber,
+            name: wizardState.projectData.projectName,
+            onSiteSelection: wizardState.projectData.serviceModel,
+          });
+        }
+      } catch (error) {
+        console.error('Failed to save project:', error);
+        toast({
+          title: "Error",
+          description: "Failed to save project. Please try again.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     setWizardState(prev => {
       const newCompletedSteps = new Set(Array.from(prev.completedSteps));
       newCompletedSteps.add(prev.currentStep);
@@ -211,7 +356,7 @@ export default function GenerateContracts() {
         validationErrors: {},
       };
     });
-  }, [wizardState.currentStep, validateStep, toast]);
+  }, [wizardState.currentStep, wizardState.projectData, validateStep, toast, draftProjectId, createDraftProjectMutation, updateProjectMutation]);
 
   const prevStep = useCallback(() => {
     setWizardState(prev => ({
@@ -266,48 +411,126 @@ export default function GenerateContracts() {
     const { currentStep, projectData, validationErrors } = wizardState;
 
     switch (currentStep) {
-      case 1:
+      case 1: {
+        const today = new Date().toISOString().split('T')[0];
+        const isDateInPast = projectData.agreementDate && projectData.agreementDate < today;
+        
         return (
           <StepContent
             title="Project Information"
             description="Enter the basic project details and select the service model"
           >
             <div className="grid gap-6">
-              <FormField
-                label="Project Number"
-                required
-                error={validationErrors.projectNumber}
-              >
-                <input
-                  type="text"
-                  className="w-full px-3 py-2 border rounded-md bg-background"
-                  placeholder="e.g., PRJ-2026-001"
-                  value={projectData.projectNumber}
-                  onChange={(e) => updateProjectData({ projectNumber: e.target.value })}
-                  data-testid="input-project-number"
-                />
-              </FormField>
+              {/* Project Number */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Label className="text-sm font-medium">
+                    Project Number <span className="text-destructive">*</span>
+                  </Label>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Format: YYYY-### (e.g., 2026-001)</p>
+                      <p>Auto-generated based on current year and next available number.</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Input
+                      type="text"
+                      placeholder="e.g., 2026-001"
+                      value={projectData.projectNumber}
+                      onChange={(e) => {
+                        updateProjectData({ projectNumber: e.target.value });
+                        checkProjectNumberUniqueness(e.target.value);
+                      }}
+                      className={validationErrors.projectNumber ? 'border-destructive' : ''}
+                      data-testid="input-project-number"
+                    />
+                    {isCheckingNumber && (
+                      <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+                    )}
+                    {!isCheckingNumber && numberIsUnique === true && projectData.projectNumber && (
+                      <Check className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-green-500" />
+                    )}
+                    {!isCheckingNumber && numberIsUnique === false && (
+                      <AlertTriangle className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-destructive" />
+                    )}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={regenerateProjectNumber}
+                    disabled={isLoadingNumber}
+                    data-testid="button-regenerate-number"
+                  >
+                    <RefreshCw className={`h-4 w-4 ${isLoadingNumber ? 'animate-spin' : ''}`} />
+                  </Button>
+                </div>
+                {validationErrors.projectNumber && (
+                  <p className="text-sm text-destructive">{validationErrors.projectNumber}</p>
+                )}
+                {numberIsUnique === false && !validationErrors.projectNumber && (
+                  <p className="text-sm text-destructive">This project number already exists. Please use a different number.</p>
+                )}
+              </div>
 
-              <FormField
-                label="Project Name"
-                required
-                error={validationErrors.projectName}
-              >
-                <input
+              {/* Project Name */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Label className="text-sm font-medium">
+                    Project Name <span className="text-destructive">*</span>
+                  </Label>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>A descriptive name for this project (3-100 characters).</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+                <Input
                   type="text"
-                  className="w-full px-3 py-2 border rounded-md bg-background"
                   placeholder="e.g., Smith Residence"
                   value={projectData.projectName}
                   onChange={(e) => updateProjectData({ projectName: e.target.value })}
+                  className={validationErrors.projectName ? 'border-destructive' : ''}
+                  maxLength={100}
                   data-testid="input-project-name"
                 />
-              </FormField>
+                <div className="flex justify-between">
+                  {validationErrors.projectName ? (
+                    <p className="text-sm text-destructive">{validationErrors.projectName}</p>
+                  ) : (
+                    <span />
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    {projectData.projectName.length}/100
+                  </p>
+                </div>
+              </div>
 
-              <FormField
-                label="Service Model"
-                required
-                error={validationErrors.serviceModel}
-              >
+              {/* Service Model */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Label className="text-sm font-medium">
+                    Service Model <span className="text-destructive">*</span>
+                  </Label>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">
+                      <p><strong>CRC:</strong> Client Retained Contractor - Client hires their own on-site contractor.</p>
+                      <p className="mt-1"><strong>CMOS:</strong> Contractor Managed OnSite - Dvele manages the on-site work.</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
                 <div className="flex gap-4">
                   <label className={`flex-1 p-4 border rounded-lg cursor-pointer transition-colors hover-elevate ${
                     projectData.serviceModel === 'CRC' ? 'border-primary bg-primary/5' : ''
@@ -340,33 +563,114 @@ export default function GenerateContracts() {
                     <div className="text-sm text-muted-foreground">Contractor Managed OnSite</div>
                   </label>
                 </div>
-              </FormField>
+              </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <FormField label="Total Units">
-                  <input
-                    type="number"
-                    min="1"
-                    className="w-full px-3 py-2 border rounded-md bg-background"
-                    value={projectData.totalUnits}
-                    onChange={(e) => updateProjectData({ totalUnits: parseInt(e.target.value) || 1 })}
-                    data-testid="input-total-units"
-                  />
-                </FormField>
+              <div className="grid grid-cols-2 gap-6">
+                {/* Total Units */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Label className="text-sm font-medium">
+                      Total Units <span className="text-destructive">*</span>
+                    </Label>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Number of home units in this project (1-50).</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() => updateProjectData({ totalUnits: Math.max(1, projectData.totalUnits - 1) })}
+                      disabled={projectData.totalUnits <= 1}
+                      data-testid="button-units-minus"
+                    >
+                      <Minus className="h-4 w-4" />
+                    </Button>
+                    <Input
+                      type="number"
+                      min="1"
+                      max="50"
+                      className={`text-center w-20 ${validationErrors.totalUnits ? 'border-destructive' : ''}`}
+                      value={projectData.totalUnits}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value) || 1;
+                        updateProjectData({ totalUnits: Math.min(50, Math.max(1, val)) });
+                      }}
+                      data-testid="input-total-units"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() => updateProjectData({ totalUnits: Math.min(50, projectData.totalUnits + 1) })}
+                      disabled={projectData.totalUnits >= 50}
+                      data-testid="button-units-plus"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  {validationErrors.totalUnits && (
+                    <p className="text-sm text-destructive">{validationErrors.totalUnits}</p>
+                  )}
+                  {projectData.totalUnits > 10 && (
+                    <div className="flex items-center gap-2 p-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-md">
+                      <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-500 flex-shrink-0" />
+                      <p className="text-sm text-amber-700 dark:text-amber-400">
+                        Multi-unit project will use extended exhibits
+                      </p>
+                    </div>
+                  )}
+                </div>
 
-                <FormField label="Agreement Date">
-                  <input
+                {/* Agreement Date */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Label className="text-sm font-medium">
+                      Agreement Execution Date <span className="text-destructive">*</span>
+                    </Label>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Date when the contract will be signed.</p>
+                        <p>Also sets the Effective Date to the same value.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                  <Input
                     type="date"
-                    className="w-full px-3 py-2 border rounded-md bg-background"
                     value={projectData.agreementDate}
-                    onChange={(e) => updateProjectData({ agreementDate: e.target.value })}
+                    onChange={(e) => updateProjectData({ 
+                      agreementDate: e.target.value,
+                      effectiveDate: e.target.value 
+                    })}
+                    className={validationErrors.agreementDate ? 'border-destructive' : ''}
                     data-testid="input-agreement-date"
                   />
-                </FormField>
+                  {validationErrors.agreementDate && (
+                    <p className="text-sm text-destructive">{validationErrors.agreementDate}</p>
+                  )}
+                  {isDateInPast && !validationErrors.agreementDate && (
+                    <div className="flex items-center gap-2 p-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-md">
+                      <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-500 flex-shrink-0" />
+                      <p className="text-sm text-amber-700 dark:text-amber-400">
+                        Selected date is in the past
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </StepContent>
         );
+      }
 
       case 2:
         return (
