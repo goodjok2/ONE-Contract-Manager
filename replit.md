@@ -22,7 +22,8 @@ This application helps Dvele manage construction projects through dedicated chil
 - **Active Contracts**: List and manage all contracts
 - **Templates**: Pre-configured contract templates (DTC Standard, B2B Developer)
 - **Clause Library**: Reusable contract clauses (coming soon)
-- **LLC Administration**: Create and manage child LLC entities
+- **LLC Administration**: Create and manage child LLC entities with auto-generated names, status tracking (forming/active/closed), member management, and compliance monitoring
+- **LLC Detail Page**: Tabbed interface (Overview, Documents, Members, Compliance) for detailed LLC management
 - **Settings**: Company configuration and theme settings
 - **Dark Mode**: Toggle between light and dark themes
 
@@ -45,6 +46,7 @@ This application helps Dvele manage construction projects through dedicated chil
 │   │   │   ├── erp-fields.tsx       # ERP integration (placeholder)
 │   │   │   ├── state-requirements.tsx # State requirements (placeholder)
 │   │   │   ├── llc-admin.tsx        # LLC CRUD management
+│   │   │   ├── llc-detail.tsx       # LLC detail page with tabbed interface
 │   │   │   └── settings.tsx         # App settings
 │   │   └── App.tsx                  # Main app with routing
 ├── server/
@@ -79,7 +81,9 @@ This application helps Dvele manage construction projects through dedicated chil
 - `GET /api/projects` - List all projects with relations
 - `POST /api/projects` - Create new project with client, LLC, and financials
 - `GET /api/llcs` - List all LLCs
+- `GET /api/llcs/:id` - Get single LLC by ID
 - `POST /api/llcs` - Create new LLC
+- `PATCH /api/llcs/:id` - Update LLC fields (status, members, compliance, etc.)
 - `DELETE /api/llcs/:id` - Delete LLC
 
 ## Navigation Structure
