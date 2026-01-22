@@ -3,6 +3,7 @@ import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { useWizard, SHELL_TESTING_MODE } from './WizardContext';
 import { Step1ProjectInfo } from './steps/Step1ProjectInfo';
+import { Step2ServiceModel } from './steps/Step2ServiceModel';
 import { 
   Check, 
   ChevronLeft, 
@@ -128,9 +129,10 @@ export const WizardShell: React.FC = () => {
       {/* Step Content */}
       <div>
         {wizardState.currentStep === 1 && <Step1ProjectInfo />}
+        {wizardState.currentStep === 2 && <Step2ServiceModel />}
         
         {/* Placeholder for other steps */}
-        {wizardState.currentStep !== 1 && (
+        {wizardState.currentStep > 2 && (
           <Card className="p-6 min-h-[400px]">
             <div className="flex items-center justify-center h-full">
               <div className="text-center space-y-4">
