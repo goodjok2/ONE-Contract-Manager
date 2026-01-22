@@ -74,6 +74,16 @@ const ENTITY_TYPES = [
   { value: 'Trust', label: 'Trust' }
 ];
 
+// Unit specification interface for multi-unit support
+interface UnitSpec {
+  id: number;
+  model: string;
+  squareFootage: number;
+  bedrooms: number;
+  bathrooms: number;
+  price: number;
+}
+
 interface WizardState {
   currentStep: number;
   projectData: {
@@ -111,6 +121,7 @@ interface WizardState {
     homeBedrooms: number;
     homeBathrooms: number;
     homeConfiguration: string;
+    units: UnitSpec[];
     effectiveDate: string;
     targetDeliveryDate: string;
     manufacturingStartDate: string;
@@ -185,6 +196,7 @@ const initialProjectData: WizardState['projectData'] = {
   homeBedrooms: 0,
   homeBathrooms: 0,
   homeConfiguration: '',
+  units: [{ id: 1, model: '', squareFootage: 0, bedrooms: 0, bathrooms: 0, price: 0 }],
   effectiveDate: '',
   targetDeliveryDate: '',
   manufacturingStartDate: '',
@@ -241,6 +253,45 @@ export default function GenerateContracts() {
       setNumberIsUnique(true);
     }
   }, [nextNumberData]);
+
+  // Sync units array when totalUnits changes
+  useEffect(() => {
+    const { totalUnits, units } = wizardState.projectData;
+    if (units.length !== totalUnits) {
+      // Adjust units array to match totalUnits
+      if (units.length < totalUnits) {
+        // Add more units
+        const newUnits = [...units];
+        for (let i = units.length; i < totalUnits; i++) {
+          newUnits.push({
+            id: i + 1,
+            model: '',
+            squareFootage: 0,
+            bedrooms: 0,
+            bathrooms: 0,
+            price: 0
+          });
+        }
+        setWizardState(prev => ({
+          ...prev,
+          projectData: { ...prev.projectData, units: newUnits }
+        }));
+      }
+      // Note: We don't automatically remove units when totalUnits decreases
+      // to preserve user data - they can manually remove if needed
+    }
+  }, [wizardState.projectData.totalUnits]);
+
+  // Update preliminary offsite cost when unit prices change
+  useEffect(() => {
+    const totalPrice = wizardState.projectData.units.reduce((sum, unit) => sum + (unit.price || 0), 0);
+    if (totalPrice !== wizardState.projectData.preliminaryOffsiteCost && totalPrice > 0) {
+      setWizardState(prev => ({
+        ...prev,
+        projectData: { ...prev.projectData, preliminaryOffsiteCost: totalPrice }
+      }));
+    }
+  }, [wizardState.projectData.units]);
 
   // Check project number uniqueness when it changes
   const checkProjectNumberUniqueness = useCallback(async (projectNumber: string) => {
@@ -414,7 +465,27 @@ export default function GenerateContracts() {
         break;
       case 5:
         if (!data.siteAddress.trim()) errors.siteAddress = 'Site address is required';
+        if (!data.siteCity.trim()) errors.siteCity = 'City is required';
         if (!data.siteState.trim()) errors.siteState = 'Site state is required';
+        if (!data.siteZip.trim()) errors.siteZip = 'ZIP code is required';
+        // Validate units
+        data.units.forEach((unit, index) => {
+          if (!unit.model.trim()) {
+            errors[`unit_${index}_model`] = 'Home model is required';
+          }
+          if (unit.squareFootage < 400 || unit.squareFootage > 10000) {
+            errors[`unit_${index}_sqft`] = 'Square footage must be between 400 and 10,000';
+          }
+          if (unit.bedrooms < 1 || unit.bedrooms > 10) {
+            errors[`unit_${index}_beds`] = 'Bedrooms must be between 1 and 10';
+          }
+          if (unit.bathrooms < 1 || unit.bathrooms > 10) {
+            errors[`unit_${index}_baths`] = 'Bathrooms must be between 1 and 10';
+          }
+          if (unit.price < 100000) {
+            errors[`unit_${index}_price`] = 'Unit price must be at least $100,000';
+          }
+        });
         break;
       case 6:
         if (!data.effectiveDate) errors.effectiveDate = 'Effective date is required';
@@ -1493,35 +1564,68 @@ export default function GenerateContracts() {
           </StepContent>
         );
 
-      case 5:
+      case 5: {
+        // Helper function to update a specific unit
+        const updateUnit = (unitId: number, updates: Partial<UnitSpec>) => {
+          const newUnits = projectData.units.map(unit =>
+            unit.id === unitId ? { ...unit, ...updates } : unit
+          );
+          updateProjectData({ units: newUnits });
+        };
+
+        // Calculate total of all unit prices
+        const totalUnitPrice = projectData.units.reduce((sum, unit) => sum + (unit.price || 0), 0);
+
+        // Auto-format currency
+        const formatCurrency = (value: number) => {
+          return new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: 'USD',
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0,
+          }).format(value);
+        };
+
         return (
           <StepContent
-            title="Site & Home Details"
-            description="Enter the property location and home specifications"
+            title="Site & Property Details"
+            description="Enter the delivery location and unit specifications"
           >
-            <div className="grid gap-6">
-              <div className="space-y-4">
-                <h4 className="font-medium">Site Location</h4>
+            <div className="grid gap-8">
+              {/* Site Address Section */}
+              <div className="space-y-4" data-testid="section-site-address">
+                <div className="flex items-center gap-2">
+                  <Home className="h-5 w-5 text-muted-foreground" />
+                  <h3 className="text-lg font-semibold">Delivery / Site Address</h3>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Enter the address where the modular home(s) will be delivered and installed.
+                </p>
+
                 <FormField
-                  label="Site Address"
+                  label="Street Address"
                   required
                   error={validationErrors.siteAddress}
                 >
                   <input
                     type="text"
                     className="w-full px-3 py-2 border rounded-md bg-background"
-                    placeholder="Street address where home will be installed"
+                    placeholder="123 Main Street"
                     value={projectData.siteAddress}
                     onChange={(e) => updateProjectData({ siteAddress: e.target.value })}
                     data-testid="input-site-address"
                   />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Variables: DELIVERY_ADDRESS, SITE_ADDRESS
+                  </p>
                 </FormField>
 
-                <div className="grid grid-cols-3 gap-4">
-                  <FormField label="City">
+                <div className="grid grid-cols-4 gap-4">
+                  <FormField label="City" required error={validationErrors.siteCity}>
                     <input
                       type="text"
                       className="w-full px-3 py-2 border rounded-md bg-background"
+                      placeholder="San Francisco"
                       value={projectData.siteCity}
                       onChange={(e) => updateProjectData({ siteCity: e.target.value })}
                       data-testid="input-site-city"
@@ -1532,107 +1636,428 @@ export default function GenerateContracts() {
                     required
                     error={validationErrors.siteState}
                   >
-                    <input
-                      type="text"
+                    <select
                       className="w-full px-3 py-2 border rounded-md bg-background"
                       value={projectData.siteState}
-                      onChange={(e) => updateProjectData({ siteState: e.target.value })}
-                      data-testid="input-site-state"
-                    />
+                      onChange={(e) => {
+                        updateProjectData({ siteState: e.target.value });
+                        // Auto-populate client state if not set
+                        if (!projectData.clientState) {
+                          updateProjectData({ clientState: e.target.value });
+                        }
+                      }}
+                      data-testid="select-site-state"
+                    >
+                      <option value="">Select state...</option>
+                      {US_STATES.map(state => (
+                        <option key={state.value} value={state.value}>{state.label}</option>
+                      ))}
+                    </select>
                   </FormField>
-                  <FormField label="ZIP">
+                  <FormField label="ZIP Code" required error={validationErrors.siteZip}>
                     <input
                       type="text"
                       className="w-full px-3 py-2 border rounded-md bg-background"
+                      placeholder="94102"
                       value={projectData.siteZip}
                       onChange={(e) => updateProjectData({ siteZip: e.target.value })}
                       data-testid="input-site-zip"
                     />
                   </FormField>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
                   <FormField label="County">
                     <input
                       type="text"
                       className="w-full px-3 py-2 border rounded-md bg-background"
+                      placeholder="San Francisco County"
                       value={projectData.siteCounty}
                       onChange={(e) => updateProjectData({ siteCounty: e.target.value })}
                       data-testid="input-site-county"
                     />
                   </FormField>
-                  <FormField label="APN (Parcel Number)">
-                    <input
-                      type="text"
-                      className="w-full px-3 py-2 border rounded-md bg-background"
-                      value={projectData.siteApn}
-                      onChange={(e) => updateProjectData({ siteApn: e.target.value })}
-                      data-testid="input-site-apn"
-                    />
-                  </FormField>
                 </div>
-              </div>
 
-              <div className="space-y-4">
-                <h4 className="font-medium">Home Specifications</h4>
-                <FormField label="Home Model">
+                <FormField label="APN (Assessor's Parcel Number)">
                   <input
                     type="text"
                     className="w-full px-3 py-2 border rounded-md bg-background"
-                    placeholder="e.g., Dvele Modern 2500"
-                    value={projectData.homeModel}
-                    onChange={(e) => updateProjectData({ homeModel: e.target.value })}
-                    data-testid="input-home-model"
+                    placeholder="e.g., 123-456-789"
+                    value={projectData.siteApn}
+                    onChange={(e) => updateProjectData({ siteApn: e.target.value })}
+                    data-testid="input-site-apn"
                   />
                 </FormField>
+              </div>
 
-                <div className="grid grid-cols-4 gap-4">
-                  <FormField label="Sq. Footage">
-                    <input
-                      type="number"
-                      min="0"
-                      className="w-full px-3 py-2 border rounded-md bg-background"
-                      value={projectData.homeSquareFootage || ''}
-                      onChange={(e) => updateProjectData({ homeSquareFootage: parseInt(e.target.value) || 0 })}
-                      data-testid="input-home-sqft"
-                    />
-                  </FormField>
-                  <FormField label="Bedrooms">
-                    <input
-                      type="number"
-                      min="0"
-                      className="w-full px-3 py-2 border rounded-md bg-background"
-                      value={projectData.homeBedrooms || ''}
-                      onChange={(e) => updateProjectData({ homeBedrooms: parseInt(e.target.value) || 0 })}
-                      data-testid="input-home-beds"
-                    />
-                  </FormField>
-                  <FormField label="Bathrooms">
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.5"
-                      className="w-full px-3 py-2 border rounded-md bg-background"
-                      value={projectData.homeBathrooms || ''}
-                      onChange={(e) => updateProjectData({ homeBathrooms: parseFloat(e.target.value) || 0 })}
-                      data-testid="input-home-baths"
-                    />
-                  </FormField>
-                  <FormField label="Configuration">
-                    <input
-                      type="text"
-                      className="w-full px-3 py-2 border rounded-md bg-background"
-                      placeholder="e.g., Single Story"
-                      value={projectData.homeConfiguration}
-                      onChange={(e) => updateProjectData({ homeConfiguration: e.target.value })}
-                      data-testid="input-home-config"
-                    />
-                  </FormField>
+              {/* Unit Specifications Section */}
+              <div className="space-y-4 border-t pt-6" data-testid="section-unit-specs">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Building2 className="h-5 w-5 text-muted-foreground" />
+                    <h3 className="text-lg font-semibold">
+                      Unit Specifications
+                      {projectData.totalUnits > 1 && (
+                        <Badge variant="secondary" className="ml-2">
+                          {projectData.units.length} of {projectData.totalUnits} units
+                        </Badge>
+                      )}
+                    </h3>
+                  </div>
+                  {projectData.totalUnits > 1 && (
+                    <div className="text-right">
+                      <p className="text-sm text-muted-foreground">Running Total</p>
+                      <p className="text-lg font-semibold text-primary" data-testid="text-total-price">
+                        {formatCurrency(totalUnitPrice)}
+                      </p>
+                    </div>
+                  )}
                 </div>
+
+                {projectData.totalUnits === 1 ? (
+                  // Single Unit UI
+                  <div className="space-y-4" data-testid="single-unit-section">
+                    <FormField
+                      label="Home Model"
+                      required
+                      error={validationErrors['unit_0_model']}
+                    >
+                      <input
+                        type="text"
+                        className="w-full px-3 py-2 border rounded-md bg-background"
+                        placeholder="e.g., Dvele Ora 2400"
+                        value={projectData.units[0]?.model || ''}
+                        onChange={(e) => {
+                          updateUnit(1, { model: e.target.value });
+                          // Auto-fill sqft based on model name if it contains a number
+                          const match = e.target.value.match(/\d{3,4}/);
+                          if (match && projectData.units[0]?.squareFootage === 0) {
+                            updateUnit(1, { squareFootage: parseInt(match[0]) });
+                          }
+                        }}
+                        data-testid="input-unit-model-1"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Variables: HOME_MODEL_1, UNIT_1_MODEL
+                      </p>
+                    </FormField>
+
+                    <div className="grid grid-cols-4 gap-4">
+                      <FormField
+                        label="Square Footage"
+                        required
+                        error={validationErrors['unit_0_sqft']}
+                      >
+                        <input
+                          type="number"
+                          min="400"
+                          max="10000"
+                          className="w-full px-3 py-2 border rounded-md bg-background"
+                          placeholder="2400"
+                          value={projectData.units[0]?.squareFootage || ''}
+                          onChange={(e) => updateUnit(1, { squareFootage: parseInt(e.target.value) || 0 })}
+                          data-testid="input-unit-sqft-1"
+                        />
+                      </FormField>
+
+                      <FormField
+                        label="Bedrooms"
+                        required
+                        error={validationErrors['unit_0_beds']}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="outline"
+                            onClick={() => updateUnit(1, { bedrooms: Math.max(1, (projectData.units[0]?.bedrooms || 0) - 1) })}
+                            data-testid="button-beds-minus-1"
+                          >
+                            <Minus className="h-4 w-4" />
+                          </Button>
+                          <input
+                            type="number"
+                            min="1"
+                            max="10"
+                            className="w-full px-3 py-2 border rounded-md bg-background text-center"
+                            value={projectData.units[0]?.bedrooms || ''}
+                            onChange={(e) => updateUnit(1, { bedrooms: parseInt(e.target.value) || 0 })}
+                            data-testid="input-unit-beds-1"
+                          />
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="outline"
+                            onClick={() => updateUnit(1, { bedrooms: Math.min(10, (projectData.units[0]?.bedrooms || 0) + 1) })}
+                            data-testid="button-beds-plus-1"
+                          >
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </FormField>
+
+                      <FormField
+                        label="Bathrooms"
+                        required
+                        error={validationErrors['unit_0_baths']}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="outline"
+                            onClick={() => updateUnit(1, { bathrooms: Math.max(1, (projectData.units[0]?.bathrooms || 0) - 0.5) })}
+                            data-testid="button-baths-minus-1"
+                          >
+                            <Minus className="h-4 w-4" />
+                          </Button>
+                          <input
+                            type="number"
+                            min="1"
+                            max="10"
+                            step="0.5"
+                            className="w-full px-3 py-2 border rounded-md bg-background text-center"
+                            value={projectData.units[0]?.bathrooms || ''}
+                            onChange={(e) => updateUnit(1, { bathrooms: parseFloat(e.target.value) || 0 })}
+                            data-testid="input-unit-baths-1"
+                          />
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="outline"
+                            onClick={() => updateUnit(1, { bathrooms: Math.min(10, (projectData.units[0]?.bathrooms || 0) + 0.5) })}
+                            data-testid="button-baths-plus-1"
+                          >
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </FormField>
+
+                      <FormField
+                        label="Unit Price"
+                        required
+                        error={validationErrors['unit_0_price']}
+                      >
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
+                          <input
+                            type="number"
+                            min="100000"
+                            className="w-full pl-7 pr-3 py-2 border rounded-md bg-background"
+                            placeholder="450000"
+                            value={projectData.units[0]?.price || ''}
+                            onChange={(e) => {
+                              const price = parseInt(e.target.value) || 0;
+                              updateUnit(1, { price });
+                              // Update preliminary offsite cost
+                              updateProjectData({ preliminaryOffsiteCost: price });
+                            }}
+                            data-testid="input-unit-price-1"
+                          />
+                        </div>
+                      </FormField>
+                    </div>
+                  </div>
+                ) : (
+                  // Multi-Unit UI
+                  <div className="space-y-6" data-testid="multi-unit-section">
+                    {projectData.units.map((unit, index) => (
+                      <Card key={unit.id} className="p-4" data-testid={`card-unit-${index + 1}`}>
+                        <div className="flex items-center justify-between mb-4">
+                          <h4 className="font-medium">Unit {index + 1}</h4>
+                          {projectData.units.length > 1 && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="text-destructive"
+                              onClick={() => {
+                                const newUnits = projectData.units.filter(u => u.id !== unit.id);
+                                updateProjectData({ units: newUnits });
+                              }}
+                              data-testid={`button-remove-unit-${index + 1}`}
+                            >
+                              <X className="h-4 w-4 mr-1" />
+                              Remove
+                            </Button>
+                          )}
+                        </div>
+
+                        <div className="grid gap-4">
+                          <FormField
+                            label="Home Model"
+                            required
+                            error={validationErrors[`unit_${index}_model`]}
+                          >
+                            <input
+                              type="text"
+                              className="w-full px-3 py-2 border rounded-md bg-background"
+                              placeholder="e.g., Dvele Ora 2400"
+                              value={unit.model}
+                              onChange={(e) => {
+                                updateUnit(unit.id, { model: e.target.value });
+                                // Auto-fill sqft based on model name
+                                const match = e.target.value.match(/\d{3,4}/);
+                                if (match && unit.squareFootage === 0) {
+                                  updateUnit(unit.id, { squareFootage: parseInt(match[0]) });
+                                }
+                              }}
+                              data-testid={`input-unit-model-${index + 1}`}
+                            />
+                          </FormField>
+
+                          <div className="grid grid-cols-4 gap-4">
+                            <FormField
+                              label="Sq. Ft."
+                              required
+                              error={validationErrors[`unit_${index}_sqft`]}
+                            >
+                              <input
+                                type="number"
+                                min="400"
+                                max="10000"
+                                className="w-full px-3 py-2 border rounded-md bg-background"
+                                value={unit.squareFootage || ''}
+                                onChange={(e) => updateUnit(unit.id, { squareFootage: parseInt(e.target.value) || 0 })}
+                                data-testid={`input-unit-sqft-${index + 1}`}
+                              />
+                            </FormField>
+
+                            <FormField
+                              label="Beds"
+                              required
+                            >
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  type="button"
+                                  size="icon"
+                                  variant="outline"
+                                  className="h-8 w-8"
+                                  onClick={() => updateUnit(unit.id, { bedrooms: Math.max(1, unit.bedrooms - 1) })}
+                                >
+                                  <Minus className="h-3 w-3" />
+                                </Button>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  max="10"
+                                  className="w-12 px-2 py-2 border rounded-md bg-background text-center text-sm"
+                                  value={unit.bedrooms || ''}
+                                  onChange={(e) => updateUnit(unit.id, { bedrooms: parseInt(e.target.value) || 0 })}
+                                  data-testid={`input-unit-beds-${index + 1}`}
+                                />
+                                <Button
+                                  type="button"
+                                  size="icon"
+                                  variant="outline"
+                                  className="h-8 w-8"
+                                  onClick={() => updateUnit(unit.id, { bedrooms: Math.min(10, unit.bedrooms + 1) })}
+                                >
+                                  <Plus className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            </FormField>
+
+                            <FormField
+                              label="Baths"
+                              required
+                            >
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  type="button"
+                                  size="icon"
+                                  variant="outline"
+                                  className="h-8 w-8"
+                                  onClick={() => updateUnit(unit.id, { bathrooms: Math.max(1, unit.bathrooms - 0.5) })}
+                                >
+                                  <Minus className="h-3 w-3" />
+                                </Button>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  max="10"
+                                  step="0.5"
+                                  className="w-12 px-2 py-2 border rounded-md bg-background text-center text-sm"
+                                  value={unit.bathrooms || ''}
+                                  onChange={(e) => updateUnit(unit.id, { bathrooms: parseFloat(e.target.value) || 0 })}
+                                  data-testid={`input-unit-baths-${index + 1}`}
+                                />
+                                <Button
+                                  type="button"
+                                  size="icon"
+                                  variant="outline"
+                                  className="h-8 w-8"
+                                  onClick={() => updateUnit(unit.id, { bathrooms: Math.min(10, unit.bathrooms + 0.5) })}
+                                >
+                                  <Plus className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            </FormField>
+
+                            <FormField
+                              label="Price"
+                              required
+                              error={validationErrors[`unit_${index}_price`]}
+                            >
+                              <div className="relative">
+                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
+                                <input
+                                  type="number"
+                                  min="100000"
+                                  className="w-full pl-6 pr-2 py-2 border rounded-md bg-background text-sm"
+                                  placeholder="450000"
+                                  value={unit.price || ''}
+                                  onChange={(e) => {
+                                    updateUnit(unit.id, { price: parseInt(e.target.value) || 0 });
+                                  }}
+                                  data-testid={`input-unit-price-${index + 1}`}
+                                />
+                              </div>
+                            </FormField>
+                          </div>
+                        </div>
+                      </Card>
+                    ))}
+
+                    {projectData.units.length < projectData.totalUnits && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => {
+                          const newId = Math.max(...projectData.units.map(u => u.id)) + 1;
+                          updateProjectData({
+                            units: [...projectData.units, { id: newId, model: '', squareFootage: 0, bedrooms: 0, bathrooms: 0, price: 0 }]
+                          });
+                        }}
+                        data-testid="button-add-unit"
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Unit ({projectData.units.length} of {projectData.totalUnits})
+                      </Button>
+                    )}
+
+                    {/* Total Summary */}
+                    <div className="p-4 bg-muted/50 rounded-lg border" data-testid="panel-unit-summary">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm text-muted-foreground">Total of {projectData.units.length} unit(s)</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Variable: PRELIMINARY_OFFSITE_PRICE
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-2xl font-bold text-primary" data-testid="text-summary-total">
+                            {formatCurrency(totalUnitPrice)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </StepContent>
         );
+      }
 
       case 6:
         return (
