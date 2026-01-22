@@ -7,6 +7,8 @@ export {
   initialProjectData 
 } from './WizardContext';
 
+export { WizardShell } from './WizardShell';
+
 export type {
   WizardState,
   ProjectData,
