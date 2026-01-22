@@ -10,7 +10,8 @@ import {
   MapPin,
   Settings,
   FileText,
-  Hammer
+  Hammer,
+  Eye
 } from "lucide-react";
 import {
   Sidebar,
@@ -64,6 +65,11 @@ const configNavItems = [
     title: "Clause Library",
     url: "/clause-library",
     icon: Library,
+  },
+  {
+    title: "Contract Preview",
+    url: "/contract-preview",
+    icon: Eye,
   },
   {
     title: "ERP Fields",

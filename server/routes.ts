@@ -1484,5 +1484,315 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // ==========================================
+  // CLAUSES ENDPOINTS
+  // ==========================================
+  
+  // Get all clauses with optional filtering
+  app.get("/api/clauses", async (req, res) => {
+    try {
+      const { contractType, category, search, hierarchyLevel } = req.query;
+      
+      let query = `
+        SELECT 
+          id, clause_code, parent_clause_id, hierarchy_level, sort_order,
+          name, category, contract_type, content, variables_used, conditions,
+          risk_level, negotiable, created_at, updated_at
+        FROM clauses
+        WHERE 1=1
+      `;
+      const params: any[] = [];
+      let paramCount = 1;
+      
+      if (contractType && contractType !== 'ALL') {
+        query += ` AND contract_type = $${paramCount}`;
+        params.push(contractType);
+        paramCount++;
+      }
+      
+      if (category) {
+        query += ` AND category = $${paramCount}`;
+        params.push(category);
+        paramCount++;
+      }
+      
+      if (hierarchyLevel) {
+        query += ` AND hierarchy_level = $${paramCount}`;
+        params.push(parseInt(hierarchyLevel as string));
+        paramCount++;
+      }
+      
+      if (search) {
+        query += ` AND (name ILIKE $${paramCount} OR content ILIKE $${paramCount} OR clause_code ILIKE $${paramCount})`;
+        params.push(`%${search}%`);
+        paramCount++;
+      }
+      
+      query += ` ORDER BY sort_order, clause_code`;
+      
+      const result = await pool.query(query, params);
+      
+      // Get summary stats
+      const statsQuery = `
+        SELECT 
+          COUNT(*) as total,
+          COUNT(DISTINCT contract_type) as contract_types,
+          COUNT(DISTINCT category) as categories,
+          COUNT(*) FILTER (WHERE conditions IS NOT NULL) as conditional
+        FROM clauses
+      `;
+      const statsResult = await pool.query(statsQuery);
+      
+      res.json({
+        clauses: result.rows,
+        stats: statsResult.rows[0]
+      });
+    } catch (error) {
+      console.error("Failed to fetch clauses:", error);
+      res.status(500).json({ error: "Failed to fetch clauses" });
+    }
+  });
+  
+  // Get single clause by ID
+  app.get("/api/clauses/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const result = await pool.query(`
+        SELECT 
+          id, clause_code, parent_clause_id, hierarchy_level, sort_order,
+          name, category, contract_type, content, variables_used, conditions,
+          risk_level, negotiable, created_at, updated_at
+        FROM clauses
+        WHERE id = $1
+      `, [id]);
+      
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: "Clause not found" });
+      }
+      
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error("Failed to fetch clause:", error);
+      res.status(500).json({ error: "Failed to fetch clause" });
+    }
+  });
+  
+  // Update clause (for legal team editing)
+  app.patch("/api/clauses/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { name, content, conditions, riskLevel, negotiable, variablesUsed } = req.body;
+      
+      const updateFields: string[] = [];
+      const values: any[] = [];
+      let paramCount = 1;
+      
+      if (name !== undefined) {
+        updateFields.push(`name = $${paramCount}`);
+        values.push(name);
+        paramCount++;
+      }
+      if (content !== undefined) {
+        updateFields.push(`content = $${paramCount}`);
+        values.push(content);
+        paramCount++;
+      }
+      if (conditions !== undefined) {
+        updateFields.push(`conditions = $${paramCount}`);
+        values.push(JSON.stringify(conditions));
+        paramCount++;
+      }
+      if (riskLevel !== undefined) {
+        updateFields.push(`risk_level = $${paramCount}`);
+        values.push(riskLevel);
+        paramCount++;
+      }
+      if (negotiable !== undefined) {
+        updateFields.push(`negotiable = $${paramCount}`);
+        values.push(negotiable);
+        paramCount++;
+      }
+      if (variablesUsed !== undefined) {
+        updateFields.push(`variables_used = $${paramCount}`);
+        values.push(variablesUsed);
+        paramCount++;
+      }
+      
+      if (updateFields.length === 0) {
+        return res.status(400).json({ error: "No fields to update" });
+      }
+      
+      updateFields.push(`updated_at = NOW()`);
+      values.push(id);
+      
+      const result = await pool.query(`
+        UPDATE clauses SET ${updateFields.join(', ')}
+        WHERE id = $${paramCount}
+        RETURNING *
+      `, values);
+      
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: "Clause not found" });
+      }
+      
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error("Failed to update clause:", error);
+      res.status(500).json({ error: "Failed to update clause" });
+    }
+  });
+  
+  // Get clause categories
+  app.get("/api/clauses/meta/categories", async (req, res) => {
+    try {
+      const result = await pool.query(`
+        SELECT DISTINCT category, COUNT(*) as count
+        FROM clauses
+        GROUP BY category
+        ORDER BY category
+      `);
+      res.json(result.rows);
+    } catch (error) {
+      console.error("Failed to fetch clause categories:", error);
+      res.status(500).json({ error: "Failed to fetch categories" });
+    }
+  });
+  
+  // Get clause contract types
+  app.get("/api/clauses/meta/contract-types", async (req, res) => {
+    try {
+      const result = await pool.query(`
+        SELECT DISTINCT contract_type, COUNT(*) as count
+        FROM clauses
+        GROUP BY contract_type
+        ORDER BY contract_type
+      `);
+      res.json(result.rows);
+    } catch (error) {
+      console.error("Failed to fetch contract types:", error);
+      res.status(500).json({ error: "Failed to fetch contract types" });
+    }
+  });
+  
+  // ==========================================
+  // VARIABLES ENDPOINTS
+  // ==========================================
+  
+  // Get all variable definitions with categories
+  app.get("/api/variables", async (_req, res) => {
+    try {
+      // Import the variable categories from mapper
+      const { VARIABLE_CATEGORIES, ALL_VARIABLES } = await import("./lib/mapper");
+      
+      const variables = Object.entries(VARIABLE_CATEGORIES).map(([category, vars]) => ({
+        category,
+        variables: (vars as string[]).map((name: string) => ({
+          name,
+          category,
+        }))
+      }));
+      
+      res.json({
+        categories: variables,
+        allVariables: ALL_VARIABLES,
+        totalCount: ALL_VARIABLES.length
+      });
+    } catch (error) {
+      console.error("Failed to fetch variables:", error);
+      res.status(500).json({ error: "Failed to fetch variables" });
+    }
+  });
+  
+  // Compare CRC vs CMOS clause differences
+  app.post("/api/contracts/compare-service-models", async (req, res) => {
+    try {
+      const { projectData } = req.body;
+      
+      if (!projectData) {
+        return res.status(400).json({ error: "projectData is required" });
+      }
+      
+      // Get clauses for both CRC and CMOS versions
+      const getClauses = async (serviceModel: string) => {
+        const modifiedData = { ...projectData, serviceModel };
+        
+        const templateQuery = `
+          SELECT id, base_clause_ids, conditional_rules, display_name FROM contract_templates
+          WHERE contract_type = 'ONE'
+        `;
+        const templateResult = await pool.query(templateQuery);
+        
+        if (templateResult.rows.length === 0) {
+          return { clauses: [], clauseIds: [] };
+        }
+        
+        const template = templateResult.rows[0];
+        const clauseIds = template.base_clause_ids || [];
+        
+        if (clauseIds.length === 0) {
+          return { clauses: [], clauseIds: [] };
+        }
+        
+        const clausesQuery = `
+          SELECT id, clause_code, name, category, conditions, hierarchy_level
+          FROM clauses
+          WHERE id = ANY($1)
+          ORDER BY sort_order
+        `;
+        
+        const clausesResult = await pool.query(clausesQuery, [clauseIds]);
+        
+        // Filter based on conditions
+        const filteredClauses = clausesResult.rows.filter((clause: any) => {
+          if (!clause.conditions) return true;
+          const conditions = clause.conditions;
+          if (conditions.service_model) {
+            return conditions.service_model === serviceModel || conditions.service_model === "BOTH";
+          }
+          return true;
+        });
+        
+        return { clauses: filteredClauses, clauseIds: filteredClauses.map((c: any) => c.id) };
+      };
+      
+      const [crcResult, cmosResult] = await Promise.all([
+        getClauses("CRC"),
+        getClauses("CMOS")
+      ]);
+      
+      // Find differences
+      const crcOnly = crcResult.clauses.filter(
+        (c: any) => !cmosResult.clauseIds.includes(c.id)
+      );
+      const cmosOnly = cmosResult.clauses.filter(
+        (c: any) => !crcResult.clauseIds.includes(c.id)
+      );
+      const shared = crcResult.clauses.filter(
+        (c: any) => cmosResult.clauseIds.includes(c.id)
+      );
+      
+      res.json({
+        crc: {
+          totalClauses: crcResult.clauses.length,
+          clauses: crcResult.clauses
+        },
+        cmos: {
+          totalClauses: cmosResult.clauses.length,
+          clauses: cmosResult.clauses
+        },
+        comparison: {
+          crcOnly: crcOnly.map((c: any) => ({ id: c.id, code: c.clause_code, name: c.name })),
+          cmosOnly: cmosOnly.map((c: any) => ({ id: c.id, code: c.clause_code, name: c.name })),
+          shared: shared.length,
+          crcTotal: crcResult.clauses.length,
+          cmosTotal: cmosResult.clauses.length
+        }
+      });
+    } catch (error) {
+      console.error("Failed to compare service models:", error);
+      res.status(500).json({ error: "Failed to compare service models" });
+    }
+  });
+
   // Routes registered successfully
 }
