@@ -5,7 +5,7 @@ import { apiRequest } from '@/lib/queryClient';
 
 // Shell Testing Mode: Set to false when step content components are added
 // When true: skips form validation and allows navigation to all steps without completing forms
-export const SHELL_TESTING_MODE = true;
+export const SHELL_TESTING_MODE = false;
 
 // US States for dropdown
 export const US_STATES = [

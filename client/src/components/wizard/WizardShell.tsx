@@ -2,6 +2,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { useWizard, SHELL_TESTING_MODE } from './WizardContext';
+import { Step1ProjectInfo } from './steps/Step1ProjectInfo';
 import { 
   Check, 
   ChevronLeft, 
@@ -124,22 +125,29 @@ export const WizardShell: React.FC = () => {
         <p className="text-muted-foreground">{currentStepInfo.description}</p>
       </div>
       
-      {/* Step Content - Placeholder for now */}
-      <Card className="p-6 min-h-[400px]">
-        <div className="flex items-center justify-center h-full">
-          <div className="text-center space-y-4">
-            <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
-              <CurrentIcon className="h-10 w-10 text-primary" />
+      {/* Step Content */}
+      <div>
+        {wizardState.currentStep === 1 && <Step1ProjectInfo />}
+        
+        {/* Placeholder for other steps */}
+        {wizardState.currentStep !== 1 && (
+          <Card className="p-6 min-h-[400px]">
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center space-y-4">
+                <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
+                  <CurrentIcon className="h-10 w-10 text-primary" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-semibold mb-2">Step {wizardState.currentStep}</h3>
+                  <p className="text-muted-foreground">
+                    Step content will be rendered here
+                  </p>
+                </div>
+              </div>
             </div>
-            <div>
-              <h3 className="text-xl font-semibold mb-2">Step {wizardState.currentStep}</h3>
-              <p className="text-muted-foreground">
-                Step content will be rendered here
-              </p>
-            </div>
-          </div>
-        </div>
-      </Card>
+          </Card>
+        )}
+      </div>
       
       {/* Navigation Buttons */}
       <div className="flex items-center justify-between gap-4">
