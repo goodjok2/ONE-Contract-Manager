@@ -1,0 +1,87 @@
+🤖 REPLIT AGENT PROMPT - PHASE 7: Financial Terms Step
+CREATE WIZARD STEP 4: FINANCIAL TERMS
+
+Add a new step to the contract wizard for collecting all financial information including pricing, payment milestones, and manufacturing payments.
+
+LOCATION: src/components/wizard/steps/FinancialTermsStep.tsx
+
+COMPONENT REQUIREMENTS:
+
+1. DESIGN PHASE SECTION:
+   - Design Fee (currency input, required, $1k-$100k range)
+   - Show recommended range based on totalUnits (single: $10k, multi: $25k)
+   - Design Revision Rounds (number input with +/- buttons, default 3, range 1-10)
+
+2. PRELIMINARY PRICING SECTION:
+   - Manufacturing/Offsite Price (auto-populated from Step 3 unit prices, editable)
+   - Delivery & Installation Price (currency input, required)
+   - Conditional CMOS fields (only show if serviceModel === 'CMOS'):
+     * Site Preparation Price
+     * Utilities Price
+     * Completion Price
+   - Total Preliminary Contract Price (auto-calculated, read-only, prominent display)
+   
+   Total Formula:
+   - CRC: Offsite + Delivery + Design
+   - CMOS: Offsite + Delivery + Site Prep + Utilities + Completion + Design
+
+3. PAYMENT MILESTONES SECTION (ONE Agreement):
+   - 5 milestone percentage inputs (default: 20%, 20%, 20%, 20%, 15%)
+   - Must sum to exactly 95%
+   - Show running total with validation indicator:
+     * Red if ≠ 95%
+     * Green if = 95%
+   - Display dollar amount for each milestone based on percentage
+   - Retainage Percent (default 5%, range 0-10%)
+   - Retainage Days (default 60, range 0-365)
+   - Show calculated retainage dollar amount
+
+4. MANUFACTURING PAYMENTS SECTION:
+   - Design Payment (auto-populate from Design Fee)
+   - Production Start Payment (suggested: 35% of offsite price)
+   - Production Completion Payment (suggested: 45% of offsite price)
+   - Delivery Ready Payment (suggested: 20% of offsite price)
+   - Show total and compare to offsite price
+   - Warning if significantly different from offsite price
+
+5. REAL-TIME CALCULATIONS:
+   - Update all totals when any price field changes
+   - Update milestone dollar amounts when percentages change
+   - Recalculate when service model changes (CRC/CMOS)
+
+6. VALIDATION:
+   - All price fields required
+   - Design Fee: min $1,000, max $100,000
+   - Milestone percentages must sum to exactly 95%
+   - All manufacturing payments required and > 0
+   - Disable "Next" button if validation fails
+
+7. UI/UX:
+   - Organize into clear sections with headers
+   - Use card/panel layout for visual separation
+   - Currency inputs formatted with $ symbol
+   - Show helpful hints and recommended values
+   - Color-coded validation (red errors, green success)
+   - Responsive layout (stack on mobile)
+
+8. DATA MAPPING:
+Store these fields in wizardData:
+- designFee
+- designRevisionRounds
+- preliminaryOffsitePrice
+- deliveryInstallationPrice
+- sitePrepPrice (if CMOS)
+- utilitiesPrice (if CMOS)
+- completionPrice (if CMOS)
+- totalPreliminaryContractPrice
+- milestone1Percent through milestone5Percent
+- retainagePercent
+- retainageDays
+- manufacturingDesignPayment
+- manufacturingProductionStart
+- manufacturingProductionComplete
+- manufacturingDeliveryReady
+
+Import this step into ContractWizard.tsx and add it as Step 4.
+
+Use existing design patterns from Steps 1-3 for consistency.

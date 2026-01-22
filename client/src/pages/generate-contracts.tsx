@@ -128,10 +128,27 @@ interface WizardState {
     installationDate: string;
     contractPrice: number;
     designFee: number;
+    designRevisionRounds: number;
     preliminaryOffsiteCost: number;
     preliminaryOnsiteCost: number;
+    deliveryInstallationPrice: number;
+    sitePrepPrice: number;
+    utilitiesPrice: number;
+    completionPrice: number;
+    totalPreliminaryContractPrice: number;
     depositAmount: number;
     paymentSchedule: string;
+    milestone1Percent: number;
+    milestone2Percent: number;
+    milestone3Percent: number;
+    milestone4Percent: number;
+    milestone5Percent: number;
+    retainagePercent: number;
+    retainageDays: number;
+    manufacturingDesignPayment: number;
+    manufacturingProductionStart: number;
+    manufacturingProductionComplete: number;
+    manufacturingDeliveryReady: number;
     warrantyPeriodYears: number;
     warrantyStartDate: string;
     generalContractorName: string;
@@ -203,10 +220,27 @@ const initialProjectData: WizardState['projectData'] = {
   installationDate: '',
   contractPrice: 0,
   designFee: 0,
+  designRevisionRounds: 3,
   preliminaryOffsiteCost: 0,
   preliminaryOnsiteCost: 0,
+  deliveryInstallationPrice: 0,
+  sitePrepPrice: 0,
+  utilitiesPrice: 0,
+  completionPrice: 0,
+  totalPreliminaryContractPrice: 0,
   depositAmount: 0,
   paymentSchedule: '',
+  milestone1Percent: 20,
+  milestone2Percent: 20,
+  milestone3Percent: 20,
+  milestone4Percent: 20,
+  milestone5Percent: 15,
+  retainagePercent: 5,
+  retainageDays: 60,
+  manufacturingDesignPayment: 0,
+  manufacturingProductionStart: 0,
+  manufacturingProductionComplete: 0,
+  manufacturingDeliveryReady: 0,
   warrantyPeriodYears: 1,
   warrantyStartDate: '',
   generalContractorName: '',
@@ -294,6 +328,43 @@ export default function GenerateContracts() {
       }));
     }
   }, [wizardState.projectData.units]);
+
+  // Auto-calculate total preliminary contract price based on service model
+  useEffect(() => {
+    const { serviceModel, preliminaryOffsiteCost, deliveryInstallationPrice, designFee,
+            sitePrepPrice, utilitiesPrice, completionPrice } = wizardState.projectData;
+    
+    let total = preliminaryOffsiteCost + deliveryInstallationPrice + designFee;
+    if (serviceModel === 'CMOS') {
+      total += sitePrepPrice + utilitiesPrice + completionPrice;
+    }
+    
+    if (total !== wizardState.projectData.totalPreliminaryContractPrice) {
+      setWizardState(prev => ({
+        ...prev,
+        projectData: { ...prev.projectData, totalPreliminaryContractPrice: total }
+      }));
+    }
+  }, [
+    wizardState.projectData.serviceModel,
+    wizardState.projectData.preliminaryOffsiteCost,
+    wizardState.projectData.deliveryInstallationPrice,
+    wizardState.projectData.designFee,
+    wizardState.projectData.sitePrepPrice,
+    wizardState.projectData.utilitiesPrice,
+    wizardState.projectData.completionPrice
+  ]);
+
+  // Auto-populate manufacturing design payment from design fee
+  useEffect(() => {
+    const { designFee, manufacturingDesignPayment } = wizardState.projectData;
+    if (designFee > 0 && manufacturingDesignPayment === 0) {
+      setWizardState(prev => ({
+        ...prev,
+        projectData: { ...prev.projectData, manufacturingDesignPayment: designFee }
+      }));
+    }
+  }, [wizardState.projectData.designFee]);
 
   // Check project number uniqueness when it changes
   const checkProjectNumberUniqueness = useCallback(async (projectNumber: string) => {
@@ -494,7 +565,52 @@ export default function GenerateContracts() {
         if (!data.effectiveDate) errors.effectiveDate = 'Effective date is required';
         break;
       case 7:
-        if (data.contractPrice <= 0) errors.contractPrice = 'Contract price must be greater than 0';
+        // Design Phase validation
+        if (data.designFee < 1000 || data.designFee > 100000) {
+          errors.designFee = 'Design fee must be between $1,000 and $100,000';
+        }
+        if (data.designRevisionRounds < 1 || data.designRevisionRounds > 10) {
+          errors.designRevisionRounds = 'Revision rounds must be between 1 and 10';
+        }
+        // Preliminary Pricing validation
+        if (data.preliminaryOffsiteCost <= 0) {
+          errors.preliminaryOffsiteCost = 'Manufacturing/Offsite price is required';
+        }
+        if (data.deliveryInstallationPrice <= 0) {
+          errors.deliveryInstallationPrice = 'Delivery & installation price is required';
+        }
+        // CMOS-specific validation
+        if (data.serviceModel === 'CMOS') {
+          if (data.sitePrepPrice <= 0) errors.sitePrepPrice = 'Site preparation price is required for CMOS';
+          if (data.utilitiesPrice <= 0) errors.utilitiesPrice = 'Utilities price is required for CMOS';
+          if (data.completionPrice <= 0) errors.completionPrice = 'Completion price is required for CMOS';
+        }
+        // Milestone validation - must sum to exactly 95%
+        const milestoneTotal = data.milestone1Percent + data.milestone2Percent + 
+                              data.milestone3Percent + data.milestone4Percent + data.milestone5Percent;
+        if (milestoneTotal !== 95) {
+          errors.milestones = `Milestones must sum to 95% (currently ${milestoneTotal}%)`;
+        }
+        // Retainage validation
+        if (data.retainagePercent < 0 || data.retainagePercent > 10) {
+          errors.retainagePercent = 'Retainage must be between 0% and 10%';
+        }
+        if (data.retainageDays < 0 || data.retainageDays > 365) {
+          errors.retainageDays = 'Retainage days must be between 0 and 365';
+        }
+        // Manufacturing payments validation
+        if (data.manufacturingDesignPayment <= 0) {
+          errors.manufacturingDesignPayment = 'Design payment is required';
+        }
+        if (data.manufacturingProductionStart <= 0) {
+          errors.manufacturingProductionStart = 'Production start payment is required';
+        }
+        if (data.manufacturingProductionComplete <= 0) {
+          errors.manufacturingProductionComplete = 'Production completion payment is required';
+        }
+        if (data.manufacturingDeliveryReady <= 0) {
+          errors.manufacturingDeliveryReady = 'Delivery ready payment is required';
+        }
         break;
       case 8:
         break;
@@ -2148,121 +2264,470 @@ export default function GenerateContracts() {
         );
 
       case 7:
+        // Calculate milestone totals and dollar amounts
+        const milestoneSum = projectData.milestone1Percent + projectData.milestone2Percent +
+                            projectData.milestone3Percent + projectData.milestone4Percent + projectData.milestone5Percent;
+        const milestonesValid = milestoneSum === 95;
+        const contractBase = projectData.totalPreliminaryContractPrice;
+        
+        // Calculate manufacturing payment total
+        const manufacturingTotal = projectData.manufacturingDesignPayment + 
+                                  projectData.manufacturingProductionStart +
+                                  projectData.manufacturingProductionComplete +
+                                  projectData.manufacturingDeliveryReady;
+        const manufacturingDiff = manufacturingTotal - projectData.preliminaryOffsiteCost;
+        
+        // Recommended design fee based on unit count
+        const recommendedDesignFee = projectData.totalUnits === 1 ? 10000 : 25000;
+        
+        // Suggested manufacturing payments (35%, 45%, 20% of offsite)
+        const suggestedProductionStart = Math.round(projectData.preliminaryOffsiteCost * 0.35);
+        const suggestedProductionComplete = Math.round(projectData.preliminaryOffsiteCost * 0.45);
+        const suggestedDeliveryReady = Math.round(projectData.preliminaryOffsiteCost * 0.20);
+
         return (
           <StepContent
-            title="Pricing & Financials"
-            description="Enter the contract value and payment terms"
+            title="Financial Terms"
+            description="Define pricing, payment milestones, and manufacturing payments"
           >
-            <div className="grid gap-6">
-              <FormField
-                label="Total Contract Price"
-                required
-                error={validationErrors.contractPrice}
-              >
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    className="w-full pl-7 pr-3 py-2 border rounded-md bg-background"
-                    value={projectData.contractPrice || ''}
-                    onChange={(e) => updateProjectData({ contractPrice: parseFloat(e.target.value) || 0 })}
-                    data-testid="input-contract-price"
-                  />
-                </div>
-              </FormField>
+            <div className="space-y-8">
+              {/* SECTION 1: Design Phase */}
+              <Card>
+                <CardHeader className="pb-4">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <DollarSign className="h-5 w-5 text-primary" />
+                    Design Phase
+                  </CardTitle>
+                  <CardDescription>Design fee and revision terms</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      label="Design Fee"
+                      required
+                      error={validationErrors.designFee}
+                    >
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
+                        <input
+                          type="number"
+                          min="1000"
+                          max="100000"
+                          step="100"
+                          className="w-full pl-7 pr-3 py-2 border rounded-md bg-background"
+                          value={projectData.designFee || ''}
+                          onChange={(e) => updateProjectData({ designFee: parseFloat(e.target.value) || 0 })}
+                          data-testid="input-design-fee"
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Recommended: ${recommendedDesignFee.toLocaleString()} ({projectData.totalUnits === 1 ? 'single unit' : 'multi-unit'})
+                      </p>
+                    </FormField>
 
-              <div className="grid grid-cols-3 gap-4">
-                <FormField label="Design Fee">
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      className="w-full pl-7 pr-3 py-2 border rounded-md bg-background"
-                      value={projectData.designFee || ''}
-                      onChange={(e) => updateProjectData({ designFee: parseFloat(e.target.value) || 0 })}
-                      data-testid="input-design-fee"
-                    />
+                    <FormField
+                      label="Design Revision Rounds"
+                      required
+                      error={validationErrors.designRevisionRounds}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="outline"
+                          onClick={() => updateProjectData({ designRevisionRounds: Math.max(1, projectData.designRevisionRounds - 1) })}
+                          data-testid="button-revision-minus"
+                        >
+                          <Minus className="h-4 w-4" />
+                        </Button>
+                        <input
+                          type="number"
+                          min="1"
+                          max="10"
+                          className="flex-1 px-3 py-2 border rounded-md bg-background text-center"
+                          value={projectData.designRevisionRounds}
+                          onChange={(e) => updateProjectData({ designRevisionRounds: Math.min(10, Math.max(1, parseInt(e.target.value) || 1)) })}
+                          data-testid="input-revision-rounds"
+                        />
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="outline"
+                          onClick={() => updateProjectData({ designRevisionRounds: Math.min(10, projectData.designRevisionRounds + 1) })}
+                          data-testid="button-revision-plus"
+                        >
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </FormField>
                   </div>
-                </FormField>
-                <FormField label="Prelim. Offsite Cost">
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      className="w-full pl-7 pr-3 py-2 border rounded-md bg-background"
-                      value={projectData.preliminaryOffsiteCost || ''}
-                      onChange={(e) => updateProjectData({ preliminaryOffsiteCost: parseFloat(e.target.value) || 0 })}
-                      data-testid="input-offsite-cost"
-                    />
-                  </div>
-                </FormField>
-                <FormField label="Prelim. Onsite Cost">
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      className="w-full pl-7 pr-3 py-2 border rounded-md bg-background"
-                      value={projectData.preliminaryOnsiteCost || ''}
-                      onChange={(e) => updateProjectData({ preliminaryOnsiteCost: parseFloat(e.target.value) || 0 })}
-                      data-testid="input-onsite-cost"
-                    />
-                  </div>
-                </FormField>
-              </div>
+                </CardContent>
+              </Card>
 
-              <FormField label="Deposit Amount">
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    className="w-full pl-7 pr-3 py-2 border rounded-md bg-background"
-                    value={projectData.depositAmount || ''}
-                    onChange={(e) => updateProjectData({ depositAmount: parseFloat(e.target.value) || 0 })}
-                    data-testid="input-deposit"
-                  />
-                </div>
-              </FormField>
+              {/* SECTION 2: Preliminary Pricing */}
+              <Card>
+                <CardHeader className="pb-4">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <DollarSign className="h-5 w-5 text-primary" />
+                    Preliminary Pricing
+                  </CardTitle>
+                  <CardDescription>
+                    Contract pricing breakdown {projectData.serviceModel === 'CMOS' && '(CMOS includes site work)'}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      label="Manufacturing/Offsite Price"
+                      required
+                      error={validationErrors.preliminaryOffsiteCost}
+                    >
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="1000"
+                          className="w-full pl-7 pr-3 py-2 border rounded-md bg-background"
+                          value={projectData.preliminaryOffsiteCost || ''}
+                          onChange={(e) => updateProjectData({ preliminaryOffsiteCost: parseFloat(e.target.value) || 0 })}
+                          data-testid="input-offsite-price"
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">Auto-populated from unit prices</p>
+                    </FormField>
 
-              <FormField label="Payment Schedule Notes">
-                <textarea
-                  className="w-full px-3 py-2 border rounded-md bg-background min-h-[80px]"
-                  placeholder="Describe the milestone-based payment schedule..."
-                  value={projectData.paymentSchedule}
-                  onChange={(e) => updateProjectData({ paymentSchedule: e.target.value })}
-                  data-testid="input-payment-schedule"
-                />
-              </FormField>
+                    <FormField
+                      label="Delivery & Installation Price"
+                      required
+                      error={validationErrors.deliveryInstallationPrice}
+                    >
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="1000"
+                          className="w-full pl-7 pr-3 py-2 border rounded-md bg-background"
+                          value={projectData.deliveryInstallationPrice || ''}
+                          onChange={(e) => updateProjectData({ deliveryInstallationPrice: parseFloat(e.target.value) || 0 })}
+                          data-testid="input-delivery-price"
+                        />
+                      </div>
+                    </FormField>
+                  </div>
 
-              <div className="p-4 bg-primary/5 border border-primary/20 rounded-lg">
-                <h4 className="font-medium mb-2">Financial Summary</h4>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div>Contract Price:</div>
-                  <div className="text-right font-medium">
-                    ${projectData.contractPrice.toLocaleString()}
+                  {/* CMOS-specific fields */}
+                  {projectData.serviceModel === 'CMOS' && (
+                    <div className="space-y-4 p-4 bg-blue-50 dark:bg-blue-950/30 rounded-lg border border-blue-200 dark:border-blue-800">
+                      <h4 className="font-medium text-sm text-blue-800 dark:text-blue-200">CMOS Additional Costs</h4>
+                      <div className="grid grid-cols-3 gap-4">
+                        <FormField
+                          label="Site Preparation"
+                          required
+                          error={validationErrors.sitePrepPrice}
+                        >
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
+                            <input
+                              type="number"
+                              min="0"
+                              step="1000"
+                              className="w-full pl-7 pr-3 py-2 border rounded-md bg-background"
+                              value={projectData.sitePrepPrice || ''}
+                              onChange={(e) => updateProjectData({ sitePrepPrice: parseFloat(e.target.value) || 0 })}
+                              data-testid="input-site-prep"
+                            />
+                          </div>
+                        </FormField>
+
+                        <FormField
+                          label="Utilities"
+                          required
+                          error={validationErrors.utilitiesPrice}
+                        >
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
+                            <input
+                              type="number"
+                              min="0"
+                              step="1000"
+                              className="w-full pl-7 pr-3 py-2 border rounded-md bg-background"
+                              value={projectData.utilitiesPrice || ''}
+                              onChange={(e) => updateProjectData({ utilitiesPrice: parseFloat(e.target.value) || 0 })}
+                              data-testid="input-utilities"
+                            />
+                          </div>
+                        </FormField>
+
+                        <FormField
+                          label="Completion"
+                          required
+                          error={validationErrors.completionPrice}
+                        >
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
+                            <input
+                              type="number"
+                              min="0"
+                              step="1000"
+                              className="w-full pl-7 pr-3 py-2 border rounded-md bg-background"
+                              value={projectData.completionPrice || ''}
+                              onChange={(e) => updateProjectData({ completionPrice: parseFloat(e.target.value) || 0 })}
+                              data-testid="input-completion"
+                            />
+                          </div>
+                        </FormField>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Total Contract Price Display */}
+                  <div className="p-4 bg-primary/10 rounded-lg border border-primary/20">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">Total Preliminary Contract Price</span>
+                      <span className="text-2xl font-bold text-primary" data-testid="text-total-contract-price">
+                        ${projectData.totalPreliminaryContractPrice.toLocaleString()}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {projectData.serviceModel === 'CRC' 
+                        ? 'Offsite + Delivery + Design'
+                        : 'Offsite + Delivery + Site Prep + Utilities + Completion + Design'}
+                    </p>
                   </div>
-                  <div>Design Fee:</div>
-                  <div className="text-right">${projectData.designFee.toLocaleString()}</div>
-                  <div>Offsite Costs:</div>
-                  <div className="text-right">${projectData.preliminaryOffsiteCost.toLocaleString()}</div>
-                  <div>Onsite Costs:</div>
-                  <div className="text-right">${projectData.preliminaryOnsiteCost.toLocaleString()}</div>
-                  <div className="font-medium pt-2 border-t">Total:</div>
-                  <div className="text-right font-medium pt-2 border-t">
-                    ${(projectData.contractPrice + projectData.designFee + 
-                       projectData.preliminaryOffsiteCost + projectData.preliminaryOnsiteCost).toLocaleString()}
+                </CardContent>
+              </Card>
+
+              {/* SECTION 3: Payment Milestones */}
+              <Card>
+                <CardHeader className="pb-4">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Calendar className="h-5 w-5 text-primary" />
+                    Payment Milestones (ONE Agreement)
+                  </CardTitle>
+                  <CardDescription>
+                    Define 5 payment milestones that must sum to exactly 95%
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Milestone inputs */}
+                  <div className="grid grid-cols-5 gap-3">
+                    {[1, 2, 3, 4, 5].map((num) => {
+                      const key = `milestone${num}Percent` as keyof typeof projectData;
+                      const percent = projectData[key] as number;
+                      const dollarAmount = Math.round((percent / 100) * contractBase);
+                      return (
+                        <div key={num} className="space-y-1">
+                          <Label className="text-xs">Milestone {num}</Label>
+                          <div className="relative">
+                            <input
+                              type="number"
+                              min="0"
+                              max="100"
+                              step="1"
+                              className="w-full px-3 py-2 border rounded-md bg-background text-center pr-6"
+                              value={percent}
+                              onChange={(e) => updateProjectData({ [key]: Math.min(100, Math.max(0, parseInt(e.target.value) || 0)) })}
+                              data-testid={`input-milestone-${num}`}
+                            />
+                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">%</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground text-center">
+                            ${dollarAmount.toLocaleString()}
+                          </p>
+                        </div>
+                      );
+                    })}
                   </div>
-                </div>
-              </div>
+
+                  {/* Milestone total indicator */}
+                  <div className={`p-3 rounded-lg flex items-center justify-between ${milestonesValid ? 'bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800' : 'bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800'}`}>
+                    <div className="flex items-center gap-2">
+                      {milestonesValid ? (
+                        <Check className="h-4 w-4 text-green-600" />
+                      ) : (
+                        <AlertTriangle className="h-4 w-4 text-red-600" />
+                      )}
+                      <span className={`font-medium ${milestonesValid ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300'}`}>
+                        Milestone Total: {milestoneSum}%
+                      </span>
+                    </div>
+                    <span className={`text-sm ${milestonesValid ? 'text-green-600' : 'text-red-600'}`}>
+                      {milestonesValid ? 'Valid' : 'Must equal 95%'}
+                    </span>
+                  </div>
+                  {validationErrors.milestones && (
+                    <p className="text-sm text-destructive">{validationErrors.milestones}</p>
+                  )}
+
+                  {/* Retainage */}
+                  <div className="grid grid-cols-3 gap-4 pt-4 border-t">
+                    <FormField
+                      label="Retainage Percent"
+                      error={validationErrors.retainagePercent}
+                    >
+                      <div className="relative">
+                        <input
+                          type="number"
+                          min="0"
+                          max="10"
+                          step="0.5"
+                          className="w-full px-3 py-2 border rounded-md bg-background pr-6"
+                          value={projectData.retainagePercent}
+                          onChange={(e) => updateProjectData({ retainagePercent: Math.min(10, Math.max(0, parseFloat(e.target.value) || 0)) })}
+                          data-testid="input-retainage-percent"
+                        />
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">%</span>
+                      </div>
+                    </FormField>
+
+                    <FormField
+                      label="Retainage Days"
+                      error={validationErrors.retainageDays}
+                    >
+                      <input
+                        type="number"
+                        min="0"
+                        max="365"
+                        className="w-full px-3 py-2 border rounded-md bg-background"
+                        value={projectData.retainageDays}
+                        onChange={(e) => updateProjectData({ retainageDays: Math.min(365, Math.max(0, parseInt(e.target.value) || 0)) })}
+                        data-testid="input-retainage-days"
+                      />
+                    </FormField>
+
+                    <div className="flex flex-col justify-end">
+                      <Label className="text-xs mb-1">Retainage Amount</Label>
+                      <div className="px-3 py-2 bg-muted rounded-md text-center font-medium" data-testid="text-retainage-amount">
+                        ${Math.round((projectData.retainagePercent / 100) * contractBase).toLocaleString()}
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* SECTION 4: Manufacturing Payments */}
+              <Card>
+                <CardHeader className="pb-4">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Wrench className="h-5 w-5 text-primary" />
+                    Manufacturing Payments
+                  </CardTitle>
+                  <CardDescription>Payment schedule for manufacturing subcontract</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      label="Design Payment"
+                      required
+                      error={validationErrors.manufacturingDesignPayment}
+                    >
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="100"
+                          className="w-full pl-7 pr-3 py-2 border rounded-md bg-background"
+                          value={projectData.manufacturingDesignPayment || ''}
+                          onChange={(e) => updateProjectData({ manufacturingDesignPayment: parseFloat(e.target.value) || 0 })}
+                          data-testid="input-mfg-design"
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">Auto-populated from Design Fee</p>
+                    </FormField>
+
+                    <FormField
+                      label="Production Start Payment"
+                      required
+                      error={validationErrors.manufacturingProductionStart}
+                    >
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="1000"
+                          className="w-full pl-7 pr-3 py-2 border rounded-md bg-background"
+                          value={projectData.manufacturingProductionStart || ''}
+                          onChange={(e) => updateProjectData({ manufacturingProductionStart: parseFloat(e.target.value) || 0 })}
+                          data-testid="input-mfg-start"
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Suggested: ${suggestedProductionStart.toLocaleString()} (35% of offsite)
+                      </p>
+                    </FormField>
+
+                    <FormField
+                      label="Production Completion Payment"
+                      required
+                      error={validationErrors.manufacturingProductionComplete}
+                    >
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="1000"
+                          className="w-full pl-7 pr-3 py-2 border rounded-md bg-background"
+                          value={projectData.manufacturingProductionComplete || ''}
+                          onChange={(e) => updateProjectData({ manufacturingProductionComplete: parseFloat(e.target.value) || 0 })}
+                          data-testid="input-mfg-complete"
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Suggested: ${suggestedProductionComplete.toLocaleString()} (45% of offsite)
+                      </p>
+                    </FormField>
+
+                    <FormField
+                      label="Delivery Ready Payment"
+                      required
+                      error={validationErrors.manufacturingDeliveryReady}
+                    >
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="1000"
+                          className="w-full pl-7 pr-3 py-2 border rounded-md bg-background"
+                          value={projectData.manufacturingDeliveryReady || ''}
+                          onChange={(e) => updateProjectData({ manufacturingDeliveryReady: parseFloat(e.target.value) || 0 })}
+                          data-testid="input-mfg-delivery"
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Suggested: ${suggestedDeliveryReady.toLocaleString()} (20% of offsite)
+                      </p>
+                    </FormField>
+                  </div>
+
+                  {/* Manufacturing total comparison */}
+                  <div className={`p-3 rounded-lg ${Math.abs(manufacturingDiff) > 1000 ? 'bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800' : 'bg-muted'}`}>
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">Manufacturing Payments Total</span>
+                      <span className="font-bold" data-testid="text-mfg-total">
+                        ${manufacturingTotal.toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between mt-1 text-sm">
+                      <span className="text-muted-foreground">Offsite Price</span>
+                      <span>${projectData.preliminaryOffsiteCost.toLocaleString()}</span>
+                    </div>
+                    {Math.abs(manufacturingDiff) > 1000 && (
+                      <div className="flex items-center gap-2 mt-2 text-amber-700 dark:text-amber-300">
+                        <AlertTriangle className="h-4 w-4" />
+                        <span className="text-sm">
+                          Difference of ${Math.abs(manufacturingDiff).toLocaleString()} from offsite price
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
             </div>
           </StepContent>
         );
