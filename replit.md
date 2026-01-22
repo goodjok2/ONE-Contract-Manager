@@ -19,7 +19,7 @@ This application helps Dvele manage construction projects through dedicated chil
 
 - **Dashboard**: Overview with 4 stat cards (Total Contracts, Drafts, Pending Review, Signed), Recent Contracts section, Quick Start Templates, and Contract Value Overview
 - **Contract Builder**: Multi-step wizard for creating new project agreements
-- **Generate Contracts Wizard**: 8-step wizard at /generate-contracts for creating complete contract packages:
+- **Generate Contracts Wizard**: 9-step wizard at /generate-contracts for creating complete contract packages:
   - Step 1: Project Basics (name, type, total units)
   - Step 2: Service Model (CRC vs CMOS selection)
   - Step 3: Party Information (client details, contractor info for CRC)
@@ -31,7 +31,12 @@ This application helps Dvele manage construction projects through dedicated chil
     - Preliminary Pricing: Offsite/delivery costs, CMOS-specific fields
     - Payment Milestones: 5 milestones summing to 95%, retainage settings
     - Manufacturing Payments: Design/production/delivery payment schedule
-  - Step 8: Review & Generate
+  - Step 8: Schedule & Warranty:
+    - Project Schedule: Effective date, completion timeframe, phase durations
+    - Timeline Visualization: Visual progress bar with phase dates
+    - Warranty Terms: Fit & Finish (24mo), Building Envelope (60mo), Structural (120mo)
+    - Legal Jurisdiction: State, county, federal district, arbitration provider (JAMS/AAA)
+  - Step 9: Review & Generate
 - **Active Contracts**: List and manage all contracts
 - **Templates**: Pre-configured contract templates (DTC Standard, B2B Developer)
 - **Clause Library**: Browse 276 contract clauses with filtering by contract type (ONE/MANUFACTURING/ONSITE), hierarchy level (Sections/Subsections/Paragraphs), search, expandable rows showing conditional logic, and edit capability for legal team

@@ -3463,16 +3463,16 @@ export default function GenerateContracts() {
 
         <div className="flex items-center gap-4">
           <Badge variant="outline">
-            {wizardState.completedSteps.size} of 8 steps completed
+            {wizardState.completedSteps.size} of {STEPS.length} steps completed
           </Badge>
           
-          {wizardState.currentStep < 8 ? (
+          {wizardState.currentStep < STEPS.length ? (
             <Button onClick={nextStep} data-testid="button-next">
               Next
               <ChevronRight className="h-4 w-4 ml-2" />
             </Button>
           ) : (
-            <Button onClick={() => {}} data-testid="button-finish">
+            <Button onClick={nextStep} data-testid="button-finish">
               Finish
             </Button>
           )}
