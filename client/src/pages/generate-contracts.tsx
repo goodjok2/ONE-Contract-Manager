@@ -32,7 +32,10 @@ import {
   ArrowRightLeft,
   UserCheck,
   Wrench,
-  X
+  X,
+  Shield,
+  Scale,
+  Clock
 } from "lucide-react";
 
 // US States for dropdown
@@ -151,6 +154,22 @@ interface WizardState {
     manufacturingDeliveryReady: number;
     warrantyPeriodYears: number;
     warrantyStartDate: string;
+    // Schedule & Warranty fields (Step 8)
+    estimatedCompletionMonths: number;
+    estimatedCompletionUnit: 'months' | 'weeks';
+    designPhaseDays: number;
+    manufacturingDurationDays: number;
+    onsiteDurationDays: number;
+    estimatedCompletionDate: string;
+    warrantyFitFinishMonths: number;
+    warrantyBuildingEnvelopeMonths: number;
+    warrantyStructuralMonths: number;
+    warrantyFitFinishExpires: string;
+    warrantyEnvelopeExpires: string;
+    warrantyStructuralExpires: string;
+    projectCounty: string;
+    projectFederalDistrict: string;
+    arbitrationProvider: 'JAMS' | 'AAA';
     generalContractorName: string;
     generalContractorLicense: string;
     contractorName: string;
@@ -175,8 +194,64 @@ const STEPS = [
   { number: 5, title: "Site & Home", description: "Property details", icon: Home },
   { number: 6, title: "Dates & Schedule", description: "Timeline", icon: Calendar },
   { number: 7, title: "Pricing", description: "Financial terms", icon: DollarSign },
-  { number: 8, title: "Review & Generate", description: "Final review", icon: ClipboardCheck },
+  { number: 8, title: "Schedule & Warranty", description: "Timeline & terms", icon: Shield },
+  { number: 9, title: "Review & Generate", description: "Final review", icon: ClipboardCheck },
 ];
+
+// Federal judicial districts by state
+const FEDERAL_DISTRICTS: Record<string, string[]> = {
+  'AL': ['Northern District of Alabama', 'Middle District of Alabama', 'Southern District of Alabama'],
+  'AK': ['District of Alaska'],
+  'AZ': ['District of Arizona'],
+  'AR': ['Eastern District of Arkansas', 'Western District of Arkansas'],
+  'CA': ['Northern District of California', 'Eastern District of California', 'Central District of California', 'Southern District of California'],
+  'CO': ['District of Colorado'],
+  'CT': ['District of Connecticut'],
+  'DE': ['District of Delaware'],
+  'FL': ['Northern District of Florida', 'Middle District of Florida', 'Southern District of Florida'],
+  'GA': ['Northern District of Georgia', 'Middle District of Georgia', 'Southern District of Georgia'],
+  'HI': ['District of Hawaii'],
+  'ID': ['District of Idaho'],
+  'IL': ['Northern District of Illinois', 'Central District of Illinois', 'Southern District of Illinois'],
+  'IN': ['Northern District of Indiana', 'Southern District of Indiana'],
+  'IA': ['Northern District of Iowa', 'Southern District of Iowa'],
+  'KS': ['District of Kansas'],
+  'KY': ['Eastern District of Kentucky', 'Western District of Kentucky'],
+  'LA': ['Eastern District of Louisiana', 'Middle District of Louisiana', 'Western District of Louisiana'],
+  'ME': ['District of Maine'],
+  'MD': ['District of Maryland'],
+  'MA': ['District of Massachusetts'],
+  'MI': ['Eastern District of Michigan', 'Western District of Michigan'],
+  'MN': ['District of Minnesota'],
+  'MS': ['Northern District of Mississippi', 'Southern District of Mississippi'],
+  'MO': ['Eastern District of Missouri', 'Western District of Missouri'],
+  'MT': ['District of Montana'],
+  'NE': ['District of Nebraska'],
+  'NV': ['District of Nevada'],
+  'NH': ['District of New Hampshire'],
+  'NJ': ['District of New Jersey'],
+  'NM': ['District of New Mexico'],
+  'NY': ['Northern District of New York', 'Southern District of New York', 'Eastern District of New York', 'Western District of New York'],
+  'NC': ['Eastern District of North Carolina', 'Middle District of North Carolina', 'Western District of North Carolina'],
+  'ND': ['District of North Dakota'],
+  'OH': ['Northern District of Ohio', 'Southern District of Ohio'],
+  'OK': ['Northern District of Oklahoma', 'Eastern District of Oklahoma', 'Western District of Oklahoma'],
+  'OR': ['District of Oregon'],
+  'PA': ['Eastern District of Pennsylvania', 'Middle District of Pennsylvania', 'Western District of Pennsylvania'],
+  'RI': ['District of Rhode Island'],
+  'SC': ['District of South Carolina'],
+  'SD': ['District of South Dakota'],
+  'TN': ['Eastern District of Tennessee', 'Middle District of Tennessee', 'Western District of Tennessee'],
+  'TX': ['Northern District of Texas', 'Eastern District of Texas', 'Southern District of Texas', 'Western District of Texas'],
+  'UT': ['District of Utah'],
+  'VT': ['District of Vermont'],
+  'VA': ['Eastern District of Virginia', 'Western District of Virginia'],
+  'WA': ['Eastern District of Washington', 'Western District of Washington'],
+  'WV': ['Northern District of West Virginia', 'Southern District of West Virginia'],
+  'WI': ['Eastern District of Wisconsin', 'Western District of Wisconsin'],
+  'WY': ['District of Wyoming'],
+  'DC': ['District of Columbia']
+};
 
 const initialProjectData: WizardState['projectData'] = {
   projectNumber: '',
@@ -243,6 +318,22 @@ const initialProjectData: WizardState['projectData'] = {
   manufacturingDeliveryReady: 0,
   warrantyPeriodYears: 1,
   warrantyStartDate: '',
+  // Schedule & Warranty fields
+  estimatedCompletionMonths: 12,
+  estimatedCompletionUnit: 'months',
+  designPhaseDays: 90,
+  manufacturingDurationDays: 120,
+  onsiteDurationDays: 90,
+  estimatedCompletionDate: '',
+  warrantyFitFinishMonths: 24,
+  warrantyBuildingEnvelopeMonths: 60,
+  warrantyStructuralMonths: 120,
+  warrantyFitFinishExpires: '',
+  warrantyEnvelopeExpires: '',
+  warrantyStructuralExpires: '',
+  projectCounty: '',
+  projectFederalDistrict: '',
+  arbitrationProvider: 'JAMS',
   generalContractorName: '',
   generalContractorLicense: '',
   contractorName: '',

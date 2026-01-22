@@ -1,0 +1,124 @@
+Excellent! Step 4 (Financial Terms) is complete and working well. Let's move on to Phase 8: Step 5 - Schedule & Warranty.
+
+🤖 REPLIT AGENT PROMPT - PHASE 8: Schedule & Warranty Step
+CREATE WIZARD STEP 5: SCHEDULE & WARRANTY TERMS
+
+Add a new step to the contract wizard for collecting schedule, timeline, warranty periods, and legal jurisdiction information.
+
+LOCATION: src/components/wizard/steps/ScheduleWarrantyStep.tsx
+
+COMPONENT REQUIREMENTS:
+
+1. SCHEDULE SECTION:
+   - Effective Date (date picker, default: same as Agreement Execution Date from Step 1)
+   - Estimated Completion Timeframe:
+     * Number input (6-24 range)
+     * Dropdown: "months" or "weeks"
+     * Default: 12 months
+   - Design Phase Duration (days, default 90, range 30-180)
+   - Manufacturing Duration (days, default 120, range 60-365)
+   - On-Site Duration (days, range 30-180):
+     * Default: 90 days if CRC
+     * Default: 60 days if CMOS
+   
+2. TIMELINE VISUALIZATION:
+   - Show visual timeline preview with phases:
+     * Design → Manufacturing → On-Site → Completion
+   - Display calculated end dates for each phase
+   - Warning if timeline seems unrealistic (e.g., total > 24 months)
+   - Use simple progress bar or Gantt-style display
+
+3. WARRANTY PERIODS SECTION:
+   Header: "Warranty Terms"
+   Subtext: "Standard warranty periods per Dvele policy"
+   
+   Three warranty inputs (in months):
+   - Fit & Finish Warranty (default 24, range 12-36)
+   - Building Envelope Warranty (default 60, range 36-120)
+   - Structural Warranty (default 120, range 60-240)
+   
+   Display conversion to years for clarity:
+   - Example: "24 months (2 years)"
+   
+   Show all three in table format with:
+   - Warranty Type | Duration (months) | Duration (years)
+
+4. LEGAL JURISDICTION SECTION:
+   Header: "Legal Jurisdiction & Venue"
+   Subtext: "Auto-populated from site address, verify accuracy"
+   
+   - Project State (dropdown, auto-filled from site address in Step 3, editable)
+   - Project County (text input, required)
+   - Federal Judicial District:
+     * Dropdown or auto-calculate based on state and county
+     * Example values: "Central District of California", "Southern District of New York"
+     * Include tooltip explaining what this is
+   
+   - Arbitration Provider:
+     * Radio buttons: JAMS vs AAA
+     * Default: JAMS
+     * Show brief description:
+       - JAMS: "Judicial Arbitration and Mediation Services"
+       - AAA: "American Arbitration Association"
+
+5. AUTO-CALCULATIONS:
+   - Calculate estimated completion date:
+     estimatedCompletion = effectiveDate + designPhaseDays + manufacturingDays + onsiteDays
+   
+   - Calculate warranty expiration dates:
+     fitFinishExpires = estimatedCompletion + (fitFinishMonths * 30 days)
+     envelopeExpires = estimatedCompletion + (envelopeMonths * 30 days)
+     structuralExpires = estimatedCompletion + (structuralMonths * 30 days)
+   
+   - Display these calculated dates prominently
+
+6. VALIDATION:
+   - Effective Date: required, valid date
+   - Completion Timeframe: required, 6-24 months
+   - Design Duration: required, 30-180 days
+   - Manufacturing Duration: required, 60-365 days
+   - On-Site Duration: required, 30-180 days
+   - Fit & Finish Warranty: required, 12-36 months
+   - Building Envelope Warranty: required, 36-120 months
+   - Structural Warranty: required, 60-240 months
+   - Project State: required
+   - Project County: required
+   - Federal District: required
+   - Arbitration Provider: required
+
+7. CONDITIONAL LOGIC:
+   - On-Site Duration default depends on serviceModel (from Step 2):
+     * If CRC: default 90 days
+     * If CMOS: default 60 days
+
+8. UI/UX:
+   - Organize into 4 clear sections (Schedule, Timeline, Warranty, Legal)
+   - Use card/panel layout
+   - Date pickers for all date fields
+   - Show both months and years for warranty periods
+   - Visual timeline/calendar display
+   - Helper text and tooltips
+   - Responsive layout
+
+9. DATA MAPPING:
+Store these fields in wizardData:
+- effectiveDate
+- estimatedCompletionMonths
+- designPhaseDays
+- manufacturingDurationDays
+- onsiteDurationDays
+- estimatedCompletionDate (calculated)
+- warrantyFitFinishMonths
+- warrantyBuildingEnvelopeMonths
+- warrantyStructuralMonths
+- warrantyFitFinishExpires (calculated)
+- warrantyEnvelopeExpires (calculated)
+- warrantyStructuralExpires (calculated)
+- projectState
+- projectCounty
+- projectFederalDistrict
+- arbitrationProvider
+
+Import this step into ContractWizard.tsx and add it as Step 5.
+
+Use existing design patterns from Steps 1-4 for consistency.
