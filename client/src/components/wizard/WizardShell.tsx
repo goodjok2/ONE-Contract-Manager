@@ -5,6 +5,9 @@ import { useWizard, SHELL_TESTING_MODE } from './WizardContext';
 import { Step1ProjectInfo } from './steps/Step1ProjectInfo';
 import { Step2ServiceModel } from './steps/Step2ServiceModel';
 import { Step3PartyInfo } from './steps/Step3PartyInfo';
+import { Step4ChildLLC } from './steps/Step4ChildLLC';
+import { Step5SiteAndHome } from './steps/Step5SiteAndHome';
+import { Step6DatesSchedule } from './steps/Step6DatesSchedule';
 import { 
   Check, 
   ChevronLeft, 
@@ -132,9 +135,12 @@ export const WizardShell: React.FC = () => {
         {wizardState.currentStep === 1 && <Step1ProjectInfo />}
         {wizardState.currentStep === 2 && <Step2ServiceModel />}
         {wizardState.currentStep === 3 && <Step3PartyInfo />}
+        {wizardState.currentStep === 4 && <Step4ChildLLC />}
+        {wizardState.currentStep === 5 && <Step5SiteAndHome />}
+        {wizardState.currentStep === 6 && <Step6DatesSchedule />}
         
-        {/* Placeholder for other steps */}
-        {wizardState.currentStep > 3 && (
+        {/* Placeholder for steps 7, 8, 9 */}
+        {wizardState.currentStep > 6 && (
           <Card className="p-6 min-h-[400px]">
             <div className="flex items-center justify-center h-full">
               <div className="text-center space-y-4">

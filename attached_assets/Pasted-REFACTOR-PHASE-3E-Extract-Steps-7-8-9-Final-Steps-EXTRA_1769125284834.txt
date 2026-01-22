@@ -1,0 +1,457 @@
+REFACTOR PHASE 3E: Extract Steps 7, 8, 9 (Final Steps)
+EXTRACT STEPS 7, 8, AND 9 - FINAL COMPONENTS
+
+Create the final three steps: Step 7 (Pricing), Step 8 (Schedule & Warranty), and Step 9 (Review & Generate).
+
+---
+
+STEP 7: PRICING/FINANCIAL TERMS COMPONENT
+
+Location: client/src/components/wizard/steps/Step7Pricing.tsx
+
+This is the financial terms step you already built earlier. Extract it from generate-contracts.old.tsx (around lines 3100-3600).
+
+Key features to include:
+- Design Fee and Revision Rounds
+- Preliminary Pricing (Manufacturing, Delivery, Site Prep, Utilities, Completion)
+- Total Preliminary Contract Price (auto-calculated)
+- Payment Milestones (5 milestones that must sum to 95%)
+- Retainage Percent and Days
+- Manufacturing-Specific Payments (Design, Production Start, Production Complete, Delivery Ready)
+- Real-time validation that milestones = 95%
+- Conditional CMOS fields (Site Prep, Utilities, Completion)
+
+Required imports:
+```typescript
+import { useWizard } from '../WizardContext';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { DollarSign, AlertTriangle, CheckCircle2, Plus, Minus } from 'lucide-react';
+import { useEffect, useState } from 'react';
+```
+
+Key logic:
+```typescript
+// State for milestone percentages
+const [milestones, setMilestones] = useState({
+  milestone1: projectData.milestone1Percent || 20,
+  milestone2: projectData.milestone2Percent || 20,
+  milestone3: projectData.milestone3Percent || 20,
+  milestone4: projectData.milestone4Percent || 20,
+  milestone5: projectData.milestone5Percent || 15
+});
+
+// Calculate total price
+const calculateTotalPrice = () => {
+  const offsite = parseFloat(projectData.preliminaryOffsitePrice || '0');
+  const delivery = parseFloat(projectData.deliveryInstallationPrice || '0');
+  const design = parseFloat(projectData.designFee || '0');
+  let total = offsite + delivery + design;
+  
+  if (projectData.serviceModel === 'CMOS') {
+    total += parseFloat(projectData.sitePrepPrice || '0');
+    total += parseFloat(projectData.utilitiesPrice || '0');
+    total += parseFloat(projectData.completionPrice || '0');
+  }
+  return total;
+};
+
+// Validate milestones sum to 95%
+const getMilestoneSum = () => {
+  return Object.values(milestones).reduce((acc, val) => acc + val, 0);
+};
+
+const isMilestoneValid = Math.abs(getMilestoneSum() - 95) < 0.01;
+
+// Format currency
+const formatCurrency = (value: number) => {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0
+  }).format(value);
+};
+```
+
+Variables mapped: DESIGN_FEE, PRELIMINARY_OFFSITE_PRICE, DELIVERY_INSTALLATION_PRICE, TOTAL_PRELIMINARY_CONTRACT_PRICE, MILESTONE_1-5_PERCENT, RETAINAGE_PERCENT, etc.
+
+---
+
+STEP 8: SCHEDULE & WARRANTY COMPONENT
+
+Location: client/src/components/wizard/steps/Step8ScheduleWarranty.tsx
+
+Extract from generate-contracts.old.tsx (around lines 3600-4000).
+
+Key features to include:
+- Project Schedule section with timeline visualization
+- Warranty Periods (Fit & Finish, Building Envelope, Structural)
+- Legal Jurisdiction & Venue (State, County, Federal District, Arbitration Provider)
+- Timeline visualization with phases
+- Display calculated warranty expiration dates
+- Federal district dropdown based on selected state
+
+Required imports:
+```typescript
+import { useWizard } from '../WizardContext';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
+import { Shield, Scale, Calendar, Clock, AlertTriangle } from 'lucide-react';
+import { useEffect } from 'react';
+```
+
+Key logic:
+```typescript
+// Federal districts by state (copy from WizardContext or generate-contracts.old.tsx)
+const FEDERAL_DISTRICTS: Record<string, string[]> = {
+  'CA': ['Northern District of California', 'Eastern District of California', 'Central District of California', 'Southern District of California'],
+  // ... all other states
+};
+
+// Calculate timeline phases
+const totalTimelineDays = (projectData.designPhaseDays || 0) + 
+                         (projectData.manufacturingDurationDays || 0) + 
+                         (projectData.onsiteDurationDays || 0);
+
+const designPercent = ((projectData.designPhaseDays || 0) / totalTimelineDays) * 100;
+const mfgPercent = ((projectData.manufacturingDurationDays || 0) / totalTimelineDays) * 100;
+const onsitePercent = ((projectData.onsiteDurationDays || 0) / totalTimelineDays) * 100;
+
+// Calculate dates
+const calculateDates = () => {
+  if (!projectData.effectiveDate) return null;
+  
+  const startDate = new Date(projectData.effectiveDate);
+  const designComplete = new Date(startDate);
+  designComplete.setDate(designComplete.getDate() + (projectData.designPhaseDays || 0));
+  
+  const mfgComplete = new Date(designComplete);
+  mfgComplete.setDate(mfgComplete.getDate() + (projectData.manufacturingDurationDays || 0));
+  
+  const projectComplete = new Date(mfgComplete);
+  projectComplete.setDate(projectComplete.getDate() + (projectData.onsiteDurationDays || 0));
+  
+  return { startDate, designComplete, mfgComplete, projectComplete };
+};
+
+// Calculate warranty expiration dates
+const dates = calculateDates();
+if (dates) {
+  const fitFinishExpires = new Date(dates.projectComplete);
+  fitFinishExpires.setMonth(fitFinishExpires.getMonth() + (projectData.warrantyFitFinishMonths || 24));
+  
+  // Similar for envelope and structural
+}
+```
+
+Variables mapped: WARRANTY_FIT_FINISH_MONTHS, WARRANTY_BUILDING_ENVELOPE_MONTHS, WARRANTY_STRUCTURAL_MONTHS, PROJECT_STATE, PROJECT_COUNTY, PROJECT_FEDERAL_DISTRICT, ARBITRATION_PROVIDER
+
+---
+
+STEP 9: REVIEW & GENERATE COMPONENT
+
+Location: client/src/components/wizard/steps/Step9ReviewGenerate.tsx
+
+This is the most complex step. Extract from generate-contracts.old.tsx (around lines 4000-4800).
+
+Key features to include:
+- Validation status banner (green if ready, red if issues)
+- Variable coverage indicator (X/89 variables populated)
+- Collapsible review sections for each previous step:
+  * Project Overview
+  * Parties
+  * Property Details
+  * Financial Terms
+  * Schedule & Warranty
+- Each section has an "Edit" button to jump back to that step
+- Contracts to be Generated section (shows 3 contracts with clause counts)
+- Clause Preview button
+- Pre-Generation Confirmation checklist
+- Final confirmation checkbox
+- Generate Contract Package button
+- Generation progress display
+- Success state with download links
+
+Required imports:
+```typescript
+import { useWizard } from '../WizardContext';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
+import { Checkbox } from '@/components/ui/checkbox';
+import { 
+  CheckCircle2, 
+  AlertCircle, 
+  Edit, 
+  Eye, 
+  ChevronDown, 
+  ChevronUp,
+  FileText,
+  Users,
+  Home,
+  DollarSign,
+  Shield,
+  Download,
+  Mail,
+  FileArchive,
+  Loader2,
+  Sparkles,
+  Save
+} from 'lucide-react';
+import { useState } from 'react';
+```
+
+Key features:
+```typescript
+// State for expanded sections
+const [expandedSections, setExpandedSections] = useState({
+  project: true,
+  parties: false,
+  property: false,
+  financial: false,
+  schedule: false
+});
+
+const toggleSection = (section: string) => {
+  setExpandedSections(prev => ({
+    ...prev,
+    [section]: !prev[section]
+  }));
+};
+
+// Calculate variable coverage
+const calculateVariableCoverage = () => {
+  const allVariables = 89; // Total contract variables
+  let populated = 0;
+  
+  // Count populated variables from projectData
+  // This is a simplified version - implement proper counting
+  const requiredFields = [
+    'projectNumber', 'projectName', 'clientLegalName', 'siteAddress',
+    'designFee', 'preliminaryOffsitePrice', // ... etc
+  ];
+  
+  populated = requiredFields.filter(field => projectData[field]).length;
+  
+  return { total: allVariables, populated, percentage: (populated / allVariables) * 100 };
+};
+
+// Check if all required fields are complete
+const allRequiredComplete = validateStep(9); // or implement custom logic
+
+// Format currency for display
+const formatCurrency = (value: number) => {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 0
+  }).format(value);
+};
+
+// Format date for display
+const formatDate = (dateString: string) => {
+  if (!dateString) return '-';
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-US', { 
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric' 
+  });
+};
+```
+
+Component structure:
+- Validation banner at top
+- Variable coverage progress bar
+- Collapsible review sections (Project, Parties, Property, Financial, Schedule)
+- Contracts to generate (3 cards showing clause counts)
+- Pre-generation confirmation (if generationState === 'pre-generation')
+- Action buttons (Save as Template, Generate Contract Package)
+- Generation progress (if generationState === 'generating')
+- Success state with download links (if generationState === 'success')
+- Error state (if generationState === 'error')
+
+---
+
+UPDATE WIZARD SHELL
+
+In client/src/components/wizard/WizardShell.tsx:
+
+1. Import all three final steps:
+```typescript
+import { Step7Pricing } from './steps/Step7Pricing';
+import { Step8ScheduleWarranty } from './steps/Step8ScheduleWarranty';
+import { Step9ReviewGenerate } from './steps/Step9ReviewGenerate';
+```
+
+2. Complete the step content rendering:
+```typescript
+      {/* Step Content */}
+      <div>
+        {wizardState.currentStep === 1 && <Step1ProjectInfo />}
+        {wizardState.currentStep === 2 && <Step2ServiceModel />}
+        {wizardState.currentStep === 3 && <Step3PartyInfo />}
+        {wizardState.currentStep === 4 && <Step4ChildLLC />}
+        {wizardState.currentStep === 5 && <Step5SiteAndHome />}
+        {wizardState.currentStep === 6 && <Step6DatesSchedule />}
+        {wizardState.currentStep === 7 && <Step7Pricing />}
+        {wizardState.currentStep === 8 && <Step8ScheduleWarranty />}
+        {wizardState.currentStep === 9 && <Step9ReviewGenerate />}
+      </div>
+```
+
+3. Update navigation buttons for Step 9:
+```typescript
+      {/* Navigation Buttons */}
+      <div className="flex items-center justify-between gap-4">
+        <Button
+          variant="outline"
+          onClick={prevStep}
+          disabled={wizardState.currentStep === 1}
+          data-testid="button-prev-step"
+        >
+          <ChevronLeft className="h-4 w-4 mr-2" />
+          Back
+        </Button>
+        
+        {wizardState.currentStep < 9 && (
+          <Button
+            variant="outline"
+            onClick={saveDraft}
+            data-testid="button-save-draft"
+          >
+            <Save className="h-4 w-4 mr-2" />
+            Save Draft
+          </Button>
+        )}
+        
+        {wizardState.currentStep < 9 && (
+          <Button
+            onClick={nextStep}
+            disabled={!canProceed}
+            data-testid="button-next-step"
+          >
+            {wizardState.currentStep === 8 ? 'Review' : 'Next'}
+            <ChevronRight className="h-4 w-4 ml-2" />
+          </Button>
+        )}
+      </div>
+```
+
+ADD VALIDATION FOR STEPS 7, 8, 9
+
+In WizardContext.tsx:
+```typescript
+case 7:
+  if (!projectData.designFee || projectData.designFee < 1000) {
+    errors.designFee = 'Design fee must be at least $1,000';
+    isValid = false;
+  }
+  if (!projectData.preliminaryOffsitePrice || projectData.preliminaryOffsitePrice < 50000) {
+    errors.preliminaryOffsitePrice = 'Manufacturing price must be at least $50,000';
+    isValid = false;
+  }
+  if (!projectData.deliveryInstallationPrice || projectData.deliveryInstallationPrice < 5000) {
+    errors.deliveryInstallationPrice = 'Delivery price must be at least $5,000';
+    isValid = false;
+  }
+  
+  // Validate milestones sum to 95%
+  const milestoneSum = (projectData.milestone1Percent || 0) + 
+                      (projectData.milestone2Percent || 0) + 
+                      (projectData.milestone3Percent || 0) + 
+                      (projectData.milestone4Percent || 0) + 
+                      (projectData.milestone5Percent || 0);
+  if (Math.abs(milestoneSum - 95) > 0.01) {
+    errors.milestones = 'Payment milestones must sum to exactly 95%';
+    isValid = false;
+  }
+  
+  if (projectData.serviceModel === 'CMOS') {
+    if (!projectData.sitePrepPrice || projectData.sitePrepPrice < 10000) {
+      errors.sitePrepPrice = 'Site prep price must be at least $10,000';
+      isValid = false;
+    }
+    if (!projectData.utilitiesPrice || projectData.utilitiesPrice < 5000) {
+      errors.utilitiesPrice = 'Utilities price must be at least $5,000';
+      isValid = false;
+    }
+    if (!projectData.completionPrice || projectData.completionPrice < 10000) {
+      errors.completionPrice = 'Completion price must be at least $10,000';
+      isValid = false;
+    }
+  }
+  break;
+
+case 8:
+  if (!projectData.warrantyFitFinishMonths || projectData.warrantyFitFinishMonths < 12) {
+    errors.warrantyFitFinishMonths = 'Fit & finish warranty must be at least 12 months';
+    isValid = false;
+  }
+  if (!projectData.warrantyBuildingEnvelopeMonths || projectData.warrantyBuildingEnvelopeMonths < 36) {
+    errors.warrantyBuildingEnvelopeMonths = 'Building envelope warranty must be at least 36 months';
+    isValid = false;
+  }
+  if (!projectData.warrantyStructuralMonths || projectData.warrantyStructuralMonths < 60) {
+    errors.warrantyStructuralMonths = 'Structural warranty must be at least 60 months';
+    isValid = false;
+  }
+  if (!projectData.projectCounty) {
+    errors.projectCounty = 'Project county is required';
+    isValid = false;
+  }
+  if (!projectData.projectFederalDistrict) {
+    errors.projectFederalDistrict = 'Federal judicial district is required';
+    isValid = false;
+  }
+  if (!projectData.arbitrationProvider) {
+    errors.arbitrationProvider = 'Arbitration provider is required';
+    isValid = false;
+  }
+  break;
+
+case 9:
+  // Step 9 validation is a summary of all previous steps
+  // Run validation for all previous steps
+  for (let i = 1; i <= 8; i++) {
+    if (!validateStep(i)) {
+      errors[`step${i}`] = `Please complete Step ${i}`;
+      isValid = false;
+    }
+  }
+  break;
+```
+
+TESTING CHECKLIST
+
+For Step 7:
+- ✓ All pricing fields work
+- ✓ Total price calculates correctly (CRC vs CMOS)
+- ✓ Milestone percentages validate to 95%
+- ✓ CMOS fields show/hide correctly
+- ✓ Currency formatting works
+
+For Step 8:
+- ✓ Warranty period inputs work
+- ✓ Timeline visualization displays
+- ✓ Federal district dropdown populates based on state
+- ✓ All dates calculate correctly
+
+For Step 9:
+- ✓ All review sections display correct data
+- ✓ Edit buttons jump back to correct steps
+- ✓ Variable coverage calculates correctly
+- ✓ Validation banner shows correct status
+- ✓ Generate button enables/disables correctly
+- ✓ Confirmation checkbox works
+- ✓ Generation process simulates correctly
+
+Test the complete wizard flow from Step 1 through Step 9 and contract generation.

@@ -298,6 +298,8 @@ export interface WizardContextType {
   regenerateProjectNumber: () => Promise<void>;
   checkProjectNumberUniqueness: (projectNumber: string) => Promise<void>;
   updateUnit: (unitId: number, updates: Partial<UnitSpec>) => void;
+  addUnit: () => void;
+  removeUnit: (unitId: number) => void;
 }
 
 // Initial project data
@@ -650,6 +652,44 @@ export const WizardProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     });
   }, []);
 
+  // Add unit
+  const addUnit = useCallback(() => {
+    setWizardState(prev => {
+      const maxId = Math.max(...prev.projectData.units.map(u => u.id), 0);
+      const newUnit: UnitSpec = {
+        id: maxId + 1,
+        model: '',
+        squareFootage: 0,
+        bedrooms: 1,
+        bathrooms: 1,
+        price: 0,
+      };
+      return {
+        ...prev,
+        projectData: { 
+          ...prev.projectData, 
+          units: [...prev.projectData.units, newUnit],
+          totalUnits: prev.projectData.units.length + 1
+        }
+      };
+    });
+  }, []);
+
+  // Remove unit
+  const removeUnit = useCallback((unitId: number) => {
+    setWizardState(prev => {
+      const newUnits = prev.projectData.units.filter(unit => unit.id !== unitId);
+      return {
+        ...prev,
+        projectData: { 
+          ...prev.projectData, 
+          units: newUnits,
+          totalUnits: Math.max(1, newUnits.length)
+        }
+      };
+    });
+  }, []);
+
   // Set validation errors
   const setValidationErrors = useCallback((errors: Record<string, string>) => {
     setWizardState(prev => ({ ...prev, validationErrors: errors }));
@@ -790,8 +830,14 @@ export const WizardProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         if (!data.effectiveDate) {
           errors.effectiveDate = 'Effective date is required';
         }
-        if (data.estimatedCompletionMonths < 6 || data.estimatedCompletionMonths > 24) {
-          errors.estimatedCompletionMonths = 'Completion timeframe must be 6-24';
+        if (data.estimatedCompletionUnit === 'weeks') {
+          if (data.estimatedCompletionMonths < 1 || data.estimatedCompletionMonths > 104) {
+            errors.estimatedCompletionMonths = 'Completion timeframe must be 1-104 weeks';
+          }
+        } else {
+          if (data.estimatedCompletionMonths < 1 || data.estimatedCompletionMonths > 24) {
+            errors.estimatedCompletionMonths = 'Completion timeframe must be 1-24 months';
+          }
         }
         if (data.designPhaseDays < 30 || data.designPhaseDays > 180) {
           errors.designPhaseDays = 'Design phase must be 30-180 days';
@@ -1060,6 +1106,8 @@ export const WizardProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     regenerateProjectNumber,
     checkProjectNumberUniqueness,
     updateUnit,
+    addUnit,
+    removeUnit,
   };
   
   return (

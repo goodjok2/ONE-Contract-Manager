@@ -1,0 +1,315 @@
+REFACTOR PHASE 3D: Extract Steps 4, 5, 6
+EXTRACT STEPS 4, 5, AND 6 COMPONENTS
+
+Create three dedicated components for Steps 4 (Child LLC), 5 (Site & Home), and 6 (Dates & Schedule).
+
+STEP 4: CHILD LLC COMPONENT
+
+Location: client/src/components/wizard/steps/Step4ChildLLC.tsx
+
+Extract the LLC creation/selection logic from generate-contracts.old.tsx (around lines 1300-1700).
+
+Key features to include:
+- Radio choice: "Create New LLC" vs "Use Existing LLC"
+- Auto-generate LLC name from client last name (e.g., "Dvele Partners Smith LLC")
+- Formation state dropdown (default: Delaware)
+- Load existing LLCs from database if "Use Existing" selected
+- Show LLC details when existing LLC is selected
+- Display calculated SPV variables (DVELE_PARTNERS_XYZ, DP_X, etc.)
+
+Required imports:
+```typescript
+import { useWizard } from '../WizardContext';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Building2, Loader2 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { apiRequest } from '@/lib/queryClient';
+```
+
+Key logic:
+```typescript
+// Extract last name from client legal name
+const lastName = projectData.clientLegalName.split(' ').pop() || '';
+const generatedLlcName = lastName ? `Dvele Partners ${lastName} LLC` : '';
+
+// Auto-update LLC name when client name changes
+useEffect(() => {
+  if (projectData.llcOption === 'new' && lastName) {
+    updateProjectData({ childLlcName: generatedLlcName });
+  }
+}, [projectData.clientLegalName, projectData.llcOption]);
+
+// Load existing LLCs
+const { data: llcs, isLoading: llcsLoading } = useQuery({
+  queryKey: ['/api/llcs'],
+  queryFn: () => apiRequest<any[]>('/api/llcs'),
+  enabled: projectData.llcOption === 'existing',
+});
+```
+
+Variables mapped: DVELE_PARTNERS_XYZ, DVELE_PARTNERS_XYZ_LEGAL_NAME, DVELE_PARTNERS_XYZ_STATE, DP_X
+
+---
+
+STEP 5: SITE & HOME COMPONENT
+
+Location: client/src/components/wizard/steps/Step5SiteAndHome.tsx
+
+Extract the site address and unit specification logic (around lines 2300-2900).
+
+Key features to include:
+- Site address input (street, city, state, zip, county)
+- Unit specifications section
+- If totalUnits === 1: Single unit form
+- If totalUnits > 1: Multiple unit forms with Add/Remove buttons
+- For each unit:
+  * Home Model (text input)
+  * Square Footage (number)
+  * Bedrooms (number with +/- buttons)
+  * Bathrooms (number with 0.5 increments)
+  * Unit Price (currency)
+- Running total display for multi-unit
+- Auto-populate preliminaryOffsitePrice with sum of unit prices
+
+Required imports:
+```typescript
+import { useWizard } from '../WizardContext';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { MapPin, Home, Plus, Minus, DollarSign } from 'lucide-react';
+```
+
+Key logic:
+```typescript
+// Calculate total offsite price from all units
+const calculateOffsiteTotal = () => {
+  let total = 0;
+  for (let i = 1; i <= projectData.totalUnits; i++) {
+    const unitPrice = projectData[`unit${i}Price`] || 0;
+    total += parseFloat(unitPrice.toString());
+  }
+  return total;
+};
+
+// Update preliminary offsite price when unit prices change
+useEffect(() => {
+  const total = calculateOffsiteTotal();
+  updateProjectData({ preliminaryOffsitePrice: total });
+}, [/* unit price dependencies */]);
+```
+
+Variables mapped: DELIVERY_ADDRESS, SITE_ADDRESS, UNIT_1_MODEL, UNIT_1_SQFT, UNIT_1_BEDROOMS, UNIT_1_BATHROOMS, UNIT_1_PRICE, etc.
+
+---
+
+STEP 6: DATES & SCHEDULE COMPONENT
+
+Location: client/src/components/wizard/steps/Step6DatesSchedule.tsx
+
+Extract the dates and schedule logic (around lines 2900-3100).
+
+Key features to include:
+- Effective Date (date picker, default to agreement date)
+- Estimated Completion Timeframe (number + dropdown for months/weeks)
+- Design Phase Duration (days input)
+- Manufacturing Duration (days input)
+- On-Site Duration (days input - conditional default based on serviceModel)
+- Timeline visualization (optional but nice to have)
+- Show calculated completion date
+
+Required imports:
+```typescript
+import { useWizard } from '../WizardContext';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Calendar, Clock } from 'lucide-react';
+```
+
+Key logic:
+```typescript
+// Set on-site duration default based on service model
+useEffect(() => {
+  if (!projectData.onsiteDurationDays) {
+    const defaultDays = projectData.serviceModel === 'CRC' ? 90 : 60;
+    updateProjectData({ onsiteDurationDays: defaultDays });
+  }
+}, [projectData.serviceModel]);
+
+// Calculate estimated completion date
+const calculateCompletionDate = () => {
+  if (!projectData.effectiveDate) return null;
+  const startDate = new Date(projectData.effectiveDate);
+  const totalDays = (projectData.designPhaseDays || 0) + 
+                   (projectData.manufacturingDurationDays || 0) + 
+                   (projectData.onsiteDurationDays || 0);
+  const completionDate = new Date(startDate);
+  completionDate.setDate(completionDate.getDate() + totalDays);
+  return completionDate;
+};
+```
+
+Variables mapped: EFFECTIVE_DATE, ESTIMATED_COMPLETION_DATE, DESIGN_PHASE_DAYS, MANUFACTURING_DURATION_DAYS, ONSITE_DURATION_DAYS
+
+---
+
+UPDATE WIZARD SHELL
+
+In client/src/components/wizard/WizardShell.tsx:
+
+1. Import all three steps:
+```typescript
+import { Step4ChildLLC } from './steps/Step4ChildLLC';
+import { Step5SiteAndHome } from './steps/Step5SiteAndHome';
+import { Step6DatesSchedule } from './steps/Step6DatesSchedule';
+```
+
+2. Update step content rendering:
+```typescript
+      {/* Step Content */}
+      <div>
+        {wizardState.currentStep === 1 && <Step1ProjectInfo />}
+        {wizardState.currentStep === 2 && <Step2ServiceModel />}
+        {wizardState.currentStep === 3 && <Step3PartyInfo />}
+        {wizardState.currentStep === 4 && <Step4ChildLLC />}
+        {wizardState.currentStep === 5 && <Step5SiteAndHome />}
+        {wizardState.currentStep === 6 && <Step6DatesSchedule />}
+        
+        {/* Placeholder for steps 7, 8, 9 */}
+        {wizardState.currentStep > 6 && (
+          <Card className="p-6 min-h-[400px]">
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center space-y-4">
+                <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
+                  {React.createElement(currentStepInfo.icon, { className: "h-10 w-10 text-primary" })}
+                </div>
+                <div>
+                  <h3 className="text-xl font-semibold mb-2">Step {wizardState.currentStep}</h3>
+                  <p className="text-muted-foreground">
+                    Step content will be rendered here
+                  </p>
+                </div>
+              </div>
+            </div>
+          </Card>
+        )}
+      </div>
+```
+
+ADD VALIDATION LOGIC
+
+In WizardContext.tsx, add validation for steps 4, 5, and 6:
+```typescript
+case 4:
+  if (projectData.llcOption === 'new') {
+    if (!projectData.childLlcName) {
+      errors.childLlcName = 'LLC name is required';
+      isValid = false;
+    }
+    if (!projectData.childLlcState) {
+      errors.childLlcState = 'LLC formation state is required';
+      isValid = false;
+    }
+  } else if (projectData.llcOption === 'existing') {
+    if (!projectData.selectedExistingLlcId) {
+      errors.selectedExistingLlcId = 'Please select an existing LLC';
+      isValid = false;
+    }
+  }
+  break;
+
+case 5:
+  if (!projectData.siteAddress) {
+    errors.siteAddress = 'Site address is required';
+    isValid = false;
+  }
+  if (!projectData.siteCity) {
+    errors.siteCity = 'Site city is required';
+    isValid = false;
+  }
+  if (!projectData.siteState) {
+    errors.siteState = 'Site state is required';
+    isValid = false;
+  }
+  if (!projectData.siteZip) {
+    errors.siteZip = 'Site ZIP code is required';
+    isValid = false;
+  }
+  // Validate unit specifications
+  for (let i = 1; i <= projectData.totalUnits; i++) {
+    if (!projectData[`unit${i}Model`]) {
+      errors[`unit${i}Model`] = `Unit ${i} model is required`;
+      isValid = false;
+    }
+    if (!projectData[`unit${i}Sqft`] || projectData[`unit${i}Sqft`] < 400) {
+      errors[`unit${i}Sqft`] = `Unit ${i} square footage must be at least 400`;
+      isValid = false;
+    }
+    if (!projectData[`unit${i}Bedrooms`]) {
+      errors[`unit${i}Bedrooms`] = `Unit ${i} bedrooms required`;
+      isValid = false;
+    }
+    if (!projectData[`unit${i}Bathrooms`]) {
+      errors[`unit${i}Bathrooms`] = `Unit ${i} bathrooms required`;
+      isValid = false;
+    }
+    if (!projectData[`unit${i}Price`] || projectData[`unit${i}Price`] < 50000) {
+      errors[`unit${i}Price`] = `Unit ${i} price must be at least $50,000`;
+      isValid = false;
+    }
+  }
+  break;
+
+case 6:
+  if (!projectData.effectiveDate) {
+    errors.effectiveDate = 'Effective date is required';
+    isValid = false;
+  }
+  if (!projectData.estimatedCompletionMonths || projectData.estimatedCompletionMonths < 6 || projectData.estimatedCompletionMonths > 24) {
+    errors.estimatedCompletionMonths = 'Estimated completion must be between 6-24 months';
+    isValid = false;
+  }
+  if (!projectData.designPhaseDays || projectData.designPhaseDays < 30 || projectData.designPhaseDays > 180) {
+    errors.designPhaseDays = 'Design phase must be between 30-180 days';
+    isValid = false;
+  }
+  if (!projectData.manufacturingDurationDays || projectData.manufacturingDurationDays < 60 || projectData.manufacturingDurationDays > 365) {
+    errors.manufacturingDurationDays = 'Manufacturing duration must be between 60-365 days';
+    isValid = false;
+  }
+  if (!projectData.onsiteDurationDays || projectData.onsiteDurationDays < 30 || projectData.onsiteDurationDays > 180) {
+    errors.onsiteDurationDays = 'On-site duration must be between 30-180 days';
+    isValid = false;
+  }
+  break;
+```
+
+REFERENCE FILES
+
+Use generate-contracts.old.tsx as your reference:
+- Step 4 LLC: Lines ~1300-1700
+- Step 5 Site/Home: Lines ~2300-2900  
+- Step 6 Dates: Lines ~2900-3100
+
+Copy the exact JSX structure, form fields, and logic from these sections.
+
+TESTING CHECKLIST
+
+For each step, verify:
+- ✓ All form fields render correctly
+- ✓ Data updates when fields change
+- ✓ Validation prevents proceeding with empty/invalid fields
+- ✓ Can proceed to next step when valid
+- ✓ Data persists when navigating back/forward
+- ✓ Auto-calculations work (LLC name, offsite total, completion date)
+- ✓ Conditional logic works (new vs existing LLC, CRC vs CMOS defaults)
+
+Implement all three steps and test the complete flow from Step 1 through Step 6.

@@ -1,0 +1,294 @@
+import { useEffect } from 'react';
+import { useWizard, US_STATES } from '../WizardContext';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Building2, Plus, FileCheck, Loader2 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+
+interface LLC {
+  id: number;
+  name: string;
+  projectName: string | null;
+  status: string;
+  formationDate: string | null;
+  formationState: string;
+}
+
+export const Step4ChildLLC: React.FC = () => {
+  const { 
+    wizardState, 
+    updateProjectData
+  } = useWizard();
+  
+  const { projectData, validationErrors } = wizardState;
+  
+  const lastName = projectData.clientLegalName.split(' ').pop() || '';
+  const generatedLlcName = lastName ? `Dvele Partners ${lastName} LLC` : 'Dvele Partners [Name] LLC';
+  
+  useEffect(() => {
+    if (projectData.llcOption === 'new' && lastName && !projectData.childLlcName) {
+      updateProjectData({ childLlcName: generatedLlcName });
+    }
+  }, [projectData.clientLegalName, projectData.llcOption]);
+  
+  useEffect(() => {
+    if (projectData.llcOption === 'new' && !projectData.childLlcState) {
+      updateProjectData({ childLlcState: 'DE' });
+    }
+  }, [projectData.llcOption]);
+  
+  const { data: llcs, isLoading: llcsLoading } = useQuery<LLC[]>({
+    queryKey: ['/api/llcs'],
+    enabled: projectData.llcOption === 'existing',
+  });
+  
+  const selectedLlc = llcs?.find(llc => llc.id.toString() === projectData.selectedExistingLlcId);
+  
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Building2 className="h-5 w-5 text-primary" />
+            Child LLC / Special Purpose Vehicle
+          </CardTitle>
+          <CardDescription>
+            Each project is managed through a dedicated child entity
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div
+              className={`
+                relative p-4 border-2 rounded-lg cursor-pointer transition-all overflow-visible
+                ${projectData.llcOption === 'new' 
+                  ? 'border-primary bg-primary/5 shadow-md' 
+                  : 'border-border hover-elevate'
+                }
+              `}
+              onClick={() => updateProjectData({ llcOption: 'new', selectedExistingLlcId: '' })}
+              data-testid="option-new-llc"
+            >
+              <div className="flex items-center gap-3">
+                <div className={`
+                  w-5 h-5 rounded-full border-2 flex items-center justify-center
+                  ${projectData.llcOption === 'new' 
+                    ? 'border-primary bg-primary' 
+                    : 'border-muted-foreground'
+                  }
+                `}>
+                  {projectData.llcOption === 'new' && (
+                    <div className="w-2.5 h-2.5 rounded-full bg-white" />
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Plus className="h-4 w-4 text-primary" />
+                  <span className="font-medium">Create New LLC</span>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground mt-2 ml-8">
+                Auto-generate a new child entity for this project
+              </p>
+            </div>
+            
+            <div
+              className={`
+                relative p-4 border-2 rounded-lg cursor-pointer transition-all overflow-visible
+                ${projectData.llcOption === 'existing' 
+                  ? 'border-primary bg-primary/5 shadow-md' 
+                  : 'border-border hover-elevate'
+                }
+              `}
+              onClick={() => updateProjectData({ llcOption: 'existing' })}
+              data-testid="option-existing-llc"
+            >
+              <div className="flex items-center gap-3">
+                <div className={`
+                  w-5 h-5 rounded-full border-2 flex items-center justify-center
+                  ${projectData.llcOption === 'existing' 
+                    ? 'border-primary bg-primary' 
+                    : 'border-muted-foreground'
+                  }
+                `}>
+                  {projectData.llcOption === 'existing' && (
+                    <div className="w-2.5 h-2.5 rounded-full bg-white" />
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <FileCheck className="h-4 w-4 text-primary" />
+                  <span className="font-medium">Use Existing LLC</span>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground mt-2 ml-8">
+                Select from previously created child entities
+              </p>
+            </div>
+          </div>
+          
+          {projectData.llcOption === 'new' && (
+            <div className="space-y-4 pt-4 border-t">
+              <div className="space-y-2">
+                <Label htmlFor="childLlcName">
+                  LLC Name <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="childLlcName"
+                  value={projectData.childLlcName}
+                  onChange={(e) => updateProjectData({ childLlcName: e.target.value })}
+                  placeholder={generatedLlcName}
+                  className={validationErrors.childLlcName ? 'border-red-500' : ''}
+                  data-testid="input-llc-name"
+                />
+                {validationErrors.childLlcName && (
+                  <p className="text-sm text-red-500">{validationErrors.childLlcName}</p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Auto-generated from client name: "{generatedLlcName}"
+                </p>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="childLlcState">
+                    Formation State <span className="text-red-500">*</span>
+                  </Label>
+                  <Select
+                    value={projectData.childLlcState || 'DE'}
+                    onValueChange={(value) => updateProjectData({ childLlcState: value })}
+                  >
+                    <SelectTrigger
+                      id="childLlcState"
+                      className={validationErrors.childLlcState ? 'border-red-500' : ''}
+                      data-testid="select-llc-state"
+                    >
+                      <SelectValue placeholder="Select state..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {US_STATES.map(state => (
+                        <SelectItem key={state.value} value={state.value}>{state.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {validationErrors.childLlcState && (
+                    <p className="text-sm text-red-500">{validationErrors.childLlcState}</p>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Default: Delaware (recommended for liability protection)
+                  </p>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="childLlcEin">
+                    EIN (if known)
+                  </Label>
+                  <Input
+                    id="childLlcEin"
+                    value={projectData.childLlcEin}
+                    onChange={(e) => updateProjectData({ childLlcEin: e.target.value })}
+                    placeholder="XX-XXXXXXX"
+                    data-testid="input-llc-ein"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Can be added later after formation
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {projectData.llcOption === 'existing' && (
+            <div className="space-y-4 pt-4 border-t">
+              {llcsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  <span className="ml-2 text-muted-foreground">Loading LLCs...</span>
+                </div>
+              ) : llcs && llcs.length > 0 ? (
+                <>
+                  <div className="space-y-2">
+                    <Label>Select LLC <span className="text-red-500">*</span></Label>
+                    <Select
+                      value={projectData.selectedExistingLlcId}
+                      onValueChange={(value) => updateProjectData({ selectedExistingLlcId: value })}
+                    >
+                      <SelectTrigger
+                        className={validationErrors.selectedExistingLlcId ? 'border-red-500' : ''}
+                        data-testid="select-existing-llc"
+                      >
+                        <SelectValue placeholder="Choose an existing LLC..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {llcs.map(llc => (
+                          <SelectItem key={llc.id} value={llc.id.toString()}>
+                            {llc.name} ({llc.status})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {validationErrors.selectedExistingLlcId && (
+                      <p className="text-sm text-red-500">{validationErrors.selectedExistingLlcId}</p>
+                    )}
+                  </div>
+                  
+                  {selectedLlc && (
+                    <Card className="bg-muted/30">
+                      <CardContent className="pt-4">
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div>
+                            <p className="text-muted-foreground">Name</p>
+                            <p className="font-medium">{selectedLlc.name}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">Status</p>
+                            <Badge variant={selectedLlc.status === 'active' ? 'default' : 'secondary'}>
+                              {selectedLlc.status}
+                            </Badge>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">Formation State</p>
+                            <p className="font-medium">{selectedLlc.formationState || 'Not specified'}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">Project</p>
+                            <p className="font-medium">{selectedLlc.projectName || 'None'}</p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                </>
+              ) : (
+                <div className="text-center py-8">
+                  <Building2 className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+                  <p className="text-muted-foreground">No existing LLCs found</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Create a new LLC for this project instead
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+      
+      <Card className="bg-muted/30">
+        <CardContent className="pt-6">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium">Contract Variables</p>
+              <p className="text-xs text-muted-foreground">
+                This step populates 4 contract variables
+              </p>
+            </div>
+            <Badge variant="secondary" className="text-xs">
+              DVELE_PARTNERS_XYZ, DP_X, FORMATION_STATE, EIN
+            </Badge>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
