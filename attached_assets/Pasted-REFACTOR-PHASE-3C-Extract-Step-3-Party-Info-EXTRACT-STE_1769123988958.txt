@@ -1,0 +1,374 @@
+REFACTOR PHASE 3C: Extract Step 3 (Party Info)
+EXTRACT STEP 3: PARTY INFORMATION COMPONENT
+
+Create a dedicated component for Step 3 (Client Information) by extracting it from the old generate-contracts.tsx file.
+
+Location: client/src/components/wizard/steps/Step3PartyInfo.tsx
+
+STEP 1: CREATE THE COMPONENT FILE
+```typescript
+import { useWizard } from '../WizardContext';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { UserCheck, MapPin, Mail, Phone } from 'lucide-react';
+
+// US States constant (copy from generate-contracts.old.tsx)
+const US_STATES = [
+  { value: 'AL', label: 'Alabama' },
+  { value: 'AK', label: 'Alaska' },
+  { value: 'AZ', label: 'Arizona' },
+  { value: 'AR', label: 'Arkansas' },
+  { value: 'CA', label: 'California' },
+  { value: 'CO', label: 'Colorado' },
+  { value: 'CT', label: 'Connecticut' },
+  { value: 'DE', label: 'Delaware' },
+  { value: 'FL', label: 'Florida' },
+  { value: 'GA', label: 'Georgia' },
+  { value: 'HI', label: 'Hawaii' },
+  { value: 'ID', label: 'Idaho' },
+  { value: 'IL', label: 'Illinois' },
+  { value: 'IN', label: 'Indiana' },
+  { value: 'IA', label: 'Iowa' },
+  { value: 'KS', label: 'Kansas' },
+  { value: 'KY', label: 'Kentucky' },
+  { value: 'LA', label: 'Louisiana' },
+  { value: 'ME', label: 'Maine' },
+  { value: 'MD', label: 'Maryland' },
+  { value: 'MA', label: 'Massachusetts' },
+  { value: 'MI', label: 'Michigan' },
+  { value: 'MN', label: 'Minnesota' },
+  { value: 'MS', label: 'Mississippi' },
+  { value: 'MO', label: 'Missouri' },
+  { value: 'MT', label: 'Montana' },
+  { value: 'NE', label: 'Nebraska' },
+  { value: 'NV', label: 'Nevada' },
+  { value: 'NH', label: 'New Hampshire' },
+  { value: 'NJ', label: 'New Jersey' },
+  { value: 'NM', label: 'New Mexico' },
+  { value: 'NY', label: 'New York' },
+  { value: 'NC', label: 'North Carolina' },
+  { value: 'ND', label: 'North Dakota' },
+  { value: 'OH', label: 'Ohio' },
+  { value: 'OK', label: 'Oklahoma' },
+  { value: 'OR', label: 'Oregon' },
+  { value: 'PA', label: 'Pennsylvania' },
+  { value: 'RI', label: 'Rhode Island' },
+  { value: 'SC', label: 'South Carolina' },
+  { value: 'SD', label: 'South Dakota' },
+  { value: 'TN', label: 'Tennessee' },
+  { value: 'TX', label: 'Texas' },
+  { value: 'UT', label: 'Utah' },
+  { value: 'VT', label: 'Vermont' },
+  { value: 'VA', label: 'Virginia' },
+  { value: 'WA', label: 'Washington' },
+  { value: 'WV', label: 'West Virginia' },
+  { value: 'WI', label: 'Wisconsin' },
+  { value: 'WY', label: 'Wyoming' },
+  { value: 'DC', label: 'District of Columbia' }
+];
+
+const ENTITY_TYPES = [
+  { value: 'Individual', label: 'Individual' },
+  { value: 'LLC', label: 'Limited Liability Company (LLC)' },
+  { value: 'Corporation', label: 'Corporation' },
+  { value: 'Partnership', label: 'Partnership' },
+  { value: 'Trust', label: 'Trust' }
+];
+
+export const Step3PartyInfo: React.FC = () => {
+  const { 
+    wizardState, 
+    updateProjectData,
+    validationErrors 
+  } = useWizard();
+  
+  const { projectData } = wizardState;
+  
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <UserCheck className="h-5 w-5 text-primary" />
+            Client Information
+          </CardTitle>
+          <CardDescription>
+            Enter details about the client purchasing the home
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Client Legal Name */}
+          <div className="space-y-2">
+            <Label htmlFor="clientLegalName">
+              Client Legal Name <span className="text-red-500">*</span>
+            </Label>
+            <Input
+              id="clientLegalName"
+              value={projectData.clientLegalName}
+              onChange={(e) => updateProjectData({ clientLegalName: e.target.value })}
+              placeholder="e.g., John and Jane Smith"
+              className={validationErrors.clientLegalName ? 'border-red-500' : ''}
+              data-testid="input-client-legal-name"
+            />
+            {validationErrors.clientLegalName && (
+              <p className="text-sm text-red-500">{validationErrors.clientLegalName}</p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Full legal name(s) as they should appear on the contract
+            </p>
+          </div>
+          
+          {/* Client State and Entity Type */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="clientState">
+                Client State <span className="text-red-500">*</span>
+              </Label>
+              <select
+                id="clientState"
+                value={projectData.clientState}
+                onChange={(e) => updateProjectData({ clientState: e.target.value })}
+                className={`w-full px-3 py-2 border rounded-md bg-background ${
+                  validationErrors.clientState ? 'border-red-500' : ''
+                }`}
+                data-testid="select-client-state"
+              >
+                <option value="">Select a state...</option>
+                {US_STATES.map(state => (
+                  <option key={state.value} value={state.value}>{state.label}</option>
+                ))}
+              </select>
+              {validationErrors.clientState && (
+                <p className="text-sm text-red-500">{validationErrors.clientState}</p>
+              )}
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="clientEntityType">
+                Client Entity Type <span className="text-red-500">*</span>
+              </Label>
+              <select
+                id="clientEntityType"
+                value={projectData.clientEntityType}
+                onChange={(e) => updateProjectData({ clientEntityType: e.target.value })}
+                className="w-full px-3 py-2 border rounded-md bg-background"
+                data-testid="select-client-entity-type"
+              >
+                {ENTITY_TYPES.map(type => (
+                  <option key={type.value} value={type.value}>{type.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          
+          {/* Client Email and Phone */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="clientEmail" className="flex items-center gap-2">
+                <Mail className="h-4 w-4" />
+                Client Email <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                id="clientEmail"
+                type="email"
+                value={projectData.clientEmail}
+                onChange={(e) => updateProjectData({ clientEmail: e.target.value })}
+                placeholder="e.g., client@example.com"
+                className={validationErrors.clientEmail ? 'border-red-500' : ''}
+                data-testid="input-client-email"
+              />
+              {validationErrors.clientEmail && (
+                <p className="text-sm text-red-500">{validationErrors.clientEmail}</p>
+              )}
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="clientPhone" className="flex items-center gap-2">
+                <Phone className="h-4 w-4" />
+                Client Phone
+              </Label>
+              <Input
+                id="clientPhone"
+                type="tel"
+                value={projectData.clientPhone}
+                onChange={(e) => updateProjectData({ clientPhone: e.target.value })}
+                placeholder="e.g., (555) 123-4567"
+                data-testid="input-client-phone"
+              />
+            </div>
+          </div>
+          
+          {/* Client Signer Name */}
+          <div className="space-y-2">
+            <Label htmlFor="clientSignerName">
+              Client Signer Name (for signature) <span className="text-red-500">*</span>
+            </Label>
+            <Input
+              id="clientSignerName"
+              value={projectData.clientSignerName}
+              onChange={(e) => updateProjectData({ clientSignerName: e.target.value })}
+              placeholder="Full name of person signing the contract"
+              className={validationErrors.clientSignerName ? 'border-red-500' : ''}
+              data-testid="input-client-signer-name"
+            />
+            {validationErrors.clientSignerName && (
+              <p className="text-sm text-red-500">{validationErrors.clientSignerName}</p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Used for: CLIENT_SIGNER_NAME variable
+            </p>
+          </div>
+          
+          {/* Client Full Name (optional) */}
+          <div className="space-y-2">
+            <Label htmlFor="clientFullName">
+              Client Full Name (for documents)
+            </Label>
+            <Input
+              id="clientFullName"
+              value={projectData.clientFullName}
+              onChange={(e) => updateProjectData({ clientFullName: e.target.value })}
+              placeholder="Defaults to Client Legal Name"
+              data-testid="input-client-full-name"
+            />
+            <p className="text-xs text-muted-foreground">
+              Used for: CLIENT_FULL_NAME variable (leave blank to use Legal Name)
+            </p>
+          </div>
+          
+          {/* Conditional Title field - only show if not Individual */}
+          {projectData.clientEntityType !== 'Individual' && (
+            <div className="space-y-2">
+              <Label htmlFor="clientTitle">
+                Client Title
+              </Label>
+              <Input
+                id="clientTitle"
+                value={projectData.clientTitle}
+                onChange={(e) => updateProjectData({ clientTitle: e.target.value })}
+                placeholder={
+                  projectData.clientEntityType === 'LLC' ? 'e.g., Managing Member' : 
+                  projectData.clientEntityType === 'Corporation' ? 'e.g., President, CEO' :
+                  projectData.clientEntityType === 'Trust' ? 'e.g., Trustee' : 
+                  'e.g., Partner'
+                }
+                data-testid="input-client-title"
+              />
+              <p className="text-xs text-muted-foreground">
+                Used for: CLIENT_TITLE variable
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+      
+      {/* Variables Mapped Info */}
+      <Card className="bg-muted/30">
+        <CardContent className="pt-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium">Contract Variables</p>
+              <p className="text-xs text-muted-foreground">
+                This step populates 7+ contract variables
+              </p>
+            </div>
+            <Badge variant="secondary" className="text-xs">
+              CLIENT_LEGAL_NAME, CLIENT_STATE, CLIENT_ENTITY_TYPE, CLIENT_EMAIL, CLIENT_SIGNER_NAME, etc.
+            </Badge>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+```
+
+STEP 2: UPDATE WIZARD SHELL TO USE STEP 3
+
+In client/src/components/wizard/WizardShell.tsx:
+
+1. Import Step3:
+```typescript
+import { Step3PartyInfo } from './steps/Step3PartyInfo';
+```
+
+2. Add to the step content rendering:
+```typescript
+      {/* Step Content */}
+      <div>
+        {wizardState.currentStep === 1 && <Step1ProjectInfo />}
+        {wizardState.currentStep === 2 && <Step2ServiceModel />}
+        {wizardState.currentStep === 3 && <Step3PartyInfo />}
+        
+        {/* Placeholder for other steps */}
+        {wizardState.currentStep > 3 && (
+          <Card className="p-6 min-h-[400px]">
+            {/* ... placeholder content ... */}
+          </Card>
+        )}
+      </div>
+```
+
+STEP 3: ENSURE VALIDATION LOGIC EXISTS
+
+In WizardContext.tsx validateStep function, add Step 3:
+```typescript
+case 3:
+  if (!projectData.clientLegalName || projectData.clientLegalName.length < 2) {
+    errors.clientLegalName = 'Client legal name is required (minimum 2 characters)';
+    isValid = false;
+  }
+  if (!projectData.clientState) {
+    errors.clientState = 'Client state is required';
+    isValid = false;
+  }
+  if (!projectData.clientEmail) {
+    errors.clientEmail = 'Client email is required';
+    isValid = false;
+  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(projectData.clientEmail)) {
+    errors.clientEmail = 'Please enter a valid email address';
+    isValid = false;
+  }
+  if (!projectData.clientSignerName) {
+    errors.clientSignerName = 'Client signer name is required';
+    isValid = false;
+  }
+  break;
+```
+
+STEP 4: MOVE CONSTANTS TO SHARED FILE (OPTIONAL BUT RECOMMENDED)
+
+Create: client/src/components/wizard/constants.ts
+```typescript
+export const US_STATES = [
+  // ... all states from above
+];
+
+export const ENTITY_TYPES = [
+  // ... all entity types from above
+];
+
+export const FEDERAL_DISTRICTS = {
+  // ... copy from WizardContext if it exists there
+};
+```
+
+Then import from constants in both Step3 and any other step that needs them.
+
+TESTING CHECKLIST:
+
+After implementing:
+1. ✓ Navigate from Step 2 to Step 3
+2. ✓ All client fields display correctly
+3. ✓ State dropdown populates with all 50 states + DC
+4. ✓ Entity type dropdown works
+5. ✓ Client Title field shows/hides based on entity type selection
+6. ✓ Email validation works (try invalid email)
+7. ✓ Required field validation prevents proceeding
+8. ✓ Can proceed to Step 4 when all required fields are filled
+9. ✓ Data persists when navigating back/forward
+10. ✓ Placeholder text shows appropriate examples
+
+Implement this and test thoroughly before proceeding to Step 4.
