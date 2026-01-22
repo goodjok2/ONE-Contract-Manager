@@ -226,9 +226,14 @@ export default function LLCDetail() {
                     <Select
                       value={llc.status || "forming"}
                       onValueChange={(value) => updateMutation.mutate({ status: value })}
+                      disabled={updateMutation.isPending}
                     >
                       <SelectTrigger className="w-32">
-                        <SelectValue />
+                        {updateMutation.isPending ? (
+                          <span className="text-muted-foreground">Updating...</span>
+                        ) : (
+                          <SelectValue />
+                        )}
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="forming">Forming</SelectItem>
@@ -507,9 +512,14 @@ export default function LLCDetail() {
                   <Select
                     value={llc.annualReportStatus || "pending"}
                     onValueChange={(value) => updateMutation.mutate({ annualReportStatus: value })}
+                    disabled={updateMutation.isPending}
                   >
                     <SelectTrigger className="w-32">
-                      <SelectValue />
+                      {updateMutation.isPending ? (
+                        <span className="text-muted-foreground">Updating...</span>
+                      ) : (
+                        <SelectValue />
+                      )}
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="pending">Pending</SelectItem>

@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { type LLC } from "@shared/schema";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -177,7 +178,13 @@ export default function ContractBuilder() {
   const [clausePreview, setClausePreview] = useState<ClausePreviewResult | null>(null);
   const [generatedContracts, setGeneratedContracts] = useState<GenerateResult | null>(null);
   const [spvManuallyEdited, setSpvManuallyEdited] = useState(false);
+  const [llcMode, setLlcMode] = useState<"new" | "existing">("new");
+  const [selectedLlcId, setSelectedLlcId] = useState<string>("");
   const { toast } = useToast();
+
+  const { data: existingLLCs = [] } = useQuery<LLC[]>({
+    queryKey: ["/api/llcs"],
+  });
 
   const defaultValues: ContractFormValues = {
     projectNumber: "",
@@ -452,7 +459,18 @@ export default function ContractBuilder() {
   const validateStep = async (step: number): Promise<boolean> => {
     const fieldsToValidate = getStepFields(step);
     if (fieldsToValidate.length === 0) return true;
-    return await form.trigger(fieldsToValidate);
+    const isValid = await form.trigger(fieldsToValidate);
+    
+    if (step === 2 && llcMode === "existing" && !selectedLlcId) {
+      toast({
+        title: "LLC Selection Required",
+        description: "Please select an existing LLC or switch to 'Create New LLC' mode.",
+        variant: "destructive",
+      });
+      return false;
+    }
+    
+    return isValid;
   };
 
   const handleNext = async () => {
@@ -824,56 +842,150 @@ export default function ContractBuilder() {
                     <h3 className="font-medium mb-4 flex items-center gap-2">
                       <Building2 className="h-4 w-4" /> SPV/LLC Information
                     </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <FormField
-                        control={form.control}
-                        name="spvLegalName"
-                        render={({ field }) => (
-                          <FormItem className="md:col-span-2">
-                            <FormLabel>SPV Legal Name</FormLabel>
-                            <FormControl>
-                              <Input
-                                placeholder="Auto-generated from project name"
-                                data-testid="input-spv-name"
-                                {...field}
-                                onChange={(e) => {
-                                  setSpvManuallyEdited(true);
-                                  field.onChange(e);
-                                }}
-                              />
-                            </FormControl>
-                            <FormDescription>
-                              Auto-generated based on project name. You can customize if needed.
-                            </FormDescription>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="spvState"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>SPV State of Formation</FormLabel>
-                            <Select onValueChange={field.onChange} value={field.value}>
-                              <FormControl>
-                                <SelectTrigger data-testid="select-spv-state">
-                                  <SelectValue placeholder="Select state" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                {US_STATES.map((state) => (
-                                  <SelectItem key={state.code} value={state.code}>
-                                    {state.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                    
+                    <div className="mb-4">
+                      <RadioGroup
+                        value={llcMode}
+                        onValueChange={(value: "new" | "existing") => {
+                          setLlcMode(value);
+                          if (value === "new") {
+                            setSelectedLlcId("");
+                            form.setValue("spvLegalName", "");
+                            form.setValue("spvState", "DE");
+                            setSpvManuallyEdited(false);
+                          } else {
+                            form.setValue("spvLegalName", "");
+                            form.setValue("spvState", "DE");
+                          }
+                        }}
+                        className="flex flex-wrap gap-4"
+                      >
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="new" id="llc-new" data-testid="radio-llc-new" />
+                          <Label htmlFor="llc-new">Create New LLC</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="existing" id="llc-existing" data-testid="radio-llc-existing" />
+                          <Label htmlFor="llc-existing">Use Existing LLC ({existingLLCs.filter(l => l.status === "active").length} active)</Label>
+                        </div>
+                      </RadioGroup>
                     </div>
+
+                    {llcMode === "existing" ? (
+                      <div className="space-y-4">
+                        <div>
+                          <Label className="mb-2 block">Select LLC</Label>
+                          <Select
+                            value={selectedLlcId}
+                            onValueChange={(value) => {
+                              if (value && value !== "none") {
+                                setSelectedLlcId(value);
+                                const selectedLlc = existingLLCs.find(l => String(l.id) === value);
+                                if (selectedLlc) {
+                                  form.setValue("spvLegalName", selectedLlc.name);
+                                  form.setValue("spvState", selectedLlc.stateOfFormation || "DE");
+                                  setSpvManuallyEdited(true);
+                                }
+                              }
+                            }}
+                          >
+                            <SelectTrigger data-testid="select-existing-llc">
+                              <SelectValue placeholder="Choose an existing LLC" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {existingLLCs.filter(l => l.status === "active" || l.status === "forming").map((llc) => (
+                                <SelectItem key={llc.id} value={String(llc.id)}>
+                                  <div className="flex items-center gap-2">
+                                    <span>{llc.name}</span>
+                                    <Badge variant={llc.status === "active" ? "default" : "secondary"} className="text-xs">
+                                      {llc.status}
+                                    </Badge>
+                                  </div>
+                                </SelectItem>
+                              ))}
+                              {existingLLCs.filter(l => l.status === "active" || l.status === "forming").length === 0 && (
+                                <SelectItem value="none" disabled>No active or forming LLCs available</SelectItem>
+                              )}
+                            </SelectContent>
+                          </Select>
+                          <p className="text-sm text-muted-foreground mt-2">
+                            Only active and forming LLCs are available for selection
+                          </p>
+                        </div>
+                        {selectedLlcId ? (
+                          <div className="p-3 bg-muted/50 rounded-lg">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Building2 className="h-4 w-4 text-primary" />
+                              <span className="font-medium">Selected LLC</span>
+                            </div>
+                            <p className="text-sm">{form.getValues("spvLegalName")}</p>
+                            <p className="text-xs text-muted-foreground">
+                              State: {US_STATES.find(s => s.code === form.getValues("spvState"))?.name || form.getValues("spvState")}
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+                            <div className="flex items-center gap-2">
+                              <AlertCircle className="h-4 w-4 text-amber-500" />
+                              <span className="text-sm text-amber-700 dark:text-amber-400">
+                                Please select an LLC from the dropdown above to continue
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <FormField
+                          control={form.control}
+                          name="spvLegalName"
+                          render={({ field }) => (
+                            <FormItem className="md:col-span-2">
+                              <FormLabel>SPV Legal Name</FormLabel>
+                              <FormControl>
+                                <Input
+                                  placeholder="Auto-generated from project name"
+                                  data-testid="input-spv-name"
+                                  {...field}
+                                  onChange={(e) => {
+                                    setSpvManuallyEdited(true);
+                                    field.onChange(e);
+                                  }}
+                                />
+                              </FormControl>
+                              <FormDescription>
+                                Auto-generated based on project name. You can customize if needed.
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="spvState"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>SPV State of Formation</FormLabel>
+                              <Select onValueChange={field.onChange} value={field.value}>
+                                <FormControl>
+                                  <SelectTrigger data-testid="select-spv-state">
+                                    <SelectValue placeholder="Select state" />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  {US_STATES.map((state) => (
+                                    <SelectItem key={state.code} value={state.code}>
+                                      {state.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    )}
                   </div>
 
                   {serviceModel === "CRC" && (
