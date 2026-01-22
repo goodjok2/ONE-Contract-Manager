@@ -1,0 +1,72 @@
+📋 PHASE 4: Step 2B - Party Information (Client & SPV)
+IMPLEMENT WIZARD STEP 2B: Party Information
+
+Build the party information section of step 2.
+
+CLIENT INFORMATION SECTION:
+
+1. Client Legal Name:
+   - Text input
+   - Required
+   - Example: "John and Jane Smith"
+   - Used for: CLIENT_LEGAL_NAME
+
+2. Client State:
+   - Dropdown of all US states
+   - Required
+   - Auto-populate PROJECT_STATE and legal jurisdiction
+   - Used for: CLIENT_STATE
+
+3. Client Entity Type:
+   - Dropdown: Individual, LLC, Corporation, Partnership, Trust
+   - Required
+   - Used for: CLIENT_ENTITY_TYPE
+
+4. Client Full Name (for signature):
+   - Text input
+   - Default: copy from Client Legal Name
+   - Used for: CLIENT_FULL_NAME
+
+5. Client Title:
+   - Text input
+   - Conditional: only show if entity type is not "Individual"
+   - Example: "Managing Member", "President"
+   - Used for: CLIENT_TITLE
+
+SPV/LLC INFORMATION SECTION:
+
+1. LLC Creation Options:
+   
+   Radio Choice 1: "Create New Project LLC" (DEFAULT)
+   - Show auto-generated name: "Dvele Partners [LastName] LLC"
+   - Extract last name from Client Legal Name
+   - Formation State: Delaware (dropdown, editable)
+   - Show: "A new LLC will be created for this project"
+   
+   Radio Choice 2: "Use Existing LLC"
+   - Dropdown: Load from existing LLCs in database
+   - Show LLC details: EIN, formation date, state
+   - Disable state dropdown (use existing LLC's state)
+
+2. SPV Details Display:
+   - Show calculated values:
+   - DVELE_PARTNERS_XYZ: "Dvele Partners Smith"
+   - DVELE_PARTNERS_XYZ_LEGAL_NAME: "Dvele Partners Smith LLC"
+   - DVELE_PARTNERS_XYZ_STATE: [selected state]
+   - DVELE_PARTNERS_XYZ_ENTITY_TYPE: "limited liability company"
+   - DP_X: [same as legal name]
+
+AUTO-POPULATE LOGIC:
+- When client name changes → regenerate LLC name
+- When state changes → update PROJECT_STATE, PROJECT_COUNTY, PROJECT_FEDERAL_DISTRICT
+- When creating new LLC → generate placeholder EIN (will be assigned later)
+
+VALIDATION:
+- Client Legal Name: required, min 2 chars
+- Client State: required
+- Client Entity Type: required
+- LLC option: must select one
+- If "Use Existing": must select an LLC from dropdown
+
+Build this party information section.
+Test the auto-name generation and state auto-population.

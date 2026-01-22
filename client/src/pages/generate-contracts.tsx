@@ -35,6 +35,45 @@ import {
   X
 } from "lucide-react";
 
+// US States for dropdown
+const US_STATES = [
+  { value: 'AL', label: 'Alabama' }, { value: 'AK', label: 'Alaska' },
+  { value: 'AZ', label: 'Arizona' }, { value: 'AR', label: 'Arkansas' },
+  { value: 'CA', label: 'California' }, { value: 'CO', label: 'Colorado' },
+  { value: 'CT', label: 'Connecticut' }, { value: 'DE', label: 'Delaware' },
+  { value: 'FL', label: 'Florida' }, { value: 'GA', label: 'Georgia' },
+  { value: 'HI', label: 'Hawaii' }, { value: 'ID', label: 'Idaho' },
+  { value: 'IL', label: 'Illinois' }, { value: 'IN', label: 'Indiana' },
+  { value: 'IA', label: 'Iowa' }, { value: 'KS', label: 'Kansas' },
+  { value: 'KY', label: 'Kentucky' }, { value: 'LA', label: 'Louisiana' },
+  { value: 'ME', label: 'Maine' }, { value: 'MD', label: 'Maryland' },
+  { value: 'MA', label: 'Massachusetts' }, { value: 'MI', label: 'Michigan' },
+  { value: 'MN', label: 'Minnesota' }, { value: 'MS', label: 'Mississippi' },
+  { value: 'MO', label: 'Missouri' }, { value: 'MT', label: 'Montana' },
+  { value: 'NE', label: 'Nebraska' }, { value: 'NV', label: 'Nevada' },
+  { value: 'NH', label: 'New Hampshire' }, { value: 'NJ', label: 'New Jersey' },
+  { value: 'NM', label: 'New Mexico' }, { value: 'NY', label: 'New York' },
+  { value: 'NC', label: 'North Carolina' }, { value: 'ND', label: 'North Dakota' },
+  { value: 'OH', label: 'Ohio' }, { value: 'OK', label: 'Oklahoma' },
+  { value: 'OR', label: 'Oregon' }, { value: 'PA', label: 'Pennsylvania' },
+  { value: 'RI', label: 'Rhode Island' }, { value: 'SC', label: 'South Carolina' },
+  { value: 'SD', label: 'South Dakota' }, { value: 'TN', label: 'Tennessee' },
+  { value: 'TX', label: 'Texas' }, { value: 'UT', label: 'Utah' },
+  { value: 'VT', label: 'Vermont' }, { value: 'VA', label: 'Virginia' },
+  { value: 'WA', label: 'Washington' }, { value: 'WV', label: 'West Virginia' },
+  { value: 'WI', label: 'Wisconsin' }, { value: 'WY', label: 'Wyoming' },
+  { value: 'DC', label: 'District of Columbia' }
+];
+
+// Client entity types
+const ENTITY_TYPES = [
+  { value: 'Individual', label: 'Individual' },
+  { value: 'LLC', label: 'Limited Liability Company (LLC)' },
+  { value: 'Corporation', label: 'Corporation' },
+  { value: 'Partnership', label: 'Partnership' },
+  { value: 'Trust', label: 'Trust' }
+];
+
 interface WizardState {
   currentStep: number;
   projectData: {
@@ -46,6 +85,8 @@ interface WizardState {
     clientLegalName: string;
     clientState: string;
     clientEntityType: string;
+    clientFullName: string;
+    clientTitle: string;
     clientAddress: string;
     clientCity: string;
     clientZip: string;
@@ -53,6 +94,8 @@ interface WizardState {
     clientSignerTitle: string;
     clientEmail: string;
     clientPhone: string;
+    llcOption: 'new' | 'existing';
+    selectedExistingLlcId: string;
     childLlcName: string;
     childLlcState: string;
     childLlcEin: string;
@@ -95,7 +138,7 @@ interface WizardState {
 const STEPS = [
   { number: 1, title: "Project Info", description: "Basic project details", icon: FileText },
   { number: 2, title: "Service Model", description: "CRC or CMOS selection", icon: Settings2 },
-  { number: 3, title: "Client Details", description: "Client information", icon: Users },
+  { number: 3, title: "Party Info", description: "Client & SPV details", icon: Users },
   { number: 4, title: "Child LLC", description: "LLC entity setup", icon: Building2 },
   { number: 5, title: "Site & Home", description: "Property details", icon: Home },
   { number: 6, title: "Dates & Schedule", description: "Timeline", icon: Calendar },
@@ -111,7 +154,9 @@ const initialProjectData: WizardState['projectData'] = {
   serviceModel: 'CRC',
   clientLegalName: '',
   clientState: '',
-  clientEntityType: '',
+  clientEntityType: 'Individual',
+  clientFullName: '',
+  clientTitle: '',
   clientAddress: '',
   clientCity: '',
   clientZip: '',
@@ -119,8 +164,10 @@ const initialProjectData: WizardState['projectData'] = {
   clientSignerTitle: '',
   clientEmail: '',
   clientPhone: '',
+  llcOption: 'new',
+  selectedExistingLlcId: '',
   childLlcName: '',
-  childLlcState: 'Delaware',
+  childLlcState: 'DE',
   childLlcEin: '',
   childLlcAddress: '',
   siteAddress: '',
@@ -267,6 +314,19 @@ export default function GenerateContracts() {
     staleTime: 60000,
   });
 
+  // Fetch existing LLCs for dropdown in Step 3
+  const { data: existingLlcs } = useQuery<Array<{
+    id: number;
+    name: string;
+    status: string;
+    state_of_formation: string;
+    ein_number: string;
+    formation_date: string;
+  }>>({
+    queryKey: ['/api/llcs'],
+    enabled: wizardState.currentStep === 3,
+  });
+
   const regenerateProjectNumber = useCallback(async () => {
     const result = await refetchNextNumber();
     if (result.data?.projectNumber) {
@@ -319,7 +379,12 @@ export default function GenerateContracts() {
         break;
       case 3:
         if (!data.clientLegalName.trim()) errors.clientLegalName = 'Client legal name is required';
-        if (!data.clientState.trim()) errors.clientState = 'Client state is required';
+        if (data.clientLegalName.trim().length < 2) errors.clientLegalName = 'Client legal name must be at least 2 characters';
+        if (!data.clientState) errors.clientState = 'Client state is required';
+        if (!data.clientEntityType) errors.clientEntityType = 'Client entity type is required';
+        if (data.llcOption === 'existing' && !data.selectedExistingLlcId) {
+          errors.selectedExistingLlcId = 'Please select an existing LLC';
+        }
         break;
       case 4:
         if (!data.childLlcName.trim()) errors.childLlcName = 'LLC name is required';
@@ -846,134 +911,338 @@ export default function GenerateContracts() {
         );
       }
 
-      case 3:
+      case 3: {
+        // Helper function to extract last name from client legal name
+        const extractLastName = (name: string): string => {
+          const trimmed = name.trim();
+          if (!trimmed) return '';
+          // Handle "John and Jane Smith" pattern
+          const andPattern = /\band\b\s+(\w+)\s+(\w+)$/i;
+          const andMatch = trimmed.match(andPattern);
+          if (andMatch) return andMatch[2];
+          // Handle simple "First Last" pattern
+          const parts = trimmed.split(/\s+/);
+          return parts[parts.length - 1];
+        };
+
+        // Generate LLC name from client last name
+        const lastName = extractLastName(projectData.clientLegalName);
+        const generatedLlcName = lastName ? `Dvele Partners ${lastName} LLC` : 'Dvele Partners [LastName] LLC';
+
+        // Find selected existing LLC
+        const selectedLlc = existingLlcs?.find((llc: any) => llc.id.toString() === projectData.selectedExistingLlcId);
+
+        // Auto-update child LLC name when client name changes (for new LLC option)
+        const handleClientNameChange = (value: string) => {
+          const newLastName = extractLastName(value);
+          const newLlcName = newLastName ? `Dvele Partners ${newLastName} LLC` : '';
+          updateProjectData({ 
+            clientLegalName: value,
+            clientFullName: projectData.clientFullName || value, // Default full name to legal name
+            childLlcName: projectData.llcOption === 'new' ? newLlcName : projectData.childLlcName
+          });
+        };
+
         return (
           <StepContent
-            title="Client Details"
-            description="Enter information about the client entity"
+            title="Party Information"
+            description="Enter client details and configure the project SPV/LLC"
           >
-            <div className="grid gap-6">
-              <FormField
-                label="Client Legal Name"
-                required
-                error={validationErrors.clientLegalName}
-              >
-                <input
-                  type="text"
-                  className="w-full px-3 py-2 border rounded-md bg-background"
-                  placeholder="e.g., Smith Family Trust"
-                  value={projectData.clientLegalName}
-                  onChange={(e) => updateProjectData({ clientLegalName: e.target.value })}
-                  data-testid="input-client-legal-name"
-                />
-              </FormField>
+            <div className="space-y-8">
+              {/* Client Information Section */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 border-b pb-2">
+                  <Users className="h-5 w-5 text-primary" />
+                  <h3 className="font-semibold text-lg">Client Information</h3>
+                </div>
 
-              <div className="grid grid-cols-2 gap-4">
                 <FormField
-                  label="Client State"
+                  label="Client Legal Name"
                   required
-                  error={validationErrors.clientState}
+                  error={validationErrors.clientLegalName}
                 >
-                  <input
+                  <Input
                     type="text"
-                    className="w-full px-3 py-2 border rounded-md bg-background"
-                    placeholder="e.g., California"
-                    value={projectData.clientState}
-                    onChange={(e) => updateProjectData({ clientState: e.target.value })}
-                    data-testid="input-client-state"
+                    className="w-full"
+                    placeholder="e.g., John and Jane Smith"
+                    value={projectData.clientLegalName}
+                    onChange={(e) => handleClientNameChange(e.target.value)}
+                    data-testid="input-client-legal-name"
                   />
                 </FormField>
 
-                <FormField label="Entity Type">
-                  <input
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    label="Client State"
+                    required
+                    error={validationErrors.clientState}
+                  >
+                    <select
+                      className="w-full px-3 py-2 border rounded-md bg-background"
+                      value={projectData.clientState}
+                      onChange={(e) => updateProjectData({ 
+                        clientState: e.target.value,
+                        siteState: e.target.value // Auto-populate project state
+                      })}
+                      data-testid="select-client-state"
+                    >
+                      <option value="">Select a state...</option>
+                      {US_STATES.map(state => (
+                        <option key={state.value} value={state.value}>{state.label}</option>
+                      ))}
+                    </select>
+                  </FormField>
+
+                  <FormField
+                    label="Client Entity Type"
+                    required
+                    error={validationErrors.clientEntityType}
+                  >
+                    <select
+                      className="w-full px-3 py-2 border rounded-md bg-background"
+                      value={projectData.clientEntityType}
+                      onChange={(e) => updateProjectData({ clientEntityType: e.target.value })}
+                      data-testid="select-client-entity-type"
+                    >
+                      {ENTITY_TYPES.map(type => (
+                        <option key={type.value} value={type.value}>{type.label}</option>
+                      ))}
+                    </select>
+                  </FormField>
+                </div>
+
+                <FormField label="Client Full Name (for signature)">
+                  <Input
                     type="text"
-                    className="w-full px-3 py-2 border rounded-md bg-background"
-                    placeholder="e.g., Trust, LLC, Individual"
-                    value={projectData.clientEntityType}
-                    onChange={(e) => updateProjectData({ clientEntityType: e.target.value })}
-                    data-testid="input-client-entity-type"
+                    className="w-full"
+                    placeholder="Defaults to Client Legal Name"
+                    value={projectData.clientFullName}
+                    onChange={(e) => updateProjectData({ clientFullName: e.target.value })}
+                    data-testid="input-client-full-name"
                   />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Used for: CLIENT_FULL_NAME variable
+                  </p>
                 </FormField>
+
+                {/* Conditional Title field - only show if not Individual */}
+                {projectData.clientEntityType !== 'Individual' && (
+                  <FormField label="Client Title">
+                    <Input
+                      type="text"
+                      className="w-full"
+                      placeholder={projectData.clientEntityType === 'LLC' ? 'e.g., Managing Member' : 
+                                   projectData.clientEntityType === 'Corporation' ? 'e.g., President, CEO' :
+                                   projectData.clientEntityType === 'Trust' ? 'e.g., Trustee' : 'e.g., Partner'}
+                      value={projectData.clientTitle}
+                      onChange={(e) => updateProjectData({ clientTitle: e.target.value })}
+                      data-testid="input-client-title"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Used for: CLIENT_TITLE variable
+                    </p>
+                  </FormField>
+                )}
               </div>
 
-              <FormField label="Client Address">
-                <input
-                  type="text"
-                  className="w-full px-3 py-2 border rounded-md bg-background"
-                  placeholder="Street address"
-                  value={projectData.clientAddress}
-                  onChange={(e) => updateProjectData({ clientAddress: e.target.value })}
-                  data-testid="input-client-address"
-                />
-              </FormField>
+              {/* SPV/LLC Information Section */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 border-b pb-2">
+                  <Building2 className="h-5 w-5 text-primary" />
+                  <h3 className="font-semibold text-lg">SPV/LLC Information</h3>
+                </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <FormField label="City">
-                  <input
-                    type="text"
-                    className="w-full px-3 py-2 border rounded-md bg-background"
-                    value={projectData.clientCity}
-                    onChange={(e) => updateProjectData({ clientCity: e.target.value })}
-                    data-testid="input-client-city"
-                  />
-                </FormField>
-                <FormField label="ZIP Code">
-                  <input
-                    type="text"
-                    className="w-full px-3 py-2 border rounded-md bg-background"
-                    value={projectData.clientZip}
-                    onChange={(e) => updateProjectData({ clientZip: e.target.value })}
-                    data-testid="input-client-zip"
-                  />
-                </FormField>
-              </div>
+                {/* LLC Option Radio Choice */}
+                <div className="space-y-3">
+                  <Label className="text-sm font-medium">LLC Creation Option</Label>
+                  
+                  <div className="grid grid-cols-1 gap-3">
+                    {/* Create New LLC Option */}
+                    <div
+                      className={`relative flex items-start p-4 border rounded-lg cursor-pointer transition-colors ${
+                        projectData.llcOption === 'new' 
+                          ? 'border-primary bg-primary/5' 
+                          : 'border-border hover:border-primary/50'
+                      }`}
+                      onClick={() => {
+                        const newLlcName = lastName ? `Dvele Partners ${lastName} LLC` : '';
+                        updateProjectData({ 
+                          llcOption: 'new', 
+                          selectedExistingLlcId: '',
+                          childLlcName: newLlcName,
+                          childLlcState: 'DE'
+                        });
+                      }}
+                      data-testid="radio-llc-new"
+                    >
+                      <div className={`w-4 h-4 rounded-full border-2 mr-3 mt-0.5 flex items-center justify-center ${
+                        projectData.llcOption === 'new' ? 'border-primary' : 'border-muted-foreground'
+                      }`}>
+                        {projectData.llcOption === 'new' && (
+                          <div className="w-2 h-2 rounded-full bg-primary" />
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">Create New Project LLC</span>
+                          <Badge variant="secondary" className="text-xs">Recommended</Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          A new LLC will be created for this project
+                        </p>
+                        
+                        {projectData.llcOption === 'new' && (
+                          <div className="mt-3 p-3 bg-muted/50 rounded-md space-y-3">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium">Auto-Generated Name:</span>
+                              <Badge variant="outline">{generatedLlcName}</Badge>
+                            </div>
+                            
+                            <FormField label="Formation State">
+                              <select
+                                className="w-full px-3 py-2 border rounded-md bg-background"
+                                value={projectData.childLlcState}
+                                onChange={(e) => updateProjectData({ childLlcState: e.target.value })}
+                                data-testid="select-llc-formation-state"
+                              >
+                                {US_STATES.map(state => (
+                                  <option key={state.value} value={state.value}>{state.label}</option>
+                                ))}
+                              </select>
+                            </FormField>
+                          </div>
+                        )}
+                      </div>
+                    </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <FormField label="Signer Name">
-                  <input
-                    type="text"
-                    className="w-full px-3 py-2 border rounded-md bg-background"
-                    placeholder="Person signing the contract"
-                    value={projectData.clientSignerName}
-                    onChange={(e) => updateProjectData({ clientSignerName: e.target.value })}
-                    data-testid="input-client-signer-name"
-                  />
-                </FormField>
-                <FormField label="Signer Title">
-                  <input
-                    type="text"
-                    className="w-full px-3 py-2 border rounded-md bg-background"
-                    placeholder="e.g., Trustee, Manager"
-                    value={projectData.clientSignerTitle}
-                    onChange={(e) => updateProjectData({ clientSignerTitle: e.target.value })}
-                    data-testid="input-client-signer-title"
-                  />
-                </FormField>
-              </div>
+                    {/* Use Existing LLC Option */}
+                    <div
+                      className={`relative flex items-start p-4 border rounded-lg cursor-pointer transition-colors ${
+                        projectData.llcOption === 'existing' 
+                          ? 'border-primary bg-primary/5' 
+                          : 'border-border hover:border-primary/50'
+                      }`}
+                      onClick={() => updateProjectData({ llcOption: 'existing' })}
+                      data-testid="radio-llc-existing"
+                    >
+                      <div className={`w-4 h-4 rounded-full border-2 mr-3 mt-0.5 flex items-center justify-center ${
+                        projectData.llcOption === 'existing' ? 'border-primary' : 'border-muted-foreground'
+                      }`}>
+                        {projectData.llcOption === 'existing' && (
+                          <div className="w-2 h-2 rounded-full bg-primary" />
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <span className="font-medium">Use Existing LLC</span>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Select from previously created LLCs in the system
+                        </p>
+                        
+                        {projectData.llcOption === 'existing' && (
+                          <div className="mt-3 space-y-3">
+                            <FormField
+                              label="Select LLC"
+                              required
+                              error={validationErrors.selectedExistingLlcId}
+                            >
+                              <select
+                                className="w-full px-3 py-2 border rounded-md bg-background"
+                                value={projectData.selectedExistingLlcId}
+                                onChange={(e) => {
+                                  const llc = existingLlcs?.find((l: any) => l.id.toString() === e.target.value);
+                                  updateProjectData({ 
+                                    selectedExistingLlcId: e.target.value,
+                                    childLlcName: llc?.name || '',
+                                    childLlcState: llc?.state_of_formation || 'DE',
+                                    childLlcEin: llc?.ein_number || ''
+                                  });
+                                }}
+                                data-testid="select-existing-llc"
+                              >
+                                <option value="">Select an LLC...</option>
+                                {existingLlcs?.map((llc: any) => (
+                                  <option key={llc.id} value={llc.id.toString()}>
+                                    {llc.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </FormField>
 
-              <div className="grid grid-cols-2 gap-4">
-                <FormField label="Email">
-                  <input
-                    type="email"
-                    className="w-full px-3 py-2 border rounded-md bg-background"
-                    value={projectData.clientEmail}
-                    onChange={(e) => updateProjectData({ clientEmail: e.target.value })}
-                    data-testid="input-client-email"
-                  />
-                </FormField>
-                <FormField label="Phone">
-                  <input
-                    type="tel"
-                    className="w-full px-3 py-2 border rounded-md bg-background"
-                    value={projectData.clientPhone}
-                    onChange={(e) => updateProjectData({ clientPhone: e.target.value })}
-                    data-testid="input-client-phone"
-                  />
-                </FormField>
+                            {selectedLlc && (
+                              <div className="p-3 bg-muted/50 rounded-md">
+                                <p className="text-sm font-medium mb-2">LLC Details</p>
+                                <div className="grid grid-cols-2 gap-2 text-sm">
+                                  <div>
+                                    <span className="text-muted-foreground">State:</span>{' '}
+                                    {selectedLlc.state_of_formation || 'N/A'}
+                                  </div>
+                                  <div>
+                                    <span className="text-muted-foreground">EIN:</span>{' '}
+                                    {selectedLlc.ein_number || 'Pending'}
+                                  </div>
+                                  <div>
+                                    <span className="text-muted-foreground">Status:</span>{' '}
+                                    <Badge variant={selectedLlc.status === 'active' ? 'default' : 'secondary'}>
+                                      {selectedLlc.status}
+                                    </Badge>
+                                  </div>
+                                  <div>
+                                    <span className="text-muted-foreground">Formed:</span>{' '}
+                                    {selectedLlc.formation_date || 'N/A'}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                            {existingLlcs?.length === 0 && (
+                              <p className="text-sm text-muted-foreground italic">
+                                No existing LLCs found. Please create a new LLC instead.
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* SPV Details Display */}
+                <div className="mt-4 p-4 border rounded-lg bg-muted/30">
+                  <p className="text-sm font-medium mb-3">Calculated Variable Values</p>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <span className="text-muted-foreground">DVELE_PARTNERS_XYZ:</span>
+                      <p className="font-mono text-xs mt-1">
+                        {lastName ? `Dvele Partners ${lastName}` : '[awaiting client name]'}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">DVELE_PARTNERS_XYZ_LEGAL_NAME:</span>
+                      <p className="font-mono text-xs mt-1">
+                        {projectData.llcOption === 'existing' && selectedLlc 
+                          ? selectedLlc.name 
+                          : generatedLlcName}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">DVELE_PARTNERS_XYZ_STATE:</span>
+                      <p className="font-mono text-xs mt-1">
+                        {projectData.llcOption === 'existing' && selectedLlc
+                          ? selectedLlc.state_of_formation
+                          : US_STATES.find(s => s.value === projectData.childLlcState)?.label || projectData.childLlcState}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">DVELE_PARTNERS_XYZ_ENTITY_TYPE:</span>
+                      <p className="font-mono text-xs mt-1">limited liability company</p>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </StepContent>
         );
+      }
 
       case 4:
         return (
