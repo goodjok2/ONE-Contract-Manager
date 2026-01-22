@@ -125,6 +125,10 @@ interface WizardState {
     warrantyStartDate: string;
     generalContractorName: string;
     generalContractorLicense: string;
+    contractorName: string;
+    contractorLicense: string;
+    contractorAddress: string;
+    contractorInsurance: string;
     manufacturerName: string;
     manufacturerAddress: string;
     insuranceProvider: string;
@@ -195,6 +199,10 @@ const initialProjectData: WizardState['projectData'] = {
   warrantyStartDate: '',
   generalContractorName: '',
   generalContractorLicense: '',
+  contractorName: '',
+  contractorLicense: '',
+  contractorAddress: '',
+  contractorInsurance: '',
   manufacturerName: 'Dvele, Inc.',
   manufacturerAddress: '',
   insuranceProvider: '',
@@ -384,6 +392,21 @@ export default function GenerateContracts() {
         if (!data.clientEntityType) errors.clientEntityType = 'Client entity type is required';
         if (data.llcOption === 'existing' && !data.selectedExistingLlcId) {
           errors.selectedExistingLlcId = 'Please select an existing LLC';
+        }
+        // Contractor validation - only required for CRC service model
+        if (data.serviceModel === 'CRC') {
+          if (!data.contractorName.trim()) {
+            errors.contractorName = 'Contractor name is required for CRC service model';
+          }
+          if (!data.contractorLicense.trim()) {
+            errors.contractorLicense = 'Contractor license number is required for CRC service model';
+          }
+          if (!data.contractorAddress.trim()) {
+            errors.contractorAddress = 'Contractor address is required for CRC service model';
+          }
+          if (!data.contractorInsurance.trim()) {
+            errors.contractorInsurance = 'Contractor insurance policy is required for CRC service model';
+          }
         }
         break;
       case 4:
@@ -1257,6 +1280,138 @@ export default function GenerateContracts() {
                 </div>
               </div>
             </div>
+
+            {/* On-Site Contractor Section - Only shown for CRC service model */}
+            {projectData.serviceModel === 'CRC' && (
+              <div className="border-t pt-6 mt-6" data-testid="section-contractor">
+                <h3 className="text-lg font-semibold flex items-center gap-2 mb-2">
+                  <Wrench className="h-5 w-5" />
+                  General Contractor Information
+                </h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Since you selected Client-Retained Contractor, please provide your GC's details.
+                </p>
+
+                <div className="grid gap-4">
+                  <FormField
+                    label="Contractor Name"
+                    required
+                    error={validationErrors.contractorName}
+                  >
+                    <input
+                      type="text"
+                      className="w-full px-3 py-2 border rounded-md bg-background"
+                      placeholder="e.g., Premier Site Builders Inc."
+                      value={projectData.contractorName}
+                      onChange={(e) => updateProjectData({ contractorName: e.target.value })}
+                      data-testid="input-contractor-name"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Variable: ONSITE_PROVIDER_NAME
+                    </p>
+                  </FormField>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      label="Contractor License Number"
+                      required
+                      error={validationErrors.contractorLicense}
+                    >
+                      <input
+                        type="text"
+                        className="w-full px-3 py-2 border rounded-md bg-background"
+                        placeholder="e.g., CA-123456"
+                        value={projectData.contractorLicense}
+                        onChange={(e) => updateProjectData({ contractorLicense: e.target.value })}
+                        data-testid="input-contractor-license"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Variable: CONTRACTOR_LICENSE
+                      </p>
+                    </FormField>
+
+                    <FormField
+                      label="Insurance Policy Number"
+                      required
+                      error={validationErrors.contractorInsurance}
+                    >
+                      <input
+                        type="text"
+                        className="w-full px-3 py-2 border rounded-md bg-background"
+                        placeholder="e.g., Policy #INS-789-012"
+                        value={projectData.contractorInsurance}
+                        onChange={(e) => updateProjectData({ contractorInsurance: e.target.value })}
+                        data-testid="input-contractor-insurance"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Variable: CONTRACTOR_INSURANCE
+                      </p>
+                    </FormField>
+                  </div>
+
+                  <FormField
+                    label="Contractor Address"
+                    required
+                    error={validationErrors.contractorAddress}
+                  >
+                    <input
+                      type="text"
+                      className="w-full px-3 py-2 border rounded-md bg-background"
+                      placeholder="Enter contractor business address"
+                      value={projectData.contractorAddress}
+                      onChange={(e) => updateProjectData({ contractorAddress: e.target.value })}
+                      data-testid="input-contractor-address"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Variable: CONTRACTOR_ADDRESS
+                    </p>
+                  </FormField>
+
+                  {/* Contractor Variable Preview */}
+                  <div className="p-4 border rounded-lg bg-muted/30" data-testid="panel-contractor-preview">
+                    <p className="text-sm font-medium mb-3">Contractor Variable Values</p>
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <span className="text-muted-foreground">ONSITE_PROVIDER_NAME:</span>
+                        <p className="font-mono text-xs mt-1" data-testid="text-var-contractor-name">
+                          {projectData.contractorName || '[awaiting contractor name]'}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">CONTRACTOR_LICENSE:</span>
+                        <p className="font-mono text-xs mt-1" data-testid="text-var-contractor-license">
+                          {projectData.contractorLicense || '[awaiting license]'}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">CONTRACTOR_ADDRESS:</span>
+                        <p className="font-mono text-xs mt-1" data-testid="text-var-contractor-address">
+                          {projectData.contractorAddress || '[awaiting address]'}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">CONTRACTOR_INSURANCE:</span>
+                        <p className="font-mono text-xs mt-1" data-testid="text-var-contractor-insurance">
+                          {projectData.contractorInsurance || '[awaiting policy]'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* CMOS mode notice */}
+            {projectData.serviceModel === 'CMOS' && (
+              <div className="border-t pt-6 mt-6" data-testid="section-cmos-notice">
+                <div className="p-4 bg-blue-50 dark:bg-blue-950/30 rounded-lg border border-blue-200 dark:border-blue-900">
+                  <p className="text-sm text-blue-700 dark:text-blue-300">
+                    <strong>CMOS Service Model Selected:</strong> On-site contractor information is not required. 
+                    Dvele will handle all site work through our managed services program.
+                  </p>
+                </div>
+              </div>
+            )}
           </StepContent>
         );
       }
