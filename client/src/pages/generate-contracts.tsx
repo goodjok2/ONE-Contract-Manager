@@ -14,6 +14,8 @@ import {
   Check, 
   ChevronLeft, 
   ChevronRight, 
+  ChevronDown,
+  ChevronUp,
   Save, 
   FileText,
   Building2,
@@ -35,7 +37,14 @@ import {
   X,
   Shield,
   Scale,
-  Clock
+  Clock,
+  Edit,
+  CheckCircle2,
+  AlertCircle,
+  Eye,
+  BookOpen,
+  MapPin,
+  Briefcase
 } from "lucide-react";
 
 // US States for dropdown
@@ -354,6 +363,14 @@ export default function GenerateContracts() {
   const [isCheckingNumber, setIsCheckingNumber] = useState(false);
   const [numberIsUnique, setNumberIsUnique] = useState<boolean | null>(null);
   const [showComparisonModal, setShowComparisonModal] = useState(false);
+  const [showClausePreview, setShowClausePreview] = useState(false);
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+    project: true,
+    parties: true,
+    property: true,
+    financial: true,
+    schedule: true,
+  });
   
   const [wizardState, setWizardState] = useState<WizardState>({
     currentStep: 1,
@@ -823,7 +840,7 @@ export default function GenerateContracts() {
       newCompletedSteps.add(prev.currentStep);
       return {
         ...prev,
-        currentStep: Math.min(prev.currentStep + 1, 8),
+        currentStep: Math.min(prev.currentStep + 1, STEPS.length),
         completedSteps: newCompletedSteps,
         validationErrors: {},
       };
@@ -3302,73 +3319,776 @@ export default function GenerateContracts() {
         );
 
       case 9:
+        // Calculate variable coverage
+        const requiredVariables = [
+          { name: 'Project Number', value: projectData.projectNumber, step: 1 },
+          { name: 'Project Name', value: projectData.projectName, step: 1 },
+          { name: 'Service Model', value: projectData.serviceModel, step: 2 },
+          { name: 'Client Legal Name', value: projectData.clientLegalName, step: 3 },
+          { name: 'Client State', value: projectData.clientState, step: 3 },
+          { name: 'Client Email', value: projectData.clientEmail, step: 3 },
+          { name: 'Client Signer Name', value: projectData.clientSignerName, step: 3 },
+          { name: 'Child LLC Name', value: projectData.childLlcName, step: 4 },
+          { name: 'Site Address', value: projectData.siteAddress, step: 5 },
+          { name: 'Site City', value: projectData.siteCity, step: 5 },
+          { name: 'Site State', value: projectData.siteState, step: 5 },
+          { name: 'Home Model', value: projectData.homeModel, step: 5 },
+          { name: 'Contract Price', value: projectData.contractPrice > 0, step: 7 },
+          { name: 'Effective Date', value: projectData.effectiveDate, step: 8 },
+          { name: 'Federal District', value: projectData.projectFederalDistrict, step: 8 },
+        ];
+        
+        const optionalVariables = [
+          { name: 'Client Phone', value: projectData.clientPhone, step: 3 },
+          { name: 'Site ZIP', value: projectData.siteZip, step: 5 },
+          { name: 'Site County', value: projectData.siteCounty, step: 5 },
+          { name: 'Contractor Name', value: projectData.serviceModel === 'CRC' ? projectData.contractorName : true, step: 3 },
+          { name: 'Manufacturing Start Date', value: projectData.manufacturingStartDate, step: 6 },
+        ];
+        
+        const filledRequired = requiredVariables.filter(v => v.value && v.value !== '').length;
+        const filledOptional = optionalVariables.filter(v => v.value && v.value !== '' && v.value !== true).length;
+        const totalVariables = requiredVariables.length + optionalVariables.length;
+        const filledTotal = filledRequired + filledOptional;
+        const coveragePercent = Math.round((filledTotal / totalVariables) * 100);
+        const missingRequired = requiredVariables.filter(v => !v.value || v.value === '');
+        const allRequiredComplete = missingRequired.length === 0;
+        
+        // Format date helper
+        const formatReviewDate = (dateStr: string) => {
+          if (!dateStr) return 'Not set';
+          const date = new Date(dateStr);
+          return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+        };
+        
+        // Calculate milestone amounts
+        const milestone1Amount = projectData.contractPrice * (projectData.milestone1Percent / 100);
+        const milestone2Amount = projectData.contractPrice * (projectData.milestone2Percent / 100);
+        const milestone3Amount = projectData.contractPrice * (projectData.milestone3Percent / 100);
+        const milestone4Amount = projectData.contractPrice * (projectData.milestone4Percent / 100);
+        const milestone5Amount = projectData.contractPrice * (projectData.milestone5Percent / 100);
+        const retainageAmount = projectData.contractPrice * (projectData.retainagePercent / 100);
+        
+        // Toggle section handler
+        const toggleSection = (section: string) => {
+          setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
+        };
+        
         return (
           <StepContent
             title="Review & Generate"
             description="Review all information and generate the contract package"
           >
             <div className="space-y-6">
-              <div className="grid grid-cols-2 gap-6">
-                <ReviewSection title="Project">
-                  <ReviewItem label="Project Number" value={projectData.projectNumber} />
-                  <ReviewItem label="Project Name" value={projectData.projectName} />
-                  <ReviewItem label="Service Model" value={projectData.serviceModel} />
-                  <ReviewItem label="Units" value={String(projectData.totalUnits)} />
-                </ReviewSection>
-
-                <ReviewSection title="Client">
-                  <ReviewItem label="Legal Name" value={projectData.clientLegalName} />
-                  <ReviewItem label="State" value={projectData.clientState} />
-                  <ReviewItem label="Signer" value={projectData.clientSignerName} />
-                </ReviewSection>
-
-                <ReviewSection title="Child LLC">
-                  <ReviewItem label="LLC Name" value={projectData.childLlcName} />
-                  <ReviewItem label="State" value={projectData.childLlcState} />
-                </ReviewSection>
-
-                <ReviewSection title="Site">
-                  <ReviewItem label="Address" value={projectData.siteAddress} />
-                  <ReviewItem label="City/State" value={`${projectData.siteCity}, ${projectData.siteState}`} />
-                </ReviewSection>
-
-                <ReviewSection title="Home">
-                  <ReviewItem label="Model" value={projectData.homeModel} />
-                  <ReviewItem label="Size" value={`${projectData.homeSquareFootage} sq ft`} />
-                  <ReviewItem label="Bed/Bath" value={`${projectData.homeBedrooms}bd / ${projectData.homeBathrooms}ba`} />
-                </ReviewSection>
-
-                <ReviewSection title="Financials">
-                  <ReviewItem label="Contract Price" value={`$${projectData.contractPrice.toLocaleString()}`} />
-                  <ReviewItem label="Deposit" value={`$${projectData.depositAmount.toLocaleString()}`} />
-                </ReviewSection>
-              </div>
-
-              <div className="p-4 bg-muted/50 rounded-lg">
-                <h4 className="font-medium mb-3">Contracts to be Generated</h4>
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Check className="h-4 w-4 text-green-500" />
-                    <span>ONE Agreement (Master Contract)</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Check className="h-4 w-4 text-green-500" />
-                    <span>Manufacturing Subcontract</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Check className="h-4 w-4 text-green-500" />
-                    <span>OnSite Subcontract</span>
+              {/* Validation Status Banner */}
+              {allRequiredComplete ? (
+                <div className="flex items-center gap-3 p-4 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg" data-testid="validation-success">
+                  <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
+                  <div>
+                    <p className="font-medium text-green-800 dark:text-green-200">Ready to Generate</p>
+                    <p className="text-sm text-green-600 dark:text-green-400">All required fields complete. You can generate the contract package.</p>
                   </div>
                 </div>
-              </div>
+              ) : (
+                <div className="p-4 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg" data-testid="validation-error">
+                  <div className="flex items-center gap-3 mb-3">
+                    <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
+                    <p className="font-medium text-red-800 dark:text-red-200">Missing Required Information</p>
+                  </div>
+                  <ul className="space-y-1 ml-8">
+                    {missingRequired.map((v, i) => (
+                      <li key={i} className="text-sm text-red-600 dark:text-red-400 flex items-center gap-2">
+                        <X className="h-3 w-3" />
+                        {v.name}
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="text-red-700 dark:text-red-300 h-auto p-0 underline"
+                          onClick={() => goToStep(v.step)}
+                        >
+                          Go to Step {v.step}
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              
+              {/* Variable Coverage Indicator */}
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium">Contract Variables Populated</span>
+                    <span className="text-sm text-muted-foreground">{filledTotal} / {totalVariables} ({coveragePercent}%)</span>
+                  </div>
+                  <Progress value={coveragePercent} className="h-2" />
+                  <div className="flex items-center gap-4 mt-3 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1">
+                      <CheckCircle2 className="h-3 w-3 text-green-500" />
+                      {filledRequired}/{requiredVariables.length} required
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Check className="h-3 w-3" />
+                      {filledOptional}/{optionalVariables.length} optional
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
 
-              <div className="flex justify-center pt-4">
-                <Button size="lg" className="gap-2" data-testid="button-generate-contracts">
+              {/* Project Overview Section */}
+              <Card>
+                <CardHeader 
+                  className="cursor-pointer hover:bg-muted/30 transition-colors"
+                  onClick={() => toggleSection('project')}
+                >
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      <Briefcase className="h-5 w-5 text-primary" />
+                      Project Overview
+                    </CardTitle>
+                    <div className="flex items-center gap-2">
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={(e) => { e.stopPropagation(); goToStep(1); }}
+                        data-testid="edit-step-1"
+                      >
+                        <Edit className="h-4 w-4 mr-1" />
+                        Edit
+                      </Button>
+                      {expandedSections.project ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+                    </div>
+                  </div>
+                </CardHeader>
+                {expandedSections.project && (
+                  <CardContent className="pt-0">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Project Number</p>
+                        <p className="font-medium">{projectData.projectNumber || '-'}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Project Name</p>
+                        <p className="font-medium">{projectData.projectName || '-'}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Agreement Date</p>
+                        <p className="font-medium">{formatReviewDate(projectData.agreementDate)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Total Units</p>
+                        <p className="font-medium">{projectData.totalUnits}</p>
+                      </div>
+                      <div className="col-span-2">
+                        <p className="text-xs text-muted-foreground">Service Model</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Badge variant={projectData.serviceModel === 'CRC' ? 'default' : 'secondary'}>
+                            {projectData.serviceModel}
+                          </Badge>
+                          <span className="text-sm text-muted-foreground">
+                            {projectData.serviceModel === 'CRC' 
+                              ? 'Contractor Responsible for Completion' 
+                              : 'Customer Managed On-Site'
+                            }
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                )}
+              </Card>
+
+              {/* Parties Section */}
+              <Card>
+                <CardHeader 
+                  className="cursor-pointer hover:bg-muted/30 transition-colors"
+                  onClick={() => toggleSection('parties')}
+                >
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      <Users className="h-5 w-5 text-primary" />
+                      Parties
+                    </CardTitle>
+                    <div className="flex items-center gap-2">
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={(e) => { e.stopPropagation(); goToStep(3); }}
+                        data-testid="edit-step-3"
+                      >
+                        <Edit className="h-4 w-4 mr-1" />
+                        Edit
+                      </Button>
+                      {expandedSections.parties ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+                    </div>
+                  </div>
+                </CardHeader>
+                {expandedSections.parties && (
+                  <CardContent className="pt-0 space-y-4">
+                    {/* Client */}
+                    <div className="p-3 bg-muted/30 rounded-lg">
+                      <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
+                        <UserCheck className="h-4 w-4" />
+                        Client
+                      </h4>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+                        <div>
+                          <p className="text-xs text-muted-foreground">Legal Name</p>
+                          <p className="font-medium">{projectData.clientLegalName || '-'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">State</p>
+                          <p className="font-medium">{projectData.clientState || '-'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Entity Type</p>
+                          <p className="font-medium">{projectData.clientEntityType || '-'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Signer</p>
+                          <p className="font-medium">{projectData.clientSignerName || '-'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Email</p>
+                          <p className="font-medium">{projectData.clientEmail || '-'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Phone</p>
+                          <p className="font-medium">{projectData.clientPhone || '-'}</p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Child LLC */}
+                    <div className="p-3 bg-muted/30 rounded-lg">
+                      <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
+                        <Building2 className="h-4 w-4" />
+                        SPV/LLC
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          className="ml-auto h-6"
+                          onClick={() => goToStep(4)}
+                        >
+                          <Edit className="h-3 w-3 mr-1" />
+                          Edit
+                        </Button>
+                      </h4>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+                        <div className="col-span-2">
+                          <p className="text-xs text-muted-foreground">LLC Name</p>
+                          <p className="font-medium">{projectData.childLlcName || '-'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">State</p>
+                          <p className="font-medium">{projectData.childLlcState || 'DE'}</p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* On-Site Contractor (CRC only) */}
+                    {projectData.serviceModel === 'CRC' && (
+                      <div className="p-3 bg-muted/30 rounded-lg">
+                        <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
+                          <Wrench className="h-4 w-4" />
+                          On-Site Contractor
+                        </h4>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+                          <div>
+                            <p className="text-xs text-muted-foreground">Company Name</p>
+                            <p className="font-medium">{projectData.contractorName || '-'}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">License #</p>
+                            <p className="font-medium">{projectData.contractorLicense || '-'}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">State</p>
+                            <p className="font-medium">{projectData.siteState || '-'}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                )}
+              </Card>
+
+              {/* Property Details Section */}
+              <Card>
+                <CardHeader 
+                  className="cursor-pointer hover:bg-muted/30 transition-colors"
+                  onClick={() => toggleSection('property')}
+                >
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      <MapPin className="h-5 w-5 text-primary" />
+                      Property Details
+                    </CardTitle>
+                    <div className="flex items-center gap-2">
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={(e) => { e.stopPropagation(); goToStep(5); }}
+                        data-testid="edit-step-5"
+                      >
+                        <Edit className="h-4 w-4 mr-1" />
+                        Edit
+                      </Button>
+                      {expandedSections.property ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+                    </div>
+                  </div>
+                </CardHeader>
+                {expandedSections.property && (
+                  <CardContent className="pt-0 space-y-4">
+                    {/* Site Address */}
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-1">Site Address</p>
+                      <p className="font-medium">
+                        {projectData.siteAddress}{projectData.siteAddress && ', '}
+                        {projectData.siteCity}{projectData.siteCity && ', '}
+                        {projectData.siteState} {projectData.siteZip}
+                      </p>
+                      {projectData.siteCounty && (
+                        <p className="text-sm text-muted-foreground">{projectData.siteCounty}</p>
+                      )}
+                    </div>
+                    
+                    {/* Units */}
+                    {projectData.units.map((unit, index) => (
+                      <div key={index} className="p-3 bg-muted/30 rounded-lg">
+                        <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
+                          <Home className="h-4 w-4" />
+                          Unit {index + 1}
+                        </h4>
+                        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
+                          <div>
+                            <p className="text-xs text-muted-foreground">Model</p>
+                            <p className="font-medium">{unit.model || '-'}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Square Feet</p>
+                            <p className="font-medium">{unit.squareFootage?.toLocaleString() || '-'} sq ft</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Bedrooms</p>
+                            <p className="font-medium">{unit.bedrooms || '-'}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Bathrooms</p>
+                            <p className="font-medium">{unit.bathrooms || '-'}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Price</p>
+                            <p className="font-medium text-green-600 dark:text-green-400">${unit.price?.toLocaleString() || '0'}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </CardContent>
+                )}
+              </Card>
+
+              {/* Financial Terms Section */}
+              <Card>
+                <CardHeader 
+                  className="cursor-pointer hover:bg-muted/30 transition-colors"
+                  onClick={() => toggleSection('financial')}
+                >
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      <DollarSign className="h-5 w-5 text-primary" />
+                      Financial Terms
+                    </CardTitle>
+                    <div className="flex items-center gap-2">
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={(e) => { e.stopPropagation(); goToStep(7); }}
+                        data-testid="edit-step-7"
+                      >
+                        <Edit className="h-4 w-4 mr-1" />
+                        Edit
+                      </Button>
+                      {expandedSections.financial ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+                    </div>
+                  </div>
+                </CardHeader>
+                {expandedSections.financial && (
+                  <CardContent className="pt-0 space-y-4">
+                    {/* Total Contract Price */}
+                    <div className="p-4 bg-primary/5 border border-primary/20 rounded-lg text-center">
+                      <p className="text-sm text-muted-foreground">Total Contract Price</p>
+                      <p className="text-3xl font-bold text-primary">${projectData.contractPrice.toLocaleString()}</p>
+                    </div>
+                    
+                    {/* Pricing Breakdown */}
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Design Fee</p>
+                        <p className="font-medium">${projectData.designFee.toLocaleString()}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Preliminary Offsite</p>
+                        <p className="font-medium">${projectData.preliminaryOffsiteCost.toLocaleString()}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Delivery & Installation</p>
+                        <p className="font-medium">${projectData.deliveryInstallationPrice.toLocaleString()}</p>
+                      </div>
+                      {projectData.serviceModel === 'CMOS' && (
+                        <>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Site Preparation</p>
+                            <p className="font-medium">${projectData.sitePrepPrice.toLocaleString()}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Utilities</p>
+                            <p className="font-medium">${projectData.utilitiesPrice.toLocaleString()}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Completion</p>
+                            <p className="font-medium">${projectData.completionPrice.toLocaleString()}</p>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    
+                    {/* Payment Milestones */}
+                    <div className="p-3 bg-muted/30 rounded-lg">
+                      <h4 className="text-sm font-medium mb-3">Payment Milestones</h4>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span>Milestone 1 ({projectData.milestone1Percent}%)</span>
+                          <span className="font-medium">${milestone1Amount.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Milestone 2 ({projectData.milestone2Percent}%)</span>
+                          <span className="font-medium">${milestone2Amount.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Milestone 3 ({projectData.milestone3Percent}%)</span>
+                          <span className="font-medium">${milestone3Amount.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Milestone 4 ({projectData.milestone4Percent}%)</span>
+                          <span className="font-medium">${milestone4Amount.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Milestone 5 ({projectData.milestone5Percent}%)</span>
+                          <span className="font-medium">${milestone5Amount.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between border-t pt-2 mt-2">
+                          <span>Retainage ({projectData.retainagePercent}%, {projectData.retainageDays} days)</span>
+                          <span className="font-medium">${retainageAmount.toLocaleString()}</span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Manufacturing Payments */}
+                    <div className="p-3 bg-muted/30 rounded-lg">
+                      <h4 className="text-sm font-medium mb-3">Manufacturing Payments</h4>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                        <div>
+                          <p className="text-xs text-muted-foreground">Design Payment</p>
+                          <p className="font-medium">${projectData.manufacturingDesignPayment.toLocaleString()}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Production Start</p>
+                          <p className="font-medium">${projectData.manufacturingProductionStart.toLocaleString()}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Production Complete</p>
+                          <p className="font-medium">${projectData.manufacturingProductionComplete.toLocaleString()}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Delivery Ready</p>
+                          <p className="font-medium">${projectData.manufacturingDeliveryReady.toLocaleString()}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                )}
+              </Card>
+
+              {/* Schedule & Warranty Section */}
+              <Card>
+                <CardHeader 
+                  className="cursor-pointer hover:bg-muted/30 transition-colors"
+                  onClick={() => toggleSection('schedule')}
+                >
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      <Calendar className="h-5 w-5 text-primary" />
+                      Schedule & Warranty
+                    </CardTitle>
+                    <div className="flex items-center gap-2">
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={(e) => { e.stopPropagation(); goToStep(8); }}
+                        data-testid="edit-step-8"
+                      >
+                        <Edit className="h-4 w-4 mr-1" />
+                        Edit
+                      </Button>
+                      {expandedSections.schedule ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+                    </div>
+                  </div>
+                </CardHeader>
+                {expandedSections.schedule && (
+                  <CardContent className="pt-0 space-y-4">
+                    {/* Timeline */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Effective Date</p>
+                        <p className="font-medium">{formatReviewDate(projectData.effectiveDate)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Est. Completion</p>
+                        <p className="font-medium">{projectData.estimatedCompletionMonths} {projectData.estimatedCompletionUnit}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Design Phase</p>
+                        <p className="font-medium">{projectData.designPhaseDays} days</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Manufacturing</p>
+                        <p className="font-medium">{projectData.manufacturingDurationDays} days</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">On-Site</p>
+                        <p className="font-medium">{projectData.onsiteDurationDays} days</p>
+                      </div>
+                    </div>
+                    
+                    {/* Warranty */}
+                    <div className="p-3 bg-muted/30 rounded-lg">
+                      <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+                        <Shield className="h-4 w-4" />
+                        Warranty Periods
+                      </h4>
+                      <div className="grid grid-cols-3 gap-4 text-sm">
+                        <div>
+                          <p className="text-xs text-muted-foreground">Fit & Finish</p>
+                          <p className="font-medium">{projectData.warrantyFitFinishMonths} months ({(projectData.warrantyFitFinishMonths / 12).toFixed(1)} years)</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Building Envelope</p>
+                          <p className="font-medium">{projectData.warrantyBuildingEnvelopeMonths} months ({(projectData.warrantyBuildingEnvelopeMonths / 12).toFixed(1)} years)</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Structural</p>
+                          <p className="font-medium">{projectData.warrantyStructuralMonths} months ({(projectData.warrantyStructuralMonths / 12).toFixed(1)} years)</p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Legal Jurisdiction */}
+                    <div className="p-3 bg-muted/30 rounded-lg">
+                      <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+                        <Scale className="h-4 w-4" />
+                        Legal Jurisdiction
+                      </h4>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                        <div>
+                          <p className="text-xs text-muted-foreground">State</p>
+                          <p className="font-medium">{projectData.siteState || '-'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">County</p>
+                          <p className="font-medium">{projectData.projectCounty || projectData.siteCounty || '-'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Federal District</p>
+                          <p className="font-medium">{projectData.projectFederalDistrict || '-'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Arbitration</p>
+                          <p className="font-medium">{projectData.arbitrationProvider}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                )}
+              </Card>
+
+              {/* Contracts to be Generated */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <FileText className="h-5 w-5 text-primary" />
+                    Contracts to be Generated
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <CheckCircle2 className="h-5 w-5 text-green-500" />
+                        <div>
+                          <p className="font-medium">ONE Agreement</p>
+                          <p className="text-sm text-muted-foreground">Master Contract</p>
+                        </div>
+                      </div>
+                      <Badge>42 clauses</Badge>
+                    </div>
+                    <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <CheckCircle2 className="h-5 w-5 text-green-500" />
+                        <div>
+                          <p className="font-medium">Manufacturing Subcontract</p>
+                          <p className="text-sm text-muted-foreground">Factory Production Agreement</p>
+                        </div>
+                      </div>
+                      <Badge>28 clauses</Badge>
+                    </div>
+                    <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <CheckCircle2 className="h-5 w-5 text-green-500" />
+                        <div>
+                          <p className="font-medium">OnSite Subcontract</p>
+                          <p className="text-sm text-muted-foreground">{projectData.serviceModel === 'CRC' ? 'Contractor Agreement' : 'Customer Managed'}</p>
+                        </div>
+                      </div>
+                      <Badge>15 clauses</Badge>
+                    </div>
+                  </div>
+                  
+                  <div className="mt-4">
+                    <Button 
+                      variant="outline" 
+                      className="w-full"
+                      onClick={() => setShowClausePreview(true)}
+                      data-testid="button-preview-clauses"
+                    >
+                      <Eye className="h-4 w-4 mr-2" />
+                      Preview Contract Clauses
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Action Buttons */}
+              <div className="flex flex-col sm:flex-row gap-3 pt-4">
+                <Button 
+                  variant="outline"
+                  className="flex-1"
+                  onClick={saveDraft}
+                  data-testid="button-save-template"
+                >
+                  <Save className="h-4 w-4 mr-2" />
+                  Save as Template
+                </Button>
+                <Button 
+                  size="lg" 
+                  className="flex-1 gap-2"
+                  disabled={!allRequiredComplete}
+                  data-testid="button-generate-contracts"
+                >
                   <FileText className="h-5 w-5" />
                   Generate Contract Package
                 </Button>
               </div>
             </div>
+            
+            {/* Clause Preview Modal */}
+            <Dialog open={showClausePreview} onOpenChange={setShowClausePreview}>
+              <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <BookOpen className="h-5 w-5" />
+                    Contract Clause Preview
+                  </DialogTitle>
+                  <DialogDescription>
+                    Overview of clauses included in each contract based on {projectData.serviceModel} service model
+                  </DialogDescription>
+                </DialogHeader>
+                
+                <div className="space-y-6 mt-4">
+                  {/* ONE Agreement */}
+                  <div className="space-y-3">
+                    <h4 className="font-medium flex items-center gap-2">
+                      <Badge variant="outline">ONE Agreement</Badge>
+                      <span className="text-muted-foreground text-sm">42 clauses</span>
+                    </h4>
+                    <div className="space-y-1 text-sm pl-4">
+                      <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
+                        <Check className="h-3 w-3" /> Design Phase (mandatory)
+                      </div>
+                      <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
+                        <Check className="h-3 w-3" /> Payment Milestones (mandatory)
+                      </div>
+                      <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
+                        <Check className="h-3 w-3" /> Warranty Terms (mandatory)
+                      </div>
+                      {projectData.serviceModel === 'CRC' ? (
+                        <>
+                          <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
+                            <Check className="h-3 w-3" /> CRC-specific clauses (3)
+                          </div>
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <X className="h-3 w-3" /> CMOS-specific clauses (excluded)
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <X className="h-3 w-3" /> CRC-specific clauses (excluded)
+                          </div>
+                          <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
+                            <Check className="h-3 w-3" /> CMOS-specific clauses (5)
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Manufacturing Subcontract */}
+                  <div className="space-y-3">
+                    <h4 className="font-medium flex items-center gap-2">
+                      <Badge variant="outline">Manufacturing Subcontract</Badge>
+                      <span className="text-muted-foreground text-sm">28 clauses</span>
+                    </h4>
+                    <div className="space-y-1 text-sm pl-4">
+                      <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
+                        <Check className="h-3 w-3" /> Production milestones (mandatory)
+                      </div>
+                      <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
+                        <Check className="h-3 w-3" /> Quality standards (mandatory)
+                      </div>
+                      <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
+                        <Check className="h-3 w-3" /> Delivery specifications (mandatory)
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* OnSite Subcontract */}
+                  <div className="space-y-3">
+                    <h4 className="font-medium flex items-center gap-2">
+                      <Badge variant="outline">OnSite Subcontract</Badge>
+                      <span className="text-muted-foreground text-sm">15 clauses</span>
+                    </h4>
+                    <div className="space-y-1 text-sm pl-4">
+                      <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
+                        <Check className="h-3 w-3" /> Contractor responsibilities ({projectData.serviceModel} version)
+                      </div>
+                      <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
+                        <Check className="h-3 w-3" /> Insurance requirements
+                      </div>
+                      <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
+                        <Check className="h-3 w-3" /> Site access terms
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="flex justify-end mt-6">
+                  <Button onClick={() => setShowClausePreview(false)}>
+                    Close
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
           </StepContent>
         );
 

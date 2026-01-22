@@ -1,0 +1,204 @@
+Perfect! Step 5 (Schedule & Warranty) is complete. Now let's build the critical Phase 9: Step 6 - Review & Preview where users can see everything before generating contracts.
+
+🤖 REPLIT AGENT PROMPT - PHASE 9: Review & Preview Step
+CREATE WIZARD STEP 6: REVIEW & PREVIEW
+
+Add a comprehensive review step that displays all collected data in an organized summary, shows variable coverage, and allows users to preview contract clauses before generation.
+
+LOCATION: src/components/wizard/steps/ReviewPreviewStep.tsx
+
+COMPONENT REQUIREMENTS:
+
+1. REVIEW SUMMARY LAYOUT:
+   Display all collected data organized by category with edit links.
+   
+   Use expandable/collapsible sections with headers:
+   
+   📋 PROJECT OVERVIEW
+   - Project Number: [value] [Edit Step 1]
+   - Project Name: [value]
+   - Total Units: [value]
+   - Agreement Date: [formatted date]
+   - Service Model: [CRC or CMOS with badge]
+   
+   👥 PARTIES
+   - Client:
+     * Legal Name: [value] [Edit Step 2]
+     * State: [value]
+     * Entity Type: [value]
+   - SPV/LLC:
+     * Name: [value]
+     * State: [value]
+     * Status: [New LLC or Existing LLC]
+   - On-Site Contractor (if CRC):
+     * Name: [value]
+     * License: [value]
+   
+   🏠 PROPERTY DETAILS
+   - Site Address: [full address] [Edit Step 3]
+   - Unit 1:
+     * Model: [value]
+     * Square Feet: [value] sq ft
+     * Bedrooms: [value]
+     * Bathrooms: [value]
+     * Price: [formatted currency]
+   (Repeat for each unit if multi-unit)
+   
+   💰 FINANCIAL TERMS
+   - Design Fee: [currency] [Edit Step 4]
+   - Preliminary Offsite Price: [currency]
+   - Delivery & Installation: [currency]
+   - Site Preparation (CMOS): [currency]
+   - Utilities (CMOS): [currency]
+   - Completion (CMOS): [currency]
+   - Total Contract Price: [currency] (large, bold)
+   
+   Payment Milestones:
+   - Milestone 1 (20%): [currency]
+   - Milestone 2 (20%): [currency]
+   - Milestone 3 (20%): [currency]
+   - Milestone 4 (20%): [currency]
+   - Milestone 5 (15%): [currency]
+   - Retainage (5%, 60 days): [currency]
+   - TOTAL: [currency] ✓
+   
+   Manufacturing Payments:
+   - Design Payment: [currency]
+   - Production Start: [currency]
+   - Production Completion: [currency]
+   - Delivery Ready: [currency]
+   
+   📅 SCHEDULE & WARRANTY
+   - Effective Date: [date] [Edit Step 5]
+   - Estimated Completion: [date] ([X] months)
+   - Timeline:
+     * Design Phase: [X] days
+     * Manufacturing: [X] days
+     * On-Site: [X] days
+   
+   Warranty Periods:
+   - Fit & Finish: [X] months ([Y] years)
+   - Building Envelope: [X] months ([Y] years)
+   - Structural: [X] months ([Y] years)
+   
+   Legal Jurisdiction:
+   - State: [value]
+   - County: [value]
+   - Federal District: [value]
+   - Arbitration: [JAMS or AAA]
+
+2. VARIABLE COVERAGE INDICATOR:
+   - Calculate how many of the 89 contract variables are populated
+   - Show progress bar:
+     "Contract Variables Populated: 87 / 89 (98%)"
+     [████████████████████████░░]
+   
+   - Status indicators:
+     ✓ All required variables complete
+     ⚠ 2 optional variables not set
+   
+   - If required variables missing:
+     ❌ Missing required variables - cannot generate
+     List the missing variables with links to relevant steps
+
+3. MISSING VARIABLES PANEL:
+   If any variables are not populated, show them in a warning panel:
+   
+   "⚠ Incomplete Information"
+   The following fields are not yet filled:
+   - [Variable Name] (Optional) - [Link to Step X]
+   - [Variable Name] (Required) - [Link to Step X]
+   
+   Required variables block generation.
+
+4. CLAUSE PREVIEW BUTTON:
+   Large button: "Preview Contract Clauses"
+   
+   Opens modal showing:
+   - Which clauses will be included in each contract
+   - Total clause count for each contract
+   - CRC vs CMOS differences highlighted
+   
+   Modal content:
+   "Contract Clause Preview"
+   
+   ONE AGREEMENT: 42 clauses
+   ✓ Design Phase (mandatory)
+   ✓ Payment Milestones (mandatory)
+   ✓ CRC-specific clauses (3)
+   ○ CMOS-specific clauses (excluded)
+   
+   MANUFACTURING SUBCONTRACT: 28 clauses
+   ✓ Production milestones (mandatory)
+   ✓ Quality standards (mandatory)
+   
+   ON-SITE SUBCONTRACT: 15 clauses
+   ✓ Contractor responsibilities (CRC version)
+   ✓ Insurance requirements
+   
+   [Close]
+
+5. CRC/CMOS COMPARISON TOGGLE:
+   Toggle switch: "Show CRC ⟷ CMOS Differences"
+   
+   When enabled:
+   - Highlight fields that differ between service models
+   - Show what would change if user switched
+   - Note pricing differences
+   - Indicate responsibility shifts
+
+6. VALIDATION WARNINGS:
+   Display validation status at top of page:
+   
+   Critical Issues (Red, blocks generation):
+   ❌ Missing required variables: [list]
+   ❌ Invalid calculations: [describe]
+   
+   Warnings (Yellow, allows generation):
+   ⚠ Design fee seems high for project size
+   ⚠ Optional field not filled: [field name]
+   
+   Success (Green):
+   ✅ All required fields complete
+   ✅ All calculations validated
+   ✅ Ready to generate contracts
+
+7. EDIT FUNCTIONALITY:
+   Each section has [Edit Step X] link that:
+   - Jumps back to the relevant step
+   - Preserves all data
+   - Returns to review step when done
+   - Highlights the section that was edited
+
+8. DATA MAPPING:
+   Read all fields from wizardData:
+   - Pull from steps 1-5
+   - Format dates nicely (e.g., "January 21, 2026")
+   - Format currency with $ and commas
+   - Calculate totals and percentages
+   - Determine variable coverage
+
+9. UI/UX:
+   - Clean, organized layout with clear sections
+   - Use cards/panels for visual separation
+   - Collapsible sections to reduce scrolling
+   - Color-coded status indicators (red/yellow/green)
+   - Print-friendly layout option
+   - Sticky action buttons at bottom
+   - Large, prominent "Continue to Generate" button
+   - Secondary "Save as Template" button
+
+10. ACTION BUTTONS:
+    Bottom of page:
+    
+    [← Back to Schedule]  [Save as Template]  [Continue to Generate →]
+    
+    "Continue to Generate" button:
+    - Large, primary color (blue/green)
+    - Disabled if validation fails (gray, with tooltip)
+    - Enabled if all validations pass
+    - Shows checkmark icon when ready
+
+Import this step into ContractWizard.tsx and add it as Step 6.
+
+Use existing design patterns for consistency.

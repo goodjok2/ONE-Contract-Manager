@@ -36,7 +36,14 @@ This application helps Dvele manage construction projects through dedicated chil
     - Timeline Visualization: Visual progress bar with phase dates
     - Warranty Terms: Fit & Finish (24mo), Building Envelope (60mo), Structural (120mo)
     - Legal Jurisdiction: State, county, federal district, arbitration provider (JAMS/AAA)
-  - Step 9: Review & Generate
+  - Step 9: Review & Generate:
+    - Validation status banner (Ready to Generate / Missing Required Information)
+    - Variable coverage indicator showing populated vs total variables
+    - Collapsible sections: Project Overview, Parties, Property Details, Financial Terms, Schedule & Warranty
+    - Edit links to jump back to specific steps
+    - Contracts to be Generated section (ONE Agreement, Manufacturing Subcontract, OnSite Subcontract)
+    - Clause Preview modal showing included clauses per contract
+    - Generate Contract Package button (disabled until all required fields complete)
 - **Active Contracts**: List and manage all contracts
 - **Templates**: Pre-configured contract templates (DTC Standard, B2B Developer)
 - **Clause Library**: Browse 276 contract clauses with filtering by contract type (ONE/MANUFACTURING/ONSITE), hierarchy level (Sections/Subsections/Paragraphs), search, expandable rows showing conditional logic, and edit capability for legal team
