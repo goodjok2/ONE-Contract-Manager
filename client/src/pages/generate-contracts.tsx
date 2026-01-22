@@ -822,7 +822,14 @@ export default function GenerateContracts() {
 
                 {/* CMOS Option */}
                 <div
-                  onClick={() => updateProjectData({ serviceModel: 'CMOS' })}
+                  onClick={() => updateProjectData({ 
+                    serviceModel: 'CMOS',
+                    // Clear contractor fields when switching to CMOS
+                    contractorName: '',
+                    contractorLicense: '',
+                    contractorAddress: '',
+                    contractorInsurance: ''
+                  })}
                   className={`relative p-6 border-2 rounded-lg cursor-pointer transition-all hover-elevate ${
                     projectData.serviceModel === 'CMOS' 
                       ? 'border-primary bg-primary/5 ring-2 ring-primary/20' 
