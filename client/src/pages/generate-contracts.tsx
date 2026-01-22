@@ -933,15 +933,23 @@ export default function GenerateContracts() {
         const selectedLlc = existingLlcs?.find((llc: any) => llc.id.toString() === projectData.selectedExistingLlcId);
 
         // Auto-update child LLC name when client name changes (for new LLC option)
+        // Only auto-fill clientFullName if it's empty or matches the previous clientLegalName
         const handleClientNameChange = (value: string) => {
           const newLastName = extractLastName(value);
           const newLlcName = newLastName ? `Dvele Partners ${newLastName} LLC` : '';
-          updateProjectData({ 
+          const updates: Partial<WizardState['projectData']> = { 
             clientLegalName: value,
-            clientFullName: projectData.clientFullName || value, // Default full name to legal name
             childLlcName: projectData.llcOption === 'new' ? newLlcName : projectData.childLlcName
-          });
+          };
+          // Only auto-set clientFullName if it's empty
+          if (!projectData.clientFullName) {
+            updates.clientFullName = value;
+          }
+          updateProjectData(updates);
         };
+
+        // Loading state for existing LLCs
+        const llcsLoading = projectData.llcOption === 'existing' && !existingLlcs;
 
         return (
           <StepContent
@@ -1140,64 +1148,73 @@ export default function GenerateContracts() {
                         
                         {projectData.llcOption === 'existing' && (
                           <div className="mt-3 space-y-3">
-                            <FormField
-                              label="Select LLC"
-                              required
-                              error={validationErrors.selectedExistingLlcId}
-                            >
-                              <select
-                                className="w-full px-3 py-2 border rounded-md bg-background"
-                                value={projectData.selectedExistingLlcId}
-                                onChange={(e) => {
-                                  const llc = existingLlcs?.find((l: any) => l.id.toString() === e.target.value);
-                                  updateProjectData({ 
-                                    selectedExistingLlcId: e.target.value,
-                                    childLlcName: llc?.name || '',
-                                    childLlcState: llc?.state_of_formation || 'DE',
-                                    childLlcEin: llc?.ein_number || ''
-                                  });
-                                }}
-                                data-testid="select-existing-llc"
-                              >
-                                <option value="">Select an LLC...</option>
-                                {existingLlcs?.map((llc: any) => (
-                                  <option key={llc.id} value={llc.id.toString()}>
-                                    {llc.name}
-                                  </option>
-                                ))}
-                              </select>
-                            </FormField>
-
-                            {selectedLlc && (
-                              <div className="p-3 bg-muted/50 rounded-md">
-                                <p className="text-sm font-medium mb-2">LLC Details</p>
-                                <div className="grid grid-cols-2 gap-2 text-sm">
-                                  <div>
-                                    <span className="text-muted-foreground">State:</span>{' '}
-                                    {selectedLlc.state_of_formation || 'N/A'}
-                                  </div>
-                                  <div>
-                                    <span className="text-muted-foreground">EIN:</span>{' '}
-                                    {selectedLlc.ein_number || 'Pending'}
-                                  </div>
-                                  <div>
-                                    <span className="text-muted-foreground">Status:</span>{' '}
-                                    <Badge variant={selectedLlc.status === 'active' ? 'default' : 'secondary'}>
-                                      {selectedLlc.status}
-                                    </Badge>
-                                  </div>
-                                  <div>
-                                    <span className="text-muted-foreground">Formed:</span>{' '}
-                                    {selectedLlc.formation_date || 'N/A'}
-                                  </div>
-                                </div>
+                            {llcsLoading ? (
+                              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                <span>Loading existing LLCs...</span>
                               </div>
-                            )}
+                            ) : (
+                              <>
+                                <FormField
+                                  label="Select LLC"
+                                  required
+                                  error={validationErrors.selectedExistingLlcId}
+                                >
+                                  <select
+                                    className="w-full px-3 py-2 border rounded-md bg-background"
+                                    value={projectData.selectedExistingLlcId}
+                                    onChange={(e) => {
+                                      const llc = existingLlcs?.find((l: any) => l.id.toString() === e.target.value);
+                                      updateProjectData({ 
+                                        selectedExistingLlcId: e.target.value,
+                                        childLlcName: llc?.name || '',
+                                        childLlcState: llc?.state_of_formation || 'DE',
+                                        childLlcEin: llc?.ein_number || ''
+                                      });
+                                    }}
+                                    data-testid="select-existing-llc"
+                                  >
+                                    <option value="">Select an LLC...</option>
+                                    {existingLlcs?.map((llc: any) => (
+                                      <option key={llc.id} value={llc.id.toString()}>
+                                        {llc.name}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </FormField>
 
-                            {existingLlcs?.length === 0 && (
-                              <p className="text-sm text-muted-foreground italic">
-                                No existing LLCs found. Please create a new LLC instead.
-                              </p>
+                                {selectedLlc && (
+                                  <div className="p-3 bg-muted/50 rounded-md" data-testid="llc-details-panel">
+                                    <p className="text-sm font-medium mb-2">LLC Details</p>
+                                    <div className="grid grid-cols-2 gap-2 text-sm">
+                                      <div>
+                                        <span className="text-muted-foreground">State:</span>{' '}
+                                        <span data-testid="text-llc-state">{selectedLlc.state_of_formation || 'N/A'}</span>
+                                      </div>
+                                      <div>
+                                        <span className="text-muted-foreground">EIN:</span>{' '}
+                                        <span data-testid="text-llc-ein">{selectedLlc.ein_number || 'Pending'}</span>
+                                      </div>
+                                      <div>
+                                        <span className="text-muted-foreground">Status:</span>{' '}
+                                        <Badge variant={selectedLlc.status === 'active' ? 'default' : 'secondary'} data-testid="badge-llc-status">
+                                          {selectedLlc.status}
+                                        </Badge>
+                                      </div>
+                                      <div>
+                                        <span className="text-muted-foreground">Formed:</span>{' '}
+                                        <span data-testid="text-llc-formed">{selectedLlc.formation_date || 'N/A'}</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {existingLlcs?.length === 0 && (
+                                  <p className="text-sm text-muted-foreground italic" data-testid="text-no-llcs">
+                                    No existing LLCs found. Please create a new LLC instead.
+                                  </p>
+                                )}
+                              </>
                             )}
                           </div>
                         )}
@@ -1207,18 +1224,18 @@ export default function GenerateContracts() {
                 </div>
 
                 {/* SPV Details Display */}
-                <div className="mt-4 p-4 border rounded-lg bg-muted/30">
+                <div className="mt-4 p-4 border rounded-lg bg-muted/30" data-testid="panel-variable-preview">
                   <p className="text-sm font-medium mb-3">Calculated Variable Values</p>
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <div>
                       <span className="text-muted-foreground">DVELE_PARTNERS_XYZ:</span>
-                      <p className="font-mono text-xs mt-1">
+                      <p className="font-mono text-xs mt-1" data-testid="text-var-dvele-partners">
                         {lastName ? `Dvele Partners ${lastName}` : '[awaiting client name]'}
                       </p>
                     </div>
                     <div>
                       <span className="text-muted-foreground">DVELE_PARTNERS_XYZ_LEGAL_NAME:</span>
-                      <p className="font-mono text-xs mt-1">
+                      <p className="font-mono text-xs mt-1" data-testid="text-var-dvele-partners-legal">
                         {projectData.llcOption === 'existing' && selectedLlc 
                           ? selectedLlc.name 
                           : generatedLlcName}
@@ -1226,7 +1243,7 @@ export default function GenerateContracts() {
                     </div>
                     <div>
                       <span className="text-muted-foreground">DVELE_PARTNERS_XYZ_STATE:</span>
-                      <p className="font-mono text-xs mt-1">
+                      <p className="font-mono text-xs mt-1" data-testid="text-var-dvele-partners-state">
                         {projectData.llcOption === 'existing' && selectedLlc
                           ? selectedLlc.state_of_formation
                           : US_STATES.find(s => s.value === projectData.childLlcState)?.label || projectData.childLlcState}
@@ -1234,7 +1251,7 @@ export default function GenerateContracts() {
                     </div>
                     <div>
                       <span className="text-muted-foreground">DVELE_PARTNERS_XYZ_ENTITY_TYPE:</span>
-                      <p className="font-mono text-xs mt-1">limited liability company</p>
+                      <p className="font-mono text-xs mt-1" data-testid="text-var-entity-type">limited liability company</p>
                     </div>
                   </div>
                 </div>
