@@ -1,0 +1,173 @@
+Perfect! Let's start with the foundation. Here's the first prompt:
+
+🤖 REPLIT AGENT PROMPT - REFACTOR PHASE 1: Create Wizard Context
+CREATE WIZARD CONTEXT FOR STATE MANAGEMENT
+
+Create a centralized state management system using React Context API for the contract wizard.
+
+STEP 1: CREATE WIZARD CONTEXT FILE
+
+Location: client/src/components/wizard/WizardContext.tsx
+
+This file should:
+1. Import all necessary React hooks and types
+2. Define TypeScript interfaces for all wizard state
+3. Create the Context and Provider
+4. Export the useWizard hook
+
+INTERFACES TO DEFINE:
+```typescript
+// Copy these exact interfaces from generate-contracts.tsx:
+
+interface WizardState {
+  currentStep: number;
+  completedSteps: Set<number>;
+  validationErrors: Record<string, string>;
+  projectData: ProjectData;
+}
+
+interface ProjectData {
+  // Copy ALL fields from the existing initialProjectData object
+  // Should be 89+ fields including:
+  projectNumber: string;
+  projectName: string;
+  totalUnits: number;
+  agreementDate: string;
+  serviceModel: 'CRC' | 'CMOS';
+  clientLegalName: string;
+  clientState: string;
+  clientEntityType: string;
+  // ... all other fields from current implementation
+}
+
+interface WizardContextType {
+  // State
+  wizardState: WizardState;
+  draftProjectId: string | null;
+  generationState: 'pre-generation' | 'generating' | 'success' | 'error';
+  generationProgress: number;
+  currentGenerationStep: number;
+  generationError: string | null;
+  generatedContracts: any[];
+  showComparisonModal: boolean;
+  showClausePreview: boolean;
+  confirmationChecked: boolean;
+  expandedSections: Record<string, boolean>;
+  
+  // Methods
+  updateProjectData: (updates: Partial<ProjectData>) => void;
+  setValidationErrors: (errors: Record<string, string>) => void;
+  validateStep: (stepNumber: number) => boolean;
+  nextStep: () => void;
+  prevStep: () => void;
+  goToStep: (stepNumber: number) => void;
+  saveDraft: () => void;
+  loadDraft: () => void;
+  generateContracts: () => Promise<void>;
+  setShowComparisonModal: (show: boolean) => void;
+  setShowClausePreview: (show: boolean) => void;
+  setConfirmationChecked: (checked: boolean) => void;
+  toggleSection: (section: string) => void;
+  setGenerationState: (state: 'pre-generation' | 'generating' | 'success' | 'error') => void;
+}
+```
+
+CONTEXT IMPLEMENTATION:
+```typescript
+import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import { useToast } from '@/hooks/use-toast';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { apiRequest } from '@/lib/queryClient';
+
+const WizardContext = createContext<WizardContextType | undefined>(undefined);
+
+export const WizardProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  
+  // Initialize all state from the current generate-contracts.tsx
+  // Copy the exact initialization logic including:
+  // - initialProjectData
+  // - useState declarations for all state variables
+  // - All useQuery hooks (LLCs, comparisons, etc.)
+  // - All useMutation hooks (createProject, updateProject, etc.)
+  
+  // Copy all the handler functions:
+  // - updateProjectData
+  // - validateStep
+  // - nextStep
+  // - prevStep
+  // - goToStep
+  // - saveDraft
+  // - loadDraft
+  // - generateContracts
+  // - All other utility functions
+  
+  const contextValue: WizardContextType = {
+    wizardState,
+    draftProjectId,
+    generationState,
+    generationProgress,
+    currentGenerationStep,
+    generationError,
+    generatedContracts,
+    showComparisonModal,
+    showClausePreview,
+    confirmationChecked,
+    expandedSections,
+    updateProjectData,
+    setValidationErrors,
+    validateStep,
+    nextStep,
+    prevStep,
+    goToStep,
+    saveDraft,
+    loadDraft,
+    generateContracts,
+    setShowComparisonModal,
+    setShowClausePreview,
+    setConfirmationChecked,
+    toggleSection,
+    setGenerationState,
+  };
+  
+  return (
+    <WizardContext.Provider value={contextValue}>
+      {children}
+    </WizardContext.Provider>
+  );
+};
+
+export const useWizard = () => {
+  const context = useContext(WizardContext);
+  if (!context) {
+    throw new Error('useWizard must be used within WizardProvider');
+  }
+  return context;
+};
+```
+
+WHAT TO COPY FROM generate-contracts.tsx:
+
+1. All interfaces (WizardState, ProjectData, etc.)
+2. All constants (initialProjectData, STEPS array, US_STATES, ENTITY_TYPES, FEDERAL_DISTRICTS)
+3. All useState declarations
+4. All useQuery hooks (llcs, clause comparisons)
+5. All useMutation hooks (project CRUD operations)
+6. All useCallback functions (updateProjectData, validateStep, nextStep, etc.)
+7. All useEffect hooks for data synchronization
+8. The complete validateStep function with all validation logic
+9. The complete generateContracts function with progress tracking
+10. All helper functions (formatCurrency, calculateTotals, etc.)
+
+DO NOT COPY:
+- JSX/rendering code
+- Component-specific UI logic
+- Return statement
+
+TESTING:
+After creating this file, it should compile without errors.
+All types should be properly exported.
+No rendering logic should be in this file - only state and business logic.
+
+Create this file now and ensure it compiles successfully.

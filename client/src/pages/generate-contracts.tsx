@@ -44,7 +44,14 @@ import {
   Eye,
   BookOpen,
   MapPin,
-  Briefcase
+  Briefcase,
+  Download,
+  Mail,
+  FileArchive,
+  RotateCcw,
+  ExternalLink,
+  Sparkles,
+  Circle
 } from "lucide-react";
 
 // US States for dropdown
@@ -371,6 +378,23 @@ export default function GenerateContracts() {
     financial: true,
     schedule: true,
   });
+  
+  // Generation states
+  type GenerationState = 'pre-generation' | 'generating' | 'success' | 'error';
+  const [generationState, setGenerationState] = useState<GenerationState>('pre-generation');
+  const [confirmationChecked, setConfirmationChecked] = useState(false);
+  const [generationProgress, setGenerationProgress] = useState(0);
+  const [currentGenerationStep, setCurrentGenerationStep] = useState(0);
+  const [generationError, setGenerationError] = useState<string | null>(null);
+  const [generatedContracts, setGeneratedContracts] = useState<{
+    id: string;
+    type: string;
+    filename: string;
+    downloadUrl: string;
+    size: number;
+    generatedAt: string;
+  }[]>([]);
+  const [generatedProjectId, setGeneratedProjectId] = useState<string | null>(null);
   
   const [wizardState, setWizardState] = useState<WizardState>({
     currentStep: 1,
@@ -894,6 +918,96 @@ export default function GenerateContracts() {
     }
   }, [toast]);
 
+  // Contract generation handler with simulated progress
+  const generateContracts = useCallback(async () => {
+    setGenerationState('generating');
+    setGenerationProgress(0);
+    setCurrentGenerationStep(0);
+    setGenerationError(null);
+    
+    const steps = [
+      'Preparing contract data',
+      'Loading clause templates', 
+      'Generating ONE Agreement',
+      'Generating Manufacturing Subcontract',
+      'Generating On-Site Subcontract',
+      'Creating contract package'
+    ];
+    
+    try {
+      // Simulate progress through each step
+      for (let i = 0; i < steps.length; i++) {
+        setCurrentGenerationStep(i);
+        
+        // Simulate work for each step
+        const stepDuration = 800 + Math.random() * 400; // 800-1200ms per step
+        const progressIncrement = 100 / steps.length;
+        
+        // Animate progress within the step
+        const startProgress = (i / steps.length) * 100;
+        const endProgress = ((i + 1) / steps.length) * 100;
+        
+        for (let p = startProgress; p <= endProgress; p += 5) {
+          setGenerationProgress(p);
+          await new Promise(resolve => setTimeout(resolve, stepDuration / ((endProgress - startProgress) / 5)));
+        }
+      }
+      
+      setGenerationProgress(100);
+      
+      // Generate mock contract data
+      const projectName = wizardState.projectData.projectName || 'Project';
+      const projectNumber = wizardState.projectData.projectNumber || '2026-001';
+      const timestamp = new Date().toISOString();
+      
+      const mockContracts = [
+        {
+          id: `contract_one_${Date.now()}`,
+          type: 'ONE',
+          filename: `ONE_Agreement_${projectName.replace(/\s+/g, '_')}_${projectNumber}.docx`,
+          downloadUrl: `/api/contracts/download/one_${Date.now()}`,
+          size: 245760, // ~240KB
+          generatedAt: timestamp
+        },
+        {
+          id: `contract_mfg_${Date.now()}`,
+          type: 'MANUFACTURING',
+          filename: `Manufacturing_Subcontract_${projectName.replace(/\s+/g, '_')}_${projectNumber}.docx`,
+          downloadUrl: `/api/contracts/download/mfg_${Date.now()}`,
+          size: 183296, // ~179KB
+          generatedAt: timestamp
+        },
+        {
+          id: `contract_onsite_${Date.now()}`,
+          type: 'ONSITE',
+          filename: `OnSite_Subcontract_${projectName.replace(/\s+/g, '_')}_${projectNumber}.docx`,
+          downloadUrl: `/api/contracts/download/onsite_${Date.now()}`,
+          size: 153600, // ~150KB
+          generatedAt: timestamp
+        }
+      ];
+      
+      setGeneratedContracts(mockContracts);
+      setGeneratedProjectId(`proj_${Date.now()}`);
+      setGenerationState('success');
+      
+      toast({
+        title: "Contracts Generated Successfully",
+        description: "Your contract package is ready for download.",
+      });
+      
+    } catch (error) {
+      setGenerationError(error instanceof Error ? error.message : 'An unknown error occurred');
+      setGenerationState('error');
+      
+      toast({
+        title: "Generation Failed",
+        description: "There was an error generating your contracts. Please try again.",
+        variant: "destructive",
+      });
+    }
+  }, [wizardState.projectData, toast]);
+
   const progressPercent = ((wizardState.currentStep - 1) / (STEPS.length - 1)) * 100;
 
   const renderStepContent = () => {
@@ -1411,7 +1525,45 @@ export default function GenerateContracts() {
                   </FormField>
                 </div>
 
-                <FormField label="Client Full Name (for signature)">
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField label="Client Email" required>
+                    <Input
+                      type="email"
+                      className="w-full"
+                      placeholder="e.g., client@example.com"
+                      value={projectData.clientEmail}
+                      onChange={(e) => updateProjectData({ clientEmail: e.target.value })}
+                      data-testid="input-client-email"
+                    />
+                  </FormField>
+                  
+                  <FormField label="Client Phone">
+                    <Input
+                      type="tel"
+                      className="w-full"
+                      placeholder="e.g., (555) 123-4567"
+                      value={projectData.clientPhone}
+                      onChange={(e) => updateProjectData({ clientPhone: e.target.value })}
+                      data-testid="input-client-phone"
+                    />
+                  </FormField>
+                </div>
+
+                <FormField label="Client Signer Name (for signature)" required>
+                  <Input
+                    type="text"
+                    className="w-full"
+                    placeholder="Full name of person signing the contract"
+                    value={projectData.clientSignerName}
+                    onChange={(e) => updateProjectData({ clientSignerName: e.target.value })}
+                    data-testid="input-client-signer-name"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Used for: CLIENT_SIGNER_NAME variable
+                  </p>
+                </FormField>
+
+                <FormField label="Client Full Name (for documents)">
                   <Input
                     type="text"
                     className="w-full"
@@ -2138,8 +2290,22 @@ export default function GenerateContracts() {
                             onChange={(e) => {
                               const price = parseInt(e.target.value) || 0;
                               updateUnit(1, { price });
-                              // Update preliminary offsite cost
-                              updateProjectData({ preliminaryOffsiteCost: price });
+                              // Update preliminary offsite cost and auto-populate manufacturing payments
+                              const updates: Partial<typeof projectData> = { preliminaryOffsiteCost: price };
+                              if (projectData.manufacturingProductionStart === 0) {
+                                updates.manufacturingProductionStart = Math.round(price * 0.35);
+                              }
+                              if (projectData.manufacturingProductionComplete === 0) {
+                                updates.manufacturingProductionComplete = Math.round(price * 0.45);
+                              }
+                              if (projectData.manufacturingDeliveryReady === 0) {
+                                updates.manufacturingDeliveryReady = Math.round(price * 0.20);
+                              }
+                              // Also set design payment from design fee
+                              if (projectData.manufacturingDesignPayment === 0 && projectData.designFee > 0) {
+                                updates.manufacturingDesignPayment = projectData.designFee;
+                              }
+                              updateProjectData(updates);
                             }}
                             data-testid="input-unit-price-1"
                           />
@@ -2488,7 +2654,15 @@ export default function GenerateContracts() {
                           step="100"
                           className="w-full pl-7 pr-3 py-2 border rounded-md bg-background"
                           value={projectData.designFee || ''}
-                          onChange={(e) => updateProjectData({ designFee: parseFloat(e.target.value) || 0 })}
+                          onChange={(e) => {
+                            const fee = parseFloat(e.target.value) || 0;
+                            // Auto-populate manufacturing design payment
+                            const updates: Partial<typeof projectData> = { designFee: fee };
+                            if (projectData.manufacturingDesignPayment === 0 || projectData.manufacturingDesignPayment === projectData.designFee) {
+                              updates.manufacturingDesignPayment = fee;
+                            }
+                            updateProjectData(updates);
+                          }}
                           data-testid="input-design-fee"
                         />
                       </div>
@@ -2562,7 +2736,21 @@ export default function GenerateContracts() {
                           step="1000"
                           className="w-full pl-7 pr-3 py-2 border rounded-md bg-background"
                           value={projectData.preliminaryOffsiteCost || ''}
-                          onChange={(e) => updateProjectData({ preliminaryOffsiteCost: parseFloat(e.target.value) || 0 })}
+                          onChange={(e) => {
+                            const offsiteCost = parseFloat(e.target.value) || 0;
+                            // Auto-populate manufacturing payments if they are currently 0
+                            const updates: Partial<typeof projectData> = { preliminaryOffsiteCost: offsiteCost };
+                            if (projectData.manufacturingProductionStart === 0) {
+                              updates.manufacturingProductionStart = Math.round(offsiteCost * 0.35);
+                            }
+                            if (projectData.manufacturingProductionComplete === 0) {
+                              updates.manufacturingProductionComplete = Math.round(offsiteCost * 0.45);
+                            }
+                            if (projectData.manufacturingDeliveryReady === 0) {
+                              updates.manufacturingDeliveryReady = Math.round(offsiteCost * 0.20);
+                            }
+                            updateProjectData(updates);
+                          }}
                           data-testid="input-offsite-price"
                         />
                       </div>
@@ -3332,7 +3520,7 @@ export default function GenerateContracts() {
           { name: 'Site Address', value: projectData.siteAddress, step: 5 },
           { name: 'Site City', value: projectData.siteCity, step: 5 },
           { name: 'Site State', value: projectData.siteState, step: 5 },
-          { name: 'Home Model', value: projectData.homeModel, step: 5 },
+          { name: 'Home Model', value: projectData.units[0]?.model, step: 5 },
           { name: 'Contract Price', value: projectData.contractPrice > 0, step: 7 },
           { name: 'Effective Date', value: projectData.effectiveDate, step: 8 },
           { name: 'Federal District', value: projectData.projectFederalDistrict, step: 8 },
@@ -3968,27 +4156,253 @@ export default function GenerateContracts() {
                 </CardContent>
               </Card>
 
+              {/* Pre-Generation Confirmation */}
+              {generationState === 'pre-generation' && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      <ClipboardCheck className="h-5 w-5 text-primary" />
+                      Final Confirmation
+                    </CardTitle>
+                    <CardDescription>Before generating your contracts, please confirm:</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2 text-sm">
+                      <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
+                        <CheckCircle2 className="h-4 w-4" />
+                        All party information is accurate
+                      </div>
+                      <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
+                        <CheckCircle2 className="h-4 w-4" />
+                        Financial terms have been reviewed
+                      </div>
+                      <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
+                        <CheckCircle2 className="h-4 w-4" />
+                        Warranty periods are correct
+                      </div>
+                      <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
+                        <CheckCircle2 className="h-4 w-4" />
+                        You have authority to generate these contracts
+                      </div>
+                    </div>
+                    
+                    <label className="flex items-center gap-3 p-4 border rounded-lg cursor-pointer hover:bg-muted/30 transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={confirmationChecked}
+                        onChange={(e) => setConfirmationChecked(e.target.checked)}
+                        className="h-5 w-5"
+                        data-testid="checkbox-confirm"
+                      />
+                      <span className="font-medium">I confirm the information above is accurate and complete</span>
+                    </label>
+                  </CardContent>
+                </Card>
+              )}
+
               {/* Action Buttons */}
-              <div className="flex flex-col sm:flex-row gap-3 pt-4">
-                <Button 
-                  variant="outline"
-                  className="flex-1"
-                  onClick={saveDraft}
-                  data-testid="button-save-template"
-                >
-                  <Save className="h-4 w-4 mr-2" />
-                  Save as Template
-                </Button>
-                <Button 
-                  size="lg" 
-                  className="flex-1 gap-2"
-                  disabled={!allRequiredComplete}
-                  data-testid="button-generate-contracts"
-                >
-                  <FileText className="h-5 w-5" />
-                  Generate Contract Package
-                </Button>
-              </div>
+              {generationState === 'pre-generation' && (
+                <div className="flex flex-col sm:flex-row gap-3 pt-4">
+                  <Button 
+                    variant="outline"
+                    className="flex-1"
+                    onClick={saveDraft}
+                    data-testid="button-save-template"
+                  >
+                    <Save className="h-4 w-4 mr-2" />
+                    Save as Template
+                  </Button>
+                  <Button 
+                    size="lg" 
+                    className="flex-1 gap-2"
+                    disabled={!allRequiredComplete || !confirmationChecked}
+                    onClick={generateContracts}
+                    data-testid="button-generate-contracts"
+                  >
+                    <Sparkles className="h-5 w-5" />
+                    Generate Contract Package
+                  </Button>
+                </div>
+              )}
+              
+              {/* Generating State */}
+              {generationState === 'generating' && (
+                <Card className="border-primary/50">
+                  <CardContent className="pt-6">
+                    <div className="text-center space-y-6">
+                      <div className="flex justify-center">
+                        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold mb-2">Generating Contract Package</h3>
+                        <p className="text-muted-foreground">Please wait while we generate your contracts...</p>
+                      </div>
+                      
+                      <Progress value={generationProgress} className="h-3" />
+                      <p className="text-sm text-muted-foreground">{Math.round(generationProgress)}% complete</p>
+                      
+                      <div className="space-y-2 text-left max-w-md mx-auto">
+                        {['Preparing contract data', 'Loading clause templates', 'Generating ONE Agreement', 'Generating Manufacturing Subcontract', 'Generating On-Site Subcontract', 'Creating contract package'].map((step, index) => (
+                          <div key={index} className="flex items-center gap-2 text-sm">
+                            {index < currentGenerationStep ? (
+                              <CheckCircle2 className="h-4 w-4 text-green-500" />
+                            ) : index === currentGenerationStep ? (
+                              <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                            ) : (
+                              <Circle className="h-4 w-4 text-muted-foreground" />
+                            )}
+                            <span className={index <= currentGenerationStep ? 'text-foreground' : 'text-muted-foreground'}>{step}</span>
+                          </div>
+                        ))}
+                      </div>
+                      
+                      <p className="text-xs text-muted-foreground">Estimated time: 30 seconds</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+              
+              {/* Success State */}
+              {generationState === 'success' && (
+                <div className="space-y-6">
+                  <div className="text-center p-6 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg">
+                    <CheckCircle2 className="h-16 w-16 text-green-500 mx-auto mb-4" />
+                    <h3 className="text-2xl font-bold text-green-800 dark:text-green-200 mb-2">Contract Package Generated Successfully!</h3>
+                    <p className="text-green-600 dark:text-green-400">Your contracts are ready for download</p>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    {generatedContracts.map((contract) => (
+                      <Card key={contract.id} className="overflow-hidden">
+                        <CardContent className="p-4">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex items-start gap-3">
+                              <FileText className="h-10 w-10 text-primary mt-1" />
+                              <div>
+                                <h4 className="font-semibold">
+                                  {contract.type === 'ONE' && 'ONE Agreement'}
+                                  {contract.type === 'MANUFACTURING' && 'Manufacturing Subcontract'}
+                                  {contract.type === 'ONSITE' && 'On-Site Installation Subcontract'}
+                                </h4>
+                                <p className="text-sm text-muted-foreground">{projectData.projectName} - {contract.type === 'ONE' ? 'Client Purchase Agreement' : contract.type === 'MANUFACTURING' ? 'Manufacturing Agreement' : 'Installation Agreement'}</p>
+                                <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
+                                  <p>File: {contract.filename}</p>
+                                  <p>Size: {(contract.size / 1024).toFixed(0)} KB</p>
+                                  <p>Generated: {new Date(contract.generatedAt).toLocaleString()}</p>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex gap-2">
+                              <Button size="sm" data-testid={`download-${contract.type.toLowerCase()}`}>
+                                <Download className="h-4 w-4 mr-1" />
+                                Download DOCX
+                              </Button>
+                              <Button size="sm" variant="outline">
+                                <ExternalLink className="h-4 w-4 mr-1" />
+                                Preview PDF
+                              </Button>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                  
+                  <div className="flex gap-3">
+                    <Button className="flex-1" data-testid="button-download-all">
+                      <FileArchive className="h-4 w-4 mr-2" />
+                      Download All as ZIP
+                    </Button>
+                    <Button variant="outline" className="flex-1">
+                      <Mail className="h-4 w-4 mr-2" />
+                      Email Package
+                    </Button>
+                  </div>
+                  
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">What would you like to do next?</CardTitle>
+                    </CardHeader>
+                    <CardContent className="grid sm:grid-cols-2 gap-3">
+                      <Button 
+                        variant="outline" 
+                        className="h-auto p-4 flex-col items-start text-left"
+                        onClick={() => {
+                          setGenerationState('pre-generation');
+                          setConfirmationChecked(false);
+                        }}
+                      >
+                        <RotateCcw className="h-5 w-5 mb-2" />
+                        <span className="font-medium">Generate Again with Changes</span>
+                        <span className="text-xs text-muted-foreground">Modify values and regenerate contracts</span>
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        className="h-auto p-4 flex-col items-start text-left"
+                        onClick={saveDraft}
+                      >
+                        <Save className="h-5 w-5 mb-2" />
+                        <span className="font-medium">Save as Template</span>
+                        <span className="text-xs text-muted-foreground">Save this configuration for future use</span>
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        className="h-auto p-4 flex-col items-start text-left"
+                        onClick={() => window.location.reload()}
+                      >
+                        <Plus className="h-5 w-5 mb-2" />
+                        <span className="font-medium">Create New Project</span>
+                        <span className="text-xs text-muted-foreground">Start fresh wizard with blank form</span>
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        className="h-auto p-4 flex-col items-start text-left"
+                      >
+                        <Building2 className="h-5 w-5 mb-2" />
+                        <span className="font-medium">View in Project Dashboard</span>
+                        <span className="text-xs text-muted-foreground">See all project contracts</span>
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+              
+              {/* Error State */}
+              {generationState === 'error' && (
+                <Card className="border-red-200 dark:border-red-800">
+                  <CardContent className="pt-6">
+                    <div className="text-center space-y-4">
+                      <AlertCircle className="h-16 w-16 text-red-500 mx-auto" />
+                      <h3 className="text-xl font-bold text-red-800 dark:text-red-200">Contract Generation Failed</h3>
+                      <p className="text-red-600 dark:text-red-400">{generationError || 'An unknown error occurred'}</p>
+                      
+                      <div className="text-left p-4 bg-muted/50 rounded-lg text-sm">
+                        <p className="font-medium mb-2">Possible causes:</p>
+                        <ul className="list-disc list-inside text-muted-foreground space-y-1">
+                          <li>Missing required template file</li>
+                          <li>Invalid variable mapping</li>
+                          <li>Server connection issue</li>
+                        </ul>
+                      </div>
+                      
+                      <p className="text-sm text-muted-foreground">Your data has been saved. You can try again or contact support.</p>
+                      
+                      <div className="flex gap-3 justify-center pt-2">
+                        <Button 
+                          variant="outline"
+                          onClick={() => setGenerationState('pre-generation')}
+                        >
+                          <RotateCcw className="h-4 w-4 mr-2" />
+                          Try Again
+                        </Button>
+                        <Button variant="outline">
+                          Report Issue
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </div>
             
             {/* Clause Preview Modal */}

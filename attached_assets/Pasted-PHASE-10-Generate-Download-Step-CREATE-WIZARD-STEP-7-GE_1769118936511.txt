@@ -1,0 +1,222 @@
+PHASE 10: Generate & Download Step
+CREATE WIZARD STEP 7: GENERATE & DOWNLOAD CONTRACTS
+
+Add the final wizard step that handles contract generation, displays progress, and provides download options for the generated contract package.
+
+LOCATION: src/components/wizard/steps/GenerateDownloadStep.tsx
+
+COMPONENT REQUIREMENTS:
+
+1. PRE-GENERATION CONFIRMATION:
+   Display a final checklist before generation:
+   
+   "Before generating your contracts, please confirm:"
+   
+   ☑ All party information is accurate
+   ☑ Financial terms have been reviewed
+   ☑ Warranty periods are correct
+   ☑ You have authority to generate these contracts
+   
+   [ ] I confirm the information above is accurate (checkbox, required)
+   
+   [Cancel]  [Generate Contract Package →]
+
+2. GENERATION STATES:
+   The component should have 3 states:
+   
+   STATE 1: PRE-GENERATION (Initial)
+   - Show confirmation checklist
+   - "Generate Contract Package" button (disabled until checkbox checked)
+   
+   STATE 2: GENERATING (Loading)
+   - Show progress indicator
+   - Display generation steps:
+     ✓ Preparing contract data
+     ✓ Loading clause templates
+     ⏳ Generating ONE Agreement... 45%
+     ○ Generating Manufacturing Subcontract...
+     ○ Generating On-Site Subcontract...
+     ○ Creating contract package...
+   
+   - Estimated time: 30 seconds
+   - Animated spinner or progress bar
+   - Prevent user from leaving page
+   
+   STATE 3: SUCCESS (Completed)
+   - Show success message
+   - Display download links
+   - Show post-generation actions
+
+3. SUCCESS STATE LAYOUT:
+   Header: "✅ Contract Package Generated Successfully!"
+   Subtext: "Your contracts are ready for download"
+   
+   Download Interface (3 cards, one per contract):
+   
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   📄 ONE AGREEMENT
+   Smith Residence - Client Purchase Agreement
+   File: ONE_Agreement_Smith_2025-042.docx
+   Size: 245 KB
+   Generated: Jan 21, 2026 at 10:35 AM
+   
+   [Download DOCX] [Preview PDF]
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   
+   📄 MANUFACTURING SUBCONTRACT
+   Smith Residence - Manufacturing Agreement
+   File: Manufacturing_Subcontract_Smith_2025-042.docx
+   Size: 183 KB
+   Generated: Jan 21, 2026 at 10:35 AM
+   
+   [Download DOCX] [Preview PDF]
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   
+   📄 ON-SITE INSTALLATION SUBCONTRACT
+   Smith Residence - Installation Agreement
+   File: OnSite_Subcontract_Smith_2025-042.docx
+   Size: 153 KB
+   Generated: Jan 21, 2026 at 10:35 AM
+   
+   [Download DOCX] [Preview PDF]
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   
+   Bulk Actions:
+   [Download All as ZIP]  [Email Package]
+
+4. ERROR HANDLING:
+   If generation fails, show error state:
+   
+   "⚠️ Contract Generation Failed"
+   
+   Error: [Specific error message from API]
+   
+   Possible causes:
+   • Missing required template file
+   • Invalid variable mapping
+   • Server connection issue
+   
+   [View Error Details]  [Try Again]  [Report Issue]
+   
+   Note: Your data has been saved. You can try again or contact support.
+
+5. POST-GENERATION ACTIONS PANEL:
+   "What would you like to do next?"
+   
+   [📝 Generate Again with Changes]
+   Modify values and regenerate contracts.
+   Previous data will be pre-filled.
+   
+   [💾 Save as Template]
+   Save this configuration for future use.
+   Example: "Standard CRC Single-Unit Template"
+   
+   [🆕 Create New Project]
+   Start fresh wizard with blank form.
+   
+   [📊 View in Project Dashboard]
+   See all project contracts and manage lifecycle.
+
+6. API INTEGRATION:
+   Call the contract generation endpoint:
+   
+   POST /api/contracts/generate-package
+   
+   Request body:
+   {
+     wizardData: {
+       projectNumber: "2025-042",
+       projectName: "Smith Residence",
+       serviceModel: "CRC",
+       // ... all collected data
+     },
+     contractsToGenerate: ["ONE", "MANUFACTURING", "ONSITE"]
+   }
+   
+   Handle the response:
+   {
+     success: true,
+     projectId: "proj_abc123",
+     llcId: "llc_xyz789",
+     contracts: [
+       {
+         id: "contract_001",
+         type: "ONE",
+         filename: "ONE_Agreement_Smith_2025-042.docx",
+         downloadUrl: "/api/contracts/download/contract_001",
+         size: 251904,
+         generatedAt: "2026-01-21T10:35:22Z"
+       },
+       // ... other contracts
+     ],
+     zipUrl: "/api/contracts/download-zip/proj_abc123"
+   }
+
+7. DOWNLOAD FUNCTIONALITY:
+   Individual Downloads:
+   - Click "Download DOCX" → trigger file download from downloadUrl
+   - Use <a> tag with download attribute or window.open()
+   
+   ZIP Download:
+   - Click "Download All as ZIP" → download from zipUrl
+   
+   Preview:
+   - Click "Preview PDF" → open in new tab or modal
+   - If PDF not available, show message: "PDF preview coming soon"
+
+8. EMAIL FUNCTIONALITY (Optional):
+   Modal for sending contracts via email:
+   
+   "Send Contract Package via Email"
+   
+   To: [client@email.com]
+   CC: [you@dvele.com]
+   
+   Subject: Contract Package - Smith Residence Project
+   
+   Message: [Editable template text]
+   "Attached are the contract documents for the Smith 
+    Residence project. Please review and let us know 
+    if you have any questions."
+   
+   ☑ Attach all three contracts
+   ☑ Include generation summary PDF
+   
+   [Cancel]  [Send Email]
+
+9. ANALYTICS TRACKING:
+   When contracts are generated successfully, log the event:
+   - Event: 'contract_package_generated'
+   - Project ID, service model, contract types
+   - Total contract value
+   - Generation timestamp
+
+10. UI/UX:
+    - Clean, celebratory success design
+    - Large download buttons with clear labels
+    - File size and timestamp information
+    - Loading animations during generation
+    - Prevent accidental page navigation during generation
+    - Confirmation dialog if user tries to leave during generation
+    - Success confetti animation (optional, subtle)
+
+11. DATA PERSISTENCE:
+    After successful generation:
+    - Save complete project data to database
+    - Create/update LLC record
+    - Link contracts to project
+    - Clear wizard draft (optional)
+    - Create generation log entry
+
+12. VALIDATION:
+    - Ensure confirmation checkbox is checked before allowing generation
+    - Validate all required data is present
+    - Show loading state immediately on button click
+    - Disable button during generation to prevent duplicate requests
+
+Import this step into ContractWizard.tsx and add it as Step 7.
+
+NOTE: For now, you can mock the API endpoint if the backend isn't ready yet. 
+Create a simulated delay and return mock contract data to test the UI flow.
+
+Use existing design patterns for consistency.
