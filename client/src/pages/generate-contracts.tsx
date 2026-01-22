@@ -468,6 +468,20 @@ export default function GenerateContracts() {
     }
   }, [wizardState.projectData.totalPreliminaryContractPrice]);
 
+  // Set default onsite duration based on service model (CRC=90, CMOS=60)
+  useEffect(() => {
+    const { serviceModel, onsiteDurationDays } = wizardState.projectData;
+    const defaultDays = serviceModel === 'CMOS' ? 60 : 90;
+    // Only update if still at the opposite default (user hasn't customized)
+    if ((serviceModel === 'CMOS' && onsiteDurationDays === 90) || 
+        (serviceModel === 'CRC' && onsiteDurationDays === 60)) {
+      setWizardState(prev => ({
+        ...prev,
+        projectData: { ...prev.projectData, onsiteDurationDays: defaultDays }
+      }));
+    }
+  }, [wizardState.projectData.serviceModel]);
+
   // Check project number uniqueness when it changes
   const checkProjectNumberUniqueness = useCallback(async (projectNumber: string) => {
     if (!projectNumber || projectNumber.length < 4) {
@@ -715,6 +729,45 @@ export default function GenerateContracts() {
         }
         break;
       case 8:
+        // Schedule validation
+        if (!data.effectiveDate) {
+          errors.effectiveDate = 'Effective date is required';
+        }
+        if (data.estimatedCompletionMonths < 6 || data.estimatedCompletionMonths > 24) {
+          errors.estimatedCompletionMonths = 'Completion timeframe must be 6-24';
+        }
+        if (data.designPhaseDays < 30 || data.designPhaseDays > 180) {
+          errors.designPhaseDays = 'Design phase must be 30-180 days';
+        }
+        if (data.manufacturingDurationDays < 60 || data.manufacturingDurationDays > 365) {
+          errors.manufacturingDurationDays = 'Manufacturing must be 60-365 days';
+        }
+        if (data.onsiteDurationDays < 30 || data.onsiteDurationDays > 180) {
+          errors.onsiteDurationDays = 'On-site must be 30-180 days';
+        }
+        // Warranty validation
+        if (data.warrantyFitFinishMonths < 12 || data.warrantyFitFinishMonths > 36) {
+          errors.warrantyFitFinishMonths = 'Fit & finish warranty must be 12-36 months';
+        }
+        if (data.warrantyBuildingEnvelopeMonths < 36 || data.warrantyBuildingEnvelopeMonths > 120) {
+          errors.warrantyBuildingEnvelopeMonths = 'Building envelope warranty must be 36-120 months';
+        }
+        if (data.warrantyStructuralMonths < 60 || data.warrantyStructuralMonths > 240) {
+          errors.warrantyStructuralMonths = 'Structural warranty must be 60-240 months';
+        }
+        // Legal jurisdiction validation
+        if (!data.siteState) {
+          errors.siteState = 'Project state is required';
+        }
+        if (!data.projectCounty && !data.siteCounty) {
+          errors.projectCounty = 'Project county is required';
+        }
+        if (!data.projectFederalDistrict) {
+          errors.projectFederalDistrict = 'Federal judicial district is required';
+        }
+        if (!data.arbitrationProvider) {
+          errors.arbitrationProvider = 'Arbitration provider is required';
+        }
         break;
     }
 
@@ -2835,6 +2888,420 @@ export default function GenerateContracts() {
         );
 
       case 8:
+        // Calculate timeline dates for visualization
+        const effectiveDateObj = projectData.effectiveDate ? new Date(projectData.effectiveDate) : new Date();
+        const designEndDate = new Date(effectiveDateObj);
+        designEndDate.setDate(designEndDate.getDate() + projectData.designPhaseDays);
+        const mfgEndDate = new Date(designEndDate);
+        mfgEndDate.setDate(mfgEndDate.getDate() + projectData.manufacturingDurationDays);
+        const onsiteEndDate = new Date(mfgEndDate);
+        onsiteEndDate.setDate(onsiteEndDate.getDate() + projectData.onsiteDurationDays);
+        
+        const totalTimelineDays = projectData.designPhaseDays + projectData.manufacturingDurationDays + projectData.onsiteDurationDays;
+        const timelineMonths = Math.round(totalTimelineDays / 30 * 10) / 10;
+        const timelineWarning = timelineMonths > 24;
+        
+        // Calculate warranty expiration dates
+        const fitFinishExpDate = new Date(onsiteEndDate);
+        fitFinishExpDate.setMonth(fitFinishExpDate.getMonth() + projectData.warrantyFitFinishMonths);
+        const envelopeExpDate = new Date(onsiteEndDate);
+        envelopeExpDate.setMonth(envelopeExpDate.getMonth() + projectData.warrantyBuildingEnvelopeMonths);
+        const structuralExpDate = new Date(onsiteEndDate);
+        structuralExpDate.setMonth(structuralExpDate.getMonth() + projectData.warrantyStructuralMonths);
+        
+        // Get federal districts for selected state
+        const federalDistricts = FEDERAL_DISTRICTS[projectData.siteState] || [];
+        
+        return (
+          <StepContent
+            title="Schedule & Warranty"
+            description="Configure project timeline, warranty terms, and legal jurisdiction"
+          >
+            <div className="space-y-6">
+              {/* Schedule Section */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Clock className="h-5 w-5" />
+                    Project Schedule
+                  </CardTitle>
+                  <CardDescription>Define the timeline for each project phase</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="effective-date">Effective Date</Label>
+                      <Input
+                        id="effective-date"
+                        type="date"
+                        value={projectData.effectiveDate}
+                        onChange={(e) => updateProjectData({ effectiveDate: e.target.value })}
+                        data-testid="input-effective-date"
+                      />
+                      <p className="text-xs text-muted-foreground">Contract start date</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Estimated Completion Timeframe</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          type="number"
+                          min={6}
+                          max={24}
+                          value={projectData.estimatedCompletionMonths}
+                          onChange={(e) => updateProjectData({ estimatedCompletionMonths: parseInt(e.target.value) || 12 })}
+                          className="w-24"
+                          data-testid="input-completion-months"
+                        />
+                        <select
+                          value={projectData.estimatedCompletionUnit}
+                          onChange={(e) => updateProjectData({ estimatedCompletionUnit: e.target.value as 'months' | 'weeks' })}
+                          className="flex h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm"
+                          data-testid="select-completion-unit"
+                        >
+                          <option value="months">Months</option>
+                          <option value="weeks">Weeks</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="design-days">Design Phase Duration</Label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          id="design-days"
+                          type="number"
+                          min={30}
+                          max={180}
+                          value={projectData.designPhaseDays}
+                          onChange={(e) => updateProjectData({ designPhaseDays: parseInt(e.target.value) || 90 })}
+                          data-testid="input-design-days"
+                        />
+                        <span className="text-sm text-muted-foreground">days</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">Default: 90 days</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="mfg-days">Manufacturing Duration</Label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          id="mfg-days"
+                          type="number"
+                          min={60}
+                          max={365}
+                          value={projectData.manufacturingDurationDays}
+                          onChange={(e) => updateProjectData({ manufacturingDurationDays: parseInt(e.target.value) || 120 })}
+                          data-testid="input-mfg-days"
+                        />
+                        <span className="text-sm text-muted-foreground">days</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">Default: 120 days</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="onsite-days">On-Site Duration</Label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          id="onsite-days"
+                          type="number"
+                          min={30}
+                          max={180}
+                          value={projectData.onsiteDurationDays}
+                          onChange={(e) => updateProjectData({ onsiteDurationDays: parseInt(e.target.value) || 90 })}
+                          data-testid="input-onsite-days"
+                        />
+                        <span className="text-sm text-muted-foreground">days</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Default: {projectData.serviceModel === 'CMOS' ? '60' : '90'} days ({projectData.serviceModel})
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              
+              {/* Timeline Visualization */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Calendar className="h-5 w-5" />
+                    Timeline Preview
+                  </CardTitle>
+                  <CardDescription>Visual timeline of project phases</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {timelineWarning && (
+                    <div className="flex items-center gap-2 p-3 mb-4 bg-amber-100 dark:bg-amber-900/30 rounded-lg text-amber-700 dark:text-amber-300">
+                      <AlertTriangle className="h-5 w-5 flex-shrink-0" />
+                      <span>Timeline exceeds 24 months ({timelineMonths.toFixed(1)} months). Please verify this is intentional.</span>
+                    </div>
+                  )}
+                  
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className="font-medium">Total Duration:</span>
+                      <Badge variant="secondary">{totalTimelineDays} days ({timelineMonths.toFixed(1)} months)</Badge>
+                    </div>
+                    
+                    <div className="relative">
+                      <div className="flex h-8 rounded-full overflow-hidden bg-muted">
+                        <div 
+                          className="bg-blue-500 flex items-center justify-center text-xs text-white font-medium"
+                          style={{ width: `${(projectData.designPhaseDays / totalTimelineDays) * 100}%` }}
+                          title="Design Phase"
+                        >
+                          Design
+                        </div>
+                        <div 
+                          className="bg-purple-500 flex items-center justify-center text-xs text-white font-medium"
+                          style={{ width: `${(projectData.manufacturingDurationDays / totalTimelineDays) * 100}%` }}
+                          title="Manufacturing"
+                        >
+                          Manufacturing
+                        </div>
+                        <div 
+                          className="bg-green-500 flex items-center justify-center text-xs text-white font-medium"
+                          style={{ width: `${(projectData.onsiteDurationDays / totalTimelineDays) * 100}%` }}
+                          title="On-Site"
+                        >
+                          On-Site
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-4 gap-4 text-sm">
+                      <div className="p-3 bg-muted/50 rounded-lg">
+                        <div className="font-medium text-muted-foreground">Start</div>
+                        <div>{effectiveDateObj.toLocaleDateString()}</div>
+                      </div>
+                      <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border-l-4 border-blue-500">
+                        <div className="font-medium text-muted-foreground">Design Complete</div>
+                        <div>{designEndDate.toLocaleDateString()}</div>
+                      </div>
+                      <div className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg border-l-4 border-purple-500">
+                        <div className="font-medium text-muted-foreground">Mfg Complete</div>
+                        <div>{mfgEndDate.toLocaleDateString()}</div>
+                      </div>
+                      <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border-l-4 border-green-500">
+                        <div className="font-medium text-muted-foreground">Project Complete</div>
+                        <div>{onsiteEndDate.toLocaleDateString()}</div>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              
+              {/* Warranty Section */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Shield className="h-5 w-5" />
+                    Warranty Terms
+                  </CardTitle>
+                  <CardDescription>Standard warranty periods per Dvele policy</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b">
+                          <th className="text-left py-3 px-4 font-medium">Warranty Type</th>
+                          <th className="text-center py-3 px-4 font-medium">Duration (Months)</th>
+                          <th className="text-center py-3 px-4 font-medium">Duration (Years)</th>
+                          <th className="text-left py-3 px-4 font-medium">Expires</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr className="border-b">
+                          <td className="py-3 px-4">Fit & Finish Warranty</td>
+                          <td className="py-3 px-4 text-center">
+                            <Input
+                              type="number"
+                              min={12}
+                              max={36}
+                              value={projectData.warrantyFitFinishMonths}
+                              onChange={(e) => updateProjectData({ warrantyFitFinishMonths: parseInt(e.target.value) || 24 })}
+                              className="w-20 text-center mx-auto"
+                              data-testid="input-warranty-fit-finish"
+                            />
+                          </td>
+                          <td className="py-3 px-4 text-center text-muted-foreground">
+                            {(projectData.warrantyFitFinishMonths / 12).toFixed(1)} years
+                          </td>
+                          <td className="py-3 px-4 text-muted-foreground">
+                            {fitFinishExpDate.toLocaleDateString()}
+                          </td>
+                        </tr>
+                        <tr className="border-b">
+                          <td className="py-3 px-4">Building Envelope Warranty</td>
+                          <td className="py-3 px-4 text-center">
+                            <Input
+                              type="number"
+                              min={36}
+                              max={120}
+                              value={projectData.warrantyBuildingEnvelopeMonths}
+                              onChange={(e) => updateProjectData({ warrantyBuildingEnvelopeMonths: parseInt(e.target.value) || 60 })}
+                              className="w-20 text-center mx-auto"
+                              data-testid="input-warranty-envelope"
+                            />
+                          </td>
+                          <td className="py-3 px-4 text-center text-muted-foreground">
+                            {(projectData.warrantyBuildingEnvelopeMonths / 12).toFixed(1)} years
+                          </td>
+                          <td className="py-3 px-4 text-muted-foreground">
+                            {envelopeExpDate.toLocaleDateString()}
+                          </td>
+                        </tr>
+                        <tr>
+                          <td className="py-3 px-4">Structural Warranty</td>
+                          <td className="py-3 px-4 text-center">
+                            <Input
+                              type="number"
+                              min={60}
+                              max={240}
+                              value={projectData.warrantyStructuralMonths}
+                              onChange={(e) => updateProjectData({ warrantyStructuralMonths: parseInt(e.target.value) || 120 })}
+                              className="w-20 text-center mx-auto"
+                              data-testid="input-warranty-structural"
+                            />
+                          </td>
+                          <td className="py-3 px-4 text-center text-muted-foreground">
+                            {(projectData.warrantyStructuralMonths / 12).toFixed(1)} years
+                          </td>
+                          <td className="py-3 px-4 text-muted-foreground">
+                            {structuralExpDate.toLocaleDateString()}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+              
+              {/* Legal Jurisdiction Section */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Scale className="h-5 w-5" />
+                    Legal Jurisdiction & Venue
+                  </CardTitle>
+                  <CardDescription>Auto-populated from site address, verify accuracy</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="project-state">Project State</Label>
+                      <select
+                        id="project-state"
+                        value={projectData.siteState}
+                        onChange={(e) => {
+                          updateProjectData({ siteState: e.target.value, projectFederalDistrict: '' });
+                        }}
+                        className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm"
+                        data-testid="select-project-state"
+                      >
+                        <option value="">Select state</option>
+                        {US_STATES.map(state => (
+                          <option key={state.value} value={state.value}>{state.label}</option>
+                        ))}
+                      </select>
+                      <p className="text-xs text-muted-foreground">From site address</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="project-county">Project County</Label>
+                      <Input
+                        id="project-county"
+                        value={projectData.projectCounty || projectData.siteCounty}
+                        onChange={(e) => updateProjectData({ projectCounty: e.target.value })}
+                        placeholder="Enter county"
+                        data-testid="input-project-county"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="federal-district" className="flex items-center gap-2">
+                      Federal Judicial District
+                      <Tooltip>
+                        <TooltipTrigger>
+                          <HelpCircle className="h-4 w-4 text-muted-foreground" />
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs">
+                          <p>The federal court district that has jurisdiction over this project's location. Used for federal legal matters.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </Label>
+                    <select
+                      id="federal-district"
+                      value={projectData.projectFederalDistrict}
+                      onChange={(e) => updateProjectData({ projectFederalDistrict: e.target.value })}
+                      className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm"
+                      data-testid="select-federal-district"
+                    >
+                      <option value="">Select federal district</option>
+                      {federalDistricts.map(district => (
+                        <option key={district} value={district}>{district}</option>
+                      ))}
+                    </select>
+                    {!projectData.siteState && (
+                      <p className="text-xs text-amber-600 dark:text-amber-400">Select a state to see available districts</p>
+                    )}
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label>Arbitration Provider</Label>
+                    <div className="grid grid-cols-2 gap-4">
+                      <label 
+                        className={`flex items-start gap-3 p-4 rounded-lg border-2 cursor-pointer transition-colors ${
+                          projectData.arbitrationProvider === 'JAMS' 
+                            ? 'border-primary bg-primary/5' 
+                            : 'border-muted hover:border-muted-foreground/50'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="arbitration"
+                          value="JAMS"
+                          checked={projectData.arbitrationProvider === 'JAMS'}
+                          onChange={(e) => updateProjectData({ arbitrationProvider: e.target.value as 'JAMS' | 'AAA' })}
+                          className="mt-1"
+                          data-testid="radio-jams"
+                        />
+                        <div>
+                          <div className="font-medium">JAMS</div>
+                          <div className="text-sm text-muted-foreground">Judicial Arbitration and Mediation Services</div>
+                        </div>
+                      </label>
+                      <label 
+                        className={`flex items-start gap-3 p-4 rounded-lg border-2 cursor-pointer transition-colors ${
+                          projectData.arbitrationProvider === 'AAA' 
+                            ? 'border-primary bg-primary/5' 
+                            : 'border-muted hover:border-muted-foreground/50'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="arbitration"
+                          value="AAA"
+                          checked={projectData.arbitrationProvider === 'AAA'}
+                          onChange={(e) => updateProjectData({ arbitrationProvider: e.target.value as 'JAMS' | 'AAA' })}
+                          className="mt-1"
+                          data-testid="radio-aaa"
+                        />
+                        <div>
+                          <div className="font-medium">AAA</div>
+                          <div className="text-sm text-muted-foreground">American Arbitration Association</div>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </StepContent>
+        );
+
+      case 9:
         return (
           <StepContent
             title="Review & Generate"
@@ -2917,7 +3384,7 @@ export default function GenerateContracts() {
           <div>
             <h1 className="text-2xl font-bold">Generate Contracts</h1>
             <p className="text-muted-foreground">
-              Step {wizardState.currentStep} of 7: {STEPS[wizardState.currentStep - 1].title}
+              Step {wizardState.currentStep} of {STEPS.length}: {STEPS[wizardState.currentStep - 1].title}
             </p>
           </div>
           <div className="flex items-center gap-2">
