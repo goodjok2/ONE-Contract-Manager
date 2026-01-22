@@ -11,8 +11,7 @@ import {
   Settings,
   FileText,
   Hammer,
-  Eye,
-  Wand2
+  Eye
 } from "lucide-react";
 import {
   Sidebar,
@@ -38,11 +37,6 @@ const mainNavItems = [
     title: "Contract Builder",
     url: "/contract-builder",
     icon: Hammer,
-  },
-  {
-    title: "Generate Contracts",
-    url: "/generate-contracts",
-    icon: Wand2,
   },
   {
     title: "Quick Agreement",

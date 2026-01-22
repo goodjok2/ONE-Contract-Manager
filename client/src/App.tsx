@@ -20,7 +20,6 @@ import Templates from "@/pages/templates";
 import ErpFields from "@/pages/erp-fields";
 import StateRequirements from "@/pages/state-requirements";
 import ContractPreview from "@/pages/contract-preview";
-import GenerateContracts from "@/pages/generate-contracts";
 
 function Router() {
   return (
@@ -30,7 +29,6 @@ function Router() {
       <Route path="/contract-builder" component={ContractBuilder} />
       <Route path="/clause-library" component={ClauseLibrary} />
       <Route path="/contract-preview" component={ContractPreview} />
-      <Route path="/generate-contracts" component={GenerateContracts} />
       <Route path="/contracts" component={Contracts} />
       <Route path="/templates" component={Templates} />
       <Route path="/erp-fields" component={ErpFields} />
