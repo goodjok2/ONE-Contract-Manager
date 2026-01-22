@@ -9,7 +9,8 @@ import {
   Database,
   MapPin,
   Settings,
-  FileText
+  FileText,
+  Hammer
 } from "lucide-react";
 import {
   Sidebar,
@@ -33,6 +34,11 @@ const mainNavItems = [
   },
   {
     title: "Contract Builder",
+    url: "/contract-builder",
+    icon: Hammer,
+  },
+  {
+    title: "Quick Agreement",
     url: "/agreements/new",
     icon: FileEdit,
   },
