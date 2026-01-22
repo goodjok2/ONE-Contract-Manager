@@ -1,0 +1,117 @@
+Excellent! All three contracts are digitized. Now let's test the complete contract package generation.
+
+STEP 1: CREATE TEST PROJECT DATA
+
+Create a complete test dataset with values for all 89 variables. Use realistic data for a CRC project:
+
+{
+  // Project Info
+  "PROJECT_NUMBER": "2025-001",
+  "PROJECT_NAME": "Smith Residence",
+  "TOTAL_UNITS": "1",
+  
+  // Dates
+  "AGREEMENT_EXECUTION_DATE": "2025-02-01",
+  "EFFECTIVE_DATE": "2025-02-01",
+  
+  // Company (SPV) Info
+  "DVELE_PARTNERS_XYZ": "Dvele Partners Smith",
+  "DVELE_PARTNERS_XYZ_LEGAL_NAME": "Dvele Partners Smith LLC",
+  "DVELE_PARTNERS_XYZ_STATE": "Delaware",
+  "DVELE_PARTNERS_XYZ_ENTITY_TYPE": "limited liability company",
+  "DP_X": "Dvele Partners Smith LLC",
+  
+  // Client Info
+  "CLIENT_LEGAL_NAME": "John and Jane Smith",
+  "CLIENT_STATE": "California",
+  "CLIENT_ENTITY_TYPE": "individual",
+  "CLIENT_FULL_NAME": "John Smith and Jane Smith",
+  "CLIENT_TITLE": "Homeowners",
+  
+  // Site/Delivery
+  "DELIVERY_ADDRESS": "456 Oak Lane, San Jose, CA 95120",
+  "SITE_ADDRESS": "456 Oak Lane, San Jose, CA 95120",
+  
+  // Service Model (THIS IS CRITICAL - drives conditionals)
+  "ON_SITE_SERVICES_SELECTION": "CLIENT-RETAINED CONTRACTOR",
+  
+  // Financial - Design
+  "DESIGN_FEE": "$45,000",
+  "DESIGN_REVISION_ROUNDS": "3",
+  
+  // Financial - Preliminary
+  "PRELIMINARY_CONTRACT_PRICE": "$850,000",
+  "PRELIMINARY_TOTAL_PRICE": "$850,000",
+  "PRELIMINARY_OFFSITE_PRICE": "$425,000",
+  "PRELIMINARY_ONSITE_PRICE": "$380,000",
+  "DELIVERY_AND_INSTALLATION_PRICE": "$50,000",
+  
+  // Financial - Final
+  "FINAL_CONTRACT_PRICE": "$850,000",
+  "CONTRACT_PRICE": "$850,000",
+  
+  // Financial - Unit Pricing
+  "HOME_MODEL_1": "Dvele Ora 2400",
+  "HOME_MODEL_1_PRELIMINARY_PRICE": "$425,000",
+  "SHIPPING_PRELIMINARY_PRICE": "$15,000",
+  "INSTALLATION_PRELIMINARY_PRICE": "$35,000",
+  "SITE_PREP_PRELIMINARY_PRICE": "$120,000",
+  "UTILITIES_PRELIMINARY_PRICE": "$80,000",
+  "COMPLETION_PRELIMINARY_PRICE": "$180,000",
+  
+  // Unit Breakdown
+  "UNIT_1_MODEL": "Ora 2400",
+  "UNIT_1_SQFT": "2400",
+  "UNIT_1_BEDROOMS": "4",
+  "UNIT_1_BATHROOMS": "3",
+  "UNIT_1_PRICE": "$425,000",
+  
+  // Payment Milestones
+  "MILESTONE_1_PERCENT": "25",
+  "MILESTONE_2_PERCENT": "25",
+  "MILESTONE_3_PERCENT": "25",
+  "MILESTONE_4_PERCENT": "15",
+  "MILESTONE_5_PERCENT": "5",
+  "RETAINAGE_DAYS": "60",
+  "RETAINAGE_PERCENT": "5",
+  
+  // Warranty
+  "DVELE_FIT_FINISH_WARRANTY": "24",
+  "DVELE_ENVELOPE_WARRANTY": "60",
+  "DVELE_STRUCTURAL_WARRANTY": "120",
+  
+  // Legal/Jurisdiction
+  "PROJECT_STATE": "California",
+  "PROJECT_STATE_CODE": "Cal. Civ. Code",
+  "PROJECT_COUNTY": "Santa Clara",
+  "PROJECT_FEDERAL_DISTRICT": "Northern District of California",
+  
+  // On-Site Provider (for ONSITE contract)
+  "ONSITE_PROVIDER_NAME": "Premier Site Builders Inc.",
+  
+  // Add any other manufacturing/onsite specific variables with reasonable defaults
+}
+
+STEP 2: CALL THE CONTRACT GENERATION ENDPOINT
+
+POST /api/contracts/generate-package
+Body: { "projectData": <the test data above> }
+
+STEP 3: VERIFY THE RESULTS
+
+Check that the response includes:
+1. All three contracts generated
+2. Proper clause counts for each
+3. CRC conditional clauses included (not CMOS)
+4. All variables replaced
+5. No [VARIABLE_NAME] placeholders
+
+Show me:
+- Response status and structure
+- Clause counts for each contract
+- First 1000 characters of ONE Agreement
+- First 500 characters of Manufacturing contract
+- First 500 characters of On-Site contract
+- List of conditional clauses that were included
+
+If any errors occur, show me the full error message.
