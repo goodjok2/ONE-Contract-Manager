@@ -6,6 +6,7 @@ import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -26,7 +27,12 @@ import {
   Minus,
   AlertTriangle,
   HelpCircle,
-  Loader2
+  Loader2,
+  Settings2,
+  ArrowRightLeft,
+  UserCheck,
+  Wrench,
+  X
 } from "lucide-react";
 
 interface WizardState {
@@ -88,12 +94,13 @@ interface WizardState {
 
 const STEPS = [
   { number: 1, title: "Project Info", description: "Basic project details", icon: FileText },
-  { number: 2, title: "Client Details", description: "Client information", icon: Users },
-  { number: 3, title: "Child LLC", description: "LLC entity setup", icon: Building2 },
-  { number: 4, title: "Site & Home", description: "Property details", icon: Home },
-  { number: 5, title: "Dates & Schedule", description: "Timeline", icon: Calendar },
-  { number: 6, title: "Pricing", description: "Financial terms", icon: DollarSign },
-  { number: 7, title: "Review & Generate", description: "Final review", icon: ClipboardCheck },
+  { number: 2, title: "Service Model", description: "CRC or CMOS selection", icon: Settings2 },
+  { number: 3, title: "Client Details", description: "Client information", icon: Users },
+  { number: 4, title: "Child LLC", description: "LLC entity setup", icon: Building2 },
+  { number: 5, title: "Site & Home", description: "Property details", icon: Home },
+  { number: 6, title: "Dates & Schedule", description: "Timeline", icon: Calendar },
+  { number: 7, title: "Pricing", description: "Financial terms", icon: DollarSign },
+  { number: 8, title: "Review & Generate", description: "Final review", icon: ClipboardCheck },
 ];
 
 const initialProjectData: WizardState['projectData'] = {
@@ -154,6 +161,7 @@ export default function GenerateContracts() {
   const [draftProjectId, setDraftProjectId] = useState<number | null>(null);
   const [isCheckingNumber, setIsCheckingNumber] = useState(false);
   const [numberIsUnique, setNumberIsUnique] = useState<boolean | null>(null);
+  const [showComparisonModal, setShowComparisonModal] = useState(false);
   
   const [wizardState, setWizardState] = useState<WizardState>({
     currentStep: 1,
@@ -230,6 +238,35 @@ export default function GenerateContracts() {
     },
   });
 
+  // Fetch clause comparison data for CRC vs CMOS
+  interface ClauseComparison {
+    totalClauses: number;
+    crcOnly: number;
+    cmosOnly: number;
+    shared: number;
+    differences: Array<{
+      clauseNumber: string;
+      clauseName: string;
+      appliesTo: 'CRC' | 'CMOS' | 'BOTH';
+      contentDiffers?: boolean;
+    }>;
+  }
+
+  const { data: comparisonData, isLoading: comparisonLoading } = useQuery<ClauseComparison>({
+    queryKey: ['/api/contracts/compare-service-models'],
+    queryFn: async () => {
+      const response = await fetch('/api/contracts/compare-service-models', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectData: { serviceModel: 'CRC' } }),
+      });
+      if (!response.ok) throw new Error('Failed to compare service models');
+      return response.json();
+    },
+    enabled: showComparisonModal || wizardState.currentStep === 2,
+    staleTime: 60000,
+  });
+
   const regenerateProjectNumber = useCallback(async () => {
     const result = await refetchNextNumber();
     if (result.data?.projectNumber) {
@@ -276,26 +313,28 @@ export default function GenerateContracts() {
         if (!data.agreementDate) {
           errors.agreementDate = 'Agreement date is required';
         }
-        if (!data.serviceModel) errors.serviceModel = 'Service model is required';
         break;
       case 2:
+        if (!data.serviceModel) errors.serviceModel = 'Service model is required';
+        break;
+      case 3:
         if (!data.clientLegalName.trim()) errors.clientLegalName = 'Client legal name is required';
         if (!data.clientState.trim()) errors.clientState = 'Client state is required';
         break;
-      case 3:
+      case 4:
         if (!data.childLlcName.trim()) errors.childLlcName = 'LLC name is required';
         break;
-      case 4:
+      case 5:
         if (!data.siteAddress.trim()) errors.siteAddress = 'Site address is required';
         if (!data.siteState.trim()) errors.siteState = 'Site state is required';
         break;
-      case 5:
+      case 6:
         if (!data.effectiveDate) errors.effectiveDate = 'Effective date is required';
         break;
-      case 6:
+      case 7:
         if (data.contractPrice <= 0) errors.contractPrice = 'Contract price must be greater than 0';
         break;
-      case 7:
+      case 8:
         break;
     }
 
@@ -351,7 +390,7 @@ export default function GenerateContracts() {
       newCompletedSteps.add(prev.currentStep);
       return {
         ...prev,
-        currentStep: Math.min(prev.currentStep + 1, 7),
+        currentStep: Math.min(prev.currentStep + 1, 8),
         completedSteps: newCompletedSteps,
         validationErrors: {},
       };
@@ -515,56 +554,6 @@ export default function GenerateContracts() {
                 </div>
               </div>
 
-              {/* Service Model */}
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Label className="text-sm font-medium">
-                    Service Model <span className="text-destructive">*</span>
-                  </Label>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
-                    </TooltipTrigger>
-                    <TooltipContent className="max-w-xs">
-                      <p><strong>CRC:</strong> Client Retained Contractor - Client hires their own on-site contractor.</p>
-                      <p className="mt-1"><strong>CMOS:</strong> Contractor Managed OnSite - Dvele manages the on-site work.</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </div>
-                <div className="flex gap-4">
-                  <label className={`flex-1 p-4 border rounded-lg cursor-pointer transition-colors hover-elevate ${
-                    projectData.serviceModel === 'CRC' ? 'border-primary bg-primary/5' : ''
-                  }`}>
-                    <input
-                      type="radio"
-                      name="serviceModel"
-                      value="CRC"
-                      checked={projectData.serviceModel === 'CRC'}
-                      onChange={() => updateProjectData({ serviceModel: 'CRC' })}
-                      className="sr-only"
-                      data-testid="radio-service-crc"
-                    />
-                    <div className="font-semibold">CRC</div>
-                    <div className="text-sm text-muted-foreground">Client Retained Contractor</div>
-                  </label>
-                  <label className={`flex-1 p-4 border rounded-lg cursor-pointer transition-colors hover-elevate ${
-                    projectData.serviceModel === 'CMOS' ? 'border-primary bg-primary/5' : ''
-                  }`}>
-                    <input
-                      type="radio"
-                      name="serviceModel"
-                      value="CMOS"
-                      checked={projectData.serviceModel === 'CMOS'}
-                      onChange={() => updateProjectData({ serviceModel: 'CMOS' })}
-                      className="sr-only"
-                      data-testid="radio-service-cmos"
-                    />
-                    <div className="font-semibold">CMOS</div>
-                    <div className="text-sm text-muted-foreground">Contractor Managed OnSite</div>
-                  </label>
-                </div>
-              </div>
-
               <div className="grid grid-cols-2 gap-6">
                 {/* Total Units */}
                 <div className="space-y-2">
@@ -672,7 +661,192 @@ export default function GenerateContracts() {
         );
       }
 
-      case 2:
+      case 2: {
+        // Calculate impact numbers based on comparison data
+        const clauseImpact = comparisonData ? {
+          crcOnly: comparisonData.crcOnly || 0,
+          cmosOnly: comparisonData.cmosOnly || 0,
+          total: comparisonData.totalClauses || 0,
+        } : { crcOnly: 0, cmosOnly: 0, total: 0 };
+
+        return (
+          <StepContent
+            title="Service Model Selection"
+            description="Choose how on-site construction services will be managed"
+          >
+            <div className="space-y-6">
+              {/* Service Model Selection Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* CRC Option */}
+                <div
+                  onClick={() => updateProjectData({ serviceModel: 'CRC' })}
+                  className={`relative p-6 border-2 rounded-lg cursor-pointer transition-all hover-elevate ${
+                    projectData.serviceModel === 'CRC' 
+                      ? 'border-primary bg-primary/5 ring-2 ring-primary/20' 
+                      : 'border-muted hover:border-muted-foreground/30'
+                  }`}
+                  data-testid="card-service-crc"
+                >
+                  {projectData.serviceModel === 'CRC' && (
+                    <div className="absolute top-3 right-3">
+                      <Check className="h-5 w-5 text-primary" />
+                    </div>
+                  )}
+                  
+                  <div className="flex items-start gap-4">
+                    <div className="p-3 rounded-lg bg-blue-100 dark:bg-blue-900/30">
+                      <UserCheck className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="font-semibold text-lg">Client Retains General Contractor</h3>
+                      </div>
+                      <Badge variant="outline" className="mb-3">Client Managed</Badge>
+                      <p className="text-sm text-muted-foreground">
+                        Client hires their own licensed GC for on-site work
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Impact Preview for CRC */}
+                  <div className={`mt-4 p-3 rounded-md border ${
+                    projectData.serviceModel === 'CRC' 
+                      ? 'bg-primary/5 border-primary/20' 
+                      : 'bg-muted/30 border-transparent'
+                  }`}>
+                    <p className="text-xs font-medium text-muted-foreground uppercase mb-2">What this means</p>
+                    <ul className="space-y-1 text-sm">
+                      <li className="flex items-center gap-2">
+                        <div className="h-1.5 w-1.5 rounded-full bg-blue-500" />
+                        <span>Affects {clauseImpact.crcOnly} unique clauses</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <div className="h-1.5 w-1.5 rounded-full bg-blue-500" />
+                        <span>Client responsible for GC selection</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <div className="h-1.5 w-1.5 rounded-full bg-blue-500" />
+                        <span>On-site costs excluded from price</span>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+
+                {/* CMOS Option */}
+                <div
+                  onClick={() => updateProjectData({ serviceModel: 'CMOS' })}
+                  className={`relative p-6 border-2 rounded-lg cursor-pointer transition-all hover-elevate ${
+                    projectData.serviceModel === 'CMOS' 
+                      ? 'border-primary bg-primary/5 ring-2 ring-primary/20' 
+                      : 'border-muted hover:border-muted-foreground/30'
+                  }`}
+                  data-testid="card-service-cmos"
+                >
+                  {projectData.serviceModel === 'CMOS' && (
+                    <div className="absolute top-3 right-3">
+                      <Check className="h-5 w-5 text-primary" />
+                    </div>
+                  )}
+                  
+                  <div className="flex items-start gap-4">
+                    <div className="p-3 rounded-lg bg-green-100 dark:bg-green-900/30">
+                      <Wrench className="h-6 w-6 text-green-600 dark:text-green-400" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="font-semibold text-lg">Company Manages On-Site Services</h3>
+                      </div>
+                      <Badge variant="outline" className="mb-3">Turnkey</Badge>
+                      <p className="text-sm text-muted-foreground">
+                        Dvele coordinates all on-site contractors
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Impact Preview for CMOS */}
+                  <div className={`mt-4 p-3 rounded-md border ${
+                    projectData.serviceModel === 'CMOS' 
+                      ? 'bg-primary/5 border-primary/20' 
+                      : 'bg-muted/30 border-transparent'
+                  }`}>
+                    <p className="text-xs font-medium text-muted-foreground uppercase mb-2">What this means</p>
+                    <ul className="space-y-1 text-sm">
+                      <li className="flex items-center gap-2">
+                        <div className="h-1.5 w-1.5 rounded-full bg-green-500" />
+                        <span>Affects {clauseImpact.cmosOnly} unique clauses</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <div className="h-1.5 w-1.5 rounded-full bg-green-500" />
+                        <span>Dvele handles all coordination</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <div className="h-1.5 w-1.5 rounded-full bg-green-500" />
+                        <span>On-site costs included in price</span>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
+              {/* Conditional Message */}
+              {projectData.serviceModel && (
+                <div className={`p-4 rounded-lg border ${
+                  projectData.serviceModel === 'CRC'
+                    ? 'bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800'
+                    : 'bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800'
+                }`}>
+                  {projectData.serviceModel === 'CRC' ? (
+                    <div className="flex items-start gap-3">
+                      <AlertTriangle className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <p className="font-medium text-blue-800 dark:text-blue-200">
+                          Client-Retained Contractor Selected
+                        </p>
+                        <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
+                          You will need to provide contractor information in the next section. 
+                          The contract variable ON_SITE_SERVICES_SELECTION will be set to "CLIENT-RETAINED CONTRACTOR".
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-start gap-3">
+                      <Check className="h-5 w-5 text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <p className="font-medium text-green-800 dark:text-green-200">
+                          Company-Managed On-Site Services Selected
+                        </p>
+                        <p className="text-sm text-green-700 dark:text-green-300 mt-1">
+                          Dvele will coordinate all on-site work. 
+                          The contract variable ON_SITE_SERVICES_SELECTION will be set to "COMPANY-MANAGED ON-SITE SERVICES".
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Compare Button */}
+              <div className="flex justify-center pt-4">
+                <Button 
+                  variant="outline" 
+                  onClick={() => setShowComparisonModal(true)}
+                  className="gap-2"
+                  data-testid="button-compare-models"
+                >
+                  <ArrowRightLeft className="h-4 w-4" />
+                  Compare CRC vs CMOS
+                </Button>
+              </div>
+
+              {validationErrors.serviceModel && (
+                <p className="text-sm text-destructive text-center">{validationErrors.serviceModel}</p>
+              )}
+            </div>
+          </StepContent>
+        );
+      }
+
+      case 3:
         return (
           <StepContent
             title="Client Details"
@@ -801,7 +975,7 @@ export default function GenerateContracts() {
           </StepContent>
         );
 
-      case 3:
+      case 4:
         return (
           <StepContent
             title="Child LLC Setup"
@@ -871,7 +1045,7 @@ export default function GenerateContracts() {
           </StepContent>
         );
 
-      case 4:
+      case 5:
         return (
           <StepContent
             title="Site & Home Details"
@@ -1012,7 +1186,7 @@ export default function GenerateContracts() {
           </StepContent>
         );
 
-      case 5:
+      case 6:
         return (
           <StepContent
             title="Dates & Schedule"
@@ -1099,7 +1273,7 @@ export default function GenerateContracts() {
           </StepContent>
         );
 
-      case 6:
+      case 7:
         return (
           <StepContent
             title="Pricing & Financials"
@@ -1219,7 +1393,7 @@ export default function GenerateContracts() {
           </StepContent>
         );
 
-      case 7:
+      case 8:
         return (
           <StepContent
             title="Review & Generate"
@@ -1381,10 +1555,10 @@ export default function GenerateContracts() {
 
         <div className="flex items-center gap-4">
           <Badge variant="outline">
-            {wizardState.completedSteps.size} of 7 steps completed
+            {wizardState.completedSteps.size} of 8 steps completed
           </Badge>
           
-          {wizardState.currentStep < 7 ? (
+          {wizardState.currentStep < 8 ? (
             <Button onClick={nextStep} data-testid="button-next">
               Next
               <ChevronRight className="h-4 w-4 ml-2" />
@@ -1396,6 +1570,169 @@ export default function GenerateContracts() {
           )}
         </div>
       </div>
+
+      {/* CRC vs CMOS Comparison Modal */}
+      <Dialog open={showComparisonModal} onOpenChange={setShowComparisonModal}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ArrowRightLeft className="h-5 w-5" />
+              CRC vs CMOS Comparison
+            </DialogTitle>
+            <DialogDescription>
+              Understanding the differences between service models
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6 mt-4">
+            {/* Summary Cards */}
+            <div className="grid grid-cols-2 gap-4">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <UserCheck className="h-5 w-5 text-blue-600" />
+                    CRC - Client Retained Contractor
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ul className="space-y-2 text-sm">
+                    <li className="flex items-start gap-2">
+                      <Check className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                      <span>Client selects and manages their own GC</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <Check className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                      <span>More control over on-site construction</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <Check className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                      <span>On-site costs billed separately</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <Check className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                      <span>Client responsible for coordination</span>
+                    </li>
+                  </ul>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Wrench className="h-5 w-5 text-green-600" />
+                    CMOS - Company Managed On-Site
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ul className="space-y-2 text-sm">
+                    <li className="flex items-start gap-2">
+                      <Check className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                      <span>Dvele manages all on-site contractors</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <Check className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                      <span>Turnkey solution with single point of contact</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <Check className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                      <span>All costs included in contract price</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <Check className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                      <span>Simplified project management</span>
+                    </li>
+                  </ul>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Clause Impact Summary */}
+            {comparisonLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin mr-2" />
+                <span>Loading comparison data...</span>
+              </div>
+            ) : comparisonData ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Clause Impact Summary</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-3 gap-4 text-center">
+                    <div className="p-4 bg-blue-50 dark:bg-blue-950/30 rounded-lg">
+                      <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                        {comparisonData.crcOnly || 0}
+                      </p>
+                      <p className="text-sm text-muted-foreground">CRC-Only Clauses</p>
+                    </div>
+                    <div className="p-4 bg-green-50 dark:bg-green-950/30 rounded-lg">
+                      <p className="text-2xl font-bold text-green-600 dark:text-green-400">
+                        {comparisonData.cmosOnly || 0}
+                      </p>
+                      <p className="text-sm text-muted-foreground">CMOS-Only Clauses</p>
+                    </div>
+                    <div className="p-4 bg-muted/30 rounded-lg">
+                      <p className="text-2xl font-bold">
+                        {comparisonData.shared || 0}
+                      </p>
+                      <p className="text-sm text-muted-foreground">Shared Clauses</p>
+                    </div>
+                  </div>
+
+                  {comparisonData.differences && comparisonData.differences.length > 0 && (
+                    <div className="mt-4">
+                      <h4 className="font-medium mb-2">Key Differences</h4>
+                      <div className="max-h-48 overflow-y-auto border rounded-lg">
+                        <table className="w-full text-sm">
+                          <thead className="bg-muted/50 sticky top-0">
+                            <tr>
+                              <th className="text-left p-2">Clause</th>
+                              <th className="text-left p-2">Applies To</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {comparisonData.differences.slice(0, 10).map((diff, idx) => (
+                              <tr key={idx} className="border-t">
+                                <td className="p-2">{diff.clauseName || diff.clauseNumber}</td>
+                                <td className="p-2">
+                                  <Badge variant="outline" className={
+                                    diff.appliesTo === 'CRC' 
+                                      ? 'border-blue-500 text-blue-600' 
+                                      : diff.appliesTo === 'CMOS'
+                                        ? 'border-green-500 text-green-600'
+                                        : ''
+                                  }>
+                                    {diff.appliesTo}
+                                  </Badge>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      {comparisonData.differences.length > 10 && (
+                        <p className="text-xs text-muted-foreground mt-2 text-center">
+                          Showing 10 of {comparisonData.differences.length} differences
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            ) : null}
+
+            <div className="flex justify-end">
+              <Button 
+                variant="outline" 
+                onClick={() => setShowComparisonModal(false)}
+                data-testid="button-close-comparison"
+              >
+                Close
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
