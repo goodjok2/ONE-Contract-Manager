@@ -318,10 +318,10 @@ export default function GenerateContracts() {
     }
   }, [wizardState.projectData.totalUnits]);
 
-  // Update preliminary offsite cost when unit prices change
+  // Update preliminary offsite cost when unit prices change (always sync)
   useEffect(() => {
     const totalPrice = wizardState.projectData.units.reduce((sum, unit) => sum + (unit.price || 0), 0);
-    if (totalPrice !== wizardState.projectData.preliminaryOffsiteCost && totalPrice > 0) {
+    if (totalPrice !== wizardState.projectData.preliminaryOffsiteCost) {
       setWizardState(prev => ({
         ...prev,
         projectData: { ...prev.projectData, preliminaryOffsiteCost: totalPrice }
@@ -355,16 +355,27 @@ export default function GenerateContracts() {
     wizardState.projectData.completionPrice
   ]);
 
-  // Auto-populate manufacturing design payment from design fee
+  // Auto-sync manufacturing design payment with design fee (always keep in sync)
   useEffect(() => {
     const { designFee, manufacturingDesignPayment } = wizardState.projectData;
-    if (designFee > 0 && manufacturingDesignPayment === 0) {
+    if (designFee !== manufacturingDesignPayment) {
       setWizardState(prev => ({
         ...prev,
         projectData: { ...prev.projectData, manufacturingDesignPayment: designFee }
       }));
     }
   }, [wizardState.projectData.designFee]);
+
+  // Sync contractPrice with totalPreliminaryContractPrice for backward compatibility
+  useEffect(() => {
+    const { totalPreliminaryContractPrice, contractPrice } = wizardState.projectData;
+    if (totalPreliminaryContractPrice !== contractPrice) {
+      setWizardState(prev => ({
+        ...prev,
+        projectData: { ...prev.projectData, contractPrice: totalPreliminaryContractPrice }
+      }));
+    }
+  }, [wizardState.projectData.totalPreliminaryContractPrice]);
 
   // Check project number uniqueness when it changes
   const checkProjectNumberUniqueness = useCallback(async (projectNumber: string) => {
