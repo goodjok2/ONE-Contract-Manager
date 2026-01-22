@@ -1,0 +1,1013 @@
+
+
+ON-SITE SUBCONTRACT HEADER
+
+ON-SITE SUBCONTRACTOR AGREEMENT
+
+Between: Dvele Partners Smith LLC (the "Company")
+
+And: Premier Site Builders Inc. (the "On-Site Services Provider")
+
+For: Shipping, Logistics, Installation, and Site Construction Services
+
+Project: Smith Residence (Project No. 2025-001)
+
+
+RECITALS
+
+RECITALS
+
+WHEREAS, Company has entered into a Master Purchase and Construction Agreement (the "Master Agreement") with John and Jane Smith (the "Client") for the design, engineering, manufacturing, and delivery of 1 modular home unit(s) (the "Units" or "Homes"); and
+
+WHEREAS, Company desires to engage On-Site Services Provider to perform certain on-site services, including shipping, logistics, installation, site preparation, foundation work, utility connections, and completion services, on terms and conditions set forth herein; and
+
+WHEREAS, the services to be provided by On-Site Services Provider under this Subcontract are incorporated into and flow from the Master Agreement between Company and Client, and On-Site Services Provider acknowledges that it has reviewed the relevant provisions of the Master Agreement relating to on-site services; and
+
+WHEREAS, Company and On-Site Services Provider desire to establish a clear allocation of responsibilities, quality standards, delivery requirements, payment terms, warranty obligations, and Company's oversight authority for all on-site work; and
+
+WHEREAS, the parties intend that this Subcontract will be binding and enforceable, with On-Site Services Provider's performance obligations flowing down from the Master Agreement and protecting Company's ability to deliver warranty coverage to Client.
+
+NOW, THEREFORE, in consideration of the mutual covenants and promises contained herein, and for other good and valuable consideration, the receipt and sufficiency of which are hereby acknowledged, the parties agree as follows:
+
+
+
+
+ARTICLE 1: SCOPE OF SERVICES
+
+
+
+
+ARTICLE 1: SCOPE OF SERVICES
+
+
+
+1.1 On-Site Services Overview
+
+
+1.1 On-Site Services Overview
+
+On-Site Services Provider shall provide all on-site services necessary to receive, install, and complete the modular home(s) at the project site (the "Site"), including:
+
+Shipping and Logistics Services:
+• Coordinate delivery schedules with Company and manufacturing facility
+• Arrange transportation of completed Units from delivery point to the Site
+• Manage delivery logistics and access coordination
+• Unload and stage Units at the Site
+
+Site Preparation Services:
+• Clear and prepare the Site for module delivery and installation
+• Establish crane access and equipment staging areas
+• Prepare utility connection points and locations
+• Ensure Site compliance with Company specifications
+
+Foundation and Utility Services:
+• Install foundations in accordance with Company-approved designs
+• Establish all utility connections (electrical, water, sewer, gas, etc.)
+• Coordinate with local utility providers and inspectors
+• Perform all required inspections and obtain approvals
+
+Installation Services:
+• Provide craning and equipment necessary for module installation
+• Set modules on prepared foundations
+• Perform all module connections and integrations
+• Conduct installation quality inspections
+
+Completion Services:
+• Perform all post-delivery finish work as specified
+• Install exterior features and site improvements
+• Perform final inspections and system testing
+• Obtain final approvals and certificates of occupancy
+
+
+1.2 Scope Definition and Exhibit F Reference
+
+
+1.2 Scope Definition and Exhibit F Reference
+
+The specific scope of services, responsibilities, and requirements for all on-site work are detailed in Exhibit F (On-Site Services Scope & Responsibility Matrix) of the Master Agreement. On-Site Services Provider shall perform all services in strict accordance with Exhibit F and shall not deviate from the defined scope without written authorization from Company.
+
+
+1.3 Site Conditions and Requirements
+
+
+1.3 Site Conditions and Requirements
+
+On-Site Services Provider acknowledges that it has reviewed or will review all available site information, including:
+• Site surveys and property descriptions
+• Geotechnical reports and soil testing results
+• Utility location maps and connection requirements
+• Local building codes and permit requirements
+• Environmental and regulatory compliance requirements
+
+On-Site Services Provider shall be responsible for understanding site conditions and shall notify Company immediately of any conditions that may impact the scope, schedule, or cost of on-site services.
+
+
+1.4 Quality Standards
+
+
+1.4 Quality Standards
+
+On-Site Services Provider shall perform all on-site services in accordance with:
+• All applicable building codes and standards in California
+• Company's specifications and quality requirements as detailed in Exhibit F
+• Industry standards for modular home installation and site construction
+• The Limited Warranty requirements set forth in Exhibit E of the Master Agreement
+• All local, state, and federal regulations
+
+On-Site Services Provider shall maintain quality standards that protect the integrity of the modular units and preserve warranty eligibility for the Client.
+
+
+1.5 Coordination with Company
+
+
+1.5 Coordination with Company
+
+On-Site Services Provider shall maintain regular communication with Company throughout all phases of on-site work and shall:
+• Provide weekly progress reports to Company
+• Notify Company immediately of any delays, issues, or changes
+• Coordinate delivery and installation schedules with Company
+• Participate in all required inspections and quality reviews
+• Comply with all Company directives regarding quality and performance
+
+
+
+
+ARTICLE 2: PAYMENT TERMS AND SCHEDULE
+
+
+
+
+ARTICLE 2: PAYMENT TERMS AND SCHEDULE
+
+
+
+2.1 On-Site Services Price
+
+
+2.1 On-Site Services Price
+
+The total price for all on-site services shall be:
+
+| Service Category       | Description                                   | Amount                      |
+|------------------------|-----------------------------------------------|----------------------------|
+| Site Preparation       | Site clearing, grading, and access preparation| $120,000        |
+| Foundation & Utilities | Foundation installation and utility connections| $100,000 |
+| Shipping & Logistics   | Transportation and delivery coordination      | $15,000|
+| Installation           | Module craning, setting, and connections      | $65,000     |
+| Completion & Finishing | Post-delivery work and final inspections      | $80,000       |
+| Total On-Site Services Price |                                         | $380,000     |
+
+This price is a preliminary estimate established at project signing. The final price shall be established at Green Light Production Notice based on refined site engineering and actual site conditions. Any changes to scope, design, or specifications that result in additional costs shall be subject to a Change Order as set forth in Section 2.4 below.
+
+
+2.2 Payment Schedule
+
+
+2.2 Payment Schedule
+
+On-Site Services Provider shall invoice Company according to the following milestone-based payment schedule:
+
+| Milestone               | Trigger Event                               | Payment Amount                    |
+|-------------------------|---------------------------------------------|-----------------------------------|
+| Design Phase Completion | Site engineering completed and approved     | 5%        |
+| Site Preparation        | Site preparation completed and inspected    | 15%            |
+| Foundation/Utilities    | Foundations set and utility connections made| 20%           |
+| Module Delivery         | Units delivered to Site and staged          | 15%             |
+| Installation Complete   | All modules installed and connected         | 20%         |
+| Substantial Completion  | All work substantially complete and inspected| 15% |
+| Final Payment           | Final inspection passed and CO issued       | Balance less retainage            |
+| Retainage Release       | 60 days after final completion | 5%         |
+
+
+2.3 Invoice and Payment Terms
+
+
+2.3 Invoice and Payment Terms
+
+• On-Site Services Provider shall submit invoices to Company within five (5) business days of each milestone trigger event
+• Invoices must include supporting documentation, including:
+  - Photographs of completed work
+  - Inspection reports and certifications
+  - Proof of permit approvals and inspections
+  - Lien waivers from all subcontractors and suppliers
+• Company shall pay invoices within thirty (30) days of receipt
+• Payment is contingent upon On-Site Services Provider's compliance with all quality standards and delivery schedule requirements
+• Company may withhold payment if On-Site Services Provider fails to meet quality standards, schedule commitments, or warranty requirements
+• Retainage shall be held until final inspection and certificate of occupancy are obtained
+
+
+2.4 Change Orders
+
+
+2.4 Change Orders
+
+Any changes to the scope of services, site conditions, specifications, or construction schedule that impact costs or timeline must be approved in writing by Company before implementation. On-Site Services Provider shall:
+• Submit a detailed Change Order request to Company within three (3) business days of identifying the need for change
+• Include the reason for the change, detailed cost breakdown, and impact on schedule
+• Provide supporting documentation, including site photographs and engineer analysis
+• Obtain written approval from Company before proceeding with the change
+• No additional costs shall be reimbursed without prior written Change Order approval
+• Unforeseen site conditions discovered during excavation or foundation work shall be documented and submitted as Change Orders for Company approval
+
+
+2.5 Reimbursable Expenses
+
+
+2.5 Reimbursable Expenses
+
+On-Site Services Provider shall be responsible for all costs associated with on-site services, including labor, equipment, materials, permits, and inspections. The following are NOT reimbursable:
+• Changes to design or specifications requested by On-Site Services Provider
+• Corrective work to remedy installation defects or quality failures
+• Delays or inefficiencies in performance
+• Work performed outside the defined scope in Exhibit F
+• Rework required due to non-compliance with Company specifications
+
+
+2.6 Late Payment Interest
+
+
+2.6 Late Payment Interest
+
+Payments not received when due will accrue interest at ten percent (10%) per annum or the maximum allowed by law.
+
+
+
+
+ARTICLE 3: SCHEDULE AND DELIVERY COORDINATION
+
+
+
+
+ARTICLE 3: SCHEDULE AND DELIVERY COORDINATION
+
+
+
+3.1 Project Schedule
+
+
+3.1 Project Schedule
+
+On-Site Services Provider shall adhere to the project schedule established in Exhibit D (Design Milestone Schedule) of the Master Agreement, as may be updated by written notice from Company. On-Site Services Provider shall:
+• Coordinate on-site work schedule with manufacturing production schedule
+• Notify Company immediately of any factors that may impact the schedule
+• Maintain adequate labor and equipment to meet scheduled milestones
+• Provide weekly schedule updates to Company
+• Adjust work schedule to accommodate delivery and installation logistics
+
+
+3.2 Delivery Coordination
+
+
+3.2 Delivery Coordination
+
+On-Site Services Provider shall coordinate with Company and the manufacturing facility regarding delivery schedules. On-Site Services Provider shall:
+• Confirm Site readiness at least two (2) weeks before scheduled module delivery
+• Ensure all site preparation work is complete before delivery date
+• Provide adequate staging area and crane access for module unloading
+• Have all labor and equipment on-site when modules arrive
+• Coordinate with delivery logistics provider regarding access and staging
+
+
+3.3 Site Access and Readiness
+
+
+3.3 Site Access and Readiness
+
+On-Site Services Provider shall ensure that the Site is prepared and ready to receive modules on the scheduled delivery date, including:
+• Clear access roads and delivery routes
+• Established crane staging area with adequate space and load-bearing capacity
+• Completed site preparation and grading
+• Utility connection points prepared and marked
+• All necessary permits and inspections completed
+
+If the Site is not ready as scheduled, Company may:
+• Delay delivery and charge On-Site Services Provider reasonable storage and handling fees
+• Reallocate delivery logistics and manufacturing output as needed
+• Require a Change Order to reschedule delivery and installation
+• Assess liquidated damages against On-Site Services Provider
+
+
+3.4 Delays and Schedule Recovery
+
+
+3.4 Delays and Schedule Recovery
+
+If On-Site Services Provider falls behind schedule, On-Site Services Provider shall:
+• Immediately notify Company in writing
+• Submit a recovery plan detailing how schedule will be restored
+• Increase labor and equipment as necessary to meet schedule
+• Work extended hours or weekends if necessary to recover schedule
+• Bear all costs associated with schedule recovery
+
+If On-Site Services Provider fails to recover schedule, Company may:
+• Assess liquidated damages at $500 per day
+• Engage additional contractors to complete work at On-Site Services Provider's expense
+• Terminate this Subcontract for cause
+
+
+
+
+ARTICLE 4: WARRANTY AND QUALITY OBLIGATIONS
+
+
+
+
+ARTICLE 4: WARRANTY AND QUALITY OBLIGATIONS
+
+
+
+4.1 Warranty Obligations
+
+
+4.1 Warranty Obligations
+
+On-Site Services Provider warrants that all on-site work shall:
+• Be performed in a professional and workmanlike manner
+• Comply with all applicable building codes and standards
+• Meet all specifications and performance requirements in Exhibit F
+• Be free from defects in materials and workmanship
+• Preserve the integrity of the modular units and all systems
+• Maintain Client's eligibility for the Limited Warranty
+
+
+4.2 Warranty Period
+
+
+4.2 Warranty Period
+
+On-Site Services Provider's warranty obligations shall extend for a period of two (2) years from the date of substantial completion of on-site work. During this period, On-Site Services Provider shall:
+• Remedy any defects in on-site work at no cost to Company or Client
+• Replace any defective materials or systems installed by On-Site Services Provider
+• Provide technical support for any warranty claims related to on-site work
+• Cooperate fully with Company and Client in resolving any warranty issues
+
+
+4.3 Flow-Down of Master Agreement Warranty
+
+
+4.3 Flow-Down of Master Agreement Warranty
+
+On-Site Services Provider acknowledges that the Limited Warranty provided to Client in the Master Agreement depends on the quality and compliance of on-site work. On-Site Services Provider agrees to:
+• Comply with all warranty obligations set forth in Exhibit E of the Master Agreement
+• Provide all information and documentation necessary to support warranty claims
+• Participate in any warranty dispute resolution proceedings
+• Indemnify Company for any warranty claims arising from On-Site Services Provider's breach or failure to perform
+
+
+4.4 Quality Control and Inspections
+
+
+4.4 Quality Control and Inspections
+
+On-Site Services Provider shall maintain comprehensive quality control procedures, including:
+• Daily inspections of work in progress
+• Compliance verification for all building code requirements
+• System testing and commissioning before handoff
+• Documentation of all inspections and corrective actions
+• Coordination with Company for quality reviews and approvals
+
+Company shall have the right to:
+• Inspect all on-site work at any time
+• Conduct quality audits and reviews
+• Require corrective action for any deficiencies
+• Reject any work that does not meet specifications
+• Halt work if safety or quality issues are identified
+
+
+4.5 Correction of Deficiencies
+
+
+4.5 Correction of Deficiencies
+
+If Company identifies any deficiencies or non-compliance during inspections:
+• Company shall notify On-Site Services Provider in writing
+• On-Site Services Provider shall remedy deficiencies within the timeframe specified by Company
+• Company shall reinspect corrected work
+• On-Site Services Provider shall bear all costs associated with correction and reinspection
+• If On-Site Services Provider fails to remedy deficiencies, Company may engage others to perform corrections at On-Site Services Provider's expense
+
+
+
+
+ARTICLE 5: COMPLIANCE AND REGULATORY REQUIREMENTS
+
+
+
+
+ARTICLE 5: COMPLIANCE AND REGULATORY REQUIREMENTS
+
+
+
+5.1 Building Codes and Standards
+
+
+5.1 Building Codes and Standards
+
+On-Site Services Provider shall perform all on-site work in full compliance with:
+• The International Building Code (IBC) and any state or local amendments
+• All applicable building codes in California
+• The National Electrical Code (NEC)
+• The International Plumbing Code (IPC)
+• All applicable environmental and safety regulations
+• Company's specifications and quality requirements in Exhibit F
+
+
+5.2 Permits and Inspections
+
+
+5.2 Permits and Inspections
+
+On-Site Services Provider shall be responsible for:
+• Obtaining all necessary building permits and work permits
+• Scheduling and coordinating all required inspections with local authorities
+• Maintaining compliance with all permit requirements
+• Providing copies of all permits and inspection approvals to Company
+• Notifying Company immediately of any compliance issues or violations
+
+
+5.3 Utility Coordination
+
+
+5.3 Utility Coordination
+
+On-Site Services Provider shall coordinate with all utility providers and shall:
+• Locate all existing utilities before beginning site work
+• Coordinate utility connection installations with providers
+• Obtain all necessary utility approvals and inspections
+• Provide proof of utility connection approvals to Company
+• Ensure all utilities are operational before final completion
+
+
+5.4 Environmental Compliance
+
+
+5.4 Environmental Compliance
+
+On-Site Services Provider shall comply with all environmental regulations, including:
+• Proper handling and disposal of construction waste and debris
+• Protection of wetlands and sensitive areas
+• Erosion and sediment control measures
+• Compliance with environmental permits and requirements
+• Documentation of all environmental compliance activities
+
+
+
+
+ARTICLE 6: INSURANCE, LIABILITY, AND INDEMNIFICATION
+
+
+
+
+ARTICLE 6: INSURANCE, LIABILITY, AND INDEMNIFICATION
+
+
+
+6.1 Insurance Requirements
+
+
+6.1 Insurance Requirements
+
+On-Site Services Provider shall maintain, at its own expense, the following insurance coverage throughout the term of this Subcontract and for two (2) years after completion:
+• General Liability Insurance: minimum $1,000,000 per occurrence and $2,000,000 aggregate
+• Workers' Compensation Insurance: as required by law in California
+• Equipment and Tool Insurance: covering all equipment used on the project
+• Vehicle Insurance: for all vehicles used in project operations
+• Pollution Liability Insurance: minimum $1,000,000 (if applicable for site conditions)
+
+
+6.2 Certificates of Insurance
+
+
+6.2 Certificates of Insurance
+
+On-Site Services Provider shall provide Company with certificates of insurance evidencing the required coverage before commencing any work. Certificates shall:
+• Name Company and Client as additional insureds
+• Include a waiver of subrogation in favor of Company and Client
+• Provide for at least thirty (30) days' notice to Company of any cancellation or material change
+• Be renewed annually or as policies expire
+
+
+6.3 Indemnification
+
+
+6.3 Indemnification
+
+On-Site Services Provider shall indemnify, defend, and hold harmless Company, Client, and their respective officers, directors, employees, and agents from and against any and all claims, damages, losses, liabilities, costs, and expenses (including reasonable attorneys' fees) arising from:
+• On-Site Services Provider's breach of this Subcontract or the Master Agreement
+• Installation defects or failures to meet quality standards
+• Violation of applicable laws, building codes, or regulations
+• Bodily injury or property damage caused by On-Site Services Provider's work
+• Liens, claims, or encumbrances arising from On-Site Services Provider's work
+• Environmental contamination or violations caused by On-Site Services Provider
+• Failure to obtain required permits or inspections
+• Warranty claims arising from On-Site Services Provider's work
+
+
+6.4 Limitation of Liability
+
+
+6.4 Limitation of Liability
+
+Except for indemnification obligations, breaches of confidentiality, or gross negligence, neither party's total liability under this Subcontract shall exceed the total amount paid or payable under this Subcontract. Neither party shall be liable for indirect, incidental, consequential, special, or punitive damages.
+
+
+
+
+ARTICLE 7: COMPANY OVERSIGHT AND AUTHORITY
+
+
+
+
+ARTICLE 7: COMPANY OVERSIGHT AND AUTHORITY
+
+
+
+7.1 Company's Authority Over On-Site Work
+
+
+7.1 Company's Authority Over On-Site Work
+
+Company retains full authority and oversight over all on-site work to protect the integrity of the modular units and preserve warranty coverage for Client. Company's authority includes:
+
+• Approval Authority: Right to approve all work methods, sequencing, and contractor qualifications
+• Process Control: Authority over all on-site work processes, methods, and sequencing
+• Technical Oversight: Final authority over all technical details, including foundations, module setting, MEP connections, and weatherproofing
+• Inspection Rights: Unrestricted access to the Site and all work in progress for quality control inspections at any time
+• Stop-Work Authority: Right to halt any work that does not meet Company's standards
+• Change Order Authority: Right to review and approve cost estimates and changes that may affect quality or integrity
+• Final Approval Authority: Authority to conduct final inspection and approve completion before warranty coverage becomes effective
+
+
+7.2 Company Representatives and Site Supervision
+
+
+7.2 Company Representatives and Site Supervision
+
+Company shall have the right to:
+• Assign a Company representative to the Site to oversee on-site work
+• Conduct daily or periodic inspections of work in progress
+• Review and approve all work methods and sequencing
+• Issue directives regarding quality, safety, or compliance
+• Require corrective action for any deficiencies identified
+
+On-Site Services Provider shall cooperate fully with Company representatives and shall implement all Company directives within the timeframe specified.
+
+
+7.3 Compliance with Company Directives
+
+
+7.3 Compliance with Company Directives
+
+All Company directives regarding quality, safety, schedule, or compliance shall be binding on On-Site Services Provider. On-Site Services Provider shall:
+• Implement directives immediately upon receipt
+• Provide written confirmation of directive implementation
+• Not challenge or dispute Company directives (except through formal dispute resolution)
+• Bear all costs associated with implementing Company directives
+• Document all directive implementations for Company records
+
+
+
+
+ARTICLE 8: SUBCONTRACTORS AND LABOR
+
+
+
+
+ARTICLE 8: SUBCONTRACTORS AND LABOR
+
+
+
+8.1 Subcontractors
+
+
+8.1 Subcontractors
+
+On-Site Services Provider may engage subcontractors to perform portions of on-site work, provided that:
+• Company approves all subcontractors in advance
+• Subcontractors meet Company's qualifications and insurance requirements
+• On-Site Services Provider remains fully responsible for all subcontractor performance
+• All subcontracts flow down the requirements of this Subcontract
+
+On-Site Services Provider shall maintain a current list of all subcontractors and provide it to Company upon request.
+
+
+8.2 Labor Requirements
+
+
+8.2 Labor Requirements
+
+On-Site Services Provider shall:
+• Employ only skilled and qualified workers
+• Ensure all workers have appropriate training and certifications
+• Maintain a safe working environment in compliance with OSHA requirements
+• Provide all necessary safety equipment and training
+• Maintain discipline and professional conduct on the Site
+
+
+8.3 Background Checks and Screening
+
+
+8.3 Background Checks and Screening
+
+On-Site Services Provider shall conduct appropriate background checks and screening of all workers and shall not employ individuals with criminal histories or safety violations that could jeopardize the project or Client's safety.
+
+
+
+
+ARTICLE 9: SITE CONDUCT AND SAFETY
+
+
+
+
+ARTICLE 9: SITE CONDUCT AND SAFETY
+
+
+
+9.1 Safety Requirements
+
+
+9.1 Safety Requirements
+
+On-Site Services Provider shall:
+• Maintain a safe working environment in accordance with OSHA standards
+• Implement all required safety protocols and procedures
+• Provide all necessary safety equipment and training
+• Conduct daily safety briefings for all workers
+• Report all injuries and safety incidents to Company immediately
+• Maintain a safety log and provide reports to Company
+
+
+9.2 Site Conduct
+
+
+9.2 Site Conduct
+
+On-Site Services Provider and all workers shall:
+• Conduct themselves in a professional manner
+• Respect Client's property and privacy
+• Maintain a clean and organized work area
+• Remove all debris and waste daily
+• Minimize disruption to Client's use of the property
+• Comply with all Site rules and directives
+
+
+9.3 Substance Abuse Policy
+
+
+9.3 Substance Abuse Policy
+
+On-Site Services Provider shall:
+• Maintain a substance abuse policy compliant with applicable law
+• Prohibit workers from being under the influence of drugs or alcohol on the Site
+• Conduct drug testing as required by law or Company policy
+• Remove any worker found to be under the influence
+• Report any substance abuse incidents to Company
+
+
+
+
+ARTICLE 10: INTELLECTUAL PROPERTY AND CONFIDENTIALITY
+
+
+
+
+ARTICLE 10: INTELLECTUAL PROPERTY AND CONFIDENTIALITY
+
+
+
+10.1 Confidential Information
+
+
+10.1 Confidential Information
+
+On-Site Services Provider acknowledges that it will have access to confidential information belonging to Company and Client, including:
+• Design specifications and drawings
+• Project budgets and pricing information
+• Client information and preferences
+• Technical specifications and performance requirements
+• Site information and conditions
+
+
+10.2 Confidentiality Obligations
+
+
+10.2 Confidentiality Obligations
+
+On-Site Services Provider agrees to:
+• Keep all confidential information strictly confidential
+• Not disclose any information to third parties without Company's written consent
+• Use confidential information only for the purposes of performing services under this Subcontract
+• Return or destroy all confidential information upon termination
+• Maintain confidentiality for five (5) years after project completion
+
+
+10.3 Publicity and References
+
+
+10.3 Publicity and References
+
+On-Site Services Provider shall not use Company's or Client's name or project information for marketing or publicity purposes without prior written consent from Company.
+
+
+
+
+ARTICLE 11: TERM AND TERMINATION
+
+
+
+
+ARTICLE 11: TERM AND TERMINATION
+
+
+
+11.1 Term
+
+
+11.1 Term
+
+This Subcontract shall commence on the Effective Date and shall continue until all on-site work has been completed and accepted by Company, unless earlier terminated in accordance with this Article.
+
+
+11.2 Termination for Cause
+
+
+11.2 Termination for Cause
+
+Company may terminate this Subcontract immediately upon written notice if:
+• On-Site Services Provider materially breaches any provision and fails to cure within five (5) business days of written notice
+• On-Site Services Provider fails to maintain required insurance coverage
+• On-Site Services Provider becomes insolvent or files for bankruptcy
+• On-Site Services Provider fails to meet quality standards or schedule requirements
+• On-Site Services Provider fails to comply with building codes or permit requirements
+• On-Site Services Provider fails to implement Company directives or comply with Company authority
+
+
+11.3 Termination for Convenience
+
+
+11.3 Termination for Convenience
+
+Company may terminate this Subcontract for any reason upon fifteen (15) days' written notice to On-Site Services Provider. Upon termination for convenience, Company shall:
+• Pay On-Site Services Provider for all work completed to the date of termination in accordance with the payment schedule
+• Reimburse reasonable costs incurred in winding down operations
+• Not be liable for anticipated profits or lost revenue
+
+
+11.4 Termination Procedures
+
+
+11.4 Termination Procedures
+
+Upon termination, On-Site Services Provider shall:
+• Immediately cease all work
+• Preserve all work in progress and deliver it to Company
+• Cooperate with Company in transitioning work to another contractor
+• Provide all documentation and information needed to complete the project
+• Remove all equipment and materials from the Site
+• Leave the Site in safe and clean condition
+
+
+
+
+ARTICLE 12: DISPUTE RESOLUTION
+
+
+
+
+ARTICLE 12: DISPUTE RESOLUTION
+
+
+
+12.1 Informal Resolution
+
+
+12.1 Informal Resolution
+
+If a dispute arises between the parties, the parties shall attempt to resolve it through good faith negotiation between senior representatives within five (5) business days of written notice of the dispute.
+
+
+12.2 Mediation
+
+
+12.2 Mediation
+
+If the dispute cannot be resolved through negotiation, either party may request mediation. The parties shall:
+• Mutually select a neutral mediator
+• Share equally in the cost of mediation
+• Participate in good faith mediation sessions
+• Attempt to reach a mutually acceptable resolution
+
+
+12.3 Arbitration
+
+
+12.3 Arbitration
+
+If mediation does not resolve the dispute, either party may submit the dispute to binding arbitration. The arbitration shall be:
+• Conducted in accordance with the American Arbitration Association (AAA) Commercial Arbitration Rules
+• Held in California
+• Decided by a single arbitrator with experience in construction and modular home installation
+• Final and binding on both parties
+
+
+12.4 Governing Law
+
+
+12.4 Governing Law
+
+This Subcontract shall be governed by and construed in accordance with the laws of California, without regard to its conflict of law principles.
+
+
+
+
+ARTICLE 13: FORCE MAJEURE
+
+
+
+
+ARTICLE 13: FORCE MAJEURE
+
+
+
+13.1 Force Majeure Events
+
+
+13.1 Force Majeure Events
+
+Neither party shall be liable for delays or failures in performance arising from causes beyond its reasonable control, including:
+• Natural disasters (earthquakes, floods, hurricanes, severe weather)
+• Acts of war, terrorism, or civil unrest
+• Government actions or regulatory changes
+• Pandemics or epidemics
+• Utility failures or supply chain disruptions
+• Labor strikes or work stoppages
+
+
+13.2 Force Majeure Procedures
+
+
+13.2 Force Majeure Procedures
+
+If a force majeure event occurs, the affected party shall:
+• Notify the other party in writing within forty-eight (48) hours
+• Describe the nature of the event and its impact on performance
+• Provide an estimate of the delay and expected resumption date
+• Take reasonable steps to mitigate the impact and resume performance
+
+
+13.3 Extended Force Majeure
+
+
+13.3 Extended Force Majeure
+
+If a force majeure event prevents performance for more than sixty (60) consecutive days, either party may terminate this Subcontract upon written notice. Upon termination:
+• Company shall pay On-Site Services Provider for all work completed to the date of termination
+• Neither party shall be liable to the other for failure to perform due to the force majeure event
+
+
+
+
+ARTICLE 14: MISCELLANEOUS PROVISIONS
+
+
+
+
+ARTICLE 14: MISCELLANEOUS PROVISIONS
+
+
+
+14.1 Entire Agreement
+
+
+14.1 Entire Agreement
+
+This Subcontract, together with the Master Agreement and all exhibits, constitutes the entire agreement between the parties regarding the subject matter hereof. All prior negotiations, understandings, and agreements are superseded by this Subcontract.
+
+
+14.2 Amendments
+
+
+14.2 Amendments
+
+This Subcontract may be amended only by written agreement signed by authorized representatives of both parties. No oral agreements or understandings shall be binding.
+
+
+14.3 Assignment
+
+
+14.3 Assignment
+
+Neither party may assign this Subcontract or any of its rights or obligations without the prior written consent of the other party. Any attempted assignment without consent shall be void.
+
+
+14.4 Notices
+
+
+14.4 Notices
+
+All notices required under this Subcontract shall be in writing and delivered by:
+• Personal delivery
+• Overnight courier service (FedEx, UPS, etc.)
+• Certified mail, return receipt requested
+• Email with read receipt
+
+Notices shall be sent to the addresses specified below or as updated by written notice:
+
+To Company:
+123 Innovation Way, San Francisco, CA 94105
+Email: contracts@dvele.com
+
+To On-Site Services Provider:
+789 Builder Lane, San Jose, CA 95112
+Email: info@premiersitebuilders.com
+
+
+14.5 Severability
+
+
+14.5 Severability
+
+If any provision of this Subcontract is found to be invalid or unenforceable, such provision shall be modified to the minimum extent necessary to make it valid and enforceable, or if not possible, shall be severed. The remaining provisions shall continue in full force and effect.
+
+
+14.6 Counterparts
+
+
+14.6 Counterparts
+
+This Subcontract may be executed in counterparts, each of which shall be deemed an original and all of which together shall constitute one and the same instrument. Electronic signatures and PDF signatures shall be deemed valid.
+
+
+14.7 Relationship of Parties
+
+
+14.7 Relationship of Parties
+
+On-Site Services Provider is an independent contractor. Nothing in this Subcontract creates a partnership, joint venture, or agency relationship between the parties.
+
+
+14.8 No Third-Party Beneficiaries
+
+
+14.8 No Third-Party Beneficiaries
+
+This Subcontract is intended solely for the benefit of Company and On-Site Services Provider. Client is an intended third-party beneficiary with respect to warranty and indemnification obligations only.
+
+
+14.9 Waiver
+
+
+14.9 Waiver
+
+The waiver by either party of any breach or default shall not constitute a waiver of any subsequent breach or default. Failure to enforce any right shall not constitute a waiver of that right.
+
+
+14.10 Survival
+
+
+14.10 Survival
+
+The following provisions shall survive termination or completion of this Subcontract: warranty obligations, indemnification, confidentiality, insurance requirements, and dispute resolution.
+
+
+
+
+ARTICLE 15: EXHIBITS
+
+
+
+
+ARTICLE 15: EXHIBITS
+
+
+The following exhibits are attached to and incorporated into this Subcontract:
+• Exhibit A: On-Site Services Scope & Responsibility Matrix (from Master Agreement Exhibit F)
+• Exhibit B: Site Conditions and Geotechnical Report
+• Exhibit C: Production and Delivery Schedule (from Master Agreement Exhibit D)
+• Exhibit D: Quality Control and Inspection Procedures
+• Exhibit E: Insurance and Bonding Requirements
+• Exhibit F: Limited Warranty Requirements (from Master Agreement Exhibit E)
+
+
+SIGNATURE BLOCK
+
+IN WITNESS WHEREOF, the parties have executed this On-Site Subcontractor Agreement as of the date first written above.
+
+COMPANY:
+
+Dvele Partners Smith LLC
+
+By: ___________________________________
+Name: _________________________________
+Title: __________________________________
+Date: __________________________________
+
+
+ON-SITE SERVICES PROVIDER:
+
+Premier Site Builders Inc.
+
+By: ___________________________________
+Name: _________________________________
+Title: __________________________________
+Date: __________________________________

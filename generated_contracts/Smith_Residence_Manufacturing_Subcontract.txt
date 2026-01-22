@@ -1,0 +1,749 @@
+
+
+MANUFACTURING SUBCONTRACT HEADER
+
+MANUFACTURING SUBCONTRACT AGREEMENT
+
+Between: Dvele Partners Smith LLC (the "Company")
+
+And: Dvele Manufacturing (the "Manufacturer")
+
+For: Design, Engineering, and Production of Modular Homes
+
+Project: Smith Residence (Project No. 2025-001)
+
+
+RECITALS
+
+RECITALS
+
+WHEREAS, Company has entered into a Master Purchase and Construction Agreement (the "Master Agreement") with John and Jane Smith (the "Client") for the design, engineering, manufacturing, and delivery of 1 modular home unit(s) (the "Units" or "Homes"); and
+
+WHEREAS, Company desires to engage Manufacturer to perform certain offsite manufacturing services, including design, engineering, and production of the modular home(s), on terms and conditions set forth herein; and
+
+WHEREAS, the services to be provided by Manufacturer under this Subcontract are incorporated into and flow from the Master Agreement between Company and Client, and Manufacturer acknowledges that it has reviewed the relevant provisions of the Master Agreement relating to manufacturing services; and
+
+WHEREAS, Company and Manufacturer desire to establish a clear allocation of responsibilities, quality standards, delivery requirements, payment terms, and warranty obligations for the manufacturing work; and
+
+WHEREAS, the parties intend that this Subcontract will be binding and enforceable, with Manufacturer's performance obligations flowing down from the Master Agreement.
+
+NOW, THEREFORE, in consideration of the mutual covenants and promises contained herein, and for other good and valuable consideration, the receipt and sufficiency of which are hereby acknowledged, the parties agree as follows:
+
+
+
+
+ARTICLE 1: SCOPE OF SERVICES
+
+
+
+
+ARTICLE 1: SCOPE OF SERVICES
+
+
+
+1.1 Offsite Manufacturing Services
+
+
+1.1 Offsite Manufacturing Services
+
+Manufacturer shall provide all offsite manufacturing services necessary to design, engineer, and produce the modular home(s) as specified in this Subcontract, including:
+
+Design Phase Services:
+• Develop detailed design and engineering drawings for the Units based on Client specifications and site requirements provided by Company
+• Perform structural engineering analysis and calculations
+• Prepare construction documents and specifications
+• Coordinate with Company regarding design approvals and Client feedback
+• Provide preliminary cost estimates and scheduling
+
+Production Phase Services:
+• Manufacture and assemble all modular components in accordance with approved designs
+• Perform quality control inspections at all production stages
+• Install all mechanical, electrical, and plumbing (MEP) systems
+• Complete interior finishes including flooring, wall treatments, and fixtures
+• Perform factory testing and commissioning of all systems
+• Prepare Units for delivery to the Site
+
+
+1.2 Design Specifications
+
+
+1.2 Design Specifications
+
+Manufacturer shall design and engineer the Units to comply with:
+• All applicable building codes and standards in California
+• Client's approved design specifications and interior finishes as detailed in Exhibit B of the Master Agreement
+• Company's quality standards and manufacturing specifications
+• All requirements set forth in Exhibit A (Project Budget) of the Master Agreement
+
+Manufacturer shall not deviate from approved designs without written authorization from Company. Any design changes requested by Client must be submitted to Company in writing and approved before implementation.
+
+
+1.3 Quality Standards
+
+
+1.3 Quality Standards
+
+Manufacturer shall maintain quality standards that meet or exceed:
+• Industry standards for modular home construction
+• All applicable building codes and safety regulations
+• Company's specifications and quality requirements
+• The Limited Warranty requirements set forth in Exhibit E of the Master Agreement
+
+Manufacturer shall establish and maintain a quality assurance program that includes:
+• Inspection protocols at key production stages
+• Testing procedures for all systems and components
+• Documentation of all quality inspections and test results
+• Corrective action procedures for any deficiencies identified
+
+
+1.4 Production Schedule
+
+
+1.4 Production Schedule
+
+Manufacturer shall adhere to the production schedule established in Exhibit D (Design Milestone Schedule) of the Master Agreement, as may be updated by written notice from Company. Manufacturer shall:
+• Notify Company immediately of any factors that may impact the schedule
+• Coordinate with Company regarding any delays or schedule adjustments
+• Maintain adequate production capacity to meet delivery dates
+• Provide weekly status updates to Company regarding production progress
+
+
+
+
+ARTICLE 2: PRICING AND PAYMENT TERMS
+
+
+
+
+ARTICLE 2: PRICING AND PAYMENT TERMS
+
+
+
+2.1 Manufacturing Price
+
+
+2.1 Manufacturing Price
+
+The manufacturing price for the offsite services shall be:
+
+| Item                  | Description                                    | Amount                         |
+|-----------------------|------------------------------------------------|--------------------------------|
+| Design & Engineering  | Design, engineering, drawings, specifications  | $45,000 |
+| Production            | Factory manufacturing, assembly, completion    | $380,000 |
+| Quality Control       | Factory testing, inspections, QA               | $10,000                   |
+| Delivery Preparation  | Packaging, documentation, delivery coordination| $15,000        |
+| Total Manufacturing Price |                                            | $425,000  |
+
+This price is fixed and locked at Green Light Production Notice as set forth in the Master Agreement. Any changes to design, scope, or specifications requested after Green Light that result in additional manufacturing costs shall be subject to a Change Order as set forth in Section 2.4 below.
+
+
+2.2 Payment Schedule
+
+
+2.2 Payment Schedule
+
+Manufacturer shall invoice Company according to the following milestone-based payment schedule:
+
+| Milestone             | Trigger Event                                      | Payment Amount                       |
+|-----------------------|----------------------------------------------------|--------------------------------------|
+| Design Phase          | Design Phase Completion and Company Approval       | $45,000% of Manufacturing Price |
+| Production Start      | Green Light Production Notice issued               | $95,000%        |
+| Production 50%        | 50% of production units completed and inspected    | {{PRODUCTION_50_PAYMENT}}%           |
+| Production Completion | All units factory completed, tested, approved      | $190,000%   |
+| Delivery Ready        | Units packaged, documented, ready for shipment     | $95,000%          |
+| Final Payment         | Units delivered and received at staging area       | Balance                              |
+
+
+2.3 Invoice and Payment Terms
+
+
+2.3 Invoice and Payment Terms
+
+• Manufacturer shall submit invoices to Company within five (5) business days of each milestone trigger event
+• Company shall pay invoices within thirty (30) days of receipt
+• Invoices must include supporting documentation, including inspection reports and proof of completion
+• Payment is contingent upon Manufacturer's compliance with all quality standards and delivery schedule requirements
+• Company may withhold payment if Manufacturer fails to meet quality standards or schedule commitments
+
+
+2.4 Change Orders
+
+
+2.4 Change Orders
+
+Any changes to the scope of services, design specifications, materials, or production schedule that impact manufacturing costs or timeline must be approved in writing by Company before implementation. Manufacturer shall:
+• Submit a detailed Change Order request to Company within five (5) business days of identifying the need for change
+• Include the reason for the change, impact on cost, and impact on schedule
+• Provide supporting documentation and cost analysis
+• Obtain written approval from Company before proceeding with the change
+• No additional costs shall be reimbursed without prior written Change Order approval
+
+
+2.5 Reimbursable Expenses
+
+
+2.5 Reimbursable Expenses
+
+Manufacturer shall be responsible for all costs associated with manufacturing, including materials, labor, equipment, utilities, and facility costs. The following are NOT reimbursable:
+• Site visits to the project location (except as specifically authorized by Company in writing)
+• Changes to design or specifications requested by Manufacturer
+• Corrective work to remedy manufacturing defects or quality failures
+• Delays or inefficiencies in production
+
+
+
+
+ARTICLE 3: DELIVERY AND LOGISTICS
+
+
+
+
+ARTICLE 3: DELIVERY AND LOGISTICS
+
+
+
+3.1 Delivery Obligations
+
+
+3.1 Delivery Obligations
+
+Manufacturer shall deliver all completed Units to the delivery location specified by Company (the "Delivery Point") on or before the delivery date specified in the production schedule. Delivery shall include:
+• Transportation of completed Units from Manufacturer's facility to the Delivery Point
+• Unloading and staging of Units at the Delivery Point
+• Provision of all necessary documentation, including:
+  - Completion certificates
+  - As-built drawings
+  - Operation and maintenance manuals
+  - Warranty documentation
+  - Test reports and quality certifications
+
+
+3.2 Delivery Condition
+
+
+3.2 Delivery Condition
+
+All Units shall be delivered in complete, finished, and fully functional condition, ready for installation on the Site. Manufacturer warrants that:
+• All systems have been tested and are operational
+• All interior finishes are complete and undamaged
+• All required inspections and quality checks have been performed
+• Units comply with all applicable building codes and standards
+
+
+3.3 Delay in Delivery
+
+
+3.3 Delay in Delivery
+
+If Manufacturer fails to deliver Units on or before the scheduled delivery date:
+• Company may assess liquidated damages at $500 per day for each day of delay, up to a maximum of $50,000
+• Company may, at its option, cancel this Subcontract and pursue alternative manufacturing sources
+• Manufacturer shall remain responsible for all costs associated with delay, including storage, logistics, and Client penalties
+• Delays caused by force majeure events shall be handled in accordance with Article 9 below
+
+
+3.4 Inspection at Delivery
+
+
+3.4 Inspection at Delivery
+
+Company shall have the right to inspect all Units upon delivery. If any Unit fails to meet the quality standards or specifications set forth in this Subcontract:
+• Company shall notify Manufacturer in writing within five (5) business days of delivery
+• Manufacturer shall remedy any deficiencies at no additional cost to Company
+• Company may reject any Unit that does not meet specifications
+• Rejected Units shall be returned to Manufacturer at Manufacturer's expense for correction or replacement
+
+
+
+
+ARTICLE 4: WARRANTY AND PERFORMANCE OBLIGATIONS
+
+
+
+
+ARTICLE 4: WARRANTY AND PERFORMANCE OBLIGATIONS
+
+
+
+4.1 Manufacturing Warranty
+
+
+4.1 Manufacturing Warranty
+
+Manufacturer warrants that all Units manufactured under this Subcontract shall:
+• Be free from defects in materials and workmanship
+• Comply with all applicable building codes and standards
+• Meet all specifications and performance requirements set forth in the Master Agreement
+• Perform in accordance with the Limited Warranty provisions set forth in Exhibit E of the Master Agreement
+
+
+4.2 Warranty Period
+
+
+4.2 Warranty Period
+
+Manufacturer's warranty obligations shall extend for a period of two (2) years from the date of delivery of each Unit to the Delivery Point. During this period, Manufacturer shall:
+• Remedy any manufacturing defects at no cost to Company or Client
+• Replace any defective components or systems
+• Provide technical support and guidance for any warranty claims
+
+
+4.3 Flow-Down of Master Agreement Warranty
+
+
+4.3 Flow-Down of Master Agreement Warranty
+
+Manufacturer acknowledges that the Limited Warranty provided to Client in the Master Agreement is based on Manufacturer's performance of manufacturing services. Manufacturer agrees to:
+• Comply with all warranty obligations set forth in Exhibit E of the Master Agreement
+• Provide all information and documentation necessary to support warranty claims
+• Participate in any warranty dispute resolution proceedings
+• Indemnify Company for any warranty claims arising from Manufacturer's breach or failure to perform
+
+
+4.4 Quality Control and Testing
+
+
+4.4 Quality Control and Testing
+
+Manufacturer shall maintain comprehensive quality control procedures, including:
+• Incoming material inspections and verification
+• In-process inspections at all production stages
+• Factory testing of all mechanical, electrical, and plumbing systems
+• Final inspection and sign-off before delivery
+• Documentation of all inspections, tests, and corrective actions
+
+Manufacturer shall provide Company with copies of all quality control documentation upon request.
+
+
+
+
+ARTICLE 5: COMPLIANCE AND STANDARDS
+
+
+
+
+ARTICLE 5: COMPLIANCE AND STANDARDS
+
+
+
+5.1 Building Codes and Regulations
+
+
+5.1 Building Codes and Regulations
+
+Manufacturer shall design and manufacture all Units in full compliance with:
+• The International Building Code (IBC) and any state or local amendments
+• All applicable building codes in California
+• The National Electrical Code (NEC)
+• The International Plumbing Code (IPC)
+• All applicable environmental and safety regulations
+• Company's specifications and quality standards
+
+
+5.2 Permits and Certifications
+
+
+5.2 Permits and Certifications
+
+Manufacturer shall be responsible for obtaining any necessary manufacturing permits or certifications required by its jurisdiction. Manufacturer shall:
+• Provide copies of all permits and certifications to Company
+• Maintain compliance with all permit requirements throughout production
+• Notify Company immediately of any compliance issues or violations
+
+
+5.3 Inspections and Approvals
+
+
+5.3 Inspections and Approvals
+
+Company shall have the right to:
+• Inspect Units at any stage of production
+• Conduct quality audits of Manufacturer's facility and processes
+• Review and approve all design drawings and specifications before production
+• Require corrective action for any deficiencies identified
+
+Manufacturer shall provide Company with reasonable access to its facility for inspection purposes.
+
+
+
+
+ARTICLE 6: INSURANCE AND LIABILITY
+
+
+
+
+ARTICLE 6: INSURANCE AND LIABILITY
+
+
+
+6.1 Insurance Requirements
+
+
+6.1 Insurance Requirements
+
+Manufacturer shall maintain, at its own expense, the following insurance coverage throughout the term of this Subcontract:
+• General Liability Insurance: minimum $1,000,000 per occurrence
+• Product Liability Insurance: minimum $2,000,000 per occurrence
+• Workers' Compensation Insurance: as required by law in Manufacturer's jurisdiction
+• Property Insurance: covering all materials and equipment used in manufacturing
+
+
+6.2 Certificates of Insurance
+
+
+6.2 Certificates of Insurance
+
+Manufacturer shall provide Company with certificates of insurance evidencing the required coverage before commencing any work under this Subcontract. Certificates shall:
+• Name Company as additional insured
+• Include a waiver of subrogation in favor of Company
+• Provide for at least thirty (30) days' notice to Company of any cancellation or material change
+
+
+6.3 Limitation of Liability
+
+
+6.3 Limitation of Liability
+
+Except for indemnification obligations or breaches of confidentiality, neither party's total liability under this Subcontract shall exceed the total amount paid or payable under this Subcontract. Neither party shall be liable for indirect, incidental, consequential, or punitive damages.
+
+
+6.4 Indemnification
+
+
+6.4 Indemnification
+
+Manufacturer shall indemnify, defend, and hold harmless Company and Client from and against any and all claims, damages, losses, liabilities, and expenses (including reasonable attorneys' fees) arising from:
+• Manufacturer's breach of this Subcontract or the Master Agreement
+• Manufacturing defects or failures to meet quality standards
+• Violation of applicable laws or building codes
+• Product liability claims related to Manufacturer's work
+• Injury or property damage caused by Manufacturer's manufacturing operations
+
+
+
+
+ARTICLE 7: INTELLECTUAL PROPERTY AND CONFIDENTIALITY
+
+
+
+
+ARTICLE 7: INTELLECTUAL PROPERTY AND CONFIDENTIALITY
+
+
+
+7.1 Designs and Specifications
+
+
+7.1 Designs and Specifications
+
+All designs, drawings, specifications, and technical information created or developed by Manufacturer in connection with this Subcontract shall be the exclusive property of Company. Manufacturer grants Company a perpetual, royalty-free license to use such materials for the project and for future projects.
+
+
+7.2 Confidentiality
+
+
+7.2 Confidentiality
+
+Manufacturer acknowledges that it will have access to confidential information belonging to Company and Client, including:
+• Design specifications and drawings
+• Project budgets and pricing information
+• Client information and preferences
+• Technical specifications and performance requirements
+
+Manufacturer agrees to:
+• Keep all confidential information strictly confidential
+• Not disclose any information to third parties without Company's written consent
+• Use confidential information only for the purposes of performing services under this Subcontract
+• Return or destroy all confidential information upon termination of this Subcontract
+
+
+7.3 Publicity and References
+
+
+7.3 Publicity and References
+
+Manufacturer shall not use Company's or Client's name or project information for marketing or publicity purposes without prior written consent from Company.
+
+
+
+
+ARTICLE 8: TERM AND TERMINATION
+
+
+
+
+ARTICLE 8: TERM AND TERMINATION
+
+
+
+8.1 Term
+
+
+8.1 Term
+
+This Subcontract shall commence on the Effective Date and shall continue until all Units have been delivered and accepted by Company, unless earlier terminated in accordance with this Article.
+
+
+8.2 Termination for Cause
+
+
+8.2 Termination for Cause
+
+Company may terminate this Subcontract immediately upon written notice if:
+• Manufacturer materially breaches any provision of this Subcontract and fails to cure such breach within ten (10) business days of receiving written notice
+• Manufacturer fails to maintain required insurance coverage
+• Manufacturer becomes insolvent or files for bankruptcy
+• Manufacturer fails to meet quality standards or delivery schedule requirements
+
+
+8.3 Termination for Convenience
+
+
+8.3 Termination for Convenience
+
+Company may terminate this Subcontract for any reason upon thirty (30) days' written notice to Manufacturer. Upon termination for convenience, Company shall:
+• Pay Manufacturer for all work completed to the date of termination in accordance with the payment schedule
+• Reimburse Manufacturer for reasonable costs incurred in winding down operations
+• Not be liable for anticipated profits or lost revenue
+
+
+8.4 Termination Procedures
+
+
+8.4 Termination Procedures
+
+Upon termination, Manufacturer shall:
+• Immediately cease all work
+• Preserve all work in progress and deliver it to Company
+• Cooperate with Company in transitioning work to another manufacturer if necessary
+• Provide all documentation and information needed to complete the project
+
+
+
+
+ARTICLE 9: FORCE MAJEURE
+
+
+
+
+ARTICLE 9: FORCE MAJEURE
+
+
+
+9.1 Force Majeure Events
+
+
+9.1 Force Majeure Events
+
+Neither party shall be liable for delays or failures in performance arising from causes beyond its reasonable control, including:
+• Natural disasters (earthquakes, floods, hurricanes, etc.)
+• Acts of war, terrorism, or civil unrest
+• Government actions or regulatory changes
+• Pandemics or epidemics
+• Utility failures or supply chain disruptions
+• Labor strikes or work stoppages
+
+
+9.2 Force Majeure Procedures
+
+
+9.2 Force Majeure Procedures
+
+If a force majeure event occurs, the affected party shall:
+• Notify the other party in writing within forty-eight (48) hours
+• Describe the nature of the event and its impact on performance
+• Provide an estimate of the delay and expected resumption date
+• Take reasonable steps to mitigate the impact and resume performance
+
+
+9.3 Extended Force Majeure
+
+
+9.3 Extended Force Majeure
+
+If a force majeure event prevents performance for more than sixty (60) consecutive days, either party may terminate this Subcontract upon written notice. Upon termination:
+• Company shall pay Manufacturer for all work completed to the date of termination
+• Neither party shall be liable to the other for failure to perform due to the force majeure event
+
+
+
+
+ARTICLE 10: DISPUTE RESOLUTION
+
+
+
+
+ARTICLE 10: DISPUTE RESOLUTION
+
+
+
+10.1 Informal Resolution
+
+
+10.1 Informal Resolution
+
+If a dispute arises between the parties, the parties shall attempt to resolve it through good faith negotiation between senior representatives of each party within ten (10) business days of written notice of the dispute.
+
+
+10.2 Mediation
+
+
+10.2 Mediation
+
+If the dispute cannot be resolved through negotiation, either party may request mediation. The parties shall:
+• Mutually select a neutral mediator
+• Share equally in the cost of mediation
+• Participate in good faith mediation sessions
+• Attempt to reach a mutually acceptable resolution
+
+
+10.3 Arbitration
+
+
+10.3 Arbitration
+
+If mediation does not resolve the dispute, either party may submit the dispute to binding arbitration. The arbitration shall be:
+• Conducted in accordance with the American Arbitration Association (AAA) Commercial Arbitration Rules
+• Held in California
+• Decided by a single arbitrator with experience in construction and manufacturing
+• Final and binding on both parties
+
+
+10.4 Governing Law
+
+
+10.4 Governing Law
+
+This Subcontract shall be governed by and construed in accordance with the laws of California, without regard to its conflict of law principles.
+
+
+
+
+ARTICLE 11: MISCELLANEOUS PROVISIONS
+
+
+
+
+ARTICLE 11: MISCELLANEOUS PROVISIONS
+
+
+
+11.1 Entire Agreement
+
+
+11.1 Entire Agreement
+
+This Subcontract, together with the Master Agreement and all exhibits, constitutes the entire agreement between the parties regarding the subject matter hereof. All prior negotiations, understandings, and agreements are superseded by this Subcontract.
+
+
+11.2 Amendments
+
+
+11.2 Amendments
+
+This Subcontract may be amended only by written agreement signed by authorized representatives of both parties. No oral agreements or understandings shall be binding.
+
+
+11.3 Assignment
+
+
+11.3 Assignment
+
+Neither party may assign this Subcontract or any of its rights or obligations under this Subcontract without the prior written consent of the other party. Any attempted assignment without consent shall be void.
+
+
+11.4 Notices
+
+
+11.4 Notices
+
+All notices required under this Subcontract shall be in writing and delivered by:
+• Personal delivery
+• Overnight courier service (FedEx, UPS, etc.)
+• Certified mail, return receipt requested
+• Email with read receipt
+
+Notices shall be sent to the addresses specified below or as updated by written notice:
+
+To Company:
+123 Innovation Way, San Francisco, CA 94105
+Email: contracts@dvele.com
+
+To Manufacturer:
+500 Factory Drive, Hayward, CA 94545
+Email: manufacturing@dvele.com
+
+
+11.5 Severability
+
+
+11.5 Severability
+
+If any provision of this Subcontract is found to be invalid or unenforceable, such provision shall be modified to the minimum extent necessary to make it valid and enforceable, or if not possible, shall be severed. The remaining provisions shall continue in full force and effect.
+
+
+11.6 Counterparts
+
+
+11.6 Counterparts
+
+This Subcontract may be executed in counterparts, each of which shall be deemed an original and all of which together shall constitute one and the same instrument. Electronic signatures and PDF signatures shall be deemed valid.
+
+
+11.7 Relationship of Parties
+
+
+11.7 Relationship of Parties
+
+Manufacturer is an independent contractor. Nothing in this Subcontract creates a partnership, joint venture, or agency relationship between the parties.
+
+
+11.8 No Third-Party Beneficiaries
+
+
+11.8 No Third-Party Beneficiaries
+
+This Subcontract is intended solely for the benefit of Company and Manufacturer. Client is an intended third-party beneficiary with respect to warranty and indemnification obligations only.
+
+
+
+
+ARTICLE 12: EXHIBITS
+
+
+
+
+ARTICLE 12: EXHIBITS
+
+
+The following exhibits are attached to and incorporated into this Subcontract:
+• Exhibit A: Manufacturing Specifications and Technical Requirements
+• Exhibit B: Design Drawings and Specifications (from Master Agreement Exhibit B)
+• Exhibit C: Production Schedule and Milestone Dates
+• Exhibit D: Quality Control and Testing Procedures
+• Exhibit E: Insurance and Bonding Requirements
+• Exhibit F: Warranty and Remedies (from Master Agreement Exhibit E)
+
+
+SIGNATURE BLOCK
+
+IN WITNESS WHEREOF, the parties have executed this Manufacturing Subcontract Agreement as of the date first written above.
+
+COMPANY:
+
+Dvele Partners Smith LLC
+
+By: ___________________________________
+Name: _________________________________
+Title: __________________________________
+Date: __________________________________
+
+
+MANUFACTURER:
+
+Dvele Manufacturing
+
+By: ___________________________________
+Name: _________________________________
+Title: __________________________________
+Date: __________________________________

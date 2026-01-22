@@ -1,0 +1,1403 @@
+
+
+DOCUMENT SUMMARY
+
+MASTER PURCHASE AGREEMENT - 2025-001 - Smith Residence
+
+Document Summary
+
+This Master Purchase Agreement (Agreement) is made and entered into as of 2025-02-01, by and between Dvele Partners Smith LLC, a Delaware limited liability company ('Company'), and John and Jane Smith, a California individual ('Client') (collectively the 'Parties').
+
+This section gives Client an overview of what is being signed, what to expect, and what happens at each stage of the project. For full legal terms, refer to the full Agreement.
+
+What the Client is Signing:
+
+Client is entering into an agreement with Company for the design and purchase of 1 high-performance modular home(s). Services may include:
+
+Offsite Services: Design, engineering, and manufacturing
+
+On-Site Services: Shipping, delivery, installation, and site construction
+
+Services:
+
+The specific services selected are detailed in Section 1.1. This agreement starts with design only, with subsequent phases requiring Client approval to proceed.
+
+Initial Payment:
+
+Design & Engineering Fee: $45,000 - Due upon signing this agreement. Work cannot begin until it's paid.
+
+This fee covers all site-specific design, engineering, development coordination, cost estimation, and permitting support needed to provide accurate final pricing, but excludes professional fees, such as Engineer's Stamping, Site Survey's, Soil Testing and Geotechnical.
+
+Peace of Mind Guarantee: You pay only this fee until Green Light. If final pricing makes the project unfeasible, you can exit gracefully.
+
+What Happens Next
+
+What Happens Next
+
+Phase                         | Description                                                              | Client Pays
+------------------------------|--------------------------------------------------------------------------|---------------------------
+Design & Engineering          | Work starts after signing and payment of Design Fee. Company performs   | Design Fee (Paid at Signing)
+                              | site-specific engineering, refines design, and develops accurate cost   |
+                              | estimates for manufacturing and site work.                              |
+------------------------------|--------------------------------------------------------------------------|---------------------------
+Preliminary Estimates         | At signing, you receive preliminary estimates for manufacturing and     | No additional payment
+                              | site work based on initial information. These are refined during design |
+                              | as actual conditions and requirements become clear.                     |
+------------------------------|--------------------------------------------------------------------------|---------------------------
+Green Light Decision          | Company presents final pricing: Manufacturing price (LOCKED) and        | If you proceed: Production
+                              | refined site cost estimate. You decide whether to proceed to production.| payments per Exhibit C.
+                              |                                                                         | If you exit: No further
+                              |                                                                         | payment required.
+------------------------------|--------------------------------------------------------------------------|---------------------------
+Production & On-Site Work     | If you approve Green Light, manufacturing begins at locked pricing.     | See Payment Schedule
+                              | On Site work proceeds per refined estimates (subject to change orders   | (Exhibit C)
+                              | for unforeseen conditions).                                             |
+
+Important Notes
+
+Preliminary estimates at signing are based on initial information. They will be refined during design as site conditions, design decisions, and permitting requirements become clear.
+
+At Green Light, manufacturing pricing becomes LOCKED. Site pricing is refined to maximum accuracy but may be subject to change orders if unforeseen conditions arise.
+
+You can exit after the design phase (before Green Light) having paid only the Design & Engineering Fee.
+
+Optional design work (beyond the base scope) requires Client written approval and additional fees.
+
+Client's Responsibilities
+
+On-Site work: choose to have this included in the contract or hire your own licensed General Contractor to prepare the project site
+
+Stay engaged during design.
+
+Respond to key decisions on time
+
+Make timely payments as per the agreement
+
+When Does This End?
+
+Before Green Light: Either party can terminate. Client pays only for design work completed (the Design & Engineering Fee) and any third party professional fees necessary for the project.
+
+After Green Light: Client is fully committed to the locked manufacturing price and refined site estimates. Termination after Green Light may result in significant financial obligations per Section 10.
+
+For questions, reach out to the assigned Company project representative.
+
+Peace of Mind Guarantee
+
+We understand that designing and building a new home is a major decision. That's why this agreement is structured around clear milestones. At the end of each design milestone, at least until the phase called "Green Light Production Notice," the Client will have the option to continue, pause, or exit the process. Client will only be responsible for work completed up to that point - no hidden commitments, no pressure.
+
+This ensures the Client stays in control throughout the process.
+
+
+RECITALS
+
+RECITALS
+
+Recital A - Company Business
+
+Company is engaged in the business of coordinating the design, manufacturing and installation of factory-built homes, also known as modular homes, on Client owned properties.
+
+Recital B - Manufacturer Relationship
+
+Company will engage a third-party modular home manufacturer ("Manufacturer") to fabricate the Home(s) at the Manufacturer's factory facility pursuant to a separate agreement between Company and Manufacturer. Client acknowledges that Manufacturer is not a party to this Agreement, and Client's sole contractual relationship for factory production is with Company.
+
+Recital C - On-Site Contractors
+
+If Company-Managed On-Site Services are selected under Recital G below, Company will engage qualified third-party contractors ("On-Site Contractors") to perform site work pursuant to separate agreements between Company and such contractors. Client acknowledges that On-Site Contractors are not parties to this Agreement, and Client's sole contractual relationship for on-site services is with Company.
+
+Recital D - Site Ownership
+
+Client owns or controls certain real property located at 456 Oak Lane, San Jose, CA 95120 (the "Site") on which Client intends to install one or more modular homes.
+
+Recital E - Scope of Services
+
+WHEREAS, Client desires to purchase from Company 1 modular home unit(s) (individually, a 'Unit' or 'Home'; collectively, the 'Units' or 'Homes'), and Company may provide some or all of the services below:
+
+Offsite Services: Design, engineering, manufacturing (factory-related services)
+
+On-Site Services: Shipping, logistics, installation, site construction, and related services
+
+(The specific scope of Offsite Services and On-Site Services is detailed in Section 1.1); and
+
+Recital F - Project Types
+
+WHEREAS, this Agreement is structured to accommodate single-unit or multi-unit projects, whether for direct-to-consumer clients ('D2C Projects') or business-to-business development partners ('B2B Projects'):
+
+Recital G - On-Site Services Election
+
+On-Site Services Provider:
+
+Client must select one of the following options for On-Site Services. This election determines responsibilities, payment flows, and warranty provisions throughout this Agreement.
+
+Recital G - Option A: Client-Retained Contractor
+
+OPTION A – CLIENT-RETAINED CONTRACTOR ("CRC")
+
+Client will engage and manage a licensed General Contractor of Client's choosing to perform all On-Site Services, including but not limited to: site preparation, foundation work, utility connections, module setting and installation, and completion work.
+
+Under this option:
+• Client contracts directly with and pays the General Contractor
+• Company retains approval authority over contractor selection
+• Company retains inspection and quality control authority per Exhibit F
+• General Contractor must comply with Company's installation specifications
+• Failure to meet Company standards may void all or part of Limited Warranty
+• On-Site Services costs are NOT included in this Agreement's pricing
+
+Recital G - Selected Option
+
+CLIENT'S ELECTION (initial one):
+
+_____ Option A – Client-Retained Contractor
+_____ Option B – Company-Managed On-Site Services
+
+SELECTED OPTION: The CLIENT-RETAINED CONTRACTOR ('On-Site Service') has been selected for this Agreement.
+
+Client Signature: _________________________ Date: _____________
+
+Recital H - Total Preliminary Project Cost
+
+WHEREAS, the total preliminary project cost is $850,000, which includes:
+
+Design and Engineering: $45,000
+
+Offsite Services: $425,000
+
+If included, On-Site Services: $380,000
+
+Recital I - Peace of Mind Guarantee
+
+WHEREAS, the Design & Engineering Fee allows Company to perform site-specific design, engineering and cost estimation. At Green Light Production Notice, Client will receive final pricing. Manufacturing price will be LOCKED at Green Light, while on-site pricing may adjust based on actual site conditions discovered during construction. If final pricing makes the project unfeasible, Client may exit the Agreement per Section 10, having paid only the Design & Engineering Fee;
+
+Peace of Mind Guarantee:
+
+The Design & Engineering Fee allows Company to perform site-specific engineering and cost estimation. During the design process, preliminary estimates will be refined based on actual site conditions, design decisions, and permitting requirements. At Green Light Production Notice, Client will receive final pricing for manufacturing (locked) and refined site cost estimates. If final pricing makes the project unfeasible, Client may exit the Agreement in accordance with Section 10, having paid only for design work completed.
+
+Recital J - Final Pricing and Agreement
+
+Final Pricing (Established at Green Light):
+
+• Off-Site Services price becomes fixed and locked
+• On-Site price estimate, if included, is refined to maximum accuracy
+
+Client must approve final pricing to proceed to production. A detailed pricing breakdown and payment schedule is set forth in Exhibit A (Project Budget) and Exhibit C (Payment Schedule); and
+
+NOW, THEREFORE, in consideration of the foregoing and the mutual covenants and promises set forth herein, and for good and valuable consideration the receipt and sufficiency of which is hereby acknowledged, the Parties, intending to be legally bound, hereby agree as follows:
+
+
+ATTACHMENTS
+
+ATTACHMENTS
+
+A. Project Budget
+B. Plans and Specifications Drawing Set and the interior finishes for the Home
+C. Payment Schedule
+D. Design Milestone Schedule
+E. Limited Warranty
+F. Site Responsibility Matrix & Requirements for Warranty Eligibility
+
+
+SECTION 1. SCOPE OF SERVICES
+
+Section 1. Scope of Services
+
+
+1.1. Overview
+
+
+1.1. Overview
+
+This Agreement covers services selected by Client, which are:
+
+A. Offsite Services (Factory-Related):
+   • Design Phase: Develop design, engineering, and permitting necessary to define the modular home(s).
+   • Production Phase: Manufacture, assembly, and factory completion of approved modular home(s).
+   • Shipping & Logistics: Transportation and delivery of completed modules to the Site.
+
+
+1.1. Overview - CRC Client Responsibility
+
+The Design Phase must be completed before the Production Phase begins. Transition between phases requires written confirmation from both parties (email or signed notice is acceptable). Either party may terminate this Agreement as set forth in Section 10 (Termination), with settlement of amounts due for completed work.
+
+If On-Site Services (Item B above) are not included in this Agreement, Client is responsible to hire a licensed General Contractor, approved by Company, to prepare the site and complete all necessary work before the module(s) arrive at the site (see Exhibit C for details). Any contractor working on the Project must comply with Company's installation requirements to maintain warranty eligibility (see Exhibit F).
+
+
+1.2. Design Phase
+
+
+1.2. Design Phase
+
+During this phase, Company will:
+• Collaborate with Client to finalize the design and layout.
+• Provide opinion of Probable Cost
+• Incorporate Client's selections from the interior finishes.
+• Prepare one set of stamped structural and MEP (mechanical, electrical and plumbing) drawings to support permitting.
+• Assist with local jurisdiction permitting and planning approvals.
+• Submit to applicable 3rd Party Review Agency
+• Submit plans to applicable state authority for modular approval
+• Provide a detailed cost estimate and estimated production schedule.
+• If applicable, coordinate with Client's General Contractor regarding site requirements and scheduling.
+
+This Design Phase includes:
+
+Pre-Design and Feasibility (approx. 1 week):
+Assess site conditions, utilities, and local permitting requirements to optimize modular design.
+
+Market and Program Development (approx. 1 week):
+Define project goals, product mix, and features with the Client.
+
+Concept and Schematic Design (approx. 2 weeks):
+Prepare preliminary site plans and layouts in coordination with Client's land planner and or civil engineers.
+
+Design Documentation (2-4 months):
+Produce detailed plans and specifications ready for permitting and factory production.
+
+Company will only begin production after these "Green Light Conditions" below are met:
+• Proof of Client's ownership of the site.
+• Client's approval of schematic design, interior finishes, and Project Budget.
+• Hiring a licensed General Contractor and submitting their scope and schedule.
+• All necessary permits are issued.
+• Proof of Funds or if Financing a bank letter with direction to pay to Company
+• Payment of the Green Light Production Notice amount.
+
+Once these conditions are satisfied, Company will issue a Green Light Production Notice to begin production including: a delivery schedule and pricing. From this point, the remaining Production Payment Schedule applies.
+
+Before shipment of Client's module(s), if Client hires their own On-Site Contractor, then Client's Contractor must confirm that the foundation and utilities are complete and the site is ready to receive the home. Site readiness is detailed in Exhibit F.
+
+
+1.3. Timing Dependencies
+
+
+1.3. Timing Dependencies
+
+Client acknowledges that the Milestone Schedule Exhibit D is the agreed upon target schedule and is time sensitive. Delays in providing any Green Light deliverables, including final design approvals, permit submittals, site readiness documentation, or payment, may impact production and delay the start of manufacturing.
+
+Such delays may also impact pricing and delivery timelines due to production scheduling, supply chain fluctuations, and inflationary costs.
+
+Company will not be liable for delays or cost increases resulting from incomplete or late Green Light deliverables from the Client.
+
+
+1.4. Production Phase
+
+
+1.4. Production Phase
+
+This phase includes manufacturing the module(s) for Client's project and coordinating delivery. Key points include:
+
+• Production begins only after mutual written agreement and satisfaction of Green Light Conditions.
+• Company will provide weekly updates on production progress and work in good faith to meet estimated delivery timelines; however delivery dates are not guaranteed and are subject to change.
+
+
+1.5. On-Site Work and Installation
+
+
+1.5. On-Site Work and Installation (Refer to Exhibit F)
+
+All On-Site Services shall be performed as specified in Client's election under Recital G: either by Client's retained General Contractor subject to Company approval, or by contractors engaged and managed by Company under this Agreement.
+
+Detailed responsibilities and requirements for the Client and their chosen On-Site contractor are set forth in Exhibit F. Company will hold all On-Site Contractors to the same standards set out in Exhibit irrespective of who Client hires for On-Site Services.
+
+
+1.5. On-Site Work - CRC Client Acknowledgment
+
+Client understands and acknowledges that all on-site preparation, foundation work, utility connections, crane staging, and post-delivery finish work are the Client's responsibility or that of Client's General Contractor as described in Exhibit F. If the site is not ready on schedule, delays and additional costs may apply, including storage fees for the module(s).
+
+
+1.6. Custom Design Services (Optional)
+
+
+1.6. Custom Design Services (Optional)
+
+Company offers customizable Design service that includes but is not limited to:
+• Interior design
+• Furnishings and accessories (artwork, etc.)
+• Staging
+
+Note: Any such optional service selected by the Client will be contracted for in a separate agreement and for an additional charge.
+
+
+SECTION 2. FEES, PURCHASE PRICE, AND PAYMENT TERMS
+
+Section 2. Fees, Purchase Price, and Payment Terms
+
+
+2.1. Design & Engineering Fee
+
+
+2.1. Design & Engineering Fee
+
+The Design & Engineering Fee for this project is $45,000, due upon execution of this Agreement. This fee is a condition precedent to the commencement of any work by Company.
+
+The Design & Engineering Fee covers:
+• Site-specific engineering and analysis
+• Architectural, MEP and structural design development (excluding external professional/consultant fees)
+• Cost estimation and budget refinement
+• Permitting support and plan preparation
+• Up to 3 rounds of design revisions
+
+The Design & Engineering Fee EXCLUDES local jurisdiction application fees, local permit fees, professional (engineering, survey, geotechnical) fees and travel expenses related to local submittals. These fees will be billed separately at actual cost and are due upon receipt of invoice.
+
+Peace of Mind Guarantee: The Design & Engineering Fee is the only payment to Company required until Green Light Production Notice. If Client does not approve final pricing at Green Light, Client may terminate this Agreement per Section 10, having paid only the Design & Engineering Fee for work completed. The Design & Engineering Fee is non-refundable once work begins.
+
+
+2.2. Custom Design Services Fee (Optional)
+
+
+2.2. Custom Design Services Fee (Optional)
+
+Compensation for Custom Design, Permitting, and Site Work Services (Section 1.6) will be billed at an hourly rate. Estimated fees will be provided upon request and updated periodically. Time will be recorded in 15-minute increments, with a minimum billing increment of 30 minutes per activity. Monthly invoices will reflect hours incurred.
+
+Optional Design Services will only be performed upon the Client's prior written approval of the scope and estimated hours. No Optional Services will be provided without this pre-approval.
+
+
+2.3. Reimbursable Expenses
+
+
+2.3. Reimbursable Expenses
+
+Expenses reasonably incurred by Company for travel, printing, postage, local permit application fees, and local permit fees shall be itemized and reimbursed by the Client at Company's cost plus fifteen (15) percent.
+
+
+2.4. Total Preliminary Project Cost
+
+
+2.4. Total Preliminary Project Cost
+
+TOTAL PRELIMINARY PROJECT COST (At Signing): $850,000
+
+This represents the estimated total cost for the complete project, including:
+
+| Service Category           | Provider | Preliminary Cost                    | Status at Green Light                |
+|---------------------------|----------|-------------------------------------|--------------------------------------|
+| Design & Engineering      | Company  | $45,000                      | Paid upon signing (non-refundable)   |
+| Manufacturing (Offsite)   | Company  | $425,000       | LOCKED at Green Light                |
+| Shipping/Delivery & Install| Company | $50,000 | May adjust based on force majeure    |
+| On-Site Services          | Company  | $380,000        | May adjust based on site conditions  |
+| TOTAL                     |          | $850,000         |                                      |
+
+Note: The Design & Engineering Fee (Section 2.1) is separate from and in addition to the Total Contract Price.
+
+
+2.5. Pricing Structure and Refinement Process
+
+
+2.5. Pricing Structure and Refinement Process:
+
+AT SIGNING: Client receives preliminary estimates based on initial project information and standard assumptions.
+
+DURING DESIGN & ENGINEERING PHASE: Pricing estimates are refined based on:
+• Actual site conditions (slopes, soil, utilities, access)
+• Final design selections and specifications
+• Permitting requirements and jurisdictional standards
+• Current material and labor market conditions
+
+AT GREEN LIGHT: Client receives final pricing:
+• Offsite Services (Manufacturing): LOCKED and guaranteed subject to respective clauses in Section 5, which are outside of Company's control
+• On-Site Services (Site Work): REFINED estimate (subject to change orders for unforeseen field conditions)
+
+CLIENT APPROVAL REQUIRED: Client must approve final pricing to proceed to Production Phase. If Client does not approve, Client may terminate per Section 10.
+
+FINAL TOTAL CONTRACT PRICE (At Green Light): $850,000
+
+Any revisions to pricing after Green Light shall be documented via written Change Order signed by both parties.
+
+The prices provided are estimates as of the date this agreement was signed and are subject to change before final designs are completed. Fluctuations may occur due to material selection and design choices affecting overall cost. Additionally, price adjustments may be necessary due to unforeseen changes in supply chain costs, including but not limited to tariffs, commodity price fluctuations, product manufacturer price increases and transportation expenses, which are outside of Company's direct control.
+
+Client acknowledges that signing this Agreement secures design services only. The Production Price and On-Site Services costs are subject to adjustment. If any changes are made to the design, spec, or material changes due to permitting details and new information around site specific conditions. Any revisions to the Total Contract Price shall be documented and acknowledged by the Parties in a revised Project Budget (Exhibit A) or a written Change Order, which shall be incorporated into this Agreement by reference.
+
+
+2.6. What's Not Included in This Agreement
+
+
+2.6. What's Not Included in This Agreement
+
+To ensure complete transparency, here's a list of common services and costs not included in this agreement unless expressly stated otherwise:
+• Local permit fees and municipal approvals
+• Specialty equipment such as expansion tanks, secondary fire systems, lift stations or anything not specifically included in Company standard package
+• Furniture, window coverings, or specialty appliance installation
+• Additional Landscaping, driveways, or fencing not specified in the design package
+• On-Site Services will be completed as per Section 1.1.
+
+
+2.7. Change Orders
+
+
+2.7. Change Orders
+
+Any increases in costs resulting from Client-requested changes, Client-caused delays or unforeseen site conditions will be added to the Total Contract Price via written Change Order with Client acknowledgment.
+
+Company reserves the right to make certain substitutions of products of like for like.
+
+
+2.8. Payment Schedule
+
+
+2.8. Payment Schedule
+
+| Milestone              | Trigger Event                                    | Typical Amount                    |
+|------------------------|--------------------------------------------------|-----------------------------------|
+| Design & Engineering   | Signing of this agreement                        | $45,000                    |
+| Green Light Approval   | Client approves final pricing and Green Light    | {{MILESTONE_1_PERCENT}}% of Final |
+| Production Start       | First unit begins factory fabrication            | {{MILESTONE_2_PERCENT}}%          |
+| Production Completion  | Factory completion and quality inspection        | {{MILESTONE_3_PERCENT}}%          |
+| Delivery               | Units delivered to site                          | {{MILESTONE_4_PERCENT}}%          |
+| Installation Complete  | Installation and substantial completion          | {{MILESTONE_5_PERCENT}}%          |
+| Final Payment          | Final inspection and certificate of occupancy    | Balance less retainage            |
+| Retainage Release      | 60 days after final completion   | 5%            |
+
+The detailed, project-specific payment schedule is set forth in Exhibit C and may be adjusted based on the services selected and project structure.
+
+Note: If On-Site Services are selected, those services will be provided by Company.
+
+
+2.9. Late Payments and Collection
+
+
+2.9. Late Payments and Collection
+
+Payments not received when due will accrue interest at 10% per annum or the maximum allowed by law. Company reserves the right to suspend work, delay delivery and pursue legal remedies for non-payment.
+
+
+2.10. Additional Reimbursable Expenses
+
+
+2.10. Additional Reimbursable Expenses
+
+Client shall reimburse costs for site visits and reproduction of drawing sets without markup.
+
+
+SECTION 3. CLIENT RESPONSIBILITIES
+
+Section 3. Client Responsibilities
+
+The Client plays a critical role in the success of the project. The Client's responsibilities include providing information, coordinating with contractors, and ensuring site readiness as outlined below. Should Client fail to provide timely site access or information, additional fees may apply.
+
+
+3.1. Project Information and Coordination
+
+
+3.1. Project Information and Coordination
+
+Client agrees to:
+• Provide timely and complete information about project goals, design preferences, schedule constraints, space needs, and any special equipment or systems requirements. All required information must be provided prior to commencement of Milestone 1 in Exhibit D - "Milestone Schedule"
+• Supply, within 5 business days, upon Company's written request, all available site information, including:
+  - Surveys describing physical characteristics, legal boundaries, easements, and utility locations.
+  - Reports from geotechnical engineers, environmental consultants, or other specialists.
+  - Results from any required tests, inspections, or feasibility studies.
+
+Failure to supply requested information within the required timeframes may result in delays to the schedule and any additional costs will be borne by the Client.
+
+
+3.2. Access to Site
+
+
+3.2. Access to Site
+
+Client will provide Company and its representatives with reasonable access to the Site as needed to perform services. Client will also ensure that consultants and contractors grant Company access as required throughout the project.
+
+
+3.3. Legal Authority and Site Control
+
+
+3.3. Legal Authority and Site Control
+
+Before the Client's modules are delivered to the Site, the Client must:
+• Provide proof of ownership or control of the Site sufficient to authorize installation of the home.
+• Maintain legal authority to carry out all required work through final payment.
+
+
+3.4. General Contractor Engagement
+
+
+3.4. General Contractor Engagement
+
+
+3.4. General Contractor Engagement - CRC
+
+The Client is responsible for hiring a licensed General Contractor to perform all required on-site work, including site preparation, foundation, utility connections, crane access, and post-delivery finish work as detailed in Exhibit F. Company's scope under this Agreement does not include On-Site Services. Client is solely responsible for contracting with, managing, and paying its General Contractor.
+
+Client must:
+• Enter into a written agreement with a licensed General Contractor for all on-site work in a timely manner.
+• Ensure that the General Contractor meets all requirements in Exhibit F (Contractor Requirements).
+• Ensure that the General Contractor performs all required tasks listed in Exhibit F, including any work that must be completed before delivery.
+• Provide Company with reasonable access to inspect and approve the General Contractor's work.
+
+Company retains authority to inspect and approve (or reject) Client's General Contractor's work. If the General Contractor's work does not meet Company's standards, Company may require corrections before proceeding with delivery or installation. Client is responsible for all costs associated with corrections.
+
+
+3.5. Green Light Conditions
+
+
+3.5. Green Light Conditions
+
+Client must:
+• Ensure all "Green Light Conditions" described in Section 1.2 are satisfied in a timely manner.
+• Maintain those conditions—such as financing, permit approvals, and site control—through completion of delivery and payment of the Total Contract Price.
+
+If the Client is using financing to pay the Total Contract Price, Client must:
+• Enter into a loan agreement with a lender before this Agreement is signed.
+• Satisfy all lender requirements necessary to fund payments to Company on schedule.
+• Provide letter from the financial institution stating funds are in place for the entire project and will be directed to Company as per the agreed payment schedule in Section 2.8.
+
+
+SECTION 4. COMPANY RESPONSIBILITIES
+
+Section 4. Company Responsibilities
+
+
+4.1. Design and Pre-Production Services
+
+
+4.1. Design and Pre-Production Services as per Section 1.2
+
+The scope of these services may be expanded only upon mutual written agreement pursuant to Section 1.6 (Optional and Custom Design Services).
+
+
+4.2. Production Services
+
+
+4.2. Production Services
+
+Upon satisfaction of the Green Light Conditions described in Section 1.2 and issuance of the Green Light Production Notice, Company shall:
+• Commence production of the Home(s) through the Manufacturer at the Manufacturer's facility;
+• Oversee and manage the production process to ensure compliance with the approved design, specifications, and quality standards.
+
+
+4.3. Delivery and Installation Services
+
+
+4.3. Delivery and Installation Services
+
+Subject to Client's compliance with site readiness requirements in Exhibit F and timely payments under Section 2, Company shall:
+• Arrange and coordinate transport of the completed modular units to the Site;
+• Coordinate delivery timing with Client's General Contractor (if Client-Retained) or with Company's on-site contractors (if Company-Arranged Services);
+
+
+4.4. Insurance
+
+
+4.4. Insurance
+
+Company shall maintain in full force and effect throughout the term of this Agreement:
+• Workers' compensation insurance in accordance with applicable state and federal law; and
+• Commercial General Liability Insurance with limits of no less than One Million Dollars ($1,000,000) per occurrence and Two Million Dollars ($2,000,000) in the aggregate.
+
+Certificates of insurance shall be made available to Client upon written request.
+
+
+SECTION 5. PROJECT SCHEDULE AND DELAYS
+
+Section 5. Project Schedule and Delays
+
+
+5.1. Project Timeline
+
+
+5.1. Project Timeline
+
+Company shall use commercially reasonable efforts to perform its obligations under this Agreement in accordance with the project schedule provided to Client during the Design Phase (the "Project Schedule"). The Project Schedule is an estimate only and is subject to adjustment based on permitting timelines, factory slot availability, weather, site readiness, material availability, and other contingencies outside of Company's control. Client acknowledges that time is not of the essence unless otherwise agreed in writing by both parties.
+
+
+5.2. Preconditions to Commencement of Production
+
+
+5.2. Preconditions to Commencement of Production
+
+Company shall not be obligated to commence factory production of the Home until all Green Light Conditions, as described in Section 1.2, have been fully satisfied, and both parties have executed the Green Light Production Notice. If such conditions are not met within the anticipated timeline, Company may adjust the Project Schedule accordingly, with notice to Client.
+
+
+5.3. Site Readiness and Delivery Coordination
+
+
+5.3. Site Readiness and Delivery Coordination
+
+
+5.3. Site Readiness - CRC
+
+Client shall ensure that the Site is ready to receive the Home on or before the scheduled delivery date, including completion of all site work listed in Exhibit F by Client's General Contractor or other contractors. If the Site is not ready as scheduled, Company may, at its sole discretion, (a) delay delivery and charge reasonable storage and handling fees; (b) reallocate delivery logistics and factory output as needed; and/or (c) require a Change Order to reschedule delivery and installation.
+
+
+5.4. Delay Events
+
+
+5.4. Delay Events
+
+Neither Party shall be liable for any failure or delay in performance due to causes beyond its reasonable control, including but not limited to: acts of God, natural disasters, weather events, strikes or labor disputes, transportation disruptions, acts or omissions of governmental authorities, utility delays, supply chain disruptions, pandemics, or the failure of the other Party or its contractors to perform obligations in a timely manner ("Force Majeure Events"). In the event of a Force Majeure Event, the affected Party shall provide prompt written notice and the Project Schedule shall be equitably extended.
+
+
+5.5. Change in Timeline
+
+
+5.5. Change in Timeline
+
+Any material change to the Project Schedule, including a delay caused by Client's change requests, failure to perform obligations, or other acts or omissions, shall be documented through a written Change Order in accordance with Section 2.5. Client acknowledges that changes may result in additional costs and/or delayed delivery and installation timelines. If a change in timeline results in increases to costs to the project, then such increases in costs shall be passed on to Client via written change order.
+
+
+5.6. Inflation Adjustment Clause
+
+
+5.6. Inflation Adjustment Clause:
+
+If production is not initiated within 6 months of Agreement execution for reasons outside of Company's control, Company reserves the right to adjust the Production Price to reflect market conditions, including inflation, material costs, and labor rates, with documentation provided.
+
+
+SECTION 6. LIMITED WARRANTY
+
+Section 6. Limited Warranty
+
+[STATE-SPECIFIC DISCLOSURE - California]
+PURSUANT TO Cal. Civ. Code, THIS SECTION CHANGES YOUR EXISTING WARRANTY RIGHTS UNDER California LAW, AND REPLACES CERTAIN EXISTING WARRANTIES WITH OUR OWN LIMITED WARRANTY. PLEASE READ THE ENTIRE SECTION CAREFULLY AND INITIAL AFTER READING ONLY IF YOU AGREE. YOU HAVE THE RIGHT TO CONSULT WITH AN ATTORNEY BEFORE AGREEING TO WAIVE THESE RIGHTS.
+
+
+6.1. Exclusive Warranty; Disclaimer of Implied Warranties
+
+
+6.1. Exclusive Warranty; Disclaimer of Implied Warranties
+
+Except as expressly set forth in Exhibit E, Company makes no other warranties, express or implied. To the maximum extent permitted by law, all implied warranties, including any warranty of merchantability, fitness for a particular purpose, or habitability, are hereby disclaimed. Client acknowledges that the Limited Warranty provides the exclusive remedy for any defect or failure relating to the Home.
+
+If you have read, understand, and agree to this paragraph, please initial here: _____
+
+
+6.2. Limited Warranty Coverage
+
+
+6.2. Limited Warranty Coverage
+
+Company shall provide Client with a limited warranty for the Home as further described in Exhibit E (Limited Warranty). Subject to the terms and conditions in Exhibit E, Company warrants that:
+
+• For a period of two (2) years from the date the Home leaves the factory ("Fit and Finish Warranty Period"), the Home shall be free from material defects in materials and workmanship in its interior and exterior finishes;
+
+• For a period of five (5) years from the date the Home leaves the factory ("Envelope Warranty Period"), the Home's building envelope (as defined in Exhibit E) shall remain free from water intrusion or structural separation due to defective materials or workmanship;
+
+• For a period of ten (10) years from the date the Home leaves the factory ("Structural Warranty Period"), the Home shall remain free from material structural defects (as defined in Exhibit E).
+
+If you have read, understand, and agree to this paragraph, please initial here: _____
+
+
+6.3. Other Affirmations Replaced
+
+
+6.3. Other Affirmations Replaced
+
+The provisions of paragraphs 6.1 and 6.2 of this section, along with Exhibit E, replace any and all other affirmations or representations of fact contained anywhere else within this document, notwithstanding anything to the contrary set forth in Cal. Com. Code § 2316. The Limited Warranty described in this Section and in Exhibit E is the sole and exclusive warranty available.
+
+If you have read, understand, and agree to this paragraph, please initial here: ____
+
+
+6.4. Pass-Through Manufacturer Warranties
+
+
+6.4. Pass-Through Manufacturer Warranties
+
+Company shall assign and pass through to Client any warranties provided by manufacturers of appliances, fixtures, and equipment originally supplied with the Home. These third-party manufacturer warranties are the sole and exclusive remedy for any covered defect in such components.
+
+
+6.5. Exclusion of Consequential and Incidental Damages
+
+
+6.5. Exclusion of Consequential and Incidental Damages
+
+To the fullest extent permitted by law, Company shall not be liable for incidental, special, indirect, punitive, or consequential damages, including but not limited to loss of use, lost profits, or cost of temporary housing, arising from any defect in the Home or any breach of this Agreement, regardless of the legal theory asserted.
+
+
+6.6. Claims Process and Limitation
+
+
+6.6. Claims Process and Limitation
+
+All warranty claims must be made in writing within the applicable warranty period, and in accordance with the notice and inspection procedures set forth in Exhibit F. No coverage exists for any claim submitted after the expiration of the applicable warranty period.
+
+
+SECTION 7. INTELLECTUAL PROPERTY, COPYRIGHTS, AND LICENSES; PUBLICITY
+
+Section 7. Intellectual Property, Copyrights, and Licenses; Publicity
+
+
+7.1. Ownership of Work Product
+
+
+7.1. Ownership of Work Product.
+
+Company shall be deemed the sole author and owner of all drawings, plans, specifications, and other deliverables (collectively, the "Work Product") produced under this Agreement, and shall retain all common law, statutory, and other reserved rights, including copyrights and proprietary interests.
+
+
+7.2. License to Use Work Product
+
+
+7.2. License to Use Work Product.
+
+Upon full payment of all amounts due under this Agreement, Company grants Client a non-exclusive, non-transferable, royalty-free license to use the Work Product solely for the purpose of constructing, maintaining, and repairing the Home on the Site described herein. This license does not include the right to reproduce, modify, or create derivative works without Company's prior written consent.
+
+
+7.3. Restrictions on Use
+
+
+7.3. Restrictions on Use.
+
+Client may not use the Work Product for any other project, property, or purpose without Company's prior written consent. Client shall not share, license, or distribute the Work Product to any third party without Company's written approval, except as necessary for construction, permitting, or maintenance of the Home.
+
+
+7.4. Indemnification Regarding Work Product Use
+
+
+7.4. Indemnification Regarding Work Product Use.
+
+If Client uses the Work Product for purposes or projects not authorized under this Agreement, Client agrees to indemnify and hold harmless Company from any claims, damages, or liabilities arising from such unauthorized use.
+
+
+7.5. Publicity Rights
+
+
+7.5. Publicity Rights.
+
+Company may use photographs, renderings, or descriptions of the Home for marketing, promotional, and portfolio purposes, unless Client provides written notice objecting to such use.
+
+
+SECTION 8. LIMITATION OF LIABILITY AND EXCLUSION OF CONSEQUENTIAL DAMAGES
+
+Section 8. Limitation of Liability and Exclusion of Consequential Damages
+
+
+8.1. Damages
+
+
+8.1. Damages
+
+Neither Party shall be liable to the other for any consequential, incidental, indirect, special, punitive, or exemplary damages, including but not limited to loss of use, loss of profits, loss of revenue, cost of capital, or similar economic losses, arising out of or related to this Agreement, regardless of whether such damages were foreseeable or whether either Party was advised of the possibility of such damages.
+
+
+8.2. Liability
+
+
+8.2. Liability
+
+In no event shall Company's total cumulative liability under this Agreement exceed the Total Contract Price actually paid by Client to Company. This limitation of liability shall apply regardless of the legal theory upon which any claim is based, including breach of contract, tort, strict liability, or any other theory.
+
+
+SECTION 9. NO OBLIGATION TO PURCHASE OR SELL; MILESTONE REVIEW AND APPROVAL
+
+Section 9. No Obligation to Purchase or Sell; Milestone Review and Approval
+
+
+9.1. Scope and Milestones
+
+
+9.1. Scope and Milestones.
+
+This Agreement contemplates a phased process for design, pricing, and production. The Parties acknowledge that Client is not obligated to proceed beyond any milestone, and Company is not obligated to deliver the Home until all conditions, approvals, and payments for the applicable phase are satisfied.
+
+
+9.2. Milestone Review and Approval
+
+
+9.2. Milestone Review and Approval.
+
+At each milestone described in Exhibit D (Milestone Schedule), Client shall have the opportunity to review deliverables, pricing, and project status. Client's written approval is required before proceeding to the next phase. Company will provide reasonable time for Client's review and response.
+
+
+9.3. No Obligation to Purchase or Continue
+
+
+9.3. No Obligation to Purchase or Continue.
+
+Until Green Light Production Notice is issued, Client may elect not to proceed with production for any reason. In such event, Client's sole financial obligation shall be payment for design work completed (the Design & Engineering Fee) and any third-party professional fees incurred.
+
+
+9.4. Termination or "Out" Option at Each Milestone
+
+
+9.4. Termination or "Out" Option at Each Milestone.
+
+At any milestone before Green Light Production Notice, either Party may terminate this Agreement without further obligation, except for payment of fees for work completed. After Green Light, termination rights are governed by Section 10.
+
+
+9.5. Effect of Termination at Milestone
+
+
+9.5. Effect of Termination at Milestone.
+
+If Client terminates before Green Light, Company shall deliver all completed work product to Client. Client shall pay all amounts due for work completed, including the Design & Engineering Fee and any reimbursable expenses or third-party fees.
+
+
+SECTION 10. TERMINATION AND MILESTONE EXIT RIGHTS
+
+Section 10. Termination and Milestone Exit Rights
+
+
+10.1. Termination by Either Party at Milestones
+
+
+10.1. Termination by Either Party at Milestones.
+
+Either Party may terminate this Agreement at any design milestone (before Green Light Production Notice) by providing written notice. Upon termination, Client shall pay for all work completed and Company shall deliver all completed work product.
+
+
+10.2. Termination for Cause or Payment Default
+
+
+10.2. Termination for Cause or Payment Default.
+
+If Client fails to make any payment when due, or materially breaches this Agreement, Company may terminate upon five (5) days' written notice if such default is not cured. Upon termination for cause, Company may retain all payments received and pursue all available remedies.
+
+
+10.3. Permitting Delay Exit Clause
+
+
+10.3. Permitting Delay Exit Clause:
+
+If permitting delays exceed six (6) months beyond the anticipated timeline through no fault of Client, Client may terminate this Agreement. Client shall pay for all work completed, and Company shall refund any prepaid amounts for work not yet performed.
+
+
+10.4. Effect of Termination
+
+
+10.4. Effect of Termination.
+
+Upon termination for any reason, (a) Client shall pay all amounts due for work completed; (b) Company shall deliver all completed work product; (c) all licenses granted hereunder shall survive with respect to paid work; and (d) the provisions of Sections 6, 7, 8, 11, and 13 shall survive termination.
+
+
+10.5. Termination for Client Convenience
+
+
+10.5. Termination for Client Convenience.
+
+After Green Light Production Notice, if Client terminates for convenience (not for Company's material breach), Client shall be liable for: (a) all amounts due for work completed; (b) all non-cancellable commitments made by Company; (c) a termination fee equal to fifteen percent (15%) of the remaining unpaid contract balance; and (d) all costs incurred by Company to wind down the project.
+
+
+10.6. Suspension of Work
+
+
+10.6. Suspension of Work.
+
+If Client suspends the project for more than thirty (30) days, Company may terminate this Agreement or adjust pricing and schedule. Client shall pay for all work completed and any demobilization costs. If work resumes, Company may adjust pricing to reflect current market conditions.
+
+
+SECTION 11. STEPPED DISPUTE RESOLUTION
+
+Section 11. Stepped Dispute Resolution
+
+
+11.1. Mandatory Mediation
+
+
+11.1. Mandatory Mediation
+
+Before initiating any legal proceeding, the Parties agree to engage in good-faith mediation with a mutually agreed-upon mediator. If the Parties cannot agree on a mediator within ten (10) days, either Party may request appointment by JAMS or AAA. Mediation shall be completed within sixty (60) days of demand unless extended by mutual agreement.
+
+
+11.2. Arbitration Demand and Limitations
+
+
+11.2. Arbitration Demand and Limitations.
+
+If mediation does not resolve the dispute, either Party may demand binding arbitration under the rules of JAMS or AAA. Arbitration shall be conducted by a single arbitrator with construction industry experience. The arbitrator's decision shall be final and binding, and judgment may be entered in any court of competent jurisdiction.
+
+
+11.3. No Third-Party Joinder
+
+
+11.3. No Third-Party Joinder.
+
+Neither Party shall join or consolidate claims with those of any third party in any arbitration or legal proceeding under this Agreement.
+
+
+11.4. Enforcement and Judgment
+
+
+11.4. Enforcement and Judgment.
+
+Any award rendered by the arbitrator may be entered as a judgment in any court of competent jurisdiction. The prevailing Party in any arbitration or litigation shall be entitled to recover reasonable attorneys' fees and costs.
+
+
+SECTION 12. DEFAULT
+
+Section 12. Default
+
+
+12.1. Payment Default
+
+
+12.1. Payment Default.
+
+Client's failure to pay any amount due under this Agreement when due shall constitute a Payment Default. If Client does not cure the Payment Default within five (5) days of written notice, Company may suspend performance and/or terminate this Agreement.
+
+
+12.2. Material Breach
+
+
+12.2. Material Breach.
+
+Other material breaches by Client (including failure to meet funding or production conditions) not cured within five (5) days of written notice shall entitle Company to suspend performance and/or terminate this Agreement.
+
+
+12.3. Rights upon Termination
+
+
+12.3. Rights upon Termination.
+
+Upon termination for default, Company may retain all payments made and pursue all legal and equitable remedies.
+
+
+SECTION 13. MISCELLANEOUS PROVISIONS
+
+Section 13. Miscellaneous Provisions
+
+
+13.1. Governing Law and Venue
+
+
+13.1. Governing Law and Venue.
+
+This Agreement shall be governed by the laws of the State of California, without regard to conflict of law principles. All disputes shall be brought exclusively in the courts located in Santa Clara County, California, or the U.S. District Court for the Northern District of California, to which the parties hereby submit.
+
+
+13.2. Entire Agreement; Amendments
+
+
+13.2. Entire Agreement; Amendments.
+
+This Agreement constitutes the entire understanding between the parties and supersedes prior agreements. Any amendments must be in writing and signed by both parties.
+
+
+13.3. Assignment
+
+
+13.3. Assignment.
+
+Neither party may assign this Agreement without prior written consent of the other, except that Company may assign to an affiliate or successor without Client's consent.
+
+
+13.4. No Third-Party Beneficiaries
+
+
+13.4. No Third-Party Beneficiaries.
+
+No third parties shall have any rights under this Agreement.
+
+
+13.5. Notices
+
+
+13.5. Notices.
+
+All notices shall be in writing and deemed effective upon: (i) personal delivery, (ii) two (2) business days after deposit with a national overnight courier, or (iii) verified email receipt, to the addresses set forth above or as updated by written notice.
+
+
+13.6. Force Majeure
+
+
+13.6. Force Majeure.
+
+Neither party shall be liable for delays or failures due to causes beyond reasonable control, including acts of God, war, terrorism, government actions, labor disputes, epidemics, or other unforeseeable events. If such events continue for an extended period making performance impracticable, either party may terminate with ten (10) days' notice.
+
+
+13.7. Expanded Force Majeure Coverage
+
+
+13.7. Expanded Force Majeure Coverage
+
+In addition to acts of God, natural disasters, labor strikes, and government actions, the following events shall also be deemed force majeure and relieve Company of performance obligations during their duration:
+• Factory production slot delays or plant closures due to external conditions
+• Module transportation restrictions or unavailability of specialized carriers
+• Permit delays beyond Company's control caused by municipal backlogs or rule changes
+• Supply chain disruptions that materially affect cost or timeline
+
+Company will notify Client as soon as practicable of any such event and will work in good faith to minimize resulting delays.
+
+
+13.8. Counterparts; Electronic Signatures
+
+
+13.8. Counterparts; Electronic Signatures.
+
+This Agreement may be executed in counterparts and by electronic transmission, each of which shall be deemed an original.
+
+
+SIGNATURE BLOCK
+
+IN WITNESS WHEREOF, the parties have executed this Design Services Agreement as of the date first set forth above.
+
+Dvele Partners Smith                              CLIENT
+
+By: _________________________                       By: _________________________
+
+Name: _______________________                       Name: John Smith and Jane Smith
+
+Title: ______________________                       Title: Homeowners
+
+
+EXHIBIT A: PROJECT BUDGET
+
+Exhibit A: Project Budget
+
+Project: Smith Residence (Project No. 2025-001)
+Client: John and Jane Smith
+Site Address: 456 Oak Lane, San Jose, CA 95120
+Total Units: 1
+Date: 2025-02-01
+
+Exhibit A: Phase 1 - Design and Engineering
+
+PRICING BREAKDOWN:
+
+PHASE 1: Design and Engineering
+
+| Item                    | Description                                                           | Amount           |
+|-------------------------|-----------------------------------------------------------------------|------------------|
+| Design & Engineering Fee| Site-specific engineering, design development, cost estimation,      | $45,000   |
+|                         | and permitting support                                                |                  |
+
+Exhibit A: Phase 2 - Preliminary Estimates
+
+PHASE 2: PRELIMINARY ESTIMATES (Provided at Signing, Refined During Design)
+
+| Item                | Description                     | Amount                             |
+|---------------------|--------------------------------|-------------------------------------|
+| Factory Production  | {{HOME_MODEL_1}}               | {{HOME_MODEL_1_PRELIMINARY_PRICE}} |
+| Factory Production  | Dvele Ora 2400               | $425,000 |
+| Preliminary Subtotal| Offsite Services:              | $425,000      |
+
+Exhibit A: Phase 3 - Final Pricing
+
+PHASE 3: FINAL PRICING (Established at Green Light Production Notice)
+
+At Green Light, Client will receive:
+• LOCKED Manufacturing Price (Offsite Services) - Fixed and guaranteed
+• REFINED Site Cost Estimate (On-Site Services) - Based on completed site engineering
+• Final Total Contract Price, subject to unforeseen circumstances with On-Site work, for Client approval
+
+Manufacturing pricing becomes fixed at Green Light. Site pricing is refined to maximum accuracy but may be subject to change orders if unforeseen conditions arise during construction.
+
+Client must approve final pricing to proceed to production. If Client does not approve, Client may exit per Section 10, having paid only the Design & Engineering Fee plus any additional professional fees due.
+
+Exhibit A: Exclusions
+
+EXCLUSIONS (Not Included Unless Specified):
+• Local permit fees and municipal approvals
+• Specialty equipment (expansion tanks, secondary fire systems, lift stations)
+• Landscaping and hardscaping (unless specified in the Project Scope)
+• Off-site improvements or impact fees
+• Client-requested upgrades or changes after Green Light
+
+PRICE ADJUSTMENT PROVISIONS:
+Any changes to the Total Contract Price will be added to this Exhibit as an addendum or via written Change Order signed by both parties.
+
+Final pricing for Offsite Services will be confirmed upon design completion and Green Light Production Notice. On-Site Services will be reconciled monthly based on actual costs incurred.
+
+
+EXHIBIT B: PLANS AND SPECIFICATIONS
+
+Exhibit B: Plans and Specifications Drawing Set and interior finishes for the Home
+
+[Plans and specifications to be attached upon completion of design phase]
+
+
+EXHIBIT C: PAYMENT SCHEDULE
+
+Exhibit C: Payment Schedule
+
+Project: Smith Residence (Project No. 2025-001)
+Client: John and Jane Smith
+Total Contract Price: $850,000
+
+Exhibit C: Unified Payment Structure
+
+UNIFIED PAYMENT STRUCTURE (Applies to All Projects - D2C and B2B):
+
+All projects follow the same payment structure:
+
+PHASE 1: DESIGN & ENGINEERING
+• Payment: $45,000 due at contract signing
+• Deliverables: Site-specific engineering, design development, cost estimation, permitting support
+• Client receives: Preliminary estimates for manufacturing and site work
+
+PHASE 2: GREEN LIGHT DECISION POINT
+• Payment: {{MILESTONE_1_PERCENT}}% of Final Contract Price (due upon Green Light approval)
+• Deliverables: Final pricing presented - Manufacturing LOCKED, Site work REFINED
+• Client Decision: Approve and proceed to production, OR exit (having paid only Design Fee and any associated Professional Fees)
+
+PHASE 3: PRODUCTION & DELIVERY (If Green Light Approved)
+Payments per milestone schedule in Section 2.9:
+• Production Start: {{MILESTONE_2_PERCENT}}%
+• Production Completion: {{MILESTONE_3_PERCENT}}%
+• Delivery: {{MILESTONE_4_PERCENT}}%
+• Installation Complete: {{MILESTONE_5_PERCENT}}%
+• Final Payment: Balance retainage
+• Retainage Release: 5% after 60 days
+
+Note: For multi-unit projects, payment milestones may be structured per-unit or per-phase as detailed in the project-specific schedule below.
+
+Note: This payment schedule covers all services provided by Company, including Design & Engineering, Manufacturing (Offsite Services), and On-Site Services. All payments are made to Company.
+
+
+EXHIBIT D: MILESTONE SCHEDULE
+
+Exhibit D: Milestone Schedule
+
+The following Design Milestone Schedule outlines key milestones of the Design Phase, including deliverables, responsibilities, and approval requirements. Dates to be confirmed by the Parties.
+
+| Milestone No. | Description                  | Deliverable                                      | Target Date |
+|---------------|------------------------------|--------------------------------------------------|-------------|
+| 1             | Kickoff Meeting              | Project brief, goals alignment                   | [Date]      |
+| 2             | Preliminary Design Package   | Concept floor plans, site layout                 | [Date]      |
+| 3             | Design Sign-Off              | Final Design Package ready for permitting & production | [Date] |
+| 4             | Production                   | Final cost estimate, production schedule         | [Date]      |
+| 5             | On-site Prep                 | Ground and / foundations                         | [Date]      |
+| 6             | Delivery and Site Finishing  | Setting, Stitching and detailed finishing        | [Date]      |
+| 7             | Occupancy                    | Certificate of Occupancy and transition to warranty period | [Date] |
+
+
+EXHIBIT E: LIMITED WARRANTY
+
+Exhibit E: Limited Warranty
+
+PURSUANT TO CAL. COM. CODE § 1201(b)(10), THIS SECTION (ALONG WITH SECTION 6, ABOVE) CHANGES YOUR EXISTING WARRANTY RIGHTS UNDER CALIFORNIA LAW, AND REPLACES CERTAIN EXISTING WARRANTIES WITH OUR OWN LIMITED WARRANTY. PLEASE READ THE ENTIRE SECTION CAREFULLY AND INITIAL AFTER READING ONLY IF YOU AGREE. YOU HAVE THE RIGHT TO CONSULT WITH AN ATTORNEY BEFORE AGREEING TO WAIVE THESE RIGHTS.
+
+If you have read, understand, and agree to Exhibit E, please initial here: _____
+
+Exhibit E: 1. Definitions
+
+1. Definitions
+
+"Covered Component" means those specific systems and structural elements described in Sections 3 and 4 below, which were originally supplied by Company or its authorized manufacturers.
+
+"Repair" means correction of the defect by restoring the Covered Component to proper working condition.
+
+"Repair/Replacement" means correction of the defect by providing a comparable component and installing it.
+
+"Term of Coverage" begins on the date the Home leaves Company's factory and continues according to the applicable coverage period (2-, 5-, or 10-year).
+
+"Failure to Perform Its Intended Function" means the operational or structural failure of a Covered Component due to a defect to the extent that:
+• the component no longer functions as designed, or
+• continued use would be unsafe or materially impractical
+
+Exhibit E: 2. Warranty Commencement
+
+2. Warranty Commencement
+
+Warranties begin on the earlier of:
+• Substantial completion of factory delivery and installation on site, or
+• 30 days after factory delivery, unless delays are caused by Company.
+
+This timing ensures protection begins as soon as the modules are delivered and ready for occupancy.
+
+Exhibit E: 3. Warranty Scope
+
+3. Warranty Scope
+
+| Warranty Type    | Duration                             | Covered Components                                                   |
+|------------------|--------------------------------------|----------------------------------------------------------------------|
+| Fit and Finish   | 24 Months | Interior/exterior finishes (paint, trim, drywall, cabinets, flooring, siding, tile) |
+| Building Envelope| 60 Months   | Roof, exterior walls, foundation system (excluding on-site foundation work not performed by Company) |
+| Structural       | 120 Months | Structural frame, floor structure, roof structure, load-bearing walls |
+
+Exhibit E: 4. Systems Coverage
+
+4. Systems Coverage (2 Years)
+
+Company warrants that the following systems will be free of material defects and operate as intended during the first two (2) years:
+
+Plumbing System: Supply and drain lines, waste pipes, toilets, faucets, sinks, tubs (excluding hot tubs or spas), water heater.
+
+Electrical System: Service panel, circuit breakers, interior wiring, outlets, switches, and light fixtures.
+
+HVAC System: Ductwork, furnace, vents, thermostat, and connections.
+
+Exhibit E: 5. Appliance and Fixture Coverage
+
+5. Appliance and Fixture Coverage (Pass-Through)
+
+Company provides no separate warranty for appliances or fixtures (e.g., ranges, refrigerators, dishwashers, lighting fixtures, HVAC units, etc.) but will pass through to Client all applicable manufacturer warranties. Defects in installation by Company are covered under the Fit and Finish warranty for two (2) years.
+
+Exhibit E: 6. Exclusions
+
+6. Exclusions
+
+This Limited Warranty does not cover:
+• Cosmetic issues (e.g., fading, chipping, surface discoloration) not affecting functionality.
+• Damage caused by Client, contractors, or others not retained by Company.
+• Any defect or issue resulting from improper setup, foundation work, or site conditions not performed or controlled by Company.
+• Normal wear and tear or lack of maintenance.
+• Modifications, alterations, or repairs performed by others without Company's written approval.
+• Water intrusion due to site grading, landscaping, or foundation work not performed by Company.
+• Appliances or components subject to manufacturer recalls or third-party warranties.
+• Acts of God (e.g., fire, flood, earthquake, windstorm, etc.).
+• Rodent, pest, or insect damage.
+• Use of the Home for commercial or rental purposes unless expressly approved in writing.
+
+Exhibit E: 7. Claims and Remedies
+
+7. Claims and Remedies
+
+• Claims must be submitted to Company in writing within thirty (30) days of discovering the defect.
+• No coverage is available for claims made after the applicable warranty period expires.
+• Client must provide access for Company to inspect and assess the claimed defect.
+• Emergency repairs may be authorized by Client only in cases of immediate hazard or safety risk, and only if Company is not reasonably available. Client must retain original parts for inspection.
+
+Exhibit E: 8. Limits of Liability
+
+8. Limits of Liability
+
+Company's total liability under this Limited Warranty shall not exceed the Total Contract Price of the Home. Company shall not be liable for any consequential, special, indirect, or incidental damages.
+
+
+EXHIBIT F: SITE RESPONSIBILITY MATRIX
+
+Exhibit F: Site Responsibility Matrix & Requirements for Warranty Eligibility
+
+Exhibit F: Company Authority Over On-Site Work
+
+COMPANY'S AUTHORITY OVER ON-SITE WORK:
+
+In order for Company to provide the Limited Warranty, regardless of who performs on-site work (Client's GC or Company's contractors), Company must maintain appropriate authority over all contractors, subcontractors, and site activities to protect the integrity of its products and preserve warranty coverage. This authority includes:
+
+APPROVAL AUTHORITY: Right to approve contractor selection based on qualifications, licensing, insurance, and experience with modular/prefab construction
+
+PROCESS CONTROL: Authority over all on-site work processes, methods, and sequencing to ensure compliance with Company's installation specifications and quality standards
+
+TECHNICAL OVERSIGHT: Final authority over all technical details, including foundation specifications, module setting, MEP connections, weatherproofing, and finish work
+
+INSPECTION RIGHTS: Unrestricted access to the site and all work in progress for quality control inspections at any time
+
+STOP-WORK AUTHORITY: Right to halt any work that does not meet Company's standards, with contractor obligated to remedy deficiencies before proceeding
+
+BUDGET OVERSIGHT: Right to review and approve cost estimates and change orders that may affect the quality or integrity of the installation
+
+FINAL APPROVAL: Authority to conduct final inspection and approve completion before warranty coverage becomes effective
+
+Failure to grant Company these authorities, or failure by contractors to comply with Company's quality standards and installation specifications, may void part or all of the Limited Warranty.
+
+Exhibit F: Scope of Work - CRC
+
+This Exhibit outlines the minimum site and installation requirements that the General Contractor ("GC") must meet and maintain in order for the Client to be eligible for the Limited Warranty provided by Company, as outlined in this Agreement.
+
+Failure to adhere to these standards may void part or all of the Company warranty.
+
+Client's agreement with its General Contractor must include provisions granting Company these authorities. Failure to comply with Company's quality standards, installation specifications, or inspection requirements may void part or all of the Limited Warranty.
+
+Scope of On-Site and Installation Work:
+
+Client shall instruct its General Contractor to perform all work defined below in strict accordance with Company's required quality control processes and warranty requirements. Company retains authority to inspect and approve all on-site work to ensure compliance with Company standards. Client is responsible for all payments to its General Contractor under a separate agreement.
+
+Exhibit F: Responsibility Matrix
+
+RESPONSIBILITY MATRIX:
+
+1. Site Preparation and Readiness
+
+Responsible Party: [Per Client Election]
+
+The responsible party shall complete all site preparation activities prior to delivery of the modular home(s), including but not limited to:
+• Clearing, grading, excavation, and soil preparation
+• Foundation work, including footings, slab, or crawlspace construction
+• Installation of underground utilities and connections (water, sewer, electric, gas)
+• Ensuring site access and staging areas are established for delivery vehicles and crane operations
+• Compliance with all local zoning, building codes, and permit requirements necessary for site readiness
+• Provision of temporary site facilities such as fencing, sanitation (toilet facilities), and site security
+
+2. Delivery Coordination
+
+Responsible Party: [Per Client Election]
+
+The responsible party shall coordinate and manage all activities related to the delivery of modular home components, including:
+• Scheduling and facilitating delivery appointments in accordance with Manufacturer's agreed delivery windows
+• Providing safe and clear access routes for delivery trucks, including turnarounds and staging areas
+• Coordination of crane or heavy equipment for unloading and setting modules onto the foundation
+• Arranging any required traffic control, street closures, or neighbor notifications necessary for delivery
+• Ensuring adequate on-site personnel and equipment are present during delivery to assist with unloading and positioning
+
+Exhibit F: Installation and Inspections
+
+3. Installation of Modular Home
+
+Responsible Party: [Per Client Election]
+
+The responsible party shall be responsible for all installation activities after delivery, including but not limited to:
+• Setting and securing modular sections onto the foundation according to manufacturer specifications
+• Connecting mechanical, electrical, and plumbing (MEP) systems between modules and site utilities
+• Performing sealing, weatherproofing, and final site connections as needed
+• Coordination with the manufacturer for inspections, punch list items, and warranty walk-throughs
+• Managing any finish carpentry or site-specific work not included in factory construction
+
+4. Inspections and Approvals
+
+Responsible Party: [Per Client Election]
+
+The responsible party shall schedule, coordinate, and ensure completion of all required inspections and approvals including:
+• Local building department inspections for foundation, framing, MEP, and final occupancy
+• Manufacturer or third-party inspections as required for quality control and warranty compliance
+• Certification of utilities connection and compliance with environmental or safety regulations
+
+5. Site Maintenance and Cleanup
+
+Responsible Party: [Per Client Election]
+
+The responsible party shall maintain the site in a safe, clean, and orderly condition during and after installation, including:
+• Removal and disposal of all construction debris and packaging materials
+• Site restoration and landscaping as necessary to meet local requirements and project standards
+• Immediate remediation of any damage caused by delivery or installation activities
+
+Exhibit F: GC Requirements - CRC
+
+Client shall inform its General Contractor ("GC") and ensure the following is part of their agreement with their chosen Contractor:
+
+1. Responsibilities and Indemnification
+
+The Client and Client's GC assume full responsibility for site safety, compliance, and performance of on-site work.
+
+The Client agrees to indemnify and hold harmless the Manufacturer and its affiliates against claims, damages, or costs arising from site work, delivery, or installation activities performed by the Client or their contractors.
+
+2. General Qualifications
+
+The GC must:
+• Be a licensed contractor in the jurisdiction of the project.
+• Carry general liability insurance and workers' compensation as required by local law and provide proof to Company prior to site work.
+• Have demonstrated experience with modular or prefab installation projects.
+
+3. Pre-Installation Site Preparation
+
+GC must follow foundation and anchoring specifications as provided by Company's engineering team.
+
+Site must be:
+• Graded and compacted according to local code and Company's tolerance standards
+• Free of standing water or debris
+• Accessible by delivery vehicles and cranes (if required)
+
+Utility connections (electrical, water, sewer, gas) must be stubbed and tested according to local code and Company's location drawings.
+
+Exhibit F: Installation and Post-Installation - CRC
+
+4. Installation
+
+GC must coordinate with Company on module delivery scheduling, craning, and staging. Modules must be installed within 72 hours of delivery unless otherwise approved in writing. GC must use assembly and protocols provided by Company, including:
+• Sealing, fasteners, and weatherproofing materials
+• Exterior finishing where applicable
+• System reconnection procedures (HVAC, electrical, plumbing)
+
+Company reserves the right to supervise or audit module setting and initial assembly.
+
+5. Post-Installation
+
+The GC must perform the following:
+• Blower door test and leak checks (where applicable)
+• Complete final finish work as defined in Exhibit (e.g., stairs, trim, site utilities)
+• Submit photographic documentation of all major stages if Company personnel are not onsite
+
+GC must correct any site-level issues that could impact the home's structural integrity, weatherproofing, or indoor air quality.
+
+6. Required Documentation
+
+The following must be submitted by the GC to Company for warranty activation:
+• Final inspection report or certificate of occupancy
+• Completed GC checklist signed by Client and GC
+• Photos of all critical installation steps
+• Permitting and inspection clearance copies
+
+7. Non-Compliance
+
+If Company determines that the GC has not complied with these minimum requirements:
+• Company may issue a partial warranty exclusion letter specifying what systems are no longer covered.
+• Client may be required to engage a Company-recommended installer or correct deficiencies before warranty reactivation.
+
+8. Acknowledgment
+
+By proceeding with the Green Light, Client acknowledges this exhibit and agrees to share it in full with their General Contractor.
