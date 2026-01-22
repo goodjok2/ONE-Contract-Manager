@@ -1,0 +1,220 @@
+SELECT COUNT(*) as total, COUNT(DISTINCT variable_name) as unique 
+FROM contract_variables;
+```
+
+This will tell us if we have duplicate variable_name entries or if this is counting usage across contracts.
+
+---
+
+## 🎯 Next Critical Step: **Contract Generation Wizard**
+
+Now that you have the preview interface, the natural next step is the **end-to-end contract generation wizard** that actual users (project managers, sales team) will use to create contracts.
+
+Here's what to build:
+```
+CONTRACT GENERATION WIZARD - Full Implementation
+
+Route: /generate-contracts
+
+WIZARD STRUCTURE (7 Steps):
+
+════════════════════════════════════════════
+STEP 1: Project Setup
+════════════════════════════════════════════
+Fields:
+- Project Number (auto-generate: YYYY-###)
+- Project Name
+- Total Units (1 or select number for multi-unit)
+- Agreement Execution Date (default: today)
+
+Actions:
+- Validate project number is unique
+- Save to projects table (create if doesn't exist)
+
+════════════════════════════════════════════
+STEP 2: Service Model & Parties
+════════════════════════════════════════════
+Service Model Selection:
+- Radio buttons: CRC vs CMOS (with explanations)
+- Show preview of how this affects clauses
+
+Client Information:
+- Client Legal Name
+- Client State (dropdown of US states)
+- Client Entity Type (dropdown: individual, LLC, corporation, etc.)
+- Client Full Name (for signature)
+- Client Title
+
+SPV/LLC Information:
+Option A: "Create New LLC" (default)
+- Auto-generate name: "Dvele Partners [Client Last Name] LLC"
+- Formation State: Delaware (default, editable)
+- Display: "This will create a new project-specific LLC"
+
+Option B: "Use Existing LLC"
+- Dropdown of existing LLCs
+- Show LLC details (EIN, formation date, state)
+
+On-Site Contractor (if CRC selected):
+- Contractor Name
+- Contractor License Number
+- Contractor Address
+- Contractor Insurance Policy
+
+Actions:
+- If "Create New LLC" → create LLC record in database
+- Auto-populate DP_X variables from selected/created LLC
+
+════════════════════════════════════════════
+STEP 3: Site & Property Details
+════════════════════════════════════════════
+Fields:
+- Delivery/Site Address (with address autocomplete)
+- Unit Specifications:
+  * Home Model (dropdown or autocomplete from catalog)
+  * Square Footage
+  * Bedrooms
+  * Bathrooms
+  * Unit Price
+
+For Multi-Unit Projects:
+- Repeat unit fields for each unit
+- Show running total
+
+Actions:
+- Validate address is complete
+- Calculate total preliminary offsite price
+
+════════════════════════════════════════════
+STEP 4: Financial Terms
+════════════════════════════════════════════
+Design Phase:
+- Design Fee (with recommended range based on project size)
+- Design Revision Rounds (default: 3)
+
+Preliminary Pricing:
+- Manufacturing/Offsite Price (calculated or manual)
+- Delivery & Installation Price
+- Site Preparation Price (if CMOS)
+- Utilities Price (if CMOS)
+- Completion Price (if CMOS)
+- Total Preliminary Contract Price (auto-calculated)
+
+Payment Milestones:
+- Milestone 1-5 percentages (with defaults, must total 95%)
+- Retainage percent (default: 5%)
+- Retainage days (default: 60)
+
+Manufacturing-Specific:
+- Design Payment
+- Production Start Payment
+- Production Completion Payment
+- Delivery Ready Payment
+
+Actions:
+- Validate percentages add up correctly
+- Show payment schedule preview
+
+════════════════════════════════════════════
+STEP 5: Schedule & Warranty
+════════════════════════════════════════════
+Schedule:
+- Effective Date
+- Estimated completion timeframe
+
+Warranty Periods:
+- Fit & Finish (default: 24 months)
+- Building Envelope (default: 60 months)
+- Structural (default: 120 months)
+
+Legal Jurisdiction:
+- Project State (auto-filled from site address)
+- Project County
+- Federal District (auto-populate from state)
+
+Actions:
+- Calculate estimated completion dates
+- Validate warranty periods meet minimums
+
+════════════════════════════════════════════
+STEP 6: Review & Preview
+════════════════════════════════════════════
+Display Summary:
+- All entered information organized by category
+- Calculated totals and percentages
+- Missing/incomplete variables highlighted
+
+Preview Tools:
+- Button: "Preview Clauses" → Shows which clauses will be included
+- Toggle CRC/CMOS to see differences
+- Variable coverage: X/89 populated
+
+Edit Options:
+- "Edit" button next to each section to go back
+
+Warning if Critical Variables Missing:
+- Highlight any required variables that are empty
+- Block generation until all required fields complete
+
+════════════════════════════════════════════
+STEP 7: Generate & Download
+════════════════════════════════════════════
+Generation Options:
+- Checkbox: Generate ONE Agreement ✓
+- Checkbox: Generate Manufacturing Subcontract ✓
+- Checkbox: Generate On-Site Subcontract ✓
+
+Actions:
+- Click "Generate Contract Package"
+- Show progress indicator
+- Call POST /api/contracts/generate-package
+- Display success with download links
+
+Download Interface:
+- Download ONE Agreement (.docx)
+- Download Manufacturing Subcontract (.docx)
+- Download On-Site Subcontract (.docx)
+- Download All as ZIP
+
+Post-Generation:
+- Save project data to database
+- Link contracts to project and LLC
+- Option to "Generate Again" with same data
+
+════════════════════════════════════════════
+
+ADDITIONAL FEATURES:
+
+1. Save Draft:
+   - "Save Progress" button on each step
+   - Resume later from saved state
+
+2. Templates:
+   - Save current configuration as template
+   - Load from saved templates
+   - Example: "Standard CRC Single-Unit Template"
+
+3. Odoo Integration (Optional):
+   - "Import from Odoo" button
+   - Fetch project data from Odoo by project ID
+   - Auto-populate 70% of fields
+
+4. Validation:
+   - Required field indicators (red asterisk)
+   - Real-time validation with helpful error messages
+   - Can't proceed to next step if current step incomplete
+
+5. Progress Indicator:
+   - Visual progress bar showing steps 1-7
+   - Checkmarks on completed steps
+   - Click to navigate back to any completed step
+
+UI/UX REQUIREMENTS:
+- Clean, professional design matching existing app
+- Mobile-responsive
+- Keyboard navigation support
+- Auto-save on field blur
+- Helpful tooltips on complex fields
+- Clear labeling with examples
+
+Build this complete wizard now. Start with steps 1-3 and we'll test before building 4-7.
