@@ -500,17 +500,33 @@ export const insertProjectDetailsSchema = createInsertSchema(projectDetails);
 // LEGACY COMPATIBILITY (for existing llc-admin page)
 // =============================================================================
 
-// Legacy LLC table for backward compatibility with existing UI
+// Enhanced LLC table with full administration features
 export const llcs = pgTable("llcs", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   projectName: text("project_name").notNull(),
-  status: text("status").default("pending"),
+  projectId: integer("project_id"), // Link to project if exists
+  clientLastName: text("client_last_name"), // For auto-generation
+  deliveryAddress: text("delivery_address"), // For auto-generation
+  status: text("status").default("forming"), // forming, active, closed
   stateOfFormation: text("state_of_formation").default("Delaware"),
   einNumber: text("ein_number"),
   registeredAgent: text("registered_agent"),
+  registeredAgentAddress: text("registered_agent_address"),
   formationDate: text("formation_date"),
+  // Address
+  address: text("address"),
+  city: text("city"),
+  state: text("state"),
+  zip: text("zip"),
+  // Members/Ownership
+  members: text("members"), // JSON array of members
+  // Compliance tracking
+  annualReportDueDate: text("annual_report_due_date"),
+  annualReportStatus: text("annual_report_status").default("pending"), // pending, filed, overdue
+  // Timestamps
   createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 export const insertLLCSchema = createInsertSchema(llcs);

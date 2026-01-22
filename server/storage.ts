@@ -1,124 +1,102 @@
 import { 
-  users, llcs, contracts,
-  type User, type InsertUser,
-  type LLC, type InsertLLC,
-  type Contract, type InsertContract,
-  type DashboardStats
+  llcs, contracts,
+  type LLC, type NewLLC,
+  type Contract, type NewContract,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, sql, count } from "drizzle-orm";
+import { eq, sql, count, desc } from "drizzle-orm";
+
+export interface DashboardStats {
+  activeProjects: number;
+  pendingLLCs: number;
+  totalContractValue: number;
+  totalContracts: number;
+  drafts: number;
+  pendingReview: number;
+  signed: number;
+  draftsValue: number;
+  pendingValue: number;
+  signedValue: number;
+}
 
 export interface IStorage {
-  // Users
-  getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
-  
   // LLCs
   getLLCs(): Promise<LLC[]>;
-  getLLC(id: string): Promise<LLC | undefined>;
-  createLLC(llc: InsertLLC): Promise<LLC>;
-  updateLLC(id: string, llc: Partial<InsertLLC>): Promise<LLC | undefined>;
-  deleteLLC(id: string): Promise<boolean>;
+  getLLC(id: number): Promise<LLC | undefined>;
+  createLLC(llc: NewLLC): Promise<LLC>;
+  updateLLC(id: number, llc: Partial<NewLLC>): Promise<LLC | undefined>;
+  deleteLLC(id: number): Promise<boolean>;
   
   // Contracts
   getContracts(): Promise<Contract[]>;
-  getContract(id: string): Promise<Contract | undefined>;
-  createContract(contract: InsertContract): Promise<Contract>;
-  updateContract(id: string, contract: Partial<InsertContract>): Promise<Contract | undefined>;
-  deleteContract(id: string): Promise<boolean>;
+  getContract(id: number): Promise<Contract | undefined>;
+  createContract(contract: NewContract): Promise<Contract>;
+  updateContract(id: number, contract: Partial<NewContract>): Promise<Contract | undefined>;
+  deleteContract(id: number): Promise<boolean>;
   
   // Dashboard
   getDashboardStats(): Promise<DashboardStats>;
 }
 
 export class DatabaseStorage implements IStorage {
-  // Users
-  async getUser(id: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.id, id));
-    return user || undefined;
-  }
-
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.username, username));
-    return user || undefined;
-  }
-
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const [user] = await db.insert(users).values(insertUser).returning();
-    return user;
-  }
-
   // LLCs
   async getLLCs(): Promise<LLC[]> {
-    return await db.select().from(llcs).orderBy(llcs.createdAt);
+    return await db.select().from(llcs).orderBy(desc(llcs.createdAt));
   }
 
-  async getLLC(id: string): Promise<LLC | undefined> {
+  async getLLC(id: number): Promise<LLC | undefined> {
     const [llc] = await db.select().from(llcs).where(eq(llcs.id, id));
     return llc || undefined;
   }
 
-  async createLLC(insertLLC: InsertLLC): Promise<LLC> {
+  async createLLC(insertLLC: NewLLC): Promise<LLC> {
     const [llc] = await db.insert(llcs).values(insertLLC).returning();
     return llc;
   }
 
-  async updateLLC(id: string, updateData: Partial<InsertLLC>): Promise<LLC | undefined> {
-    const [llc] = await db.update(llcs).set(updateData).where(eq(llcs.id, id)).returning();
+  async updateLLC(id: number, updateData: Partial<NewLLC>): Promise<LLC | undefined> {
+    const [llc] = await db.update(llcs).set({ ...updateData, updatedAt: new Date() }).where(eq(llcs.id, id)).returning();
     return llc || undefined;
   }
 
-  async deleteLLC(id: string): Promise<boolean> {
+  async deleteLLC(id: number): Promise<boolean> {
     const result = await db.delete(llcs).where(eq(llcs.id, id)).returning();
     return result.length > 0;
   }
 
   // Contracts
   async getContracts(): Promise<Contract[]> {
-    return await db.select().from(contracts).orderBy(contracts.createdAt);
+    return await db.select().from(contracts).orderBy(desc(contracts.generatedAt));
   }
 
-  async getContract(id: string): Promise<Contract | undefined> {
+  async getContract(id: number): Promise<Contract | undefined> {
     const [contract] = await db.select().from(contracts).where(eq(contracts.id, id));
     return contract || undefined;
   }
 
-  async createContract(insertContract: InsertContract): Promise<Contract> {
+  async createContract(insertContract: NewContract): Promise<Contract> {
     const [contract] = await db.insert(contracts).values(insertContract).returning();
     return contract;
   }
 
-  async updateContract(id: string, updateData: Partial<InsertContract>): Promise<Contract | undefined> {
+  async updateContract(id: number, updateData: Partial<NewContract>): Promise<Contract | undefined> {
     const [contract] = await db.update(contracts).set(updateData).where(eq(contracts.id, id)).returning();
     return contract || undefined;
   }
 
-  async deleteContract(id: string): Promise<boolean> {
+  async deleteContract(id: number): Promise<boolean> {
     const result = await db.delete(contracts).where(eq(contracts.id, id)).returning();
     return result.length > 0;
   }
 
   // Dashboard Stats
   async getDashboardStats(): Promise<DashboardStats> {
-    // Original stats: Active projects (contracts not in draft or expired status)
-    const activeProjectsResult = await db
-      .select({ count: count() })
-      .from(contracts)
-      .where(sql`${contracts.status} IN ('pending_review', 'approved', 'signed')`);
-    
-    // Original stats: Pending LLCs
-    const pendingLLCsResult = await db
+    // Count LLCs by status
+    const formingLLCsResult = await db
       .select({ count: count() })
       .from(llcs)
-      .where(sql`${llcs.status} = 'pending'`);
+      .where(sql`${llcs.status} IN ('pending', 'forming')`);
     
-    // Original stats: Total contract value (approved/signed only)
-    const totalValueResult = await db
-      .select({ total: sql<string>`COALESCE(SUM(${contracts.contractValue}), 0)` })
-      .from(contracts)
-      .where(sql`${contracts.status} IN ('approved', 'signed')`);
-
     // Total contracts
     const totalResult = await db.select({ count: count() }).from(contracts);
     
@@ -126,51 +104,37 @@ export class DatabaseStorage implements IStorage {
     const draftsResult = await db
       .select({ count: count() })
       .from(contracts)
-      .where(sql`${contracts.status} = 'draft'`);
+      .where(sql`${contracts.status} = 'Draft'`);
     
     // Pending review count
     const pendingResult = await db
       .select({ count: count() })
       .from(contracts)
-      .where(sql`${contracts.status} = 'pending_review'`);
+      .where(sql`${contracts.status} = 'PendingReview'`);
     
-    // Signed count
+    // Executed/Signed count
     const signedResult = await db
       .select({ count: count() })
       .from(contracts)
-      .where(sql`${contracts.status} = 'signed'`);
-    
-    // Drafts value
-    const draftsValueResult = await db
-      .select({ total: sql<string>`COALESCE(SUM(${contracts.contractValue}), 0)` })
+      .where(sql`${contracts.status} = 'Executed'`);
+
+    // Active projects (contracts not draft)
+    const activeProjectsResult = await db
+      .select({ count: count() })
       .from(contracts)
-      .where(sql`${contracts.status} = 'draft'`);
-    
-    // Pending value
-    const pendingValueResult = await db
-      .select({ total: sql<string>`COALESCE(SUM(${contracts.contractValue}), 0)` })
-      .from(contracts)
-      .where(sql`${contracts.status} = 'pending_review'`);
-    
-    // Signed value
-    const signedValueResult = await db
-      .select({ total: sql<string>`COALESCE(SUM(${contracts.contractValue}), 0)` })
-      .from(contracts)
-      .where(sql`${contracts.status} = 'signed'`);
+      .where(sql`${contracts.status} IN ('PendingReview', 'Approved', 'Executed')`);
 
     return {
-      // Original stats
       activeProjects: activeProjectsResult[0]?.count ?? 0,
-      pendingLLCs: pendingLLCsResult[0]?.count ?? 0,
-      totalContractValue: parseFloat(totalValueResult[0]?.total ?? "0"),
-      // New stats
+      pendingLLCs: formingLLCsResult[0]?.count ?? 0,
+      totalContractValue: 0,
       totalContracts: totalResult[0]?.count ?? 0,
       drafts: draftsResult[0]?.count ?? 0,
       pendingReview: pendingResult[0]?.count ?? 0,
       signed: signedResult[0]?.count ?? 0,
-      draftsValue: parseFloat(draftsValueResult[0]?.total ?? "0"),
-      pendingValue: parseFloat(pendingValueResult[0]?.total ?? "0"),
-      signedValue: parseFloat(signedValueResult[0]?.total ?? "0"),
+      draftsValue: 0,
+      pendingValue: 0,
+      signedValue: 0,
     };
   }
 }

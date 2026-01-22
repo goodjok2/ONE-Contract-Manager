@@ -12,6 +12,7 @@ import Dashboard from "@/pages/dashboard";
 import AgreementsNew from "@/pages/agreements-new";
 import ContractBuilder from "@/pages/contract-builder";
 import LLCAdmin from "@/pages/llc-admin";
+import LLCDetail from "@/pages/llc-detail";
 import Settings from "@/pages/settings";
 import ClauseLibrary from "@/pages/clause-library";
 import Contracts from "@/pages/contracts";
@@ -31,6 +32,7 @@ function Router() {
       <Route path="/erp-fields" component={ErpFields} />
       <Route path="/state-requirements" component={StateRequirements} />
       <Route path="/llc-admin" component={LLCAdmin} />
+      <Route path="/llc-admin/:id" component={LLCDetail} />
       <Route path="/settings" component={Settings} />
       <Route component={NotFound} />
     </Switch>

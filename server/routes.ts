@@ -1342,5 +1342,147 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // =============================================================================
+  // LLC ADMINISTRATION
+  // =============================================================================
+
+  app.get("/api/llcs", async (req, res) => {
+    try {
+      const result = await pool.query(`
+        SELECT * FROM llcs ORDER BY created_at DESC
+      `);
+      res.json(result.rows);
+    } catch (error) {
+      console.error("Failed to fetch LLCs:", error);
+      res.status(500).json({ error: "Failed to fetch LLCs" });
+    }
+  });
+
+  app.get("/api/llcs/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const result = await pool.query(`SELECT * FROM llcs WHERE id = $1`, [id]);
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: "LLC not found" });
+      }
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error("Failed to fetch LLC:", error);
+      res.status(500).json({ error: "Failed to fetch LLC" });
+    }
+  });
+
+  app.post("/api/llcs", async (req, res) => {
+    try {
+      const { 
+        name, projectName, projectId, clientLastName, deliveryAddress,
+        status, stateOfFormation, einNumber, registeredAgent, registeredAgentAddress,
+        formationDate, address, city, state, zip, members, 
+        annualReportDueDate, annualReportStatus
+      } = req.body;
+      
+      const result = await pool.query(`
+        INSERT INTO llcs (
+          name, project_name, project_id, client_last_name, delivery_address,
+          status, state_of_formation, ein_number, registered_agent, registered_agent_address,
+          formation_date, address, city, state, zip, members,
+          annual_report_due_date, annual_report_status, created_at, updated_at
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, NOW(), NOW()
+        ) RETURNING *
+      `, [
+        name, projectName, projectId, clientLastName, deliveryAddress,
+        status || 'forming', stateOfFormation || 'Delaware', einNumber, registeredAgent, registeredAgentAddress,
+        formationDate, address, city, state, zip, members,
+        annualReportDueDate, annualReportStatus || 'pending'
+      ]);
+      
+      res.status(201).json(result.rows[0]);
+    } catch (error) {
+      console.error("Failed to create LLC:", error);
+      res.status(500).json({ error: "Failed to create LLC" });
+    }
+  });
+
+  app.patch("/api/llcs/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const updates = req.body;
+      
+      // Build dynamic SET clause
+      const updateFields: string[] = [];
+      const values: any[] = [];
+      let paramCount = 1;
+      
+      const fieldMapping: Record<string, string> = {
+        name: 'name',
+        projectName: 'project_name',
+        projectId: 'project_id',
+        clientLastName: 'client_last_name',
+        deliveryAddress: 'delivery_address',
+        status: 'status',
+        stateOfFormation: 'state_of_formation',
+        einNumber: 'ein_number',
+        registeredAgent: 'registered_agent',
+        registeredAgentAddress: 'registered_agent_address',
+        formationDate: 'formation_date',
+        address: 'address',
+        city: 'city',
+        state: 'state',
+        zip: 'zip',
+        members: 'members',
+        annualReportDueDate: 'annual_report_due_date',
+        annualReportStatus: 'annual_report_status',
+      };
+      
+      for (const [key, value] of Object.entries(updates)) {
+        const dbField = fieldMapping[key];
+        if (dbField) {
+          updateFields.push(`${dbField} = $${paramCount}`);
+          values.push(value);
+          paramCount++;
+        }
+      }
+      
+      if (updateFields.length === 0) {
+        return res.status(400).json({ error: "No valid fields to update" });
+      }
+      
+      updateFields.push(`updated_at = NOW()`);
+      values.push(id);
+      
+      const result = await pool.query(`
+        UPDATE llcs SET ${updateFields.join(', ')} 
+        WHERE id = $${paramCount}
+        RETURNING *
+      `, values);
+      
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: "LLC not found" });
+      }
+      
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error("Failed to update LLC:", error);
+      res.status(500).json({ error: "Failed to update LLC" });
+    }
+  });
+
+  app.delete("/api/llcs/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const result = await pool.query(`DELETE FROM llcs WHERE id = $1 RETURNING *`, [id]);
+      
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: "LLC not found" });
+      }
+      
+      res.json({ success: true, deleted: result.rows[0] });
+    } catch (error) {
+      console.error("Failed to delete LLC:", error);
+      res.status(500).json({ error: "Failed to delete LLC" });
+    }
+  });
+
   // Routes registered successfully
 }
