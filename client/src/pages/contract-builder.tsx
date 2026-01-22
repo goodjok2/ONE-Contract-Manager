@@ -272,7 +272,7 @@ export default function ContractBuilder() {
     }
   }, [homeModel, form]);
 
-  const totalContractPrice = designFee + preliminaryOffsitePrice + preliminaryOnsitePrice;
+  const totalContractPrice = Number(designFee || 0) + Number(preliminaryOffsitePrice || 0) + Number(preliminaryOnsitePrice || 0);
 
   const generateMutation = useMutation({
     mutationFn: async (data: ContractFormValues) => {
