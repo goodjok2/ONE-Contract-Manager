@@ -62,6 +62,9 @@ This application helps Dvele manage construction projects through dedicated chil
 │   │   │   ├── app-sidebar.tsx      # Navigation sidebar (Main + Configuration sections)
 │   │   │   ├── theme-provider.tsx   # Dark mode context provider
 │   │   │   ├── theme-toggle.tsx     # Theme toggle button
+│   │   │   ├── wizard/              # Contract wizard components
+│   │   │   │   ├── WizardContext.tsx # Centralized wizard state management (React Context)
+│   │   │   │   └── index.ts         # Barrel exports for wizard module
 │   │   │   └── ui/                  # Shadcn UI components
 │   │   ├── pages/
 │   │   │   ├── dashboard.tsx        # Main dashboard with stats and templates

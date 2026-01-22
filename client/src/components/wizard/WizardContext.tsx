@@ -1,0 +1,1070 @@
+import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
+import { useToast } from '@/hooks/use-toast';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { apiRequest } from '@/lib/queryClient';
+
+// US States for dropdown
+export const US_STATES = [
+  { value: 'AL', label: 'Alabama' }, { value: 'AK', label: 'Alaska' },
+  { value: 'AZ', label: 'Arizona' }, { value: 'AR', label: 'Arkansas' },
+  { value: 'CA', label: 'California' }, { value: 'CO', label: 'Colorado' },
+  { value: 'CT', label: 'Connecticut' }, { value: 'DE', label: 'Delaware' },
+  { value: 'FL', label: 'Florida' }, { value: 'GA', label: 'Georgia' },
+  { value: 'HI', label: 'Hawaii' }, { value: 'ID', label: 'Idaho' },
+  { value: 'IL', label: 'Illinois' }, { value: 'IN', label: 'Indiana' },
+  { value: 'IA', label: 'Iowa' }, { value: 'KS', label: 'Kansas' },
+  { value: 'KY', label: 'Kentucky' }, { value: 'LA', label: 'Louisiana' },
+  { value: 'ME', label: 'Maine' }, { value: 'MD', label: 'Maryland' },
+  { value: 'MA', label: 'Massachusetts' }, { value: 'MI', label: 'Michigan' },
+  { value: 'MN', label: 'Minnesota' }, { value: 'MS', label: 'Mississippi' },
+  { value: 'MO', label: 'Missouri' }, { value: 'MT', label: 'Montana' },
+  { value: 'NE', label: 'Nebraska' }, { value: 'NV', label: 'Nevada' },
+  { value: 'NH', label: 'New Hampshire' }, { value: 'NJ', label: 'New Jersey' },
+  { value: 'NM', label: 'New Mexico' }, { value: 'NY', label: 'New York' },
+  { value: 'NC', label: 'North Carolina' }, { value: 'ND', label: 'North Dakota' },
+  { value: 'OH', label: 'Ohio' }, { value: 'OK', label: 'Oklahoma' },
+  { value: 'OR', label: 'Oregon' }, { value: 'PA', label: 'Pennsylvania' },
+  { value: 'RI', label: 'Rhode Island' }, { value: 'SC', label: 'South Carolina' },
+  { value: 'SD', label: 'South Dakota' }, { value: 'TN', label: 'Tennessee' },
+  { value: 'TX', label: 'Texas' }, { value: 'UT', label: 'Utah' },
+  { value: 'VT', label: 'Vermont' }, { value: 'VA', label: 'Virginia' },
+  { value: 'WA', label: 'Washington' }, { value: 'WV', label: 'West Virginia' },
+  { value: 'WI', label: 'Wisconsin' }, { value: 'WY', label: 'Wyoming' },
+  { value: 'DC', label: 'District of Columbia' }
+];
+
+// Client entity types
+export const ENTITY_TYPES = [
+  { value: 'Individual', label: 'Individual' },
+  { value: 'LLC', label: 'Limited Liability Company (LLC)' },
+  { value: 'Corporation', label: 'Corporation' },
+  { value: 'Partnership', label: 'Partnership' },
+  { value: 'Trust', label: 'Trust' }
+];
+
+// Federal judicial districts by state
+export const FEDERAL_DISTRICTS: Record<string, string[]> = {
+  'AL': ['Northern District of Alabama', 'Middle District of Alabama', 'Southern District of Alabama'],
+  'AK': ['District of Alaska'],
+  'AZ': ['District of Arizona'],
+  'AR': ['Eastern District of Arkansas', 'Western District of Arkansas'],
+  'CA': ['Northern District of California', 'Eastern District of California', 'Central District of California', 'Southern District of California'],
+  'CO': ['District of Colorado'],
+  'CT': ['District of Connecticut'],
+  'DE': ['District of Delaware'],
+  'FL': ['Northern District of Florida', 'Middle District of Florida', 'Southern District of Florida'],
+  'GA': ['Northern District of Georgia', 'Middle District of Georgia', 'Southern District of Georgia'],
+  'HI': ['District of Hawaii'],
+  'ID': ['District of Idaho'],
+  'IL': ['Northern District of Illinois', 'Central District of Illinois', 'Southern District of Illinois'],
+  'IN': ['Northern District of Indiana', 'Southern District of Indiana'],
+  'IA': ['Northern District of Iowa', 'Southern District of Iowa'],
+  'KS': ['District of Kansas'],
+  'KY': ['Eastern District of Kentucky', 'Western District of Kentucky'],
+  'LA': ['Eastern District of Louisiana', 'Middle District of Louisiana', 'Western District of Louisiana'],
+  'ME': ['District of Maine'],
+  'MD': ['District of Maryland'],
+  'MA': ['District of Massachusetts'],
+  'MI': ['Eastern District of Michigan', 'Western District of Michigan'],
+  'MN': ['District of Minnesota'],
+  'MS': ['Northern District of Mississippi', 'Southern District of Mississippi'],
+  'MO': ['Eastern District of Missouri', 'Western District of Missouri'],
+  'MT': ['District of Montana'],
+  'NE': ['District of Nebraska'],
+  'NV': ['District of Nevada'],
+  'NH': ['District of New Hampshire'],
+  'NJ': ['District of New Jersey'],
+  'NM': ['District of New Mexico'],
+  'NY': ['Northern District of New York', 'Southern District of New York', 'Eastern District of New York', 'Western District of New York'],
+  'NC': ['Eastern District of North Carolina', 'Middle District of North Carolina', 'Western District of North Carolina'],
+  'ND': ['District of North Dakota'],
+  'OH': ['Northern District of Ohio', 'Southern District of Ohio'],
+  'OK': ['Northern District of Oklahoma', 'Eastern District of Oklahoma', 'Western District of Oklahoma'],
+  'OR': ['District of Oregon'],
+  'PA': ['Eastern District of Pennsylvania', 'Middle District of Pennsylvania', 'Western District of Pennsylvania'],
+  'RI': ['District of Rhode Island'],
+  'SC': ['District of South Carolina'],
+  'SD': ['District of South Dakota'],
+  'TN': ['Eastern District of Tennessee', 'Middle District of Tennessee', 'Western District of Tennessee'],
+  'TX': ['Northern District of Texas', 'Eastern District of Texas', 'Southern District of Texas', 'Western District of Texas'],
+  'UT': ['District of Utah'],
+  'VT': ['District of Vermont'],
+  'VA': ['Eastern District of Virginia', 'Western District of Virginia'],
+  'WA': ['Eastern District of Washington', 'Western District of Washington'],
+  'WV': ['Northern District of West Virginia', 'Southern District of West Virginia'],
+  'WI': ['Eastern District of Wisconsin', 'Western District of Wisconsin'],
+  'WY': ['District of Wyoming'],
+  'DC': ['District of Columbia']
+};
+
+// Unit specification interface for multi-unit support
+export interface UnitSpec {
+  id: number;
+  model: string;
+  squareFootage: number;
+  bedrooms: number;
+  bathrooms: number;
+  price: number;
+}
+
+// Project data interface
+export interface ProjectData {
+  projectNumber: string;
+  projectName: string;
+  totalUnits: number;
+  agreementDate: string;
+  serviceModel: 'CRC' | 'CMOS';
+  clientLegalName: string;
+  clientState: string;
+  clientEntityType: string;
+  clientFullName: string;
+  clientTitle: string;
+  clientAddress: string;
+  clientCity: string;
+  clientZip: string;
+  clientSignerName: string;
+  clientSignerTitle: string;
+  clientEmail: string;
+  clientPhone: string;
+  llcOption: 'new' | 'existing';
+  selectedExistingLlcId: string;
+  childLlcName: string;
+  childLlcState: string;
+  childLlcEin: string;
+  childLlcAddress: string;
+  siteAddress: string;
+  siteCity: string;
+  siteState: string;
+  siteZip: string;
+  siteCounty: string;
+  siteApn: string;
+  homeModel: string;
+  homeSquareFootage: number;
+  homeBedrooms: number;
+  homeBathrooms: number;
+  homeConfiguration: string;
+  units: UnitSpec[];
+  effectiveDate: string;
+  targetDeliveryDate: string;
+  manufacturingStartDate: string;
+  installationDate: string;
+  contractPrice: number;
+  designFee: number;
+  designRevisionRounds: number;
+  preliminaryOffsiteCost: number;
+  preliminaryOnsiteCost: number;
+  deliveryInstallationPrice: number;
+  sitePrepPrice: number;
+  utilitiesPrice: number;
+  completionPrice: number;
+  totalPreliminaryContractPrice: number;
+  depositAmount: number;
+  paymentSchedule: string;
+  milestone1Percent: number;
+  milestone2Percent: number;
+  milestone3Percent: number;
+  milestone4Percent: number;
+  milestone5Percent: number;
+  retainagePercent: number;
+  retainageDays: number;
+  manufacturingDesignPayment: number;
+  manufacturingProductionStart: number;
+  manufacturingProductionComplete: number;
+  manufacturingDeliveryReady: number;
+  warrantyPeriodYears: number;
+  warrantyStartDate: string;
+  estimatedCompletionMonths: number;
+  estimatedCompletionUnit: 'months' | 'weeks';
+  designPhaseDays: number;
+  manufacturingDurationDays: number;
+  onsiteDurationDays: number;
+  estimatedCompletionDate: string;
+  warrantyFitFinishMonths: number;
+  warrantyBuildingEnvelopeMonths: number;
+  warrantyStructuralMonths: number;
+  warrantyFitFinishExpires: string;
+  warrantyEnvelopeExpires: string;
+  warrantyStructuralExpires: string;
+  projectCounty: string;
+  projectFederalDistrict: string;
+  arbitrationProvider: 'JAMS' | 'AAA';
+  generalContractorName: string;
+  generalContractorLicense: string;
+  contractorName: string;
+  contractorLicense: string;
+  contractorAddress: string;
+  contractorInsurance: string;
+  manufacturerName: string;
+  manufacturerAddress: string;
+  insuranceProvider: string;
+  insurancePolicyNumber: string;
+  insuranceCoverageAmount: number;
+}
+
+// Wizard state interface
+export interface WizardState {
+  currentStep: number;
+  projectData: ProjectData;
+  completedSteps: Set<number>;
+  validationErrors: Record<string, string>;
+}
+
+// Generated contract interface
+export interface GeneratedContract {
+  id: string;
+  type: string;
+  filename: string;
+  downloadUrl: string;
+  size: number;
+  generatedAt: string;
+}
+
+// LLC data interface
+export interface LLCData {
+  id: number;
+  name: string;
+  status: string;
+  state_of_formation: string;
+  ein_number: string;
+  formation_date: string;
+}
+
+// Clause comparison interface
+export interface ClauseComparison {
+  totalClauses: number;
+  crcOnly: number;
+  cmosOnly: number;
+  shared: number;
+  differences: Array<{
+    clauseNumber: string;
+    clauseName: string;
+    appliesTo: 'CRC' | 'CMOS' | 'BOTH';
+    contentDiffers?: boolean;
+  }>;
+}
+
+// Generation state type
+export type GenerationState = 'pre-generation' | 'generating' | 'success' | 'error';
+
+// Step definition
+export interface StepDefinition {
+  number: number;
+  title: string;
+  description: string;
+  icon: React.ComponentType<{ className?: string }>;
+}
+
+// Context type interface
+export interface WizardContextType {
+  // State
+  wizardState: WizardState;
+  draftProjectId: number | null;
+  generationState: GenerationState;
+  generationProgress: number;
+  currentGenerationStep: number;
+  generationError: string | null;
+  generatedContracts: GeneratedContract[];
+  generatedProjectId: string | null;
+  showComparisonModal: boolean;
+  showClausePreview: boolean;
+  confirmationChecked: boolean;
+  expandedSections: Record<string, boolean>;
+  isCheckingNumber: boolean;
+  numberIsUnique: boolean | null;
+  isLoadingNumber: boolean;
+  existingLlcs: LLCData[] | undefined;
+  comparisonData: ClauseComparison | undefined;
+  comparisonLoading: boolean;
+  
+  // Methods
+  updateProjectData: (updates: Partial<ProjectData>) => void;
+  setValidationErrors: (errors: Record<string, string>) => void;
+  validateStep: (stepNumber: number) => { valid: boolean; errors: Record<string, string> };
+  nextStep: () => Promise<void>;
+  prevStep: () => void;
+  goToStep: (stepNumber: number) => void;
+  saveDraft: () => void;
+  loadDraft: () => void;
+  generateContracts: () => Promise<void>;
+  setShowComparisonModal: (show: boolean) => void;
+  setShowClausePreview: (show: boolean) => void;
+  setConfirmationChecked: (checked: boolean) => void;
+  toggleSection: (section: string) => void;
+  setGenerationState: (state: GenerationState) => void;
+  regenerateProjectNumber: () => Promise<void>;
+  checkProjectNumberUniqueness: (projectNumber: string) => Promise<void>;
+  updateUnit: (unitId: number, updates: Partial<UnitSpec>) => void;
+}
+
+// Initial project data
+export const initialProjectData: ProjectData = {
+  projectNumber: '',
+  projectName: '',
+  totalUnits: 1,
+  agreementDate: new Date().toISOString().split('T')[0],
+  serviceModel: 'CRC',
+  clientLegalName: '',
+  clientState: '',
+  clientEntityType: 'Individual',
+  clientFullName: '',
+  clientTitle: '',
+  clientAddress: '',
+  clientCity: '',
+  clientZip: '',
+  clientSignerName: '',
+  clientSignerTitle: '',
+  clientEmail: '',
+  clientPhone: '',
+  llcOption: 'new',
+  selectedExistingLlcId: '',
+  childLlcName: '',
+  childLlcState: 'DE',
+  childLlcEin: '',
+  childLlcAddress: '',
+  siteAddress: '',
+  siteCity: '',
+  siteState: '',
+  siteZip: '',
+  siteCounty: '',
+  siteApn: '',
+  homeModel: '',
+  homeSquareFootage: 0,
+  homeBedrooms: 0,
+  homeBathrooms: 0,
+  homeConfiguration: '',
+  units: [{ id: 1, model: '', squareFootage: 0, bedrooms: 0, bathrooms: 0, price: 0 }],
+  effectiveDate: '',
+  targetDeliveryDate: '',
+  manufacturingStartDate: '',
+  installationDate: '',
+  contractPrice: 0,
+  designFee: 0,
+  designRevisionRounds: 3,
+  preliminaryOffsiteCost: 0,
+  preliminaryOnsiteCost: 0,
+  deliveryInstallationPrice: 0,
+  sitePrepPrice: 0,
+  utilitiesPrice: 0,
+  completionPrice: 0,
+  totalPreliminaryContractPrice: 0,
+  depositAmount: 0,
+  paymentSchedule: '',
+  milestone1Percent: 20,
+  milestone2Percent: 20,
+  milestone3Percent: 20,
+  milestone4Percent: 20,
+  milestone5Percent: 15,
+  retainagePercent: 5,
+  retainageDays: 60,
+  manufacturingDesignPayment: 0,
+  manufacturingProductionStart: 0,
+  manufacturingProductionComplete: 0,
+  manufacturingDeliveryReady: 0,
+  warrantyPeriodYears: 1,
+  warrantyStartDate: '',
+  estimatedCompletionMonths: 12,
+  estimatedCompletionUnit: 'months',
+  designPhaseDays: 90,
+  manufacturingDurationDays: 120,
+  onsiteDurationDays: 90,
+  estimatedCompletionDate: '',
+  warrantyFitFinishMonths: 24,
+  warrantyBuildingEnvelopeMonths: 60,
+  warrantyStructuralMonths: 120,
+  warrantyFitFinishExpires: '',
+  warrantyEnvelopeExpires: '',
+  warrantyStructuralExpires: '',
+  projectCounty: '',
+  projectFederalDistrict: '',
+  arbitrationProvider: 'JAMS',
+  generalContractorName: '',
+  generalContractorLicense: '',
+  contractorName: '',
+  contractorLicense: '',
+  contractorAddress: '',
+  contractorInsurance: '',
+  manufacturerName: 'Dvele, Inc.',
+  manufacturerAddress: '',
+  insuranceProvider: '',
+  insurancePolicyNumber: '',
+  insuranceCoverageAmount: 0,
+};
+
+// Create context
+const WizardContext = createContext<WizardContextType | undefined>(undefined);
+
+// Provider component
+export const WizardProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  
+  // Core wizard state
+  const [wizardState, setWizardState] = useState<WizardState>({
+    currentStep: 1,
+    projectData: initialProjectData,
+    completedSteps: new Set<number>(),
+    validationErrors: {},
+  });
+  
+  // Draft and UI states
+  const [draftProjectId, setDraftProjectId] = useState<number | null>(null);
+  const [isCheckingNumber, setIsCheckingNumber] = useState(false);
+  const [numberIsUnique, setNumberIsUnique] = useState<boolean | null>(null);
+  const [showComparisonModal, setShowComparisonModal] = useState(false);
+  const [showClausePreview, setShowClausePreview] = useState(false);
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+    project: true,
+    parties: true,
+    property: true,
+    financial: true,
+    schedule: true,
+  });
+  
+  // Generation states
+  const [generationState, setGenerationState] = useState<GenerationState>('pre-generation');
+  const [confirmationChecked, setConfirmationChecked] = useState(false);
+  const [generationProgress, setGenerationProgress] = useState(0);
+  const [currentGenerationStep, setCurrentGenerationStep] = useState(0);
+  const [generationError, setGenerationError] = useState<string | null>(null);
+  const [generatedContracts, setGeneratedContracts] = useState<GeneratedContract[]>([]);
+  const [generatedProjectId, setGeneratedProjectId] = useState<string | null>(null);
+
+  // Fetch next project number on mount
+  const { data: nextNumberData, refetch: refetchNextNumber, isLoading: isLoadingNumber } = useQuery<{ projectNumber: string }>({
+    queryKey: ['/api/projects/next-number'],
+    staleTime: 0,
+  });
+
+  // Auto-populate project number on first load
+  useEffect(() => {
+    if (nextNumberData?.projectNumber && !wizardState.projectData.projectNumber) {
+      setWizardState(prev => ({
+        ...prev,
+        projectData: { ...prev.projectData, projectNumber: nextNumberData.projectNumber },
+      }));
+      setNumberIsUnique(true);
+    }
+  }, [nextNumberData]);
+
+  // Sync units array when totalUnits changes
+  useEffect(() => {
+    const { totalUnits, units } = wizardState.projectData;
+    if (units.length < totalUnits) {
+      const newUnits = [...units];
+      for (let i = units.length; i < totalUnits; i++) {
+        newUnits.push({
+          id: i + 1,
+          model: '',
+          squareFootage: 0,
+          bedrooms: 0,
+          bathrooms: 0,
+          price: 0
+        });
+      }
+      setWizardState(prev => ({
+        ...prev,
+        projectData: { ...prev.projectData, units: newUnits }
+      }));
+    } else if (units.length > totalUnits) {
+      const trimmedUnits = units.slice(0, totalUnits);
+      setWizardState(prev => ({
+        ...prev,
+        projectData: { ...prev.projectData, units: trimmedUnits }
+      }));
+    }
+  }, [wizardState.projectData.totalUnits]);
+
+  // Update preliminary offsite cost when unit prices change
+  useEffect(() => {
+    const totalPrice = wizardState.projectData.units.reduce((sum, unit) => sum + (unit.price || 0), 0);
+    if (totalPrice !== wizardState.projectData.preliminaryOffsiteCost) {
+      setWizardState(prev => ({
+        ...prev,
+        projectData: { ...prev.projectData, preliminaryOffsiteCost: totalPrice }
+      }));
+    }
+  }, [wizardState.projectData.units]);
+
+  // Auto-calculate total preliminary contract price
+  useEffect(() => {
+    const { serviceModel, preliminaryOffsiteCost, deliveryInstallationPrice, designFee,
+            sitePrepPrice, utilitiesPrice, completionPrice } = wizardState.projectData;
+    
+    let total = preliminaryOffsiteCost + deliveryInstallationPrice + designFee;
+    if (serviceModel === 'CMOS') {
+      total += sitePrepPrice + utilitiesPrice + completionPrice;
+    }
+    
+    if (total !== wizardState.projectData.totalPreliminaryContractPrice) {
+      setWizardState(prev => ({
+        ...prev,
+        projectData: { ...prev.projectData, totalPreliminaryContractPrice: total }
+      }));
+    }
+  }, [
+    wizardState.projectData.serviceModel,
+    wizardState.projectData.preliminaryOffsiteCost,
+    wizardState.projectData.deliveryInstallationPrice,
+    wizardState.projectData.designFee,
+    wizardState.projectData.sitePrepPrice,
+    wizardState.projectData.utilitiesPrice,
+    wizardState.projectData.completionPrice
+  ]);
+
+  // Auto-sync manufacturing design payment with design fee
+  useEffect(() => {
+    const { designFee, manufacturingDesignPayment } = wizardState.projectData;
+    if (designFee !== manufacturingDesignPayment) {
+      setWizardState(prev => ({
+        ...prev,
+        projectData: { ...prev.projectData, manufacturingDesignPayment: designFee }
+      }));
+    }
+  }, [wizardState.projectData.designFee]);
+
+  // Sync contractPrice with totalPreliminaryContractPrice
+  useEffect(() => {
+    const { totalPreliminaryContractPrice, contractPrice } = wizardState.projectData;
+    if (totalPreliminaryContractPrice !== contractPrice) {
+      setWizardState(prev => ({
+        ...prev,
+        projectData: { ...prev.projectData, contractPrice: totalPreliminaryContractPrice }
+      }));
+    }
+  }, [wizardState.projectData.totalPreliminaryContractPrice]);
+
+  // Set default onsite duration based on service model
+  useEffect(() => {
+    const { serviceModel, onsiteDurationDays } = wizardState.projectData;
+    const defaultDays = serviceModel === 'CMOS' ? 60 : 90;
+    if ((serviceModel === 'CMOS' && onsiteDurationDays === 90) || 
+        (serviceModel === 'CRC' && onsiteDurationDays === 60)) {
+      setWizardState(prev => ({
+        ...prev,
+        projectData: { ...prev.projectData, onsiteDurationDays: defaultDays }
+      }));
+    }
+  }, [wizardState.projectData.serviceModel]);
+
+  // Check project number uniqueness
+  const checkProjectNumberUniqueness = useCallback(async (projectNumber: string) => {
+    if (!projectNumber || projectNumber.length < 4) {
+      setNumberIsUnique(null);
+      return;
+    }
+    
+    setIsCheckingNumber(true);
+    try {
+      const response = await fetch(`/api/projects/check-number/${encodeURIComponent(projectNumber)}`);
+      const data = await response.json();
+      setNumberIsUnique(data.isUnique);
+    } catch (error) {
+      console.error('Failed to check project number:', error);
+      setNumberIsUnique(null);
+    } finally {
+      setIsCheckingNumber(false);
+    }
+  }, []);
+
+  // Create draft project mutation
+  const createDraftProjectMutation = useMutation({
+    mutationFn: async (projectData: { projectNumber: string; name: string; status: string; onSiteSelection: string }) => {
+      const response = await apiRequest('POST', '/api/projects', projectData);
+      return response.json();
+    },
+    onSuccess: (data) => {
+      setDraftProjectId(data.id);
+      queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
+    },
+  });
+
+  // Update project mutation
+  const updateProjectMutation = useMutation({
+    mutationFn: async ({ id, ...data }: { id: number; [key: string]: any }) => {
+      const response = await apiRequest('PATCH', `/api/projects/${id}`, data);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
+    },
+  });
+
+  // Fetch clause comparison data
+  const { data: comparisonData, isLoading: comparisonLoading } = useQuery<ClauseComparison>({
+    queryKey: ['/api/contracts/compare-service-models'],
+    queryFn: async () => {
+      const response = await fetch('/api/contracts/compare-service-models', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectData: { serviceModel: 'CRC' } }),
+      });
+      if (!response.ok) throw new Error('Failed to compare service models');
+      return response.json();
+    },
+    enabled: showComparisonModal || wizardState.currentStep === 2,
+    staleTime: 60000,
+  });
+
+  // Fetch existing LLCs for dropdown
+  const { data: existingLlcs } = useQuery<LLCData[]>({
+    queryKey: ['/api/llcs'],
+    enabled: wizardState.currentStep === 3,
+  });
+
+  // Regenerate project number
+  const regenerateProjectNumber = useCallback(async () => {
+    const result = await refetchNextNumber();
+    if (result.data?.projectNumber) {
+      setWizardState(prev => ({
+        ...prev,
+        projectData: { ...prev.projectData, projectNumber: result.data.projectNumber },
+        validationErrors: { ...prev.validationErrors, projectNumber: '' },
+      }));
+      setNumberIsUnique(true);
+    }
+  }, [refetchNextNumber]);
+
+  // Update project data
+  const updateProjectData = useCallback((updates: Partial<ProjectData>) => {
+    setWizardState(prev => ({
+      ...prev,
+      projectData: { ...prev.projectData, ...updates },
+      validationErrors: {},
+    }));
+  }, []);
+
+  // Update unit
+  const updateUnit = useCallback((unitId: number, updates: Partial<UnitSpec>) => {
+    setWizardState(prev => {
+      const newUnits = prev.projectData.units.map(unit => 
+        unit.id === unitId ? { ...unit, ...updates } : unit
+      );
+      return {
+        ...prev,
+        projectData: { ...prev.projectData, units: newUnits }
+      };
+    });
+  }, []);
+
+  // Set validation errors
+  const setValidationErrors = useCallback((errors: Record<string, string>) => {
+    setWizardState(prev => ({ ...prev, validationErrors: errors }));
+  }, []);
+
+  // Validate step
+  const validateStep = useCallback((stepNumber: number): { valid: boolean; errors: Record<string, string> } => {
+    const errors: Record<string, string> = {};
+    const data = wizardState.projectData;
+
+    switch (stepNumber) {
+      case 1:
+        if (!data.projectNumber.trim()) {
+          errors.projectNumber = 'Project number is required';
+        } else if (!/^\d{4}-\d{3}$/.test(data.projectNumber)) {
+          errors.projectNumber = 'Project number must be in format YYYY-### (e.g., 2026-001)';
+        } else if (numberIsUnique === false) {
+          errors.projectNumber = 'This project number already exists';
+        }
+        if (!data.projectName.trim()) {
+          errors.projectName = 'Project name is required';
+        } else if (data.projectName.trim().length < 3) {
+          errors.projectName = 'Project name must be at least 3 characters';
+        } else if (data.projectName.trim().length > 100) {
+          errors.projectName = 'Project name must be 100 characters or less';
+        }
+        if (data.totalUnits < 1 || data.totalUnits > 50) {
+          errors.totalUnits = 'Total units must be between 1 and 50';
+        }
+        if (!data.agreementDate) {
+          errors.agreementDate = 'Agreement date is required';
+        }
+        break;
+      case 2:
+        if (!data.serviceModel) errors.serviceModel = 'Service model is required';
+        break;
+      case 3:
+        if (!data.clientLegalName.trim()) errors.clientLegalName = 'Client legal name is required';
+        if (data.clientLegalName.trim().length < 2) errors.clientLegalName = 'Client legal name must be at least 2 characters';
+        if (!data.clientState) errors.clientState = 'Client state is required';
+        if (!data.clientEntityType) errors.clientEntityType = 'Client entity type is required';
+        if (data.llcOption === 'existing' && !data.selectedExistingLlcId) {
+          errors.selectedExistingLlcId = 'Please select an existing LLC';
+        }
+        if (data.serviceModel === 'CRC') {
+          if (!data.contractorName.trim()) {
+            errors.contractorName = 'Contractor name is required for CRC service model';
+          }
+          if (!data.contractorLicense.trim()) {
+            errors.contractorLicense = 'Contractor license number is required for CRC service model';
+          }
+          if (!data.contractorAddress.trim()) {
+            errors.contractorAddress = 'Contractor address is required for CRC service model';
+          }
+          if (!data.contractorInsurance.trim()) {
+            errors.contractorInsurance = 'Contractor insurance policy is required for CRC service model';
+          }
+        }
+        break;
+      case 4:
+        if (!data.childLlcName.trim()) errors.childLlcName = 'LLC name is required';
+        break;
+      case 5:
+        if (!data.siteAddress.trim()) errors.siteAddress = 'Site address is required';
+        if (!data.siteCity.trim()) errors.siteCity = 'City is required';
+        if (!data.siteState.trim()) errors.siteState = 'Site state is required';
+        if (!data.siteZip.trim()) errors.siteZip = 'ZIP code is required';
+        const unitsToValidate = data.units.slice(0, data.totalUnits);
+        unitsToValidate.forEach((unit, index) => {
+          if (!unit.model.trim()) {
+            errors[`unit_${index}_model`] = 'Home model is required';
+          }
+          if (unit.squareFootage < 400 || unit.squareFootage > 10000) {
+            errors[`unit_${index}_sqft`] = 'Square footage must be between 400 and 10,000';
+          }
+          if (unit.bedrooms < 1 || unit.bedrooms > 10) {
+            errors[`unit_${index}_beds`] = 'Bedrooms must be between 1 and 10';
+          }
+          if (unit.bathrooms < 1 || unit.bathrooms > 10) {
+            errors[`unit_${index}_baths`] = 'Bathrooms must be between 1 and 10';
+          }
+          if (unit.price < 100000) {
+            errors[`unit_${index}_price`] = 'Unit price must be at least $100,000';
+          }
+        });
+        break;
+      case 6:
+        if (!data.effectiveDate) errors.effectiveDate = 'Effective date is required';
+        break;
+      case 7:
+        if (data.designFee < 1000 || data.designFee > 100000) {
+          errors.designFee = 'Design fee must be between $1,000 and $100,000';
+        }
+        if (data.designRevisionRounds < 1 || data.designRevisionRounds > 10) {
+          errors.designRevisionRounds = 'Revision rounds must be between 1 and 10';
+        }
+        if (data.preliminaryOffsiteCost <= 0) {
+          errors.preliminaryOffsiteCost = 'Manufacturing/Offsite price is required';
+        }
+        if (data.deliveryInstallationPrice <= 0) {
+          errors.deliveryInstallationPrice = 'Delivery & installation price is required';
+        }
+        if (data.serviceModel === 'CMOS') {
+          if (data.sitePrepPrice <= 0) errors.sitePrepPrice = 'Site preparation price is required for CMOS';
+          if (data.utilitiesPrice <= 0) errors.utilitiesPrice = 'Utilities price is required for CMOS';
+          if (data.completionPrice <= 0) errors.completionPrice = 'Completion price is required for CMOS';
+        }
+        const milestoneTotal = data.milestone1Percent + data.milestone2Percent + 
+                              data.milestone3Percent + data.milestone4Percent + data.milestone5Percent;
+        if (milestoneTotal !== 95) {
+          errors.milestones = `Milestones must sum to 95% (currently ${milestoneTotal}%)`;
+        }
+        if (data.retainagePercent < 0 || data.retainagePercent > 10) {
+          errors.retainagePercent = 'Retainage must be between 0% and 10%';
+        }
+        if (data.retainageDays < 0 || data.retainageDays > 365) {
+          errors.retainageDays = 'Retainage days must be between 0 and 365';
+        }
+        if (data.manufacturingDesignPayment <= 0) {
+          errors.manufacturingDesignPayment = 'Design payment is required';
+        }
+        if (data.manufacturingProductionStart <= 0) {
+          errors.manufacturingProductionStart = 'Production start payment is required';
+        }
+        if (data.manufacturingProductionComplete <= 0) {
+          errors.manufacturingProductionComplete = 'Production completion payment is required';
+        }
+        if (data.manufacturingDeliveryReady <= 0) {
+          errors.manufacturingDeliveryReady = 'Delivery ready payment is required';
+        }
+        break;
+      case 8:
+        if (!data.effectiveDate) {
+          errors.effectiveDate = 'Effective date is required';
+        }
+        if (data.estimatedCompletionMonths < 6 || data.estimatedCompletionMonths > 24) {
+          errors.estimatedCompletionMonths = 'Completion timeframe must be 6-24';
+        }
+        if (data.designPhaseDays < 30 || data.designPhaseDays > 180) {
+          errors.designPhaseDays = 'Design phase must be 30-180 days';
+        }
+        if (data.manufacturingDurationDays < 60 || data.manufacturingDurationDays > 365) {
+          errors.manufacturingDurationDays = 'Manufacturing must be 60-365 days';
+        }
+        if (data.onsiteDurationDays < 30 || data.onsiteDurationDays > 180) {
+          errors.onsiteDurationDays = 'On-site must be 30-180 days';
+        }
+        if (data.warrantyFitFinishMonths < 12 || data.warrantyFitFinishMonths > 36) {
+          errors.warrantyFitFinishMonths = 'Fit & finish warranty must be 12-36 months';
+        }
+        if (data.warrantyBuildingEnvelopeMonths < 36 || data.warrantyBuildingEnvelopeMonths > 120) {
+          errors.warrantyBuildingEnvelopeMonths = 'Building envelope warranty must be 36-120 months';
+        }
+        if (data.warrantyStructuralMonths < 60 || data.warrantyStructuralMonths > 240) {
+          errors.warrantyStructuralMonths = 'Structural warranty must be 60-240 months';
+        }
+        if (!data.siteState) {
+          errors.siteState = 'Project state is required';
+        }
+        if (!data.projectCounty && !data.siteCounty) {
+          errors.projectCounty = 'Project county is required';
+        }
+        if (!data.projectFederalDistrict) {
+          errors.projectFederalDistrict = 'Federal judicial district is required';
+        }
+        if (!data.arbitrationProvider) {
+          errors.arbitrationProvider = 'Arbitration provider is required';
+        }
+        break;
+    }
+
+    return { valid: Object.keys(errors).length === 0, errors };
+  }, [wizardState.projectData, numberIsUnique]);
+
+  // Next step
+  const nextStep = useCallback(async () => {
+    const { valid, errors } = validateStep(wizardState.currentStep);
+    
+    if (!valid) {
+      setWizardState(prev => ({ ...prev, validationErrors: errors }));
+      toast({
+        title: "Validation Error",
+        description: "Please fill in all required fields before proceeding.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (wizardState.currentStep === 1) {
+      try {
+        if (!draftProjectId) {
+          await createDraftProjectMutation.mutateAsync({
+            projectNumber: wizardState.projectData.projectNumber,
+            name: wizardState.projectData.projectName,
+            status: 'Draft',
+            onSiteSelection: wizardState.projectData.serviceModel,
+          });
+        } else {
+          await updateProjectMutation.mutateAsync({
+            id: draftProjectId,
+            projectNumber: wizardState.projectData.projectNumber,
+            name: wizardState.projectData.projectName,
+            onSiteSelection: wizardState.projectData.serviceModel,
+          });
+        }
+      } catch (error) {
+        console.error('Failed to save project:', error);
+        toast({
+          title: "Error",
+          description: "Failed to save project. Please try again.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
+    setWizardState(prev => {
+      const newCompletedSteps = new Set(Array.from(prev.completedSteps));
+      newCompletedSteps.add(prev.currentStep);
+      return {
+        ...prev,
+        currentStep: Math.min(prev.currentStep + 1, 9),
+        completedSteps: newCompletedSteps,
+        validationErrors: {},
+      };
+    });
+  }, [wizardState.currentStep, wizardState.projectData, validateStep, toast, draftProjectId, createDraftProjectMutation, updateProjectMutation]);
+
+  // Previous step
+  const prevStep = useCallback(() => {
+    setWizardState(prev => ({
+      ...prev,
+      currentStep: Math.max(prev.currentStep - 1, 1),
+      validationErrors: {},
+    }));
+  }, []);
+
+  // Go to step
+  const goToStep = useCallback((stepNumber: number) => {
+    if (stepNumber < wizardState.currentStep || wizardState.completedSteps.has(stepNumber - 1) || stepNumber === 1) {
+      setWizardState(prev => ({
+        ...prev,
+        currentStep: stepNumber,
+        validationErrors: {},
+      }));
+    }
+  }, [wizardState.currentStep, wizardState.completedSteps]);
+
+  // Save draft
+  const saveDraft = useCallback(() => {
+    localStorage.setItem('contractWizardDraft', JSON.stringify({
+      projectData: wizardState.projectData,
+      currentStep: wizardState.currentStep,
+      completedSteps: Array.from(wizardState.completedSteps),
+    }));
+    toast({
+      title: "Draft Saved",
+      description: "Your progress has been saved locally.",
+    });
+  }, [wizardState, toast]);
+
+  // Load draft
+  const loadDraft = useCallback(() => {
+    const saved = localStorage.getItem('contractWizardDraft');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      setWizardState(prev => ({
+        ...prev,
+        projectData: parsed.projectData,
+        currentStep: parsed.currentStep,
+        completedSteps: new Set(parsed.completedSteps),
+      }));
+      toast({
+        title: "Draft Loaded",
+        description: "Your previous progress has been restored.",
+      });
+    }
+  }, [toast]);
+
+  // Toggle section
+  const toggleSection = useCallback((section: string) => {
+    setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
+  }, []);
+
+  // Generate contracts
+  const generateContracts = useCallback(async () => {
+    setGenerationState('generating');
+    setGenerationProgress(0);
+    setCurrentGenerationStep(0);
+    setGenerationError(null);
+    
+    const steps = [
+      'Preparing contract data',
+      'Loading clause templates', 
+      'Generating ONE Agreement',
+      'Generating Manufacturing Subcontract',
+      'Generating On-Site Subcontract',
+      'Creating contract package'
+    ];
+    
+    try {
+      for (let i = 0; i < steps.length; i++) {
+        setCurrentGenerationStep(i);
+        
+        const stepDuration = 800 + Math.random() * 400;
+        const startProgress = (i / steps.length) * 100;
+        const endProgress = ((i + 1) / steps.length) * 100;
+        
+        for (let p = startProgress; p <= endProgress; p += 5) {
+          setGenerationProgress(p);
+          await new Promise(resolve => setTimeout(resolve, stepDuration / ((endProgress - startProgress) / 5)));
+        }
+      }
+      
+      setGenerationProgress(100);
+      
+      const projectName = wizardState.projectData.projectName || 'Project';
+      const projectNumber = wizardState.projectData.projectNumber || '2026-001';
+      const timestamp = new Date().toISOString();
+      
+      const mockContracts: GeneratedContract[] = [
+        {
+          id: `contract_one_${Date.now()}`,
+          type: 'ONE',
+          filename: `ONE_Agreement_${projectName.replace(/\s+/g, '_')}_${projectNumber}.docx`,
+          downloadUrl: `/api/contracts/download/one_${Date.now()}`,
+          size: 245760,
+          generatedAt: timestamp
+        },
+        {
+          id: `contract_mfg_${Date.now()}`,
+          type: 'MANUFACTURING',
+          filename: `Manufacturing_Subcontract_${projectName.replace(/\s+/g, '_')}_${projectNumber}.docx`,
+          downloadUrl: `/api/contracts/download/mfg_${Date.now()}`,
+          size: 183296,
+          generatedAt: timestamp
+        },
+        {
+          id: `contract_onsite_${Date.now()}`,
+          type: 'ONSITE',
+          filename: `OnSite_Subcontract_${projectName.replace(/\s+/g, '_')}_${projectNumber}.docx`,
+          downloadUrl: `/api/contracts/download/onsite_${Date.now()}`,
+          size: 153600,
+          generatedAt: timestamp
+        }
+      ];
+      
+      setGeneratedContracts(mockContracts);
+      setGeneratedProjectId(`proj_${Date.now()}`);
+      setGenerationState('success');
+      
+      toast({
+        title: "Contracts Generated Successfully",
+        description: "Your contract package is ready for download.",
+      });
+      
+    } catch (error) {
+      setGenerationError(error instanceof Error ? error.message : 'An unknown error occurred');
+      setGenerationState('error');
+      
+      toast({
+        title: "Generation Failed",
+        description: "There was an error generating your contracts. Please try again.",
+        variant: "destructive",
+      });
+    }
+  }, [wizardState.projectData, toast]);
+
+  // Context value
+  const contextValue: WizardContextType = {
+    wizardState,
+    draftProjectId,
+    generationState,
+    generationProgress,
+    currentGenerationStep,
+    generationError,
+    generatedContracts,
+    generatedProjectId,
+    showComparisonModal,
+    showClausePreview,
+    confirmationChecked,
+    expandedSections,
+    isCheckingNumber,
+    numberIsUnique,
+    isLoadingNumber,
+    existingLlcs,
+    comparisonData,
+    comparisonLoading,
+    updateProjectData,
+    setValidationErrors,
+    validateStep,
+    nextStep,
+    prevStep,
+    goToStep,
+    saveDraft,
+    loadDraft,
+    generateContracts,
+    setShowComparisonModal,
+    setShowClausePreview,
+    setConfirmationChecked,
+    toggleSection,
+    setGenerationState,
+    regenerateProjectNumber,
+    checkProjectNumberUniqueness,
+    updateUnit,
+  };
+  
+  return (
+    <WizardContext.Provider value={contextValue}>
+      {children}
+    </WizardContext.Provider>
+  );
+};
+
+// Custom hook to use wizard context
+export const useWizard = () => {
+  const context = useContext(WizardContext);
+  if (!context) {
+    throw new Error('useWizard must be used within WizardProvider');
+  }
+  return context;
+};
