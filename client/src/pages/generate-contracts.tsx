@@ -257,28 +257,30 @@ export default function GenerateContracts() {
   // Sync units array when totalUnits changes
   useEffect(() => {
     const { totalUnits, units } = wizardState.projectData;
-    if (units.length !== totalUnits) {
-      // Adjust units array to match totalUnits
-      if (units.length < totalUnits) {
-        // Add more units
-        const newUnits = [...units];
-        for (let i = units.length; i < totalUnits; i++) {
-          newUnits.push({
-            id: i + 1,
-            model: '',
-            squareFootage: 0,
-            bedrooms: 0,
-            bathrooms: 0,
-            price: 0
-          });
-        }
-        setWizardState(prev => ({
-          ...prev,
-          projectData: { ...prev.projectData, units: newUnits }
-        }));
+    if (units.length < totalUnits) {
+      // Add more units to match totalUnits
+      const newUnits = [...units];
+      for (let i = units.length; i < totalUnits; i++) {
+        newUnits.push({
+          id: i + 1,
+          model: '',
+          squareFootage: 0,
+          bedrooms: 0,
+          bathrooms: 0,
+          price: 0
+        });
       }
-      // Note: We don't automatically remove units when totalUnits decreases
-      // to preserve user data - they can manually remove if needed
+      setWizardState(prev => ({
+        ...prev,
+        projectData: { ...prev.projectData, units: newUnits }
+      }));
+    } else if (units.length > totalUnits) {
+      // Trim excess units when totalUnits decreases
+      const trimmedUnits = units.slice(0, totalUnits);
+      setWizardState(prev => ({
+        ...prev,
+        projectData: { ...prev.projectData, units: trimmedUnits }
+      }));
     }
   }, [wizardState.projectData.totalUnits]);
 
@@ -468,8 +470,9 @@ export default function GenerateContracts() {
         if (!data.siteCity.trim()) errors.siteCity = 'City is required';
         if (!data.siteState.trim()) errors.siteState = 'Site state is required';
         if (!data.siteZip.trim()) errors.siteZip = 'ZIP code is required';
-        // Validate units
-        data.units.forEach((unit, index) => {
+        // Validate units - only validate up to totalUnits
+        const unitsToValidate = data.units.slice(0, data.totalUnits);
+        unitsToValidate.forEach((unit, index) => {
           if (!unit.model.trim()) {
             errors[`unit_${index}_model`] = 'Home model is required';
           }
@@ -1870,8 +1873,10 @@ export default function GenerateContracts() {
                               variant="ghost"
                               className="text-destructive"
                               onClick={() => {
-                                const newUnits = projectData.units.filter(u => u.id !== unit.id);
-                                updateProjectData({ units: newUnits });
+                                // Filter out the removed unit and renumber IDs to stay sequential
+                                const filteredUnits = projectData.units.filter(u => u.id !== unit.id);
+                                const normalizedUnits = filteredUnits.map((u, idx) => ({ ...u, id: idx + 1 }));
+                                updateProjectData({ units: normalizedUnits });
                               }}
                               data-testid={`button-remove-unit-${index + 1}`}
                             >
@@ -1930,16 +1935,15 @@ export default function GenerateContracts() {
                                   type="button"
                                   size="icon"
                                   variant="outline"
-                                  className="h-8 w-8"
                                   onClick={() => updateUnit(unit.id, { bedrooms: Math.max(1, unit.bedrooms - 1) })}
                                 >
-                                  <Minus className="h-3 w-3" />
+                                  <Minus className="h-4 w-4" />
                                 </Button>
                                 <input
                                   type="number"
                                   min="1"
                                   max="10"
-                                  className="w-12 px-2 py-2 border rounded-md bg-background text-center text-sm"
+                                  className="flex-1 min-w-0 px-2 py-2 border rounded-md bg-background text-center"
                                   value={unit.bedrooms || ''}
                                   onChange={(e) => updateUnit(unit.id, { bedrooms: parseInt(e.target.value) || 0 })}
                                   data-testid={`input-unit-beds-${index + 1}`}
@@ -1948,10 +1952,9 @@ export default function GenerateContracts() {
                                   type="button"
                                   size="icon"
                                   variant="outline"
-                                  className="h-8 w-8"
                                   onClick={() => updateUnit(unit.id, { bedrooms: Math.min(10, unit.bedrooms + 1) })}
                                 >
-                                  <Plus className="h-3 w-3" />
+                                  <Plus className="h-4 w-4" />
                                 </Button>
                               </div>
                             </FormField>
@@ -1965,17 +1968,16 @@ export default function GenerateContracts() {
                                   type="button"
                                   size="icon"
                                   variant="outline"
-                                  className="h-8 w-8"
                                   onClick={() => updateUnit(unit.id, { bathrooms: Math.max(1, unit.bathrooms - 0.5) })}
                                 >
-                                  <Minus className="h-3 w-3" />
+                                  <Minus className="h-4 w-4" />
                                 </Button>
                                 <input
                                   type="number"
                                   min="1"
                                   max="10"
                                   step="0.5"
-                                  className="w-12 px-2 py-2 border rounded-md bg-background text-center text-sm"
+                                  className="flex-1 min-w-0 px-2 py-2 border rounded-md bg-background text-center"
                                   value={unit.bathrooms || ''}
                                   onChange={(e) => updateUnit(unit.id, { bathrooms: parseFloat(e.target.value) || 0 })}
                                   data-testid={`input-unit-baths-${index + 1}`}
@@ -1984,10 +1986,9 @@ export default function GenerateContracts() {
                                   type="button"
                                   size="icon"
                                   variant="outline"
-                                  className="h-8 w-8"
                                   onClick={() => updateUnit(unit.id, { bathrooms: Math.min(10, unit.bathrooms + 0.5) })}
                                 >
-                                  <Plus className="h-3 w-3" />
+                                  <Plus className="h-4 w-4" />
                                 </Button>
                               </div>
                             </FormField>
