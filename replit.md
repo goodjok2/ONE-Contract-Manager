@@ -19,6 +19,7 @@ This application helps Dvele manage construction projects through dedicated chil
 
 - **Dashboard**: Overview with 4 stat cards (Total Contracts, Drafts, Pending Review, Signed), Recent Contracts section, Quick Start Templates, and Contract Value Overview
 - **Contract Builder**: Multi-step wizard for creating new project agreements
+- **Generate Contracts Wizard**: 7-step wizard at /generate-contracts for creating complete contract packages with project info, client details, LLC setup, site/home specs, dates, pricing, and final review/generation
 - **Active Contracts**: List and manage all contracts
 - **Templates**: Pre-configured contract templates (DTC Standard, B2B Developer)
 - **Clause Library**: Browse 276 contract clauses with filtering by contract type (ONE/MANUFACTURING/ONSITE), hierarchy level (Sections/Subsections/Paragraphs), search, expandable rows showing conditional logic, and edit capability for legal team

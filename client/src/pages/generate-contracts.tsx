@@ -201,12 +201,16 @@ export default function GenerateContracts() {
       return;
     }
 
-    setWizardState(prev => ({
-      ...prev,
-      currentStep: Math.min(prev.currentStep + 1, 7),
-      completedSteps: new Set([...prev.completedSteps, prev.currentStep]),
-      validationErrors: {},
-    }));
+    setWizardState(prev => {
+      const newCompletedSteps = new Set(Array.from(prev.completedSteps));
+      newCompletedSteps.add(prev.currentStep);
+      return {
+        ...prev,
+        currentStep: Math.min(prev.currentStep + 1, 7),
+        completedSteps: newCompletedSteps,
+        validationErrors: {},
+      };
+    });
   }, [wizardState.currentStep, validateStep, toast]);
 
   const prevStep = useCallback(() => {
