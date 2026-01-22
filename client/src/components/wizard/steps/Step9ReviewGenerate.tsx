@@ -1,0 +1,581 @@
+import { useState, useMemo } from 'react';
+import { useWizard } from '../WizardContext';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
+import { Checkbox } from '@/components/ui/checkbox';
+import { 
+  CheckCircle2, 
+  AlertCircle, 
+  Edit2, 
+  Eye, 
+  ChevronDown, 
+  ChevronUp,
+  FileText,
+  Users,
+  Home,
+  DollarSign,
+  Shield,
+  Download,
+  Loader2,
+  Sparkles
+} from 'lucide-react';
+
+interface ExpandedSections {
+  project: boolean;
+  parties: boolean;
+  property: boolean;
+  financial: boolean;
+  schedule: boolean;
+}
+
+export const Step9ReviewGenerate: React.FC = () => {
+  const { 
+    wizardState, 
+    goToStep,
+    setShowClausePreview,
+    setConfirmationChecked,
+    setGenerationState
+  } = useWizard();
+  
+  const { projectData, generationState, confirmationChecked, generationProgress } = wizardState;
+  
+  const [expandedSections, setExpandedSections] = useState<ExpandedSections>({
+    project: true,
+    parties: false,
+    property: false,
+    financial: false,
+    schedule: false
+  });
+  
+  const toggleSection = (section: keyof ExpandedSections) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [section]: !prev[section]
+    }));
+  };
+  
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 0
+    }).format(value);
+  };
+  
+  const formatDate = (dateString: string) => {
+    if (!dateString) return '-';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+  };
+  
+  const variableCoverage = useMemo(() => {
+    const requiredFields = [
+      'projectNumber', 'projectName', 'projectType', 'serviceModel',
+      'clientLegalName', 'clientState', 'clientEntityType', 'clientEmail', 'clientSignerName',
+      'siteAddress', 'siteCity', 'siteState', 'siteZip',
+      'childLlcName', 'childLlcState',
+      'designFee', 'preliminaryOffsiteCost', 'deliveryInstallationPrice', 'totalPreliminaryContractPrice',
+      'milestone1Percent', 'milestone2Percent', 'milestone3Percent', 'milestone4Percent', 'milestone5Percent',
+      'effectiveDate', 'designPhaseDays', 'manufacturingDurationDays', 'onsiteDurationDays',
+      'warrantyFitFinishMonths', 'warrantyBuildingEnvelopeMonths', 'warrantyStructuralMonths',
+      'projectState', 'projectCounty', 'projectFederalDistrict', 'arbitrationProvider'
+    ];
+    
+    const populated = requiredFields.filter(field => {
+      const value = (projectData as any)[field];
+      return value !== undefined && value !== null && value !== '' && value !== 0;
+    }).length;
+    
+    const total = 89;
+    return { 
+      populated, 
+      total, 
+      percentage: Math.round((populated / total) * 100) 
+    };
+  }, [projectData]);
+  
+  const allRequiredComplete = useMemo(() => {
+    const requiredChecks = [
+      projectData.projectNumber,
+      projectData.projectName,
+      projectData.serviceModel,
+      projectData.clientLegalName,
+      projectData.siteAddress,
+      projectData.siteCity,
+      projectData.siteState,
+      projectData.childLlcName,
+      projectData.designFee > 0,
+      projectData.preliminaryOffsiteCost > 0,
+      projectData.effectiveDate,
+      projectData.projectFederalDistrict,
+      projectData.arbitrationProvider
+    ];
+    return requiredChecks.every(Boolean);
+  }, [projectData]);
+  
+  const handleGenerateContracts = async () => {
+    setGenerationState('generating');
+    
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    
+    setGenerationState('success');
+  };
+  
+  const contracts = [
+    { 
+      name: 'ONE Agreement', 
+      description: 'Master agreement between client and Dvele Partners LLC',
+      clauseCount: 47,
+      type: 'ONE'
+    },
+    { 
+      name: 'Manufacturing Subcontract', 
+      description: 'Factory production agreement',
+      clauseCount: 32,
+      type: 'MANUFACTURING'
+    },
+    { 
+      name: 'OnSite Subcontract', 
+      description: 'Installation and site work agreement',
+      clauseCount: 28,
+      type: 'ONSITE'
+    }
+  ];
+  
+  if (generationState === 'generating') {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 space-y-6">
+        <Loader2 className="h-16 w-16 animate-spin" />
+        <div className="text-center space-y-2">
+          <h2 className="text-2xl font-bold">Generating Contract Package</h2>
+          <p className="text-muted-foreground">Creating your customized contracts...</p>
+        </div>
+        <div className="w-full max-w-md space-y-2">
+          <Progress value={generationProgress} className="h-2" />
+          <p className="text-sm text-center text-muted-foreground">{generationProgress}% complete</p>
+        </div>
+      </div>
+    );
+  }
+  
+  if (generationState === 'success') {
+    return (
+      <div className="space-y-6">
+        <Card className="border-green-500">
+          <CardContent className="pt-6">
+            <div className="flex flex-col items-center text-center space-y-4">
+              <div className="h-16 w-16 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center">
+                <CheckCircle2 className="h-10 w-10 text-green-500" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold">Contract Package Generated!</h2>
+                <p className="text-muted-foreground">
+                  Your contract package for {projectData.projectName} is ready
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader>
+            <CardTitle>Generated Documents</CardTitle>
+            <CardDescription>Download your contract package</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {contracts.map((contract) => (
+              <div 
+                key={contract.type}
+                className="flex items-center justify-between p-4 border rounded-lg"
+              >
+                <div className="flex items-center gap-3">
+                  <FileText className="h-8 w-8" />
+                  <div>
+                    <p className="font-medium">{contract.name}</p>
+                    <p className="text-sm text-muted-foreground">{contract.clauseCount} clauses</p>
+                  </div>
+                </div>
+                <Button variant="outline" className="gap-2" data-testid={`button-download-${contract.type.toLowerCase()}`}>
+                  <Download className="h-4 w-4" />
+                  Download
+                </Button>
+              </div>
+            ))}
+            
+            <div className="flex gap-4 pt-4 border-t">
+              <Button className="flex-1 gap-2" data-testid="button-download-all">
+                <Download className="h-4 w-4" />
+                Download All (ZIP)
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+  
+  return (
+    <div className="space-y-6">
+      <Card className={allRequiredComplete ? 'border-green-500' : 'border-amber-500'}>
+        <CardContent className="pt-6">
+          <div className="flex items-start gap-4">
+            {allRequiredComplete ? (
+              <CheckCircle2 className="h-8 w-8 text-green-500 shrink-0" />
+            ) : (
+              <AlertCircle className="h-8 w-8 text-amber-500 shrink-0" />
+            )}
+            <div className="flex-1">
+              <h3 className="font-semibold text-lg">
+                {allRequiredComplete ? 'Ready to Generate' : 'Missing Required Information'}
+              </h3>
+              <p className="text-muted-foreground">
+                {allRequiredComplete 
+                  ? 'All required fields are complete. Review your information and generate the contract package.'
+                  : 'Please complete all required fields before generating contracts.'
+                }
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+      
+      <Card>
+        <CardContent className="pt-6">
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm">
+              <span>Variable Coverage</span>
+              <span className="font-medium">{variableCoverage.populated}/{variableCoverage.total} variables</span>
+            </div>
+            <Progress value={variableCoverage.percentage} className="h-2" />
+            <p className="text-xs text-muted-foreground">
+              {variableCoverage.percentage}% of contract variables are populated
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+      
+      <Card>
+        <CardHeader 
+          className="cursor-pointer"
+          onClick={() => toggleSection('project')}
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              <CardTitle className="text-base">Project Overview</CardTitle>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={(e) => { e.stopPropagation(); goToStep(1); }}
+                data-testid="button-edit-project"
+              >
+                <Edit2 className="h-4 w-4" />
+              </Button>
+              {expandedSections.project ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </div>
+          </div>
+        </CardHeader>
+        {expandedSections.project && (
+          <CardContent className="border-t pt-4">
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <p className="text-muted-foreground">Project Number</p>
+                <p className="font-medium">{projectData.projectNumber || '-'}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Project Name</p>
+                <p className="font-medium">{projectData.projectName || '-'}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Project Type</p>
+                <p className="font-medium">{projectData.projectType || '-'}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Service Model</p>
+                <Badge variant="outline">{projectData.serviceModel}</Badge>
+              </div>
+            </div>
+          </CardContent>
+        )}
+      </Card>
+      
+      <Card>
+        <CardHeader 
+          className="cursor-pointer"
+          onClick={() => toggleSection('parties')}
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              <CardTitle className="text-base">Parties</CardTitle>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={(e) => { e.stopPropagation(); goToStep(3); }}
+                data-testid="button-edit-parties"
+              >
+                <Edit2 className="h-4 w-4" />
+              </Button>
+              {expandedSections.parties ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </div>
+          </div>
+        </CardHeader>
+        {expandedSections.parties && (
+          <CardContent className="border-t pt-4">
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <p className="text-muted-foreground">Client</p>
+                <p className="font-medium">{projectData.clientLegalName || '-'}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Entity Type</p>
+                <p className="font-medium">{projectData.clientEntityType || '-'}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Signer</p>
+                <p className="font-medium">{projectData.clientSignerName || '-'}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Child LLC</p>
+                <p className="font-medium">{projectData.childLlcName || '-'}</p>
+              </div>
+            </div>
+          </CardContent>
+        )}
+      </Card>
+      
+      <Card>
+        <CardHeader 
+          className="cursor-pointer"
+          onClick={() => toggleSection('property')}
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Home className="h-5 w-5" />
+              <CardTitle className="text-base">Property Details</CardTitle>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={(e) => { e.stopPropagation(); goToStep(5); }}
+                data-testid="button-edit-property"
+              >
+                <Edit2 className="h-4 w-4" />
+              </Button>
+              {expandedSections.property ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </div>
+          </div>
+        </CardHeader>
+        {expandedSections.property && (
+          <CardContent className="border-t pt-4">
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="col-span-2">
+                <p className="text-muted-foreground">Site Address</p>
+                <p className="font-medium">
+                  {projectData.siteAddress ? 
+                    `${projectData.siteAddress}, ${projectData.siteCity}, ${projectData.siteState} ${projectData.siteZip}` 
+                    : '-'}
+                </p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Total Units</p>
+                <p className="font-medium">{projectData.totalUnits}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Unit Model(s)</p>
+                <p className="font-medium">
+                  {projectData.units.slice(0, projectData.totalUnits).map(u => u.model || 'Not specified').join(', ')}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        )}
+      </Card>
+      
+      <Card>
+        <CardHeader 
+          className="cursor-pointer"
+          onClick={() => toggleSection('financial')}
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <DollarSign className="h-5 w-5" />
+              <CardTitle className="text-base">Financial Terms</CardTitle>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={(e) => { e.stopPropagation(); goToStep(7); }}
+                data-testid="button-edit-financial"
+              >
+                <Edit2 className="h-4 w-4" />
+              </Button>
+              {expandedSections.financial ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </div>
+          </div>
+        </CardHeader>
+        {expandedSections.financial && (
+          <CardContent className="border-t pt-4">
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <p className="text-muted-foreground">Design Fee</p>
+                <p className="font-medium">{formatCurrency(projectData.designFee || 0)}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Manufacturing</p>
+                <p className="font-medium">{formatCurrency(projectData.preliminaryOffsiteCost || 0)}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Delivery & Install</p>
+                <p className="font-medium">{formatCurrency(projectData.deliveryInstallationPrice || 0)}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Total Contract</p>
+                <p className="font-medium">{formatCurrency(projectData.totalPreliminaryContractPrice || 0)}</p>
+              </div>
+            </div>
+          </CardContent>
+        )}
+      </Card>
+      
+      <Card>
+        <CardHeader 
+          className="cursor-pointer"
+          onClick={() => toggleSection('schedule')}
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Shield className="h-5 w-5" />
+              <CardTitle className="text-base">Schedule & Warranty</CardTitle>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={(e) => { e.stopPropagation(); goToStep(8); }}
+                data-testid="button-edit-schedule"
+              >
+                <Edit2 className="h-4 w-4" />
+              </Button>
+              {expandedSections.schedule ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </div>
+          </div>
+        </CardHeader>
+        {expandedSections.schedule && (
+          <CardContent className="border-t pt-4">
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <p className="text-muted-foreground">Effective Date</p>
+                <p className="font-medium">{formatDate(projectData.effectiveDate)}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Jurisdiction</p>
+                <p className="font-medium">{projectData.projectState || '-'}, {projectData.projectCounty || '-'}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Federal District</p>
+                <p className="font-medium">{projectData.projectFederalDistrict || '-'}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Arbitration</p>
+                <p className="font-medium">{projectData.arbitrationProvider || '-'}</p>
+              </div>
+            </div>
+          </CardContent>
+        )}
+      </Card>
+      
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Contracts to be Generated
+            </CardTitle>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="gap-1"
+              onClick={() => setShowClausePreview(true)}
+              data-testid="button-preview-clauses"
+            >
+              <Eye className="h-4 w-4" />
+              Preview Clauses
+            </Button>
+          </div>
+          <CardDescription>
+            Based on your selections, the following contracts will be generated
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {contracts.map((contract) => (
+              <div 
+                key={contract.type}
+                className="p-4 border rounded-lg space-y-2"
+              >
+                <div className="flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  <span className="font-medium">{contract.name}</span>
+                </div>
+                <p className="text-sm text-muted-foreground">{contract.description}</p>
+                <Badge variant="secondary">{contract.clauseCount} clauses</Badge>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+      
+      <Card>
+        <CardHeader>
+          <CardTitle>Pre-Generation Confirmation</CardTitle>
+          <CardDescription>
+            Please confirm you have reviewed all information
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-start gap-3">
+            <Checkbox
+              id="confirmation"
+              checked={confirmationChecked}
+              onCheckedChange={(checked) => setConfirmationChecked(checked as boolean)}
+              data-testid="checkbox-confirmation"
+            />
+            <label 
+              htmlFor="confirmation" 
+              className="text-sm leading-relaxed cursor-pointer"
+            >
+              I have reviewed all contract information and confirm that the data is accurate. 
+              I understand that the generated contracts will use this information and any 
+              changes will require regeneration.
+            </label>
+          </div>
+          
+          <div className="flex gap-4 pt-4">
+            <Button 
+              className="flex-1 gap-2"
+              disabled={!allRequiredComplete || !confirmationChecked}
+              onClick={handleGenerateContracts}
+              data-testid="button-generate-contracts"
+            >
+              <Sparkles className="h-4 w-4" />
+              Generate Contract Package
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};

@@ -115,6 +115,7 @@ export interface UnitSpec {
 export interface ProjectData {
   projectNumber: string;
   projectName: string;
+  projectType: string;
   totalUnits: number;
   agreementDate: string;
   serviceModel: 'CRC' | 'CMOS';
@@ -189,6 +190,7 @@ export interface ProjectData {
   warrantyFitFinishExpires: string;
   warrantyEnvelopeExpires: string;
   warrantyStructuralExpires: string;
+  projectState: string;
   projectCounty: string;
   projectFederalDistrict: string;
   arbitrationProvider: 'JAMS' | 'AAA';
@@ -206,11 +208,17 @@ export interface ProjectData {
 }
 
 // Wizard state interface
+export type GenerationState = 'idle' | 'pre-generation' | 'generating' | 'success' | 'error';
+
 export interface WizardState {
   currentStep: number;
   projectData: ProjectData;
   completedSteps: Set<number>;
   validationErrors: Record<string, string>;
+  generationState: GenerationState;
+  confirmationChecked: boolean;
+  generationProgress: number;
+  showClausePreview: boolean;
 }
 
 // Generated contract interface
@@ -246,9 +254,6 @@ export interface ClauseComparison {
     contentDiffers?: boolean;
   }>;
 }
-
-// Generation state type
-export type GenerationState = 'pre-generation' | 'generating' | 'success' | 'error';
 
 // Step definition
 export interface StepDefinition {
@@ -306,6 +311,7 @@ export interface WizardContextType {
 export const initialProjectData: ProjectData = {
   projectNumber: '',
   projectName: '',
+  projectType: '',
   totalUnits: 1,
   agreementDate: new Date().toISOString().split('T')[0],
   serviceModel: 'CRC',
@@ -380,6 +386,7 @@ export const initialProjectData: ProjectData = {
   warrantyFitFinishExpires: '',
   warrantyEnvelopeExpires: '',
   warrantyStructuralExpires: '',
+  projectState: '',
   projectCounty: '',
   projectFederalDistrict: '',
   arbitrationProvider: 'JAMS',
@@ -410,6 +417,10 @@ export const WizardProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     projectData: initialProjectData,
     completedSteps: new Set<number>(),
     validationErrors: {},
+    generationState: 'idle',
+    confirmationChecked: false,
+    generationProgress: 0,
+    showClausePreview: false,
   });
   
   // Draft and UI states

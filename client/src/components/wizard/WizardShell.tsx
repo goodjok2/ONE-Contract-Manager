@@ -8,6 +8,9 @@ import { Step3PartyInfo } from './steps/Step3PartyInfo';
 import { Step4ChildLLC } from './steps/Step4ChildLLC';
 import { Step5SiteAndHome } from './steps/Step5SiteAndHome';
 import { Step6DatesSchedule } from './steps/Step6DatesSchedule';
+import { Step7Pricing } from './steps/Step7Pricing';
+import { Step8ScheduleWarranty } from './steps/Step8ScheduleWarranty';
+import { Step9ReviewGenerate } from './steps/Step9ReviewGenerate';
 import { 
   Check, 
   ChevronLeft, 
@@ -138,57 +141,57 @@ export const WizardShell: React.FC = () => {
         {wizardState.currentStep === 4 && <Step4ChildLLC />}
         {wizardState.currentStep === 5 && <Step5SiteAndHome />}
         {wizardState.currentStep === 6 && <Step6DatesSchedule />}
-        
-        {/* Placeholder for steps 7, 8, 9 */}
-        {wizardState.currentStep > 6 && (
-          <Card className="p-6 min-h-[400px]">
-            <div className="flex items-center justify-center h-full">
-              <div className="text-center space-y-4">
-                <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
-                  <CurrentIcon className="h-10 w-10 text-primary" />
-                </div>
-                <div>
-                  <h3 className="text-xl font-semibold mb-2">Step {wizardState.currentStep}</h3>
-                  <p className="text-muted-foreground">
-                    Step content will be rendered here
-                  </p>
-                </div>
-              </div>
-            </div>
-          </Card>
-        )}
+        {wizardState.currentStep === 7 && <Step7Pricing />}
+        {wizardState.currentStep === 8 && <Step8ScheduleWarranty />}
+        {wizardState.currentStep === 9 && <Step9ReviewGenerate />}
       </div>
       
-      {/* Navigation Buttons */}
-      <div className="flex items-center justify-between gap-4">
-        <Button
-          variant="outline"
-          onClick={prevStep}
-          disabled={wizardState.currentStep === 1}
-          data-testid="button-prev-step"
-        >
-          <ChevronLeft className="h-4 w-4 mr-2" />
-          Back
-        </Button>
-        
-        <Button
-          variant="outline"
-          onClick={saveDraft}
-          data-testid="button-save-draft"
-        >
-          <Save className="h-4 w-4 mr-2" />
-          Save Draft
-        </Button>
-        
-        <Button
-          onClick={nextStep}
-          disabled={!canProceed}
-          data-testid="button-next-step"
-        >
-          {wizardState.currentStep === STEPS.length ? 'Review' : 'Next'}
-          <ChevronRight className="h-4 w-4 ml-2" />
-        </Button>
-      </div>
+      {/* Navigation Buttons - hidden on Step 9 as it has its own controls */}
+      {wizardState.currentStep < 9 && (
+        <div className="flex items-center justify-between gap-4">
+          <Button
+            variant="outline"
+            onClick={prevStep}
+            disabled={wizardState.currentStep === 1}
+            data-testid="button-prev-step"
+          >
+            <ChevronLeft className="h-4 w-4 mr-2" />
+            Back
+          </Button>
+          
+          <Button
+            variant="outline"
+            onClick={saveDraft}
+            data-testid="button-save-draft"
+          >
+            <Save className="h-4 w-4 mr-2" />
+            Save Draft
+          </Button>
+          
+          <Button
+            onClick={nextStep}
+            disabled={!canProceed}
+            data-testid="button-next-step"
+          >
+            {wizardState.currentStep === 8 ? 'Review' : 'Next'}
+            <ChevronRight className="h-4 w-4 ml-2" />
+          </Button>
+        </div>
+      )}
+      
+      {/* Back button on Step 9 */}
+      {wizardState.currentStep === 9 && (
+        <div className="flex items-center gap-4">
+          <Button
+            variant="outline"
+            onClick={prevStep}
+            data-testid="button-prev-step"
+          >
+            <ChevronLeft className="h-4 w-4 mr-2" />
+            Back
+          </Button>
+        </div>
+      )}
       
       {/* Validation Errors Display */}
       {Object.keys(wizardState.validationErrors).length > 0 && (
