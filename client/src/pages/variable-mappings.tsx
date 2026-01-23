@@ -422,6 +422,7 @@ export default function VariableMappings() {
                 <TableRow>
                   <TableHead className="w-[250px]">Field Key</TableHead>
                   <TableHead>Label</TableHead>
+                  <TableHead className="w-[100px]">Category</TableHead>
                   <TableHead className="w-[100px]">Type</TableHead>
                   <TableHead>ERP Source</TableHead>
                   <TableHead className="w-[120px]">Clause Usage</TableHead>
@@ -434,12 +435,21 @@ export default function VariableMappings() {
                     <>
                       <TableRow data-testid={`row-variable-${variable.id}`}>
                         <TableCell>
-                          <code className={`text-sm font-mono px-1.5 py-0.5 rounded ${variable.isRequired ? 'bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-400' : 'bg-muted'}`}>
+                          <code className={`text-sm font-mono px-1.5 py-0.5 rounded ${variable.isRequired ? 'bg-red-600 text-white font-semibold' : 'bg-muted'}`}>
                             {variable.variableName}
                           </code>
                         </TableCell>
                         <TableCell className="text-muted-foreground">
                           {variable.displayName || "-"}
+                        </TableCell>
+                        <TableCell>
+                          {variable.category ? (
+                            <Badge variant="outline" className="capitalize">
+                              {variable.category}
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
                         </TableCell>
                         <TableCell>
                           <Badge variant="secondary" className="capitalize">
@@ -507,7 +517,7 @@ export default function VariableMappings() {
                       </TableRow>
                       <CollapsibleContent asChild>
                         <TableRow className="bg-muted/30">
-                          <TableCell colSpan={6} className="py-3">
+                          <TableCell colSpan={7} className="py-3">
                             <div className="pl-4">
                               <p className="text-xs font-medium text-muted-foreground mb-2">Used in clauses:</p>
                               <div className="flex flex-wrap gap-2">
