@@ -344,7 +344,7 @@ export const initialProjectData: ProjectData = {
   homeBedrooms: 0,
   homeBathrooms: 0,
   homeConfiguration: '',
-  units: [{ id: 1, model: '', squareFootage: 0, bedrooms: 0, bathrooms: 0, price: 0 }],
+  units: [{ id: 1, model: '', squareFootage: 1500, bedrooms: 3, bathrooms: 2, price: 0 }],
   effectiveDate: '',
   targetDeliveryDate: '',
   manufacturingStartDate: '',
@@ -670,9 +670,9 @@ export const WizardProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       const newUnit: UnitSpec = {
         id: maxId + 1,
         model: '',
-        squareFootage: 0,
-        bedrooms: 1,
-        bathrooms: 1,
+        squareFootage: 1500,
+        bedrooms: 3,
+        bathrooms: 2,
         price: 0,
       };
       return {

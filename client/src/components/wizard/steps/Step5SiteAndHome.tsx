@@ -341,7 +341,7 @@ export const Step5SiteAndHome: React.FC = () => {
           
           <div className="flex items-center justify-between p-4 bg-muted/30 rounded-lg">
             <span className="font-medium">Total Unit Value (Manufacturing/Offsite)</span>
-            <span className="text-xl font-bold text-primary">{formatCurrency(totalUnitPrice)}</span>
+            <span className="text-xl font-bold">{formatCurrency(totalUnitPrice)}</span>
           </div>
         </CardContent>
       </Card>
