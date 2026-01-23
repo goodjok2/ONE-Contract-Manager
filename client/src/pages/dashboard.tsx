@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FileText, Clock, CheckCircle, Plus, Users, Building2, TrendingUp } from "lucide-react";
+import { FileText, Clock, CheckCircle, Plus, Building2, TrendingUp } from "lucide-react";
 import type { DashboardStats, Contract, LLC } from "@shared/schema";
 
 interface StatCardProps {
@@ -46,20 +46,6 @@ function StatCard({ title, value, description, icon: Icon, testId, isLoading }: 
   );
 }
 
-const TEMPLATES = [
-  {
-    id: "dtc",
-    name: "DTC Standard Agreement",
-    description: "Direct-to-Consumer home buyers",
-    icon: Users,
-  },
-  {
-    id: "b2b",
-    name: "B2B Developer Agreement", 
-    description: "Business-to-Business developers",
-    icon: Building2,
-  },
-];
 
 export default function Dashboard() {
   const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
@@ -321,38 +307,24 @@ export default function Dashboard() {
         </Card>
 
         {/* Quick Start */}
-        <Card data-testid="card-quick-templates">
+        <Card data-testid="card-quick-start">
           <CardHeader className="pb-3">
             <CardTitle className="text-lg font-semibold">Quick Start</CardTitle>
-            <CardDescription>Create from template</CardDescription>
+            <CardDescription>Get started with contracts and LLCs</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {TEMPLATES.map((template) => (
-                <Link key={template.id} href="/generate-contracts">
-                  <div 
-                    className="flex items-center gap-3 p-3 rounded-lg hover-elevate cursor-pointer"
-                    data-testid={`template-${template.id}`}
-                  >
-                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 shrink-0">
-                      <template.icon className="h-4 w-4 text-primary" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium">{template.name}</p>
-                      <p className="text-xs text-muted-foreground">{template.description}</p>
-                    </div>
-                  </div>
-                </Link>
-              ))}
-            </div>
-            <div className="mt-4 pt-4 border-t">
-              <Link href="/llc-admin">
-                <Button variant="outline" className="w-full" data-testid="button-manage-llcs">
-                  <Building2 className="h-4 w-4 mr-2" />
-                  Manage LLCs
-                </Button>
-              </Link>
-            </div>
+          <CardContent className="space-y-3">
+            <Link href="/generate-contracts">
+              <Button className="w-full" data-testid="button-create-contract">
+                <FileText className="h-4 w-4 mr-2" />
+                Create New Contract
+              </Button>
+            </Link>
+            <Link href="/llc-admin">
+              <Button variant="outline" className="w-full" data-testid="button-manage-llcs">
+                <Building2 className="h-4 w-4 mr-2" />
+                Manage LLCs
+              </Button>
+            </Link>
           </CardContent>
         </Card>
       </div>
