@@ -1,0 +1,149 @@
+ADD: Clause Library Tables to Schema
+ADD CLAUSE LIBRARY TABLES TO DATABASE SCHEMA
+
+The current schema is missing the clause library tables needed for dynamic contract assembly. Add these tables to store contract clauses.
+
+STEP 1: UPDATE SCHEMA
+
+Location: server/db/schema.ts
+
+Add these tables at the end of the file (before the RELATIONS section):
+```typescript
+// =============================================================================
+// CLAUSE LIBRARY - Contract Content Management
+// =============================================================================
+
+export const contractTemplates = sqliteTable("contract_templates", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  contractType: text("contract_type").notNull(), // 'ONE', 'MANUFACTURING', 'ONSITE'
+  templateName: text("template_name").notNull(),
+  version: text("version").default("1.0"),
+  isActive: integer("is_active", { mode: "boolean" }).default(true),
+  createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
+  updatedAt: text("updated_at"),
+});
+
+export const clauses = sqliteTable("clauses", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  templateId: integer("template_id").references(() => contractTemplates.id),
+  
+  // Clause Identity
+  clauseNumber: text("clause_number"), // e.g., "1.1", "2.3.4"
+  clauseTitle: text("clause_title"), // e.g., "Scope of Services"
+  clauseText: text("clause_text").notNull(), // The actual clause content
+  
+  // Organization
+  sectionNumber: integer("section_number"), // Top-level section (1, 2, 3...)
+  clauseOrder: integer("clause_order").notNull(), // Order within document
+  indentLevel: integer("indent_level").default(0), // 0=section, 1=subsection, 2=sub-subsection
+  
+  // Conditional Logic
+  conditionalLogic: text("conditional_logic"), // JSON: {"serviceModel": "CRC"} or {"serviceModel": "CMOS"}
+  appliesToCrc: integer("applies_to_crc", { mode: "boolean" }).default(true),
+  appliesToCmos: integer("applies_to_cmos", { mode: "boolean" }).default(true),
+  
+  // Variables
+  containsVariables: integer("contains_variables", { mode: "boolean" }).default(false),
+  variablesList: text("variables_list"), // JSON array of variable names used in this clause
+  
+  // Metadata
+  riskLevel: text("risk_level"), // 'low', 'medium', 'high' - for legal review
+  category: text("category"), // 'scope', 'payment', 'warranty', 'termination', etc.
+  isRequired: integer("is_required", { mode: "boolean" }).default(true),
+  notes: text("notes"),
+  
+  createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
+  updatedAt: text("updated_at"),
+});
+
+export const contractVariables = sqliteTable("contract_variables", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  
+  // Variable Identity
+  variableName: text("variable_name").notNull().unique(), // e.g., "CLIENT_LEGAL_NAME"
+  variableDescription: text("variable_description"),
+  dataType: text("data_type").default("text"), // text, number, date, currency, boolean
+  
+  // Usage
+  usedInContracts: text("used_in_contracts"), // JSON array: ['ONE', 'MANUFACTURING', 'ONSITE']
+  category: text("category"), // client, project, financial, dates, warranty, llc, site
+  
+  // Source Mapping (for wizard)
+  wizardStep: integer("wizard_step"), // Which step in wizard populates this
+  wizardFieldName: text("wizard_field_name"), // Field name in projectData
+  
+  // Validation
+  isRequired: integer("is_required", { mode: "boolean" }).default(false),
+  validationRule: text("validation_rule"),
+  defaultValue: text("default_value"),
+  
+  // Formatting
+  formatFunction: text("format_function"), // 'currency', 'date', 'uppercase', etc.
+  
+  createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
+});
+
+// Add relations
+export const contractTemplatesRelations = relations(contractTemplates, ({ many }) => ({
+  clauses: many(clauses),
+}));
+
+export const clausesRelations = relations(clauses, ({ one }) => ({
+  template: one(contractTemplates, {
+    fields: [clauses.templateId],
+    references: [contractTemplates.id],
+  }),
+}));
+
+// Add type exports
+export type ContractTemplate = typeof contractTemplates.$inferSelect;
+export type NewContractTemplate = typeof contractTemplates.$inferInsert;
+
+export type Clause = typeof clauses.$inferSelect;
+export type NewClause = typeof clauses.$inferInsert;
+
+export type ContractVariable = typeof contractVariables.$inferSelect;
+export type NewContractVariable = typeof contractVariables.$inferInsert;
+```
+
+STEP 2: CREATE MIGRATION
+
+Run this command to generate a migration:
+```bash
+npm run db:generate
+```
+
+This will create a new migration file in the migrations folder with the new tables.
+
+STEP 3: APPLY MIGRATION
+
+Run this command to apply the migration:
+```bash
+npm run db:push
+```
+
+Or if you use migrate:
+```bash
+npm run db:migrate
+```
+
+STEP 4: VERIFY TABLES EXIST
+
+After migration, verify the tables were created:
+```bash
+sqlite3 dvele.db ".tables"
+```
+
+Should show:
+- contract_templates
+- clauses
+- contract_variables
+
+STEP 5: NEXT STEPS
+
+Once these tables exist, we need to:
+1. Extract clauses from the Word documents
+2. Populate the clause library
+3. Build the dynamic contract generator that queries these tables
+
+But first, confirm the tables are created successfully.

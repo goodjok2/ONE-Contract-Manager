@@ -355,6 +355,55 @@ export const erpFieldMappings = pgTable("erp_field_mappings", {
 });
 
 // =============================================================================
+// CLAUSE LIBRARY - Contract Content Management
+// =============================================================================
+
+export const contractTemplates = pgTable("contract_templates", {
+  id: serial("id").primaryKey(),
+  contractType: text("contract_type").notNull(), // 'ONE', 'MANUFACTURING', 'ONSITE'
+  version: text("version").default("1.0"),
+  displayName: text("display_name"),
+  baseClauseIds: text("base_clause_ids").array(), // Array of clause IDs
+  conditionalRules: text("conditional_rules"), // JSONB for conditional logic
+  status: text("status").default("active"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at"),
+});
+
+export const clauses = pgTable("clauses", {
+  id: serial("id").primaryKey(),
+  clauseCode: text("clause_code"), // e.g., "1.1", "2.3.4"
+  parentClauseId: integer("parent_clause_id"),
+  hierarchyLevel: integer("hierarchy_level"), // 0=section, 1=subsection, 2=paragraph
+  sortOrder: integer("sort_order"),
+  name: text("name"), // Clause title
+  category: text("category"), // 'scope', 'payment', 'warranty', 'termination', etc.
+  contractType: text("contract_type"), // 'ONE', 'MANUFACTURING', 'ONSITE'
+  content: text("content").notNull(), // The actual clause content
+  variablesUsed: text("variables_used").array(), // Array of variable names
+  conditions: text("conditions"), // JSONB for conditional logic
+  riskLevel: text("risk_level"), // 'low', 'medium', 'high'
+  negotiable: boolean("negotiable").default(true),
+  owner: text("owner"), // Who owns/maintains this clause
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at"),
+});
+
+export const contractVariables = pgTable("contract_variables", {
+  id: serial("id").primaryKey(),
+  variableName: text("variable_name").notNull().unique(), // e.g., "CLIENT_LEGAL_NAME"
+  displayName: text("display_name"),
+  category: text("category"), // client, project, financial, dates, warranty, llc, site
+  dataType: text("data_type").default("text"), // text, number, date, currency, boolean
+  defaultValue: text("default_value"),
+  validationRules: text("validation_rules"), // JSONB
+  usedInContracts: text("used_in_contracts").array(), // Array: ['ONE', 'MANUFACTURING', 'ONSITE']
+  isRequired: boolean("is_required").default(false),
+  description: text("description"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// =============================================================================
 // RELATIONS
 // =============================================================================
 
@@ -473,6 +522,15 @@ export type NewContract = typeof contracts.$inferInsert;
 
 export type ErpFieldMapping = typeof erpFieldMappings.$inferSelect;
 export type NewErpFieldMapping = typeof erpFieldMappings.$inferInsert;
+
+export type ContractTemplate = typeof contractTemplates.$inferSelect;
+export type NewContractTemplate = typeof contractTemplates.$inferInsert;
+
+export type Clause = typeof clauses.$inferSelect;
+export type NewClause = typeof clauses.$inferInsert;
+
+export type ContractVariable = typeof contractVariables.$inferSelect;
+export type NewContractVariable = typeof contractVariables.$inferInsert;
 
 // =============================================================================
 // ZOD SCHEMAS (for form validation)
