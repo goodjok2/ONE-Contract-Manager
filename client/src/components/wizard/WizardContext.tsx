@@ -472,9 +472,9 @@ export const WizardProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         newUnits.push({
           id: i + 1,
           model: '',
-          squareFootage: 0,
-          bedrooms: 0,
-          bathrooms: 0,
+          squareFootage: 1500,
+          bedrooms: 3,
+          bathrooms: 2,
           price: 0
         });
       }
