@@ -27,6 +27,7 @@ import {
   getVariableCoverage,
   type ProjectWithRelations 
 } from "./lib/mapper";
+import { generateContract as generateContractFromTemplate, getContractFilename } from "./lib/contractGenerator";
 
 // =============================================================================
 // HELPER: Fetch project with all relations
@@ -1392,6 +1393,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // Download contract as properly formatted Word document
+  // Uses template-based generation with fallback to direct generation if templates fail
   app.post("/api/contracts/download-docx", async (req, res) => {
     try {
       const { contractType, projectData } = req.body;
@@ -1400,7 +1402,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(400).json({ error: "contractType and projectData are required" });
       }
 
-      // Build formatted document content
       const formatCurrency = (value: number) => {
         return new Intl.NumberFormat('en-US', {
           style: 'currency',

@@ -2,6 +2,7 @@ import Docxtemplater from 'docxtemplater';
 import PizZip from 'pizzip';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
 interface ContractGenerationOptions {
   contractType: 'ONE' | 'MANUFACTURING' | 'ONSITE';
@@ -44,7 +45,7 @@ export async function generateContract(options: ContractGenerationOptions): Prom
 }
 
 function getTemplatePath(contractType: string): string {
-  const baseDir = path.join(__dirname, '../templates');
+  const baseDir = path.join(process.cwd(), 'server/templates');
   
   const templates: Record<string, string> = {
     'ONE': path.join(baseDir, 'Template_ONE_Agreement.docx'),
@@ -52,7 +53,11 @@ function getTemplatePath(contractType: string): string {
     'ONSITE': path.join(baseDir, 'Template_On-Site.docx'),
   };
   
-  return templates[contractType] || '';
+  const templatePath = templates[contractType];
+  console.log(`Template path for ${contractType}:`, templatePath);
+  console.log(`Template exists:`, fs.existsSync(templatePath));
+  
+  return templatePath || '';
 }
 
 function buildVariableMap(projectData: Record<string, any>, contractType: string): Record<string, string> {
