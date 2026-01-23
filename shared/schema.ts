@@ -400,6 +400,7 @@ export const contractVariables = pgTable("contract_variables", {
   usedInContracts: text("used_in_contracts").array(), // Array: ['ONE', 'MANUFACTURING', 'ONSITE']
   isRequired: boolean("is_required").default(false),
   description: text("description"),
+  erpSource: text("erp_source"), // ERP field mapping, e.g., "Customers.LegalName"
   createdAt: timestamp("created_at").defaultNow(),
 });
 
