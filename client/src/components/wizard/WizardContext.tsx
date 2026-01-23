@@ -951,7 +951,12 @@ export const WizardProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   // Go to step
   const goToStep = useCallback((stepNumber: number) => {
-    if (stepNumber < wizardState.currentStep || wizardState.completedSteps.has(stepNumber - 1) || stepNumber === 1) {
+    // In testing mode, allow navigation to any step
+    const canNavigate = SHELL_TESTING_MODE || 
+                       stepNumber < wizardState.currentStep || 
+                       wizardState.completedSteps.has(stepNumber - 1) || 
+                       stepNumber === 1;
+    if (canNavigate) {
       setWizardState(prev => ({
         ...prev,
         currentStep: stepNumber,
