@@ -1391,6 +1391,538 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // Download contract as properly formatted Word document
+  app.post("/api/contracts/download-docx", async (req, res) => {
+    try {
+      const { contractType, projectData } = req.body;
+      
+      if (!contractType || !projectData) {
+        return res.status(400).json({ error: "contractType and projectData are required" });
+      }
+
+      // Build formatted document content
+      const formatCurrency = (value: number) => {
+        return new Intl.NumberFormat('en-US', {
+          style: 'currency',
+          currency: 'USD',
+          minimumFractionDigits: 0
+        }).format(value || 0);
+      };
+
+      const formatDate = (dateString: string) => {
+        if (!dateString) return '[DATE]';
+        const date = new Date(dateString);
+        return date.toLocaleDateString('en-US', { 
+          year: 'numeric', 
+          month: 'long', 
+          day: 'numeric' 
+        });
+      };
+
+      let documentContent = '';
+      let filename = '';
+
+      if (contractType === 'ONE') {
+        filename = `${projectData.projectNumber || 'Contract'}_ONE_Agreement.docx`;
+        documentContent = `
+DVELE ONE AGREEMENT
+
+Project Number: ${projectData.projectNumber || '[PROJECT_NUMBER]'}
+Project Name: ${projectData.projectName || '[PROJECT_NAME]'}
+Effective Date: ${formatDate(projectData.effectiveDate)}
+
+================================================================================
+
+ARTICLE 1. PARTIES
+
+1.1 Owner/Client
+Name: ${projectData.clientLegalName || '[CLIENT_NAME]'}
+Entity Type: ${projectData.clientEntityType || '[ENTITY_TYPE]'}
+State of Organization: ${projectData.clientState || '[STATE]'}
+Authorized Signer: ${projectData.clientSignerName || '[SIGNER_NAME]'}
+${projectData.clientSignerTitle ? `Title: ${projectData.clientSignerTitle}` : ''}
+Email: ${projectData.clientEmail || '[EMAIL]'}
+${projectData.clientPhone ? `Phone: ${projectData.clientPhone}` : ''}
+
+1.2 Dvele Partners LLC (Child Entity)
+Name: ${projectData.childLlcName || '[CHILD_LLC_NAME]'}
+State of Formation: ${projectData.childLlcState || 'Delaware'}
+
+1.3 Service Model
+This Agreement is structured under the ${projectData.serviceModel === 'CRC' ? 'Construction Risk Contractor (CRC)' : 'Construction Management Owner Services (CMOS)'} model.
+
+${projectData.serviceModel === 'CRC' && projectData.contractorName ? `
+1.4 General Contractor (CRC Model)
+Contractor: ${projectData.contractorName}
+License Number: ${projectData.contractorLicense || '[LICENSE]'}
+Address: ${projectData.contractorAddress || '[ADDRESS]'}
+Insurance Policy: ${projectData.contractorInsurance || '[INSURANCE]'}
+` : ''}
+
+================================================================================
+
+ARTICLE 2. PROJECT DESCRIPTION
+
+2.1 Site Location
+Address: ${projectData.siteAddress || '[ADDRESS]'}
+City: ${projectData.siteCity || '[CITY]'}
+State: ${projectData.siteState || '[STATE]'}
+ZIP: ${projectData.siteZip || '[ZIP]'}
+${projectData.siteCounty ? `County: ${projectData.siteCounty}` : ''}
+
+2.2 Project Scope
+Total Units: ${projectData.totalUnits || 1}
+Project Type: ${projectData.projectType || 'Single Family'}
+
+${projectData.units && projectData.units.length > 0 ? `
+2.3 Unit Specifications
+${projectData.units.slice(0, projectData.totalUnits || 1).map((unit: any, index: number) => `
+Unit ${index + 1}:
+  Model: ${unit.model || '[MODEL]'}
+  Square Footage: ${unit.squareFootage?.toLocaleString() || '[SQ FT]'} sq ft
+  Bedrooms: ${unit.bedrooms || '[BR]'}
+  Bathrooms: ${unit.bathrooms || '[BA]'}
+  Unit Price: ${formatCurrency(unit.price)}
+`).join('')}` : ''}
+
+================================================================================
+
+ARTICLE 3. CONTRACT PRICE AND PAYMENT
+
+3.1 Design Phase
+Design Fee: ${formatCurrency(projectData.designFee)}
+Revision Rounds Included: ${projectData.designRevisionRounds || 3}
+
+3.2 Preliminary Contract Price
+Manufacturing (Offsite): ${formatCurrency(projectData.preliminaryOffsiteCost)}
+Delivery & Installation: ${formatCurrency(projectData.deliveryInstallationPrice)}
+Total Preliminary Contract Price: ${formatCurrency(projectData.totalPreliminaryContractPrice)}
+
+3.3 Payment Milestones
+The following payment schedule applies, representing 95% of the contract price with ${projectData.retainagePercent || 5}% retainage:
+
+Milestone 1: ${projectData.milestone1Percent || 20}%
+Milestone 2: ${projectData.milestone2Percent || 20}%
+Milestone 3: ${projectData.milestone3Percent || 20}%
+Milestone 4: ${projectData.milestone4Percent || 20}%
+Milestone 5: ${projectData.milestone5Percent || 15}%
+Retainage: ${projectData.retainagePercent || 5}% (released ${projectData.retainageDays || 60} days after project completion)
+
+================================================================================
+
+ARTICLE 4. PROJECT SCHEDULE
+
+4.1 Key Dates
+Effective Date: ${formatDate(projectData.effectiveDate)}
+${projectData.targetDeliveryDate ? `Target Delivery: ${formatDate(projectData.targetDeliveryDate)}` : ''}
+
+4.2 Phase Durations
+Design Phase: ${projectData.designPhaseDays || 90} days
+Manufacturing: ${projectData.manufacturingDurationDays || 120} days
+On-Site Installation: ${projectData.onsiteDurationDays || 90} days
+
+Estimated Total Duration: ${(projectData.designPhaseDays || 90) + (projectData.manufacturingDurationDays || 120) + (projectData.onsiteDurationDays || 90)} days
+
+================================================================================
+
+ARTICLE 5. WARRANTIES
+
+5.1 Warranty Terms
+Dvele warrants the completed home according to the following schedule:
+
+Fit & Finish Warranty: ${projectData.warrantyFitFinishMonths || 24} months
+Coverage: Interior finishes, fixtures, appliances, and cosmetic items
+
+Building Envelope Warranty: ${projectData.warrantyBuildingEnvelopeMonths || 60} months
+Coverage: Exterior cladding, windows, doors, roofing, and weatherproofing systems
+
+Structural Warranty: ${projectData.warrantyStructuralMonths || 120} months
+Coverage: Foundation, framing, load-bearing elements, and structural systems
+
+================================================================================
+
+ARTICLE 6. DISPUTE RESOLUTION
+
+6.1 Governing Law
+This Agreement shall be governed by the laws of the State of ${projectData.projectState || projectData.siteState || '[STATE]'}.
+
+6.2 Venue
+County: ${projectData.projectCounty || projectData.siteCounty || '[COUNTY]'}
+Federal District: ${projectData.projectFederalDistrict || '[FEDERAL_DISTRICT]'}
+
+6.3 Arbitration
+Any disputes arising under this Agreement shall be resolved through binding arbitration administered by ${projectData.arbitrationProvider || 'JAMS'} in accordance with its Commercial Arbitration Rules.
+
+================================================================================
+
+ARTICLE 7. SIGNATURES
+
+IN WITNESS WHEREOF, the parties have executed this Agreement as of the Effective Date.
+
+OWNER/CLIENT:
+
+_________________________________
+${projectData.clientSignerName || '[SIGNER_NAME]'}
+${projectData.clientSignerTitle ? projectData.clientSignerTitle : 'Authorized Representative'}
+${projectData.clientLegalName || '[CLIENT_NAME]'}
+
+Date: _________________________________
+
+
+DVELE PARTNERS LLC:
+
+_________________________________
+Authorized Representative
+${projectData.childLlcName || 'Dvele Partners LLC'}
+
+Date: _________________________________
+
+
+================================================================================
+DVELE CONTRACT PLATFORM - Generated ${new Date().toLocaleDateString()}
+================================================================================
+`;
+      } else if (contractType === 'MANUFACTURING') {
+        filename = `${projectData.projectNumber || 'Contract'}_Manufacturing_Subcontract.docx`;
+        documentContent = `
+MANUFACTURING SUBCONTRACTOR AGREEMENT
+
+Project Number: ${projectData.projectNumber || '[PROJECT_NUMBER]'}
+Project Name: ${projectData.projectName || '[PROJECT_NAME]'}
+Effective Date: ${formatDate(projectData.effectiveDate)}
+
+================================================================================
+
+ARTICLE 1. PARTIES
+
+1.1 Contractor
+${projectData.childLlcName || 'Dvele Partners LLC'}
+
+1.2 Manufacturer
+${projectData.manufacturerName || 'Dvele, Inc.'}
+${projectData.manufacturerAddress ? `Address: ${projectData.manufacturerAddress}` : ''}
+
+================================================================================
+
+ARTICLE 2. SCOPE OF WORK
+
+2.1 Manufacturing Scope
+The Manufacturer shall fabricate modular home units according to approved design specifications for delivery to:
+
+Delivery Address:
+${projectData.siteAddress || '[ADDRESS]'}
+${projectData.siteCity || '[CITY]'}, ${projectData.siteState || '[STATE]'} ${projectData.siteZip || '[ZIP]'}
+
+2.2 Unit Specifications
+Total Units: ${projectData.totalUnits || 1}
+
+${projectData.units && projectData.units.length > 0 ? `
+${projectData.units.slice(0, projectData.totalUnits || 1).map((unit: any, index: number) => `
+Unit ${index + 1}:
+  Model: ${unit.model || '[MODEL]'}
+  Square Footage: ${unit.squareFootage?.toLocaleString() || '[SQ FT]'} sq ft
+  Configuration: ${unit.bedrooms || '[BR]'} BR / ${unit.bathrooms || '[BA]'} BA
+`).join('')}` : ''}
+
+================================================================================
+
+ARTICLE 3. MANUFACTURING PAYMENTS
+
+3.1 Payment Schedule
+The following payments shall be made to the Manufacturer:
+
+Design Payment: ${formatCurrency(projectData.manufacturingDesignPayment)}
+Due upon completion of design phase
+
+Production Start Payment: ${formatCurrency(projectData.manufacturingProductionStart)}
+Due upon commencement of manufacturing
+
+Production Complete Payment: ${formatCurrency(projectData.manufacturingProductionComplete)}
+Due upon completion of manufacturing and quality inspection
+
+Delivery Ready Payment: ${formatCurrency(projectData.manufacturingDeliveryReady)}
+Due upon loading and shipping preparation
+
+Total Manufacturing Payments: ${formatCurrency(
+  (projectData.manufacturingDesignPayment || 0) +
+  (projectData.manufacturingProductionStart || 0) +
+  (projectData.manufacturingProductionComplete || 0) +
+  (projectData.manufacturingDeliveryReady || 0)
+)}
+
+================================================================================
+
+ARTICLE 4. SCHEDULE
+
+4.1 Manufacturing Timeline
+Design Phase Duration: ${projectData.designPhaseDays || 90} days
+Manufacturing Duration: ${projectData.manufacturingDurationDays || 120} days
+
+4.2 Delivery
+Target Delivery Date: ${projectData.targetDeliveryDate ? formatDate(projectData.targetDeliveryDate) : 'To be determined based on site readiness'}
+
+================================================================================
+
+ARTICLE 5. QUALITY STANDARDS
+
+5.1 Manufacturing Standards
+All units shall be manufactured in accordance with:
+- California Building Code (CBC) requirements
+- HUD manufacturing standards where applicable
+- Dvele quality control specifications
+- Approved architectural and engineering drawings
+
+5.2 Inspections
+Units shall pass all required factory inspections prior to shipping, including:
+- Structural inspection
+- Electrical inspection
+- Plumbing inspection
+- Final quality review
+
+================================================================================
+
+ARTICLE 6. SIGNATURES
+
+CONTRACTOR:
+
+_________________________________
+Authorized Representative
+${projectData.childLlcName || 'Dvele Partners LLC'}
+
+Date: _________________________________
+
+
+MANUFACTURER:
+
+_________________________________
+Authorized Representative
+${projectData.manufacturerName || 'Dvele, Inc.'}
+
+Date: _________________________________
+
+
+================================================================================
+DVELE CONTRACT PLATFORM - Generated ${new Date().toLocaleDateString()}
+================================================================================
+`;
+      } else if (contractType === 'ONSITE') {
+        filename = `${projectData.projectNumber || 'Contract'}_OnSite_Subcontract.docx`;
+        documentContent = `
+ON-SITE INSTALLATION SUBCONTRACTOR AGREEMENT
+
+Project Number: ${projectData.projectNumber || '[PROJECT_NUMBER]'}
+Project Name: ${projectData.projectName || '[PROJECT_NAME]'}
+Effective Date: ${formatDate(projectData.effectiveDate)}
+
+================================================================================
+
+ARTICLE 1. PARTIES
+
+1.1 Contractor
+${projectData.childLlcName || 'Dvele Partners LLC'}
+
+${projectData.serviceModel === 'CRC' && projectData.contractorName ? `
+1.2 General Contractor
+Name: ${projectData.contractorName}
+License Number: ${projectData.contractorLicense || '[LICENSE]'}
+Address: ${projectData.contractorAddress || '[ADDRESS]'}
+Insurance Policy: ${projectData.contractorInsurance || '[INSURANCE]'}
+` : `
+1.2 Installation Contractor
+To be assigned by Dvele Partners LLC
+`}
+
+================================================================================
+
+ARTICLE 2. PROJECT SITE
+
+2.1 Site Location
+Address: ${projectData.siteAddress || '[ADDRESS]'}
+City: ${projectData.siteCity || '[CITY]'}
+State: ${projectData.siteState || '[STATE]'}
+ZIP: ${projectData.siteZip || '[ZIP]'}
+${projectData.siteCounty ? `County: ${projectData.siteCounty}` : ''}
+${projectData.siteApn ? `APN: ${projectData.siteApn}` : ''}
+
+================================================================================
+
+ARTICLE 3. SCOPE OF WORK
+
+3.1 Site Preparation
+- Foundation construction per approved engineering plans
+- Utility connections (water, sewer, electrical, gas as applicable)
+- Site grading and drainage
+- Access road preparation
+
+3.2 Module Installation
+- Crane placement of modular units
+- Module interconnection and marriage
+- Utility hook-ups between modules
+- Exterior finishing and weatherproofing
+
+3.3 Site Completion
+- Landscaping per approved plans
+- Final utility connections and testing
+- Final grading and hardscaping
+- Certificate of occupancy preparation
+
+================================================================================
+
+ARTICLE 4. CONTRACT PRICE
+
+4.1 On-Site Work Pricing
+Delivery & Installation: ${formatCurrency(projectData.deliveryInstallationPrice)}
+
+${projectData.sitePrepPrice ? `Site Preparation: ${formatCurrency(projectData.sitePrepPrice)}` : ''}
+${projectData.utilitiesPrice ? `Utilities: ${formatCurrency(projectData.utilitiesPrice)}` : ''}
+${projectData.completionPrice ? `Completion Work: ${formatCurrency(projectData.completionPrice)}` : ''}
+
+================================================================================
+
+ARTICLE 5. SCHEDULE
+
+5.1 On-Site Duration
+Estimated On-Site Work Duration: ${projectData.onsiteDurationDays || 90} days
+
+5.2 Milestones
+- Site preparation completion
+- Foundation ready for module placement
+- Module installation complete
+- Utility connections complete
+- Final inspection and certificate of occupancy
+
+================================================================================
+
+ARTICLE 6. PERMITS AND INSPECTIONS
+
+6.1 Permits
+The ${projectData.serviceModel === 'CRC' ? 'General Contractor' : 'Contractor'} shall obtain all required permits including:
+- Building permit
+- Grading permit (if required)
+- Utility connection permits
+- Occupancy permit
+
+6.2 Inspections
+All work shall pass required inspections by the local authority having jurisdiction.
+
+================================================================================
+
+ARTICLE 7. INSURANCE REQUIREMENTS
+
+7.1 Required Coverage
+- General Liability: Minimum $1,000,000 per occurrence
+- Workers Compensation: As required by state law
+- Auto Liability: Minimum $500,000 combined single limit
+${projectData.contractorInsurance ? `
+Contractor Insurance Policy: ${projectData.contractorInsurance}
+` : ''}
+
+================================================================================
+
+ARTICLE 8. SIGNATURES
+
+CONTRACTOR:
+
+_________________________________
+Authorized Representative
+${projectData.childLlcName || 'Dvele Partners LLC'}
+
+Date: _________________________________
+
+
+${projectData.serviceModel === 'CRC' && projectData.contractorName ? `
+GENERAL CONTRACTOR:
+
+_________________________________
+Authorized Representative
+${projectData.contractorName}
+License #: ${projectData.contractorLicense || '[LICENSE]'}
+
+Date: _________________________________
+` : `
+INSTALLATION SUBCONTRACTOR:
+
+_________________________________
+Authorized Representative
+[Installation Company Name]
+
+Date: _________________________________
+`}
+
+================================================================================
+DVELE CONTRACT PLATFORM - Generated ${new Date().toLocaleDateString()}
+================================================================================
+`;
+      } else {
+        return res.status(400).json({ error: `Unknown contract type: ${contractType}` });
+      }
+
+      // Create a simple Word document using PizZip and Docxtemplater
+      // For now, we'll create a text-based response that can be properly downloaded
+      // In production, you'd use a proper template .docx file
+      
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      
+      // Create minimal valid docx structure
+      const JSZip = PizZip;
+      const zip = new JSZip();
+      
+      // Add required Word document structure
+      zip.file('[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>`);
+      
+      zip.file('_rels/.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>`);
+      
+      // Convert content to Word XML paragraphs
+      const lines = documentContent.split('\n');
+      let wordContent = '';
+      for (const line of lines) {
+        const escapedLine = line
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;');
+        
+        // Check if it's a header line (all caps or contains ===)
+        const isHeader = line === line.toUpperCase() && line.trim().length > 0 && !line.includes('===');
+        const isDivider = line.includes('===');
+        
+        if (isDivider) {
+          wordContent += `<w:p><w:pPr><w:pBdr><w:bottom w:val="single" w:sz="6" w:space="1" w:color="auto"/></w:pBdr></w:pPr></w:p>`;
+        } else if (isHeader && line.trim()) {
+          wordContent += `<w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:rPr><w:b/><w:sz w:val="28"/></w:rPr><w:t>${escapedLine}</w:t></w:r></w:p>`;
+        } else {
+          wordContent += `<w:p><w:r><w:t>${escapedLine}</w:t></w:r></w:p>`;
+        }
+      }
+      
+      zip.file('word/document.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    ${wordContent}
+  </w:body>
+</w:document>`);
+      
+      const docxBuffer = zip.generate({ type: 'nodebuffer', compression: 'DEFLATE' });
+      res.send(docxBuffer);
+      
+    } catch (error) {
+      console.error("Error generating docx:", error);
+      res.status(500).json({ 
+        error: "Failed to generate document",
+        message: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
   // =============================================================================
   // LLC ADMINISTRATION
   // =============================================================================
