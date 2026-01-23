@@ -5,6 +5,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { 
   CheckCircle2, 
   AlertCircle, 
@@ -19,7 +22,8 @@ import {
   Shield,
   Download,
   Loader2,
-  Sparkles
+  Sparkles,
+  X
 } from 'lucide-react';
 
 interface ExpandedSections {
@@ -36,10 +40,13 @@ export const Step9ReviewGenerate: React.FC = () => {
     goToStep,
     setShowClausePreview,
     setConfirmationChecked,
-    setGenerationState
+    setGenerationState,
+    confirmationChecked,
+    generationState,
+    generationProgress
   } = useWizard();
   
-  const { projectData, generationState, confirmationChecked, generationProgress } = wizardState;
+  const { projectData } = wizardState;
   
   const [expandedSections, setExpandedSections] = useState<ExpandedSections>({
     project: true,
@@ -48,6 +55,8 @@ export const Step9ReviewGenerate: React.FC = () => {
     financial: false,
     schedule: false
   });
+  
+  const [clausePreviewOpen, setClausePreviewOpen] = useState(false);
   
   const toggleSection = (section: keyof ExpandedSections) => {
     setExpandedSections(prev => ({
@@ -92,7 +101,7 @@ export const Step9ReviewGenerate: React.FC = () => {
       return value !== undefined && value !== null && value !== '' && value !== 0;
     }).length;
     
-    const total = 89;
+    const total = requiredFields.length;
     return { 
       populated, 
       total, 
@@ -132,19 +141,42 @@ export const Step9ReviewGenerate: React.FC = () => {
       name: 'ONE Agreement', 
       description: 'Master agreement between client and Dvele Partners LLC',
       clauseCount: 47,
-      type: 'ONE'
+      type: 'ONE',
+      clauses: [
+        { section: '1.0', name: 'Definitions', description: 'Key terms and definitions used throughout the agreement' },
+        { section: '2.0', name: 'Scope of Work', description: 'Description of services to be provided' },
+        { section: '3.0', name: 'Contract Price', description: 'Total contract value and payment terms' },
+        { section: '4.0', name: 'Payment Schedule', description: 'Milestone-based payment schedule' },
+        { section: '5.0', name: 'Project Timeline', description: 'Key dates and completion milestones' },
+        { section: '6.0', name: 'Warranties', description: 'Product and workmanship warranties' },
+        { section: '7.0', name: 'Dispute Resolution', description: 'Arbitration and legal jurisdiction' }
+      ]
     },
     { 
       name: 'Manufacturing Subcontract', 
       description: 'Factory production agreement',
       clauseCount: 32,
-      type: 'MANUFACTURING'
+      type: 'MANUFACTURING',
+      clauses: [
+        { section: '1.0', name: 'Manufacturing Scope', description: 'Factory production specifications' },
+        { section: '2.0', name: 'Quality Standards', description: 'Quality control requirements' },
+        { section: '3.0', name: 'Production Schedule', description: 'Manufacturing timeline and milestones' },
+        { section: '4.0', name: 'Payment Terms', description: 'Manufacturing payment schedule' },
+        { section: '5.0', name: 'Delivery Terms', description: 'Shipping and delivery requirements' }
+      ]
     },
     { 
       name: 'OnSite Subcontract', 
       description: 'Installation and site work agreement',
       clauseCount: 28,
-      type: 'ONSITE'
+      type: 'ONSITE',
+      clauses: [
+        { section: '1.0', name: 'Site Work Scope', description: 'Installation and on-site work specifications' },
+        { section: '2.0', name: 'Site Preparation', description: 'Foundation and utility requirements' },
+        { section: '3.0', name: 'Installation Timeline', description: 'On-site work schedule' },
+        { section: '4.0', name: 'Inspections', description: 'Inspection and approval requirements' },
+        { section: '5.0', name: 'Completion Criteria', description: 'Project completion and handover' }
+      ]
     }
   ];
   
@@ -508,7 +540,7 @@ export const Step9ReviewGenerate: React.FC = () => {
               variant="outline" 
               size="sm" 
               className="gap-1"
-              onClick={() => setShowClausePreview(true)}
+              onClick={() => setClausePreviewOpen(true)}
               data-testid="button-preview-clauses"
             >
               <Eye className="h-4 w-4" />
@@ -576,6 +608,64 @@ export const Step9ReviewGenerate: React.FC = () => {
           </div>
         </CardContent>
       </Card>
+      
+      <Dialog open={clausePreviewOpen} onOpenChange={setClausePreviewOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="h-5 w-5" />
+              Clause Preview
+            </DialogTitle>
+            <DialogDescription>
+              Review the clauses that will be included in each contract
+            </DialogDescription>
+          </DialogHeader>
+          <Tabs defaultValue="ONE" className="w-full">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="ONE" data-testid="tab-one-agreement">ONE Agreement</TabsTrigger>
+              <TabsTrigger value="MANUFACTURING" data-testid="tab-manufacturing">Manufacturing</TabsTrigger>
+              <TabsTrigger value="ONSITE" data-testid="tab-onsite">OnSite</TabsTrigger>
+            </TabsList>
+            {contracts.map((contract) => (
+              <TabsContent key={contract.type} value={contract.type} className="mt-4">
+                <ScrollArea className="h-[400px] pr-4">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <h3 className="font-medium">{contract.name}</h3>
+                        <p className="text-sm text-muted-foreground">{contract.description}</p>
+                      </div>
+                      <Badge variant="secondary">{contract.clauseCount} clauses</Badge>
+                    </div>
+                    {contract.clauses.map((clause) => (
+                      <div 
+                        key={clause.section}
+                        className="p-3 border rounded-lg hover-elevate"
+                        data-testid={`clause-${contract.type.toLowerCase()}-${clause.section}`}
+                      >
+                        <div className="flex items-center gap-2 mb-1">
+                          <Badge variant="outline" className="text-xs">{clause.section}</Badge>
+                          <span className="font-medium text-sm">{clause.name}</span>
+                        </div>
+                        <p className="text-sm text-muted-foreground">{clause.description}</p>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </TabsContent>
+            ))}
+          </Tabs>
+          <div className="flex justify-end pt-4 border-t">
+            <Button 
+              variant="outline" 
+              onClick={() => setClausePreviewOpen(false)}
+              data-testid="button-close-preview"
+            >
+              Close
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

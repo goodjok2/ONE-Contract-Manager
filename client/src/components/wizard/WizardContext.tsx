@@ -294,6 +294,7 @@ export interface WizardContextType {
   goToStep: (stepNumber: number) => void;
   saveDraft: () => void;
   loadDraft: () => void;
+  loadTestDraft: () => void;
   generateContracts: () => Promise<void>;
   setShowComparisonModal: (show: boolean) => void;
   setShowClausePreview: (show: boolean) => void;
@@ -401,6 +402,61 @@ export const initialProjectData: ProjectData = {
   insuranceProvider: '',
   insurancePolicyNumber: '',
   insuranceCoverageAmount: 0,
+};
+
+// Test draft data pre-filled through Step 8 for faster testing
+export const testDraftData: Partial<ProjectData> = {
+  projectNumber: 'TEST-2026-001',
+  projectName: 'Sample Test Project',
+  projectType: 'Single Family',
+  totalUnits: 1,
+  serviceModel: 'CRC',
+  clientLegalName: 'Acme Development LLC',
+  clientState: 'CA',
+  clientEntityType: 'LLC',
+  clientEmail: 'contact@acmedev.com',
+  clientSignerName: 'John Smith',
+  clientSignerTitle: 'Managing Partner',
+  clientPhone: '555-123-4567',
+  contractorName: 'California Builders Inc',
+  contractorLicense: 'CA-LIC-789012',
+  contractorAddress: '456 Construction Way, Los Angeles, CA 90001',
+  contractorInsurance: 'Policy-INS-2026-001',
+  childLlcName: 'Dvele Partners Sample LLC',
+  childLlcState: 'DE',
+  siteAddress: '123 Oak Street',
+  siteCity: 'San Francisco',
+  siteState: 'CA',
+  siteZip: '94102',
+  siteCounty: 'San Francisco',
+  units: [{ id: 1, model: 'Dvele Model X', squareFootage: 2000, bedrooms: 3, bathrooms: 2, price: 450000 }],
+  effectiveDate: new Date().toISOString().split('T')[0],
+  designFee: 15000,
+  designRevisionRounds: 3,
+  preliminaryOffsiteCost: 350000,
+  deliveryInstallationPrice: 45000,
+  totalPreliminaryContractPrice: 410000,
+  milestone1Percent: 20,
+  milestone2Percent: 20,
+  milestone3Percent: 20,
+  milestone4Percent: 20,
+  milestone5Percent: 15,
+  retainagePercent: 5,
+  retainageDays: 60,
+  manufacturingDesignPayment: 10000,
+  manufacturingProductionStart: 50000,
+  manufacturingProductionComplete: 100000,
+  manufacturingDeliveryReady: 40000,
+  designPhaseDays: 60,
+  manufacturingDurationDays: 120,
+  onsiteDurationDays: 45,
+  warrantyFitFinishMonths: 24,
+  warrantyBuildingEnvelopeMonths: 60,
+  warrantyStructuralMonths: 120,
+  projectState: 'CA',
+  projectCounty: 'San Francisco',
+  projectFederalDistrict: 'Northern District of California',
+  arbitrationProvider: 'JAMS',
 };
 
 // Create context
@@ -996,6 +1052,20 @@ export const WizardProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
   }, [toast]);
 
+  // Load test draft for faster testing
+  const loadTestDraft = useCallback(() => {
+    setWizardState(prev => ({
+      ...prev,
+      projectData: { ...prev.projectData, ...testDraftData },
+      currentStep: 9,
+      completedSteps: new Set([1, 2, 3, 4, 5, 6, 7, 8]),
+    }));
+    toast({
+      title: "Test Draft Loaded",
+      description: "Pre-filled test data loaded. Now on Step 9.",
+    });
+  }, [toast]);
+
   // Toggle section
   const toggleSection = useCallback((section: string) => {
     setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
@@ -1113,6 +1183,7 @@ export const WizardProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     goToStep,
     saveDraft,
     loadDraft,
+    loadTestDraft,
     generateContracts,
     setShowComparisonModal,
     setShowClausePreview,

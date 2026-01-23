@@ -24,7 +24,8 @@ import {
   Calendar,
   DollarSign,
   Shield,
-  ClipboardCheck
+  ClipboardCheck,
+  Zap
 } from 'lucide-react';
 
 const STEPS = [
@@ -46,6 +47,7 @@ export const WizardShell: React.FC = () => {
     prevStep, 
     goToStep, 
     saveDraft,
+    loadTestDraft,
     validateStep 
   } = useWizard();
   
@@ -159,14 +161,27 @@ export const WizardShell: React.FC = () => {
             Back
           </Button>
           
-          <Button
-            variant="outline"
-            onClick={saveDraft}
-            data-testid="button-save-draft"
-          >
-            <Save className="h-4 w-4 mr-2" />
-            Save Draft
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={saveDraft}
+              data-testid="button-save-draft"
+            >
+              <Save className="h-4 w-4 mr-2" />
+              Save Draft
+            </Button>
+            
+            {wizardState.currentStep === 1 && (
+              <Button
+                variant="secondary"
+                onClick={loadTestDraft}
+                data-testid="button-load-test-draft"
+              >
+                <Zap className="h-4 w-4 mr-2" />
+                Load Test Draft
+              </Button>
+            )}
+          </div>
           
           <Button
             onClick={nextStep}
