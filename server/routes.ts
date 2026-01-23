@@ -1402,27 +1402,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(400).json({ error: "contractType and projectData are required" });
       }
 
-      if (!['ONE', 'MANUFACTURING', 'ONSITE'].includes(contractType)) {
-        return res.status(400).json({ error: `Invalid contract type: ${contractType}` });
-      }
-
-      console.log(`Generating ${contractType} contract using template...`);
-      
-      try {
-        const buffer = await generateContractFromTemplate({
-          contractType: contractType as 'ONE' | 'MANUFACTURING' | 'ONSITE',
-          projectData
-        });
-        
-        const filename = getContractFilename(contractType, projectData);
-        
-        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-        return res.send(buffer);
-      } catch (templateError) {
-        console.error('Template generation failed, falling back to direct generation:', templateError);
-      }
-
       const formatCurrency = (value: number) => {
         return new Intl.NumberFormat('en-US', {
           style: 'currency',
