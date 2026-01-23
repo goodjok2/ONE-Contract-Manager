@@ -592,3 +592,20 @@ export const selectLLCSchema = createSelectSchema(llcs);
 
 export type LLC = typeof llcs.$inferSelect;
 export type NewLLC = typeof llcs.$inferInsert;
+
+// =============================================================================
+// DASHBOARD TYPES
+// =============================================================================
+
+export interface DashboardStats {
+  totalContracts: number;
+  drafts: number;
+  pendingReview: number;
+  signed: number;
+  activeProjects: number;
+  pendingLLCs: number;
+  totalContractValue: number;
+  draftsValue: number;
+  pendingValue: number;
+  signedValue: number;
+}

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FileText, Clock, CheckCircle, Plus, Users, Building2, DollarSign, TrendingUp } from "lucide-react";
+import { FileText, Clock, CheckCircle, Plus, Users, Building2, TrendingUp } from "lucide-react";
 import type { DashboardStats, Contract, LLC } from "@shared/schema";
 
 interface StatCardProps {
@@ -98,7 +98,7 @@ export default function Dashboard() {
             Contract and LLC management overview
           </p>
         </div>
-        <Link href="/agreements/new">
+        <Link href="/generate-contracts">
           <Button data-testid="button-new-contract">
             <Plus className="h-4 w-4 mr-2" />
             New Contract
@@ -261,11 +261,11 @@ export default function Dashboard() {
                             <FileText className="h-4 w-4 text-muted-foreground" />
                           </div>
                           <div className="min-w-0">
-                            <p className="text-sm font-medium truncate">{contract.title}</p>
-                            <p className="text-xs text-muted-foreground truncate">{contract.clientName}</p>
+                            <p className="text-sm font-medium truncate">{contract.contractType}</p>
+                            <p className="text-xs text-muted-foreground truncate">Project #{contract.projectId}</p>
                           </div>
                         </div>
-                        <StatusBadge status={contract.status} />
+                        <StatusBadge status={contract.status || 'draft'} />
                       </div>
                     ))}
                   </div>
@@ -306,7 +306,7 @@ export default function Dashboard() {
                             <p className="text-xs text-muted-foreground truncate">{llc.projectName}</p>
                           </div>
                         </div>
-                        <LLCStatusBadge status={llc.status} />
+                        <LLCStatusBadge status={llc.status || 'pending'} />
                       </div>
                     ))}
                   </div>
@@ -329,7 +329,7 @@ export default function Dashboard() {
           <CardContent>
             <div className="space-y-2">
               {TEMPLATES.map((template) => (
-                <Link key={template.id} href={`/agreements/new?template=${template.id}`}>
+                <Link key={template.id} href="/generate-contracts">
                   <div 
                     className="flex items-center gap-3 p-3 rounded-lg hover-elevate cursor-pointer"
                     data-testid={`template-${template.id}`}

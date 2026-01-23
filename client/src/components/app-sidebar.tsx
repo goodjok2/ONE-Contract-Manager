@@ -1,15 +1,11 @@
 import { Link, useLocation } from "wouter";
 import { 
   LayoutDashboard, 
-  FileEdit, 
   Library, 
   FileCheck,
   Files,
   Building2,
-  Database,
-  MapPin,
   Settings,
-  FileText,
   Hammer,
   Eye,
   Wand2
@@ -35,29 +31,24 @@ const mainNavItems = [
     icon: LayoutDashboard,
   },
   {
-    title: "Contract Builder",
-    url: "/contract-builder",
-    icon: Hammer,
-  },
-  {
     title: "Generate Contracts",
     url: "/generate-contracts",
     icon: Wand2,
   },
   {
-    title: "Quick Agreement",
-    url: "/agreements/new",
-    icon: FileEdit,
-  },
-  {
-    title: "LLC Admin",
-    url: "/llc-admin",
-    icon: Building2,
+    title: "Contract Builder",
+    url: "/contract-builder",
+    icon: Hammer,
   },
   {
     title: "Active Contracts",
     url: "/contracts",
     icon: FileCheck,
+  },
+  {
+    title: "LLC Admin",
+    url: "/llc-admin",
+    icon: Building2,
   },
   {
     title: "Templates",
@@ -76,16 +67,6 @@ const configNavItems = [
     title: "Contract Preview",
     url: "/contract-preview",
     icon: Eye,
-  },
-  {
-    title: "ERP Fields",
-    url: "/erp-fields",
-    icon: Database,
-  },
-  {
-    title: "State Requirements",
-    url: "/state-requirements",
-    icon: MapPin,
   },
   {
     title: "Settings",

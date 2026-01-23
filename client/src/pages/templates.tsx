@@ -1,6 +1,7 @@
+import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Files, Users, Building2 } from "lucide-react";
+import { Users, Building2 } from "lucide-react";
 
 const TEMPLATES = [
   {
@@ -9,6 +10,7 @@ const TEMPLATES = [
     description: "Standard contract for Direct-to-Consumer individual home buyers. Includes standard warranty terms and financing options.",
     icon: Users,
     category: "Consumer",
+    serviceModel: "CMOS",
   },
   {
     id: "b2b",
@@ -16,6 +18,7 @@ const TEMPLATES = [
     description: "Standard contract for Business-to-Business developers and landowners. Includes bulk pricing and commercial terms.",
     icon: Building2,
     category: "Business",
+    serviceModel: "CRC",
   },
 ];
 
@@ -50,9 +53,11 @@ export default function Templates() {
                 <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
                   {template.category}
                 </span>
-                <Button data-testid={`button-use-template-${template.id}`}>
-                  Use Template
-                </Button>
+                <Link href="/generate-contracts">
+                  <Button data-testid={`button-use-template-${template.id}`}>
+                    Use Template
+                  </Button>
+                </Link>
               </div>
             </CardContent>
           </Card>
