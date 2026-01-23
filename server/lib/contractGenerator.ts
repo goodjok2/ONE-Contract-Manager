@@ -9,6 +9,32 @@ interface ContractGenerationOptions {
   projectData: Record<string, any>;
 }
 
+function fixSplitTags(xmlContent: string): string {
+  let result = xmlContent.replace(/\r?\n/g, ' ');
+  
+  result = result.replace(/<w:r>(<w:rPr>[\s\S]*?<\/w:rPr>)?(<w:t[^>]*>[^<]*<\/w:t>)+<\/w:r>/g, (match) => {
+    const textContents: string[] = [];
+    const textMatches = match.match(/<w:t[^>]*>([^<]*)<\/w:t>/g) || [];
+    for (const textTag of textMatches) {
+      const content = textTag.replace(/<w:t[^>]*>([^<]*)<\/w:t>/, '$1');
+      textContents.push(content);
+    }
+    const combinedText = textContents.join('');
+    
+    const rPrMatch = match.match(/<w:rPr>[\s\S]*?<\/w:rPr>/);
+    const rPr = rPrMatch ? rPrMatch[0] : '';
+    
+    return `<w:r>${rPr}<w:t>${combinedText}</w:t></w:r>`;
+  });
+  
+  for (let i = 0; i < 5; i++) {
+    result = result.replace(/<\/w:t><\/w:r><w:r>(<w:rPr>[\s\S]*?<\/w:rPr>)?<w:t[^>]*>/g, '');
+    result = result.replace(/<\/w:t><\/w:r><w:r><w:t>/g, '');
+  }
+  
+  return result;
+}
+
 export async function generateContract(options: ContractGenerationOptions): Promise<Buffer> {
   const { contractType, projectData } = options;
   
@@ -20,6 +46,13 @@ export async function generateContract(options: ContractGenerationOptions): Prom
   
   const content = fs.readFileSync(templatePath, 'binary');
   const zip = new PizZip(content);
+  
+  const docXml = zip.file('word/document.xml');
+  if (docXml) {
+    let xmlContent = docXml.asText();
+    xmlContent = fixSplitTags(xmlContent);
+    zip.file('word/document.xml', xmlContent);
+  }
   
   const variableMap = buildVariableMap(projectData, contractType);
   
@@ -33,6 +66,9 @@ export async function generateContract(options: ContractGenerationOptions): Prom
     doc.render(variableMap);
   } catch (error: any) {
     console.error('Error rendering document:', error);
+    if (error.properties && error.properties.errors) {
+      console.error('Template errors:', JSON.stringify(error.properties.errors.slice(0, 5), null, 2));
+    }
     throw new Error(`Failed to render ${contractType} contract: ${error.message}`);
   }
   
