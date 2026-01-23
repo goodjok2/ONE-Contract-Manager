@@ -8,7 +8,8 @@ import {
   Settings,
   Hammer,
   Eye,
-  Wand2
+  Wand2,
+  Variable
 } from "lucide-react";
 import {
   Sidebar,
@@ -62,6 +63,11 @@ const configNavItems = [
     title: "Clause Library",
     url: "/clause-library",
     icon: Library,
+  },
+  {
+    title: "Variable Mappings",
+    url: "/variable-mappings",
+    icon: Variable,
   },
   {
     title: "Contract Preview",

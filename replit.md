@@ -47,6 +47,13 @@ This application helps Dvele manage construction projects through dedicated chil
 - **Active Contracts**: List and manage all contracts
 - **Templates**: Pre-configured contract templates (DTC Standard, B2B Developer)
 - **Clause Library**: Browse 276 contract clauses with filtering by contract type (ONE/MANUFACTURING/ONSITE), hierarchy level (Sections/Subsections/Paragraphs), search, expandable rows showing conditional logic, and edit capability for legal team
+- **Variable Mappings**: Configure contract variables with ERP integration support:
+  - Stats cards showing Total Fields, ERP Mapped, Required counts
+  - Search/filter by variable name or label
+  - Table with Field Key, Label, Type, ERP Source, Clause Usage
+  - Expandable rows showing which clauses use each variable
+  - Add/Edit/Delete variables with Required flag and ERP source mapping
+  - Prepares for future Odoo ERP integration
 - **Contract Preview**: Preview clauses with CRC/CMOS service model toggle, variable preview showing populated/empty status, and comparison view between service models
 - **LLC Administration**: Create and manage child LLC entities with auto-generated names, status tracking (forming/active/closed), member management, and compliance monitoring
 - **LLC Detail Page**: Tabbed interface (Overview, Documents, Members, Compliance) for detailed LLC management
@@ -72,9 +79,8 @@ This application helps Dvele manage construction projects through dedicated chil
 │   │   │   ├── agreements-new.tsx   # Contract creation wizard
 │   │   │   ├── contracts.tsx        # Active contracts list
 │   │   │   ├── templates.tsx        # Contract templates
-│   │   │   ├── clause-library.tsx   # Clause library (placeholder)
-│   │   │   ├── erp-fields.tsx       # ERP integration (placeholder)
-│   │   │   ├── state-requirements.tsx # State requirements (placeholder)
+│   │   │   ├── clause-library.tsx   # Clause library browser
+│   │   │   ├── variable-mappings.tsx # Contract variable management with ERP integration
 │   │   │   ├── llc-admin.tsx        # LLC CRUD management
 │   │   │   ├── llc-detail.tsx       # LLC detail page with tabbed interface
 │   │   │   └── settings.tsx         # App settings
@@ -118,21 +124,27 @@ This application helps Dvele manage construction projects through dedicated chil
 - `GET /api/clauses` - List clauses with optional filters (contractType, hierarchyLevel, search)
 - `PATCH /api/clauses/:id` - Update clause (name, content, risk_level, negotiable)
 - `GET /api/variables` - List all contract variables by category
+- `GET /api/variable-mappings` - List all variables with stats and clause usage
+- `POST /api/variable-mappings` - Create new variable
+- `PATCH /api/variable-mappings/:id` - Update variable
+- `DELETE /api/variable-mappings/:id` - Delete variable
 - `POST /api/contracts/compare-service-models` - Compare CRC vs CMOS clause differences
 
 ## Navigation Structure
 
 ### Main Section
 - Dashboard
-- Contract Builder (/agreements/new)
-- Clause Library
-- Active Contracts
-- Templates
+- Generate Contracts (/generate-contracts)
+- Contract Builder (/contract-builder)
+- Active Contracts (/contracts)
+- LLC Admin (/llc-admin)
+- Templates (/templates)
 
 ### Configuration Section
-- ERP Fields
-- State Requirements
-- Settings
+- Clause Library (/clause-library)
+- Variable Mappings (/variable-mappings)
+- Contract Preview (/contract-preview)
+- Settings (/settings)
 
 ## Design Decisions
 

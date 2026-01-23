@@ -19,6 +19,7 @@ import Contracts from "@/pages/contracts";
 import Templates from "@/pages/templates";
 import ContractPreview from "@/pages/contract-preview";
 import GenerateContracts from "@/pages/generate-contracts";
+import VariableMappings from "@/pages/variable-mappings";
 
 function Router() {
   return (
@@ -33,6 +34,7 @@ function Router() {
       <Route path="/templates" component={Templates} />
       <Route path="/llc-admin" component={LLCAdmin} />
       <Route path="/llc-admin/:id" component={LLCDetail} />
+      <Route path="/variable-mappings" component={VariableMappings} />
       <Route path="/settings" component={Settings} />
       <Route component={NotFound} />
     </Switch>
