@@ -434,14 +434,9 @@ export default function VariableMappings() {
                     <>
                       <TableRow data-testid={`row-variable-${variable.id}`}>
                         <TableCell>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <code className="text-sm font-mono bg-muted px-1.5 py-0.5 rounded">
-                              {variable.variableName}
-                            </code>
-                            {variable.isRequired && (
-                              <Badge variant="destructive" className="text-xs">Required</Badge>
-                            )}
-                          </div>
+                          <code className={`text-sm font-mono px-1.5 py-0.5 rounded ${variable.isRequired ? 'bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-400' : 'bg-muted'}`}>
+                            {variable.variableName}
+                          </code>
                         </TableCell>
                         <TableCell className="text-muted-foreground">
                           {variable.displayName || "-"}
