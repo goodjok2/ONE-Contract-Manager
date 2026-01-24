@@ -185,6 +185,15 @@ The Generate Contracts wizard is being refactored into modular components:
   - **Important**: Set `SHELL_TESTING_MODE = false` before adding actual step content components
   - To disable: Change the export in `WizardContext.tsx` line 7
 
+### LLC Naming Convention
+
+Child LLCs use the format "DP + Project_Address + LLC" (e.g., "DP 123 Main Street LLC"):
+- **Generate Contracts Wizard**: Uses `generateLLCName()` from `client/src/lib/llcUtils.ts` with site address
+- **LLC Admin**: Uses the same utility with project address field
+- **Legacy Pages**: Use inline naming with project name when address is unavailable
+
+LLC name is editable until status changes to "active" or "formed". When completing the Generate Contracts wizard, a new child LLC is auto-created in "forming" status.
+
 ### Backup Files
 
 - `generate-contracts.old.tsx`: Full implementation backup of the original 9-step wizard for reference when extracting step components
