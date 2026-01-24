@@ -1248,17 +1248,18 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(404).json({ error: "Contract not found" });
       }
 
-      // Map contract type to template type
+      // Map contract type to template type (match database values)
       const contractTypeMap: Record<string, string> = {
-        'one_agreement': 'ONE',
-        'ONE': 'ONE',
+        'one_agreement': 'ONE Agreement',
+        'ONE': 'ONE Agreement',
+        'ONE Agreement': 'ONE Agreement',
         'manufacturing_sub': 'MANUFACTURING',
         'MANUFACTURING': 'MANUFACTURING',
         'onsite_sub': 'ONSITE',
         'ONSITE': 'ONSITE',
       };
       
-      const templateType = contractTypeMap[contract.contractType] || 'ONE';
+      const templateType = contractTypeMap[contract.contractType] || 'ONE Agreement';
       
       // Get clauses for this contract type
       const clauseQuery = `
