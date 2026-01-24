@@ -22,12 +22,6 @@ import {
 } from "lucide-react";
 import { useState, useCallback } from "react";
 import { Eye } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 
 interface Contract {
   id: number;
@@ -120,8 +114,6 @@ export default function ContractDetail() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [expandedClauses, setExpandedClauses] = useState<Set<number>>(new Set());
-  const [previewOpen, setPreviewOpen] = useState(false);
-  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
 
   const contractId = parseInt(params.id || "0");
@@ -246,23 +238,14 @@ export default function ContractDetail() {
   const handlePreview = async () => {
     const blob = await generatePdf();
     if (blob) {
-      // Clean up previous URL if exists
-      if (pdfUrl) {
-        URL.revokeObjectURL(pdfUrl);
-      }
+      // Open PDF in a new tab for reliable viewing across all browsers
       const url = URL.createObjectURL(blob);
-      setPdfUrl(url);
-      setPreviewOpen(true);
+      window.open(url, '_blank');
+      // Clean up the URL after a short delay to allow the tab to load
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
     }
   };
 
-  const closePreview = () => {
-    setPreviewOpen(false);
-    if (pdfUrl) {
-      URL.revokeObjectURL(pdfUrl);
-      setPdfUrl(null);
-    }
-  };
 
   const handleStatusChange = (newStatus: string) => {
     updateStatusMutation.mutate(newStatus);
@@ -542,33 +525,6 @@ export default function ContractDetail() {
         </Card>
       )}
 
-      {/* PDF Preview Dialog */}
-      <Dialog 
-        open={previewOpen} 
-        onOpenChange={(open) => {
-          if (!open) {
-            closePreview();
-          }
-        }}
-      >
-        <DialogContent className="max-w-5xl h-[90vh]" data-testid="dialog-pdf-preview">
-          <DialogHeader>
-            <DialogTitle>
-              {getContractTypeName(contract.contractType)} - Preview
-            </DialogTitle>
-          </DialogHeader>
-          <div className="flex-1 h-full min-h-0">
-            {pdfUrl && (
-              <iframe
-                src={pdfUrl}
-                className="w-full h-[calc(90vh-100px)] border rounded"
-                title="PDF Preview"
-                data-testid="iframe-pdf-preview"
-              />
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
