@@ -724,27 +724,94 @@ function formatContent(content: string): string {
     return formatTableContent(content);
   }
   
-  let escaped = escapeHtml(content);
+  let html = '';
+  const lines = content.split('\n');
+  let inBulletList = false;
+  let inNumberedList = false;
+  let listHtml = '';
   
-  // Handle bullet points
-  escaped = escaped.replace(/^[\s]*[-•]\s+(.+)$/gm, '<li>$1</li>');
-  if (escaped.includes('<li>')) {
-    escaped = escaped.replace(/(<li>[\s\S]*?<\/li>)/g, '<ul style="margin: 8pt 0 8pt 24pt;">$1</ul>');
+  for (let i = 0; i < lines.length; i++) {
+    let line = lines[i];
+    
+    // Detect bullet points (•, -, ○, ◦)
+    const bulletMatch = line.match(/^[\s]*([-•○◦])\s+(.+)$/);
+    // Detect numbered lists (1., 2., etc.)
+    const numberedMatch = line.match(/^[\s]*(\d+)\.\s+(.+)$/);
+    
+    if (bulletMatch) {
+      if (!inBulletList) {
+        // Close numbered list if open
+        if (inNumberedList) {
+          html += `<ol style="margin: 8pt 0 8pt 24pt; padding-left: 16pt;">${listHtml}</ol>`;
+          listHtml = '';
+          inNumberedList = false;
+        }
+        inBulletList = true;
+      }
+      const bulletContent = formatInlineStyles(escapeHtml(bulletMatch[2]));
+      listHtml += `<li style="margin-bottom: 6pt;">${bulletContent}</li>`;
+    } else if (numberedMatch) {
+      if (!inNumberedList) {
+        // Close bullet list if open
+        if (inBulletList) {
+          html += `<ul style="margin: 8pt 0 8pt 24pt; list-style-type: circle; padding-left: 16pt;">${listHtml}</ul>`;
+          listHtml = '';
+          inBulletList = false;
+        }
+        inNumberedList = true;
+      }
+      const numContent = formatInlineStyles(escapeHtml(numberedMatch[2]));
+      listHtml += `<li value="${numberedMatch[1]}" style="margin-bottom: 6pt;">${numContent}</li>`;
+    } else {
+      // Close any open lists
+      if (inBulletList) {
+        html += `<ul style="margin: 8pt 0 8pt 24pt; list-style-type: circle; padding-left: 16pt;">${listHtml}</ul>`;
+        listHtml = '';
+        inBulletList = false;
+      }
+      if (inNumberedList) {
+        html += `<ol style="margin: 8pt 0 8pt 24pt; padding-left: 16pt;">${listHtml}</ol>`;
+        listHtml = '';
+        inNumberedList = false;
+      }
+      
+      // Handle bold section headers (lines that are mostly bold or end with colon)
+      const trimmedLine = line.trim();
+      if (trimmedLine) {
+        const formattedLine = formatInlineStyles(escapeHtml(trimmedLine));
+        
+        // Check if this is a subheading (bold text ending with colon, like "What the Client is Signing:")
+        if (/^\*\*[^*]+:\*\*$/.test(trimmedLine) || /^[A-Z][^:]+:$/.test(trimmedLine)) {
+          html += `<p style="margin-top: 12pt; margin-bottom: 8pt;"><strong>${escapeHtml(trimmedLine.replace(/^\*\*|\*\*$/g, ''))}</strong></p>`;
+        } else {
+          html += `<p style="margin-bottom: 8pt;">${formattedLine}</p>`;
+        }
+      }
+    }
   }
   
-  // Handle numbered lists (1., 2., etc.)
-  escaped = escaped.replace(/^[\s]*(\d+)\.\s+(.+)$/gm, '<li value="$1">$2</li>');
+  // Close any remaining open lists
+  if (inBulletList) {
+    html += `<ul style="margin: 8pt 0 8pt 24pt; list-style-type: circle; padding-left: 16pt;">${listHtml}</ul>`;
+  }
+  if (inNumberedList) {
+    html += `<ol style="margin: 8pt 0 8pt 24pt; padding-left: 16pt;">${listHtml}</ol>`;
+  }
   
-  // Handle lettered lists (a., b., etc.)
-  escaped = escaped.replace(/^[\s]*([a-z])\.\s+(.+)$/gm, '<li>$2</li>');
+  return html;
+}
+
+function formatInlineStyles(text: string): string {
+  // Handle bold text with ** markers
+  text = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
   
-  // Convert double newlines to paragraph breaks
-  escaped = escaped.replace(/\n\n/g, '</p><p>');
+  // Handle italic text with * markers (but not if already part of bold)
+  text = text.replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, '<em>$1</em>');
   
-  // Convert single newlines to line breaks
-  escaped = escaped.replace(/\n/g, '<br>');
+  // Handle underline with __ markers
+  text = text.replace(/__([^_]+)__/g, '<u>$1</u>');
   
-  return escaped;
+  return text;
 }
 
 function formatTableContent(content: string): string {
