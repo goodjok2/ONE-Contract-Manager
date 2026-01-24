@@ -541,11 +541,9 @@ function renderTitlePage(title: string, projectData: Record<string, any>): strin
 function renderClausesHTML(clauses: Clause[], projectData: Record<string, any>): string {
   let html = '<div class="contract-body">';
   
-  // Add document summary section (like the Google Doc)
-  html += renderDocumentSummary(projectData);
-  
-  // Add recitals section
-  html += renderRecitals(projectData);
+  // NOTE: Document Summary and other content comes from the clause library (database)
+  // Do NOT add hardcoded sections here - the clauses contain all the content
+  // in the correct order with proper variable substitution
   
   let currentSection = '';
   
