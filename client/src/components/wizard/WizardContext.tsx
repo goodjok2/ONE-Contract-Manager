@@ -1189,7 +1189,31 @@ export const WizardProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       };
       
       await apiRequest('POST', `/api/projects/${projectId}/financials`, financialsPayload);
-      setGenerationProgress(65);
+      setGenerationProgress(60);
+      
+      // Save project details (site/home specs)
+      const projectDetailsPayload = {
+        projectId,
+        deliveryAddress: pd.siteAddress,
+        deliveryCity: pd.siteCity,
+        deliveryState: pd.siteState,
+        deliveryZip: pd.siteZip,
+        deliveryCounty: pd.siteCounty,
+        deliveryApn: pd.siteApn,
+        homeModel: pd.units[0]?.model || pd.homeModel,
+        homeSqFt: pd.units[0]?.squareFootage || pd.homeSquareFootage,
+        homeBedrooms: pd.units[0]?.bedrooms || pd.homeBedrooms,
+        homeBathrooms: pd.units[0]?.bathrooms || pd.homeBathrooms,
+        totalUnits: pd.totalUnits,
+        agreementExecutionDate: pd.effectiveDate,
+        estimatedDeliveryDate: pd.targetDeliveryDate,
+        productionStartDate: pd.manufacturingStartDate,
+        governingLawState: pd.projectState || pd.siteState,
+        arbitrationLocation: pd.projectCounty ? `${pd.projectCounty}, ${pd.projectState}` : pd.arbitrationProvider,
+      };
+      
+      await apiRequest('PATCH', `/api/projects/${projectId}/details`, projectDetailsPayload);
+      setGenerationProgress(70);
       
       // Step 4: Generate contract documents and save to database
       setCurrentGenerationStep(4);

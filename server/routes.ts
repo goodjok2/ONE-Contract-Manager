@@ -13,6 +13,7 @@ import {
   contractors,
   contracts,
   erpFieldMappings,
+  llcs,
 } from "../shared/schema";
 import { eq } from "drizzle-orm";
 import Docxtemplater from "docxtemplater";
@@ -202,6 +203,81 @@ async function generateContract(options: GenerateContractOptions): Promise<Gener
 // =============================================================================
 
 export async function registerRoutes(httpServer: Server, app: Express): Promise<void> {
+  
+  // ---------------------------------------------------------------------------
+  // DASHBOARD
+  // ---------------------------------------------------------------------------
+  
+  // Get dashboard stats
+  app.get("/api/dashboard/stats", async (req, res) => {
+    try {
+      const { count, or } = await import("drizzle-orm");
+      
+      // Total contracts count
+      const totalResult = await db.select({ count: count() }).from(contracts);
+      
+      // Drafts count
+      const draftsResult = await db
+        .select({ count: count() })
+        .from(contracts)
+        .where(eq(contracts.status, 'Draft'));
+      
+      // Pending review count  
+      const pendingResult = await db
+        .select({ count: count() })
+        .from(contracts)
+        .where(or(
+          eq(contracts.status, 'PendingReview'),
+          eq(contracts.status, 'Pending Review'),
+          eq(contracts.status, 'Pending')
+        ));
+      
+      // Signed/Executed count
+      const signedResult = await db
+        .select({ count: count() })
+        .from(contracts)
+        .where(or(
+          eq(contracts.status, 'Executed'),
+          eq(contracts.status, 'Signed')
+        ));
+      
+      // Pending LLCs (forming status) - use llcs table which has status column
+      const pendingLLCsResult = await db
+        .select({ count: count() })
+        .from(llcs)
+        .where(or(
+          eq(llcs.status, 'pending'),
+          eq(llcs.status, 'forming')
+        ));
+      
+      // Active projects (non-draft contracts)
+      const activeProjectsResult = await db
+        .select({ count: count() })
+        .from(contracts)
+        .where(or(
+          eq(contracts.status, 'PendingReview'),
+          eq(contracts.status, 'Approved'),
+          eq(contracts.status, 'Sent'),
+          eq(contracts.status, 'Executed')
+        ));
+      
+      res.json({
+        totalContracts: totalResult[0]?.count ?? 0,
+        drafts: draftsResult[0]?.count ?? 0,
+        pendingReview: pendingResult[0]?.count ?? 0,
+        signed: signedResult[0]?.count ?? 0,
+        pendingLLCs: pendingLLCsResult[0]?.count ?? 0,
+        activeProjects: activeProjectsResult[0]?.count ?? 0,
+        totalContractValue: 0, // TODO: Sum financials when available
+        draftsValue: 0,
+        pendingValue: 0,
+        signedValue: 0,
+      });
+    } catch (error) {
+      console.error("Failed to fetch dashboard stats:", error);
+      res.status(500).json({ error: "Failed to fetch dashboard stats" });
+    }
+  });
   
   // ---------------------------------------------------------------------------
   // PROJECTS
@@ -970,6 +1046,62 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         .from(contracts)
         .where(eq(contracts.projectId, projectId));
       res.json(projectContracts);
+    } catch (error) {
+      console.error("Failed to fetch contracts:", error);
+      res.status(500).json({ error: "Failed to fetch contracts" });
+    }
+  });
+
+  // Get all contracts with project info
+  app.get("/api/contracts", async (req, res) => {
+    try {
+      const allContracts = await db
+        .select({
+          id: contracts.id,
+          projectId: contracts.projectId,
+          contractType: contracts.contractType,
+          version: contracts.version,
+          status: contracts.status,
+          generatedAt: contracts.generatedAt,
+          generatedBy: contracts.generatedBy,
+          templateVersion: contracts.templateVersion,
+          fileName: contracts.fileName,
+          notes: contracts.notes,
+          projectName: projects.name,
+          projectNumber: projects.projectNumber,
+        })
+        .from(contracts)
+        .leftJoin(projects, eq(contracts.projectId, projects.id))
+        .orderBy(contracts.generatedAt);
+      
+      // Normalize status to lowercase for UI StatusBadge compatibility
+      const normalizeStatus = (status: string | null): string => {
+        if (!status) return 'draft';
+        const normalized = status.toLowerCase().replace(/\s+/g, '_');
+        // Map common variations (all keys are lowercase)
+        const statusMap: Record<string, string> = {
+          'draft': 'draft',
+          'pendingreview': 'pending_review',
+          'pending_review': 'pending_review',
+          'pending': 'pending_review',
+          'approved': 'approved',
+          'signed': 'signed',
+          'executed': 'signed',
+          'expired': 'expired',
+        };
+        return statusMap[normalized] || 'draft';
+      };
+      
+      // Format response with computed title and clientName for UI compatibility
+      const formatted = allContracts.map(c => ({
+        ...c,
+        status: normalizeStatus(c.status),
+        title: `${c.projectName || 'Unknown Project'} - ${c.contractType?.replace('_', ' ').toUpperCase() || 'Contract'}`,
+        clientName: c.projectName || 'Unknown',
+        contractValue: null, // Will be populated from financials in the future
+      }));
+      
+      res.json(formatted);
     } catch (error) {
       console.error("Failed to fetch contracts:", error);
       res.status(500).json({ error: "Failed to fetch contracts" });
