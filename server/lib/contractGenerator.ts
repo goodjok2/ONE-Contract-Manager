@@ -538,6 +538,74 @@ function renderTitlePage(title: string, projectData: Record<string, any>): strin
   `;
 }
 
+// Helper function to strip duplicate headers from clause content
+function stripDuplicateHeader(content: string, clauseName: string, clauseCode: string): string {
+  if (!content) return '';
+  
+  let cleanContent = content.trim();
+  
+  // Normalize for comparison (uppercase, remove extra spaces, punctuation)
+  const normalizeForCompare = (str: string) => 
+    str.toUpperCase().replace(/[^A-Z0-9]/g, '').trim();
+  
+  const normalizedName = normalizeForCompare(clauseName);
+  const normalizedCode = normalizeForCompare(clauseCode);
+  
+  // Split content into lines
+  const lines = cleanContent.split('\n');
+  
+  // Check if first non-empty line matches or is similar to clause name/code
+  let startIndex = 0;
+  for (let i = 0; i < Math.min(3, lines.length); i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+    
+    const normalizedLine = normalizeForCompare(line);
+    
+    // If line matches clause name or code (or is very similar), skip it
+    if (normalizedLine === normalizedName || 
+        normalizedLine === normalizedCode ||
+        normalizedName.includes(normalizedLine) ||
+        normalizedLine.includes(normalizedName)) {
+      startIndex = i + 1;
+      break;
+    }
+    
+    // Also check for section number patterns like "SECTION 1. SCOPE OF SERVICES"
+    // or subsection patterns like "1.1. OVERVIEW"
+    if (/^SECTION\s*\d+/i.test(line) || /^\d+\.\d+\.?\s*[A-Z]/i.test(line)) {
+      const lineWithoutPrefix = line.replace(/^(SECTION\s*\d+\.?\s*|\d+\.\d+\.?\s*)/i, '');
+      const nameWithoutPrefix = clauseName.replace(/^(Section\s*\d+\.?\s*|\d+\.\d+\.?\s*)/i, '');
+      if (normalizeForCompare(lineWithoutPrefix) === normalizeForCompare(nameWithoutPrefix)) {
+        startIndex = i + 1;
+        break;
+      }
+    }
+    
+    break; // Only check first non-empty line
+  }
+  
+  // Remove the duplicate header line(s)
+  if (startIndex > 0) {
+    lines.splice(0, startIndex);
+    cleanContent = lines.join('\n').trim();
+  }
+  
+  // For recitals, strip leading letter prefixes like "A.", "B.", etc.
+  // if the clause name contains "Recital A", "Recital B", etc.
+  if (/Recital\s+[A-Z]/i.test(clauseName)) {
+    // Extract the letter from the name
+    const letterMatch = clauseName.match(/Recital\s+([A-Z])/i);
+    if (letterMatch) {
+      const letter = letterMatch[1].toUpperCase();
+      // Remove leading "A." or "A. " from content
+      cleanContent = cleanContent.replace(new RegExp(`^${letter}\\.\\s*`, 'i'), '');
+    }
+  }
+  
+  return cleanContent;
+}
+
 function renderClausesHTML(clauses: Clause[], projectData: Record<string, any>): string {
   let html = '<div class="contract-body">';
   
@@ -549,9 +617,13 @@ function renderClausesHTML(clauses: Clause[], projectData: Record<string, any>):
   
   for (const clause of clauses) {
     const hierarchyLevel = typeof clause.hierarchy_level === 'number' ? clause.hierarchy_level : parseInt(String(clause.hierarchy_level)) || 1;
-    const content = clause.content ? formatContent(clause.content) : '';
+    const rawContent = clause.content || '';
     const clauseCode = clause.clause_code || '';
     const clauseName = clause.name || '';
+    
+    // Strip duplicate headers from content before formatting
+    const strippedContent = stripDuplicateHeader(rawContent, clauseName, clauseCode);
+    const content = strippedContent ? formatContent(strippedContent) : '';
     
     // Check for Roman numeral sections (I., II., etc.)
     const isRomanSection = /^[IVX]+\.?\s/.test(clauseCode) || /^[IVX]+\.?\s/.test(clauseName);
