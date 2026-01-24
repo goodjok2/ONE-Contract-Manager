@@ -303,7 +303,7 @@ function formatContent(content: string): string {
 async function convertHTMLToPDF(html: string): Promise<Buffer> {
   const browser = await puppeteer.launch({
     headless: true,
-    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/nix/store/zi4f80l169xlmivz8vja8wlphq74qqk0-chromium-130.0.6723.116/bin/chromium',
+    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/nix/store/zi4f80l169xlmivz8vja8wlphq74qqk0-chromium-125.0.6422.141/bin/chromium',
     args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
   });
   
@@ -513,4 +513,18 @@ function calculateEstimatedCompletion(projectData: Record<string, any>): string 
   completionDate.setDate(completionDate.getDate() + totalDays);
   
   return formatDate(completionDate.toISOString());
+}
+
+export function getContractFilename(contractType: string, projectData: Record<string, any>, format: 'pdf' | 'docx' = 'pdf'): string {
+  const projectName = (projectData.projectName || 'Contract').replace(/[^a-z0-9]/gi, '_');
+  const projectNumber = (projectData.projectNumber || 'DRAFT').replace(/[^a-z0-9-]/gi, '_');
+  
+  const typeMap: Record<string, string> = {
+    'ONE': 'one_agreement',
+    'MANUFACTURING': 'manufacturing_sub',
+    'ONSITE': 'onsite_sub'
+  };
+  
+  const typeName = typeMap[contractType] || contractType.toLowerCase();
+  return `${projectName}_${typeName}_${projectNumber}.${format}`;
 }

@@ -1718,14 +1718,14 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const buffer = await generateContract({
         contractType: contractType as 'ONE' | 'MANUFACTURING' | 'ONSITE',
         projectData,
-        pool
+        format: 'pdf'
       });
 
-      const filename = getContractFilename(contractType, projectData);
+      const filename = getContractFilename(contractType, projectData, 'pdf');
       
       console.log(`Generated ${contractType} contract: ${buffer.length} bytes`);
       
-      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+      res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
       res.send(buffer);
       
