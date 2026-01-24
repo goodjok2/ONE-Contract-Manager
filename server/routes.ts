@@ -1205,11 +1205,29 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  // Get single contract
+  // Get single contract with project info
   app.get("/api/contracts/:id", async (req, res) => {
     try {
       const contractId = parseInt(req.params.id);
-      const [contract] = await db.select().from(contracts).where(eq(contracts.id, contractId));
+      const [contract] = await db
+        .select({
+          id: contracts.id,
+          projectId: contracts.projectId,
+          contractType: contracts.contractType,
+          version: contracts.version,
+          status: contracts.status,
+          generatedAt: contracts.generatedAt,
+          generatedBy: contracts.generatedBy,
+          templateVersion: contracts.templateVersion,
+          fileName: contracts.fileName,
+          filePath: contracts.filePath,
+          notes: contracts.notes,
+          projectName: projects.name,
+          projectNumber: projects.projectNumber,
+        })
+        .from(contracts)
+        .leftJoin(projects, eq(contracts.projectId, projects.id))
+        .where(eq(contracts.id, contractId));
       if (!contract) {
         return res.status(404).json({ error: "Contract not found" });
       }
@@ -1217,6 +1235,44 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     } catch (error) {
       console.error("Failed to fetch contract:", error);
       res.status(500).json({ error: "Failed to fetch contract" });
+    }
+  });
+
+  // Get clauses for a contract based on contract type
+  app.get("/api/contracts/:id/clauses", async (req, res) => {
+    try {
+      const contractId = parseInt(req.params.id);
+      const [contract] = await db.select().from(contracts).where(eq(contracts.id, contractId));
+      
+      if (!contract) {
+        return res.status(404).json({ error: "Contract not found" });
+      }
+
+      // Map contract type to template type
+      const contractTypeMap: Record<string, string> = {
+        'one_agreement': 'ONE',
+        'ONE': 'ONE',
+        'manufacturing_sub': 'MANUFACTURING',
+        'MANUFACTURING': 'MANUFACTURING',
+        'onsite_sub': 'ONSITE',
+        'ONSITE': 'ONSITE',
+      };
+      
+      const templateType = contractTypeMap[contract.contractType] || 'ONE';
+      
+      // Get clauses for this contract type
+      const clauseQuery = `
+        SELECT c.id, c.name, c.content, c.hierarchy_level, c.risk_level, c.clause_code as section_number
+        FROM clauses c
+        WHERE c.contract_type = $1 OR c.contract_type = 'ALL'
+        ORDER BY c.sort_order, c.clause_code
+      `;
+      
+      const result = await pool.query(clauseQuery, [templateType]);
+      res.json(result.rows);
+    } catch (error) {
+      console.error("Failed to fetch contract clauses:", error);
+      res.status(500).json({ error: "Failed to fetch clauses" });
     }
   });
 

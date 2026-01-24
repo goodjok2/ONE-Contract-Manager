@@ -165,9 +165,11 @@ export default function Contracts() {
                               </div>
                               <div className="flex items-center gap-2 shrink-0">
                                 <StatusBadge status={contract.status} size="sm" />
-                                <Button variant="outline" size="sm" data-testid={`button-view-contract-${contract.id}`}>
-                                  View
-                                </Button>
+                                <Link href={`/contracts/${contract.id}`}>
+                                  <Button variant="outline" size="sm" data-testid={`button-view-contract-${contract.id}`}>
+                                    View
+                                  </Button>
+                                </Link>
                               </div>
                             </div>
                           ))}

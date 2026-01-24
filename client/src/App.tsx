@@ -15,6 +15,7 @@ import LLCDetail from "@/pages/llc-detail";
 import Settings from "@/pages/settings";
 import ClauseLibrary from "@/pages/clause-library";
 import Contracts from "@/pages/contracts";
+import ContractDetail from "@/pages/contract-detail";
 import Templates from "@/pages/templates";
 import ContractPreview from "@/pages/contract-preview";
 import GenerateContracts from "@/pages/generate-contracts";
@@ -29,6 +30,7 @@ function Router() {
       <Route path="/contract-preview" component={ContractPreview} />
       <Route path="/generate-contracts" component={GenerateContracts} />
       <Route path="/contracts" component={Contracts} />
+      <Route path="/contracts/:id" component={ContractDetail} />
       <Route path="/templates" component={Templates} />
       <Route path="/llc-admin" component={LLCAdmin} />
       <Route path="/llc-admin/:id" component={LLCDetail} />

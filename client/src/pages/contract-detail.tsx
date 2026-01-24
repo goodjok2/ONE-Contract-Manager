@@ -1,0 +1,436 @@
+import { useParams, useLocation } from "wouter";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { 
+  ArrowLeft, 
+  Download, 
+  FileText, 
+  Calendar, 
+  User, 
+  ChevronDown,
+  ChevronRight,
+  CheckCircle2,
+  Clock,
+  FileCheck,
+  Edit3
+} from "lucide-react";
+import { useState } from "react";
+
+interface Contract {
+  id: number;
+  projectId: number;
+  contractType: string;
+  version: number;
+  status: string;
+  generatedAt: string;
+  generatedBy: string;
+  templateVersion: string;
+  fileName: string;
+  filePath: string;
+  notes: string;
+  projectName?: string;
+  projectNumber?: string;
+}
+
+interface Clause {
+  id: number;
+  name: string;
+  content: string;
+  hierarchy_level: string;
+  risk_level: string;
+  section_number: string;
+}
+
+const statusSteps = [
+  { key: "Draft", label: "Draft", icon: Edit3, description: "Initial draft created" },
+  { key: "PendingReview", label: "Pending Review", icon: Clock, description: "Awaiting review" },
+  { key: "Approved", label: "Approved", icon: CheckCircle2, description: "Approved by reviewer" },
+  { key: "Signed", label: "Signed", icon: FileCheck, description: "Fully executed" },
+];
+
+function normalizeStatusKey(status: string): string {
+  // Handle various status formats: "Draft", "draft", "PendingReview", "pending_review", "Pending Review"
+  const normalized = status.replace(/[\s_]+/g, '').toLowerCase();
+  const statusMap: Record<string, string> = {
+    'draft': 'Draft',
+    'pendingreview': 'PendingReview',
+    'pending': 'PendingReview',
+    'approved': 'Approved',
+    'signed': 'Signed',
+    'executed': 'Signed', // Map legacy status
+    'sent': 'Approved', // Map legacy status
+  };
+  return statusMap[normalized] || 'Draft';
+}
+
+function getStatusDisplayLabel(status: string): string {
+  const normalizedKey = normalizeStatusKey(status);
+  const labels: Record<string, string> = {
+    'Draft': 'Draft',
+    'PendingReview': 'Pending Review',
+    'Approved': 'Approved',
+    'Signed': 'Signed',
+  };
+  return labels[normalizedKey] || status;
+}
+
+function getStatusIndex(status: string): number {
+  const normalizedKey = normalizeStatusKey(status);
+  return statusSteps.findIndex(s => s.key === normalizedKey);
+}
+
+function getContractTypeName(type: string): string {
+  const typeMap: Record<string, string> = {
+    'ONE': 'ONE Agreement',
+    'one_agreement': 'ONE Agreement',
+    'MANUFACTURING': 'Manufacturing Subcontract',
+    'manufacturing_sub': 'Manufacturing Subcontract',
+    'ONSITE': 'OnSite Subcontract',
+    'onsite_sub': 'OnSite Subcontract',
+  };
+  return typeMap[type] || type;
+}
+
+function getStatusBadgeVariant(status: string): "default" | "secondary" | "outline" | "destructive" {
+  const normalizedKey = normalizeStatusKey(status);
+  switch (normalizedKey) {
+    case "Draft": return "secondary";
+    case "PendingReview": return "outline";
+    case "Approved": return "default";
+    case "Signed": return "default";
+    default: return "secondary";
+  }
+}
+
+export default function ContractDetail() {
+  const params = useParams<{ id: string }>();
+  const [, setLocation] = useLocation();
+  const { toast } = useToast();
+  const [expandedClauses, setExpandedClauses] = useState<Set<number>>(new Set());
+
+  const contractId = parseInt(params.id || "0");
+
+  const { data: contract, isLoading: contractLoading } = useQuery<Contract>({
+    queryKey: ["/api/contracts", contractId],
+    enabled: contractId > 0,
+  });
+
+  const { data: clauses, isLoading: clausesLoading } = useQuery<Clause[]>({
+    queryKey: ["/api/contracts", contractId, "clauses"],
+    enabled: contractId > 0,
+  });
+
+  const updateStatusMutation = useMutation({
+    mutationFn: async (newStatus: string) => {
+      return apiRequest("PATCH", `/api/contracts/${contractId}`, { status: newStatus });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/contracts", contractId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/contracts"] });
+      toast({
+        title: "Status Updated",
+        description: "Contract status has been updated successfully.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Update Failed",
+        description: "Failed to update contract status.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const toggleClause = (clauseId: number) => {
+    setExpandedClauses(prev => {
+      const next = new Set(prev);
+      if (next.has(clauseId)) {
+        next.delete(clauseId);
+      } else {
+        next.add(clauseId);
+      }
+      return next;
+    });
+  };
+
+  const handleDownload = () => {
+    if (contract?.fileName) {
+      window.open(`/api/contracts/download/${encodeURIComponent(contract.fileName)}`, '_blank');
+    }
+  };
+
+  const handleStatusChange = (newStatus: string) => {
+    updateStatusMutation.mutate(newStatus);
+  };
+
+  if (contractLoading) {
+    return (
+      <div className="p-6 space-y-6">
+        <Skeleton className="h-8 w-64" />
+        <Skeleton className="h-48 w-full" />
+        <Skeleton className="h-64 w-full" />
+      </div>
+    );
+  }
+
+  if (!contract) {
+    return (
+      <div className="p-6">
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <FileText className="h-12 w-12 text-muted-foreground mb-4" />
+            <h2 className="text-xl font-semibold mb-2">Contract Not Found</h2>
+            <p className="text-muted-foreground mb-4">The contract you're looking for doesn't exist.</p>
+            <Button onClick={() => setLocation("/contracts")} data-testid="button-back-to-contracts">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to Contracts
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const currentStatusIndex = getStatusIndex(contract.status);
+
+  return (
+    <div className="p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={() => setLocation("/contracts")}
+            data-testid="button-back"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <div>
+            <h1 className="text-2xl font-bold" data-testid="text-contract-title">
+              {getContractTypeName(contract.contractType)}
+            </h1>
+            <p className="text-muted-foreground">
+              {contract.projectName} • {contract.projectNumber}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Badge variant={getStatusBadgeVariant(contract.status)} data-testid="badge-status">
+            {getStatusDisplayLabel(contract.status)}
+          </Badge>
+          {contract.fileName && (
+            <Button onClick={handleDownload} data-testid="button-download">
+              <Download className="mr-2 h-4 w-4" />
+              Download
+            </Button>
+          )}
+        </div>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Contract Details</CardTitle>
+          <CardDescription>Overview and metadata for this contract</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            <div>
+              <p className="text-sm text-muted-foreground">Contract Type</p>
+              <p className="font-medium" data-testid="text-contract-type">
+                {getContractTypeName(contract.contractType)}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Version</p>
+              <p className="font-medium" data-testid="text-version">v{contract.version}</p>
+            </div>
+            <div className="flex items-start gap-2">
+              <Calendar className="h-4 w-4 text-muted-foreground mt-0.5" />
+              <div>
+                <p className="text-sm text-muted-foreground">Generated</p>
+                <p className="font-medium" data-testid="text-generated-date">
+                  {contract.generatedAt 
+                    ? new Date(contract.generatedAt).toLocaleDateString() 
+                    : 'N/A'}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-start gap-2">
+              <User className="h-4 w-4 text-muted-foreground mt-0.5" />
+              <div>
+                <p className="text-sm text-muted-foreground">Generated By</p>
+                <p className="font-medium" data-testid="text-generated-by">
+                  {contract.generatedBy || 'System'}
+                </p>
+              </div>
+            </div>
+          </div>
+          {contract.fileName && (
+            <div className="mt-6 pt-6 border-t">
+              <p className="text-sm text-muted-foreground mb-2">File</p>
+              <div className="flex items-center gap-2 text-sm">
+                <FileText className="h-4 w-4" />
+                <span data-testid="text-filename">{contract.fileName}</span>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Status Workflow</CardTitle>
+          <CardDescription>Track and update the contract through its lifecycle</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between">
+            {statusSteps.map((step, index) => {
+              const Icon = step.icon;
+              const isCompleted = index < currentStatusIndex;
+              const isCurrent = index === currentStatusIndex;
+              const isNext = index === currentStatusIndex + 1;
+              
+              return (
+                <div key={step.key} className="flex flex-col items-center flex-1">
+                  <div className="flex items-center w-full">
+                    {index > 0 && (
+                      <div 
+                        className={`h-1 flex-1 ${
+                          index <= currentStatusIndex ? 'bg-primary' : 'bg-muted'
+                        }`}
+                      />
+                    )}
+                    <button
+                      onClick={() => isNext && handleStatusChange(step.key)}
+                      disabled={!isNext || updateStatusMutation.isPending}
+                      className={`
+                        relative z-10 flex h-10 w-10 items-center justify-center rounded-full border-2 
+                        transition-all
+                        ${isCompleted ? 'bg-primary border-primary text-primary-foreground' : ''}
+                        ${isCurrent ? 'bg-primary border-primary text-primary-foreground ring-4 ring-primary/20' : ''}
+                        ${!isCompleted && !isCurrent ? 'bg-background border-muted text-muted-foreground' : ''}
+                        ${isNext ? 'cursor-pointer hover:border-primary hover:text-primary' : ''}
+                        ${!isNext && !isCurrent && !isCompleted ? 'cursor-not-allowed' : ''}
+                      `}
+                      data-testid={`button-status-${step.key.toLowerCase()}`}
+                    >
+                      <Icon className="h-5 w-5" />
+                    </button>
+                    {index < statusSteps.length - 1 && (
+                      <div 
+                        className={`h-1 flex-1 ${
+                          index < currentStatusIndex ? 'bg-primary' : 'bg-muted'
+                        }`}
+                      />
+                    )}
+                  </div>
+                  <span className={`
+                    mt-2 text-xs text-center
+                    ${isCurrent ? 'font-semibold text-primary' : 'text-muted-foreground'}
+                  `}>
+                    {step.label}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+          <p className="text-sm text-muted-foreground text-center mt-6">
+            {currentStatusIndex < statusSteps.length - 1 
+              ? `Click "${statusSteps[currentStatusIndex + 1]?.label}" to advance the contract status`
+              : "Contract is fully executed"}
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Included Clauses</CardTitle>
+          <CardDescription>
+            {clausesLoading 
+              ? "Loading clauses..." 
+              : `${clauses?.length || 0} clauses included in this contract`}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {clausesLoading ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map(i => (
+                <Skeleton key={i} className="h-16 w-full" />
+              ))}
+            </div>
+          ) : clauses && clauses.length > 0 ? (
+            <div className="space-y-2">
+              {clauses.map((clause) => (
+                <Collapsible key={clause.id} open={expandedClauses.has(clause.id)}>
+                  <CollapsibleTrigger asChild>
+                    <button
+                      onClick={() => toggleClause(clause.id)}
+                      className="w-full flex items-center justify-between p-3 rounded-lg border hover-elevate text-left"
+                      data-testid={`button-clause-${clause.id}`}
+                    >
+                      <div className="flex items-center gap-3">
+                        {expandedClauses.has(clause.id) ? (
+                          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                        )}
+                        <div>
+                          <span className="font-medium">{clause.section_number}</span>
+                          <span className="ml-2">{clause.name}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-xs">
+                          {clause.hierarchy_level}
+                        </Badge>
+                        {clause.risk_level && (
+                          <Badge 
+                            variant={clause.risk_level === 'high' ? 'destructive' : 'secondary'}
+                            className="text-xs"
+                          >
+                            {clause.risk_level} risk
+                          </Badge>
+                        )}
+                      </div>
+                    </button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <div className="p-4 ml-7 border-l-2 border-muted mt-1">
+                      <div 
+                        className="text-sm prose prose-sm dark:prose-invert max-w-none"
+                        dangerouslySetInnerHTML={{ __html: clause.content }}
+                      />
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              <FileText className="h-8 w-8 mx-auto mb-2 opacity-50" />
+              <p>No clause data available for this contract.</p>
+              <p className="text-sm mt-1">Clauses are embedded in the generated document.</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {contract.notes && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Notes</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm" data-testid="text-notes">{contract.notes}</p>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
