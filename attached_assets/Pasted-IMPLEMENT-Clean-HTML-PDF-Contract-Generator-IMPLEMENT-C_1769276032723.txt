@@ -1,4 +1,21 @@
-import puppeteer from 'puppeteer-core';
+IMPLEMENT: Clean HTML/PDF Contract Generator
+IMPLEMENT CLEAN HTML/PDF CONTRACT GENERATOR
+
+Replace the current DOCX generation with a simpler HTML-to-PDF approach that matches Google Docs formatting.
+
+STEP 1: INSTALL PUPPETEER
+```bash
+npm install puppeteer
+npm install --save-dev @types/puppeteer
+```
+
+STEP 2: COMPLETELY REPLACE CONTRACT GENERATOR
+
+Location: server/lib/contractGenerator.ts
+
+Replace the entire file with this new implementation:
+```typescript
+import puppeteer from 'puppeteer';
 
 interface ContractGenerationOptions {
   contractType: 'ONE' | 'MANUFACTURING' | 'ONSITE';
@@ -8,59 +25,65 @@ interface ContractGenerationOptions {
 
 interface Clause {
   id: number;
-  clause_code: string;
+  code: string;
   name: string;
   content: string;
-  contract_type: string;
-  hierarchy_level: number;
+  contractType: string;
+  hierarchyLevel: string;
   category: string;
   conditions?: any;
-  variables_used?: string[];
-  sort_order: number;
+  variablesUsed?: string[];
+  order: number;
 }
+
+// ============================================================================
+// MAIN GENERATION FUNCTION
+// ============================================================================
 
 export async function generateContract(options: ContractGenerationOptions): Promise<Buffer> {
   const { contractType, projectData, format = 'pdf' } = options;
   
   console.log(`\n=== Generating ${contractType} Contract (${format.toUpperCase()}) ===`);
   
+  // 1. Fetch clauses from clause library API
   const clauses = await fetchClausesForContract(contractType, projectData);
   console.log(`✓ Fetched ${clauses.length} clauses`);
   
+  // 2. Build variable map from project data
   const variableMap = buildVariableMap(projectData);
   console.log(`✓ Built variable map with ${Object.keys(variableMap).length} variables`);
   
+  // 3. Replace variables in all clause content
   const processedClauses = clauses.map(clause => ({
     ...clause,
     content: replaceVariables(clause.content, variableMap)
   }));
   console.log(`✓ Processed ${processedClauses.length} clauses with variable replacement`);
   
+  // 4. Generate HTML
   const html = generateHTMLFromClauses(processedClauses, contractType, projectData);
   
   if (format === 'html') {
     return Buffer.from(html, 'utf-8');
   }
   
+  // 5. Convert HTML to PDF
   const pdfBuffer = await convertHTMLToPDF(html);
   console.log(`✓ Generated PDF: ${pdfBuffer.length} bytes\n`);
   
   return pdfBuffer;
 }
 
+// ============================================================================
+// CLAUSE FETCHING (from PostgreSQL API)
+// ============================================================================
+
 async function fetchClausesForContract(
   contractType: string, 
   projectData: Record<string, any>
 ): Promise<Clause[]> {
   try {
-    const contractTypeMap: Record<string, string> = {
-      'ONE': 'ONE Agreement',
-      'MANUFACTURING': 'MANUFACTURING',
-      'ONSITE': 'ONSITE',
-    };
-    const mappedType = contractTypeMap[contractType] || contractType;
-    
-    const url = `http://localhost:5000/api/clauses?contractType=${encodeURIComponent(mappedType)}`;
+    const url = `http://localhost:5000/api/clauses?contractType=${contractType}`;
     console.log(`Fetching clauses from: ${url}`);
     
     const response = await fetch(url);
@@ -74,6 +97,7 @@ async function fetchClausesForContract(
     
     console.log(`Received ${allClauses.length} total clauses from API`);
     
+    // Filter clauses based on conditional logic
     const serviceModel = projectData.serviceModel || 'CRC';
     console.log(`Filtering clauses for service model: ${serviceModel}`);
     
@@ -85,13 +109,13 @@ async function fetchClausesForContract(
         try {
           conditions = JSON.parse(conditions);
         } catch (e) {
-          console.warn(`Failed to parse conditions for clause ${clause.clause_code}:`, conditions);
+          console.warn(`Failed to parse conditions for clause ${clause.code}:`, conditions);
           return true;
         }
       }
       
       if (conditions.serviceModel && conditions.serviceModel !== serviceModel) {
-        console.log(`Excluding clause ${clause.clause_code} (requires ${conditions.serviceModel}, have ${serviceModel})`);
+        console.log(`Excluding clause ${clause.code} (requires ${conditions.serviceModel}, have ${serviceModel})`);
         return false;
       }
       
@@ -100,13 +124,17 @@ async function fetchClausesForContract(
     
     console.log(`After filtering: ${filteredClauses.length} clauses will be included`);
     
-    return filteredClauses.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+    return filteredClauses.sort((a, b) => (a.order || 0) - (b.order || 0));
     
   } catch (error) {
     console.error('Error fetching clauses:', error);
     throw error;
   }
 }
+
+// ============================================================================
+// VARIABLE REPLACEMENT
+// ============================================================================
 
 function replaceVariables(content: string, variableMap: Record<string, string>): string {
   if (!content) return '';
@@ -120,6 +148,10 @@ function replaceVariables(content: string, variableMap: Record<string, string>):
   
   return result;
 }
+
+// ============================================================================
+// HTML GENERATION
+// ============================================================================
 
 function generateHTMLFromClauses(
   clauses: Clause[],
@@ -161,6 +193,7 @@ function generateHTMLFromClauses(
       padding: 40px;
     }
     
+    /* Title Page */
     .title-page {
       text-align: center;
       padding-top: 3in;
@@ -179,6 +212,7 @@ function generateHTMLFromClauses(
       margin-bottom: 12pt;
     }
     
+    /* Section Headings */
     h1 {
       font-size: 14pt;
       font-weight: bold;
@@ -204,6 +238,7 @@ function generateHTMLFromClauses(
       page-break-after: avoid;
     }
     
+    /* Paragraphs */
     p {
       margin-bottom: 12pt;
       text-align: left;
@@ -214,6 +249,7 @@ function generateHTMLFromClauses(
       font-weight: bold;
     }
     
+    /* Lists */
     ol, ul {
       margin: 12pt 0;
       padding-left: 36pt;
@@ -223,6 +259,7 @@ function generateHTMLFromClauses(
       margin-bottom: 6pt;
     }
     
+    /* Print Styles */
     @media print {
       .contract-container {
         padding: 0;
@@ -262,28 +299,26 @@ function renderClausesHTML(clauses: Clause[]): string {
   let html = '<div class="contract-body">';
   
   for (const clause of clauses) {
-    const hierarchyLevel = typeof clause.hierarchy_level === 'number' ? clause.hierarchy_level : parseInt(String(clause.hierarchy_level)) || 1;
-    
-    if (hierarchyLevel === 1) {
+    if (clause.hierarchyLevel === 'SECTION') {
       html += `
-        <h1>${clause.clause_code ? `${escapeHtml(clause.clause_code)}. ` : ''}${escapeHtml(clause.name || '')}</h1>
-        ${clause.content ? `<p>${formatContent(clause.content)}</p>` : ''}
+        <h1>${clause.code ? `${escapeHtml(clause.code)}. ` : ''}${escapeHtml(clause.name || '')}</h1>
+        ${clause.content ? `<p>${escapeHtml(clause.content)}</p>` : ''}
       `;
-    } else if (hierarchyLevel === 2) {
+    } else if (clause.hierarchyLevel === 'SUBSECTION') {
       html += `
-        <h2>${clause.clause_code ? `${escapeHtml(clause.clause_code)} ` : ''}${escapeHtml(clause.name || '')}</h2>
-        ${clause.content ? `<p>${formatContent(clause.content)}</p>` : ''}
+        <h2>${clause.code ? `${escapeHtml(clause.code)} ` : ''}${escapeHtml(clause.name || '')}</h2>
+        ${clause.content ? `<p>${escapeHtml(clause.content)}</p>` : ''}
       `;
-    } else {
-      if (clause.clause_code && clause.clause_code.trim()) {
+    } else if (clause.hierarchyLevel === 'PARAGRAPH') {
+      if (clause.code && clause.code.trim()) {
         html += `
           <p>
-            <span class="clause-code">${escapeHtml(clause.clause_code)}.</span> 
-            ${formatContent(clause.content || '')}
+            <span class="clause-code">${escapeHtml(clause.code)}.</span> 
+            ${escapeHtml(clause.content || '')}
           </p>
         `;
       } else {
-        html += `<p>${formatContent(clause.content || '')}</p>`;
+        html += `<p>${escapeHtml(clause.content || '')}</p>`;
       }
     }
   }
@@ -292,19 +327,14 @@ function renderClausesHTML(clauses: Clause[]): string {
   return html;
 }
 
-function formatContent(content: string): string {
-  if (!content) return '';
-  let escaped = escapeHtml(content);
-  escaped = escaped.replace(/\n\n/g, '</p><p>');
-  escaped = escaped.replace(/\n/g, '<br>');
-  return escaped;
-}
+// ============================================================================
+// PDF CONVERSION
+// ============================================================================
 
 async function convertHTMLToPDF(html: string): Promise<Buffer> {
   const browser = await puppeteer.launch({
-    headless: true,
-    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/nix/store/zi4f80l169xlmivz8vja8wlphq74qqk0-chromium-130.0.6723.116/bin/chromium',
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+    headless: 'new',
+    args: ['--no-sandbox', '--disable-setuid-sandbox']
   });
   
   try {
@@ -323,12 +353,16 @@ async function convertHTMLToPDF(html: string): Promise<Buffer> {
       displayHeaderFooter: false
     });
     
-    return Buffer.from(pdfBuffer);
+    return pdfBuffer;
     
   } finally {
     await browser.close();
   }
 }
+
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
 
 function escapeHtml(text: string): string {
   if (!text) return '';
@@ -354,11 +388,13 @@ function getContractTitle(contractType: string): string {
 function buildVariableMap(projectData: Record<string, any>): Record<string, string> {
   const map: Record<string, string> = {};
   
+  // PROJECT INFO
   map['PROJECT_NUMBER'] = projectData.projectNumber || '';
   map['PROJECT_NAME'] = projectData.projectName || '';
   map['TOTAL_UNITS'] = projectData.totalUnits?.toString() || '1';
   map['AGREEMENT_EXECUTION_DATE'] = formatDate(projectData.agreementDate);
   
+  // CLIENT INFO
   map['CLIENT_LEGAL_NAME'] = projectData.clientLegalName || '';
   map['CLIENT_STATE'] = projectData.clientState || '';
   map['CLIENT_ENTITY_TYPE'] = getEntityTypeText(projectData.clientEntityType);
@@ -368,6 +404,7 @@ function buildVariableMap(projectData: Record<string, any>): Record<string, stri
   map['CLIENT_FULL_NAME'] = projectData.clientFullName || projectData.clientLegalName || '';
   map['CLIENT_TITLE'] = projectData.clientTitle || '';
   
+  // LLC/SPV INFO
   const llcBaseName = projectData.childLlcName?.replace(' LLC', '').replace(', LLC', '') || 'Dvele Partners';
   map['DVELE_PARTNERS_XYZ'] = llcBaseName;
   map['DVELE_PARTNERS_XYZ_LEGAL_NAME'] = projectData.childLlcName || '';
@@ -376,6 +413,7 @@ function buildVariableMap(projectData: Record<string, any>): Record<string, stri
   map['DP_X'] = projectData.childLlcName || '';
   map['DP_X_STATE'] = projectData.childLlcState || 'Delaware';
   
+  // SITE/PROPERTY
   map['DELIVERY_ADDRESS'] = formatAddress(projectData);
   map['SITE_ADDRESS'] = projectData.siteAddress || '';
   map['SITE_CITY'] = projectData.siteCity || '';
@@ -383,6 +421,7 @@ function buildVariableMap(projectData: Record<string, any>): Record<string, stri
   map['SITE_ZIP'] = projectData.siteZip || '';
   map['SITE_COUNTY'] = projectData.siteCounty || '';
   
+  // UNITS
   const totalUnits = parseInt(projectData.totalUnits) || 1;
   for (let i = 1; i <= totalUnits; i++) {
     map[`UNIT_${i}_MODEL`] = projectData[`unit${i}Model`] || '';
@@ -395,12 +434,14 @@ function buildVariableMap(projectData: Record<string, any>): Record<string, stri
   map['HOME_MODEL'] = projectData.unit1Model || '';
   map['HOME_MODEL_1'] = projectData.unit1Model || '';
   
+  // FINANCIAL
   map['DESIGN_FEE'] = formatCurrency(projectData.designFee);
   map['DESIGN_REVISION_ROUNDS'] = projectData.designRevisionRounds?.toString() || '3';
   map['PRELIMINARY_OFFSITE_PRICE'] = formatCurrency(projectData.preliminaryOffsitePrice);
   map['DELIVERY_INSTALLATION_PRICE'] = formatCurrency(projectData.deliveryInstallationPrice);
   map['TOTAL_PRELIMINARY_CONTRACT_PRICE'] = formatCurrency(projectData.totalPreliminaryContractPrice);
   
+  // MILESTONES
   map['MILESTONE_1_PERCENT'] = projectData.milestone1Percent?.toString() || '20';
   map['MILESTONE_2_PERCENT'] = projectData.milestone2Percent?.toString() || '20';
   map['MILESTONE_3_PERCENT'] = projectData.milestone3Percent?.toString() || '20';
@@ -417,11 +458,13 @@ function buildVariableMap(projectData: Record<string, any>): Record<string, stri
   map['MILESTONE_5_AMOUNT'] = formatCurrency(totalPrice * (parseFloat(map['MILESTONE_5_PERCENT']) / 100));
   map['RETAINAGE_AMOUNT'] = formatCurrency(totalPrice * (parseFloat(map['RETAINAGE_PERCENT']) / 100));
   
+  // MANUFACTURING PAYMENTS
   map['MANUFACTURING_DESIGN_PAYMENT'] = formatCurrency(projectData.manufacturingDesignPayment);
   map['MANUFACTURING_PRODUCTION_START'] = formatCurrency(projectData.manufacturingProductionStart);
   map['MANUFACTURING_PRODUCTION_COMPLETE'] = formatCurrency(projectData.manufacturingProductionComplete);
   map['MANUFACTURING_DELIVERY_READY'] = formatCurrency(projectData.manufacturingDeliveryReady);
   
+  // DATES
   map['AGREEMENT_DATE'] = formatDate(projectData.agreementDate);
   map['EFFECTIVE_DATE'] = formatDate(projectData.effectiveDate);
   map['ESTIMATED_COMPLETION_DATE'] = calculateEstimatedCompletion(projectData);
@@ -429,25 +472,30 @@ function buildVariableMap(projectData: Record<string, any>): Record<string, stri
   map['MANUFACTURING_DURATION_DAYS'] = projectData.manufacturingDurationDays?.toString() || '120';
   map['ONSITE_DURATION_DAYS'] = projectData.onsiteDurationDays?.toString() || '90';
   
+  // WARRANTY
   map['WARRANTY_FIT_FINISH_MONTHS'] = projectData.warrantyFitFinishMonths?.toString() || '24';
   map['WARRANTY_BUILDING_ENVELOPE_MONTHS'] = projectData.warrantyBuildingEnvelopeMonths?.toString() || '60';
   map['WARRANTY_STRUCTURAL_MONTHS'] = projectData.warrantyStructuralMonths?.toString() || '120';
   
+  // LEGAL
   map['PROJECT_STATE'] = projectData.siteState || '';
   map['PROJECT_COUNTY'] = projectData.projectCounty || projectData.siteCounty || '';
   map['PROJECT_FEDERAL_DISTRICT'] = projectData.projectFederalDistrict || '';
   map['ARBITRATION_PROVIDER'] = projectData.arbitrationProvider || 'JAMS';
   
+  // SERVICE MODEL
   map['ON_SITE_SERVICES_SELECTION'] = projectData.serviceModel === 'CRC' 
     ? 'CLIENT-RETAINED CONTRACTOR' 
     : 'COMPANY-MANAGED ON-SITE SERVICES';
   
+  // CRC-SPECIFIC
   if (projectData.serviceModel === 'CRC') {
     map['ONSITE_PROVIDER_NAME'] = projectData.contractorName || '';
     map['CONTRACTOR_LICENSE'] = projectData.contractorLicense || '';
     map['CONTRACTOR_NAME'] = projectData.contractorName || '';
   }
   
+  // CMOS-SPECIFIC
   if (projectData.serviceModel === 'CMOS') {
     map['SITE_PREP_PRICE'] = formatCurrency(projectData.sitePrepPrice);
     map['UTILITIES_PRICE'] = formatCurrency(projectData.utilitiesPrice);
@@ -514,3 +562,117 @@ function calculateEstimatedCompletion(projectData: Record<string, any>): string 
   
   return formatDate(completionDate.toISOString());
 }
+```
+
+STEP 3: UPDATE API ENDPOINT
+
+In server/routes.ts, update to generate PDFs:
+```typescript
+app.post('/api/contracts/generate-package', async (req, res) => {
+  try {
+    const { wizardData } = req.body;
+    
+    if (!wizardData) {
+      return res.status(400).json({ error: 'Missing wizard data' });
+    }
+    
+    console.log('\n========================================');
+    console.log('CONTRACT GENERATION REQUEST');
+    console.log('Project:', wizardData.projectNumber, '-', wizardData.projectName);
+    console.log('Service Model:', wizardData.serviceModel);
+    console.log('========================================\n');
+    
+    const contracts = [];
+    const projectId = `proj_${Date.now()}`;
+    
+    const outputDir = path.join(__dirname, '../generated_contracts');
+    if (!fs.existsSync(outputDir)) {
+      fs.mkdirSync(outputDir, { recursive: true });
+    }
+    
+    const contractTypes: Array<'ONE' | 'MANUFACTURING' | 'ONSITE'> = ['ONE', 'MANUFACTURING', 'ONSITE'];
+    
+    for (const contractType of contractTypes) {
+      try {
+        const buffer = await generateContract({
+          contractType,
+          projectData: wizardData,
+          format: 'pdf'
+        });
+        
+        const filename = `${contractType}_Agreement_${wizardData.projectNumber || 'DRAFT'}.pdf`;
+        const filepath = path.join(outputDir, filename);
+        
+        fs.writeFileSync(filepath, buffer);
+        console.log(`✓ Saved: ${filename} (${buffer.length} bytes)`);
+        
+        contracts.push({
+          id: `contract_${Date.now()}_${contractType}`,
+          type: contractType,
+          filename,
+          downloadUrl: `/api/contracts/download/${encodeURIComponent(filename)}`,
+          size: buffer.length,
+          generatedAt: new Date().toISOString()
+        });
+        
+      } catch (error: any) {
+        console.error(`✗ Failed to generate ${contractType}:`, error.message);
+        throw error;
+      }
+    }
+    
+    console.log('\n========================================');
+    console.log('✓ ALL CONTRACTS GENERATED SUCCESSFULLY');
+    console.log('========================================\n');
+    
+    res.json({
+      success: true,
+      projectId,
+      contracts
+    });
+    
+  } catch (error: any) {
+    console.error('Contract generation error:', error);
+    res.status(500).json({ 
+      error: 'Failed to generate contracts',
+      message: error.message
+    });
+  }
+});
+```
+
+STEP 4: TEST
+
+1. Run the dev server
+2. Load test project (2025-TEST-001)
+3. Navigate to Step 9
+4. Click "Generate Contract Package"
+5. Wait for generation (Puppeteer takes a few seconds)
+6. Download the three PDF files
+7. Open in PDF viewer and verify:
+   - Professional Google Docs-style formatting
+   - All clauses present
+   - CRC clauses included (since test project is CRC)
+   - All variables replaced (no {{VARIABLE_NAME}} remaining)
+   - Clean, readable layout
+
+EXPECTED OUTPUT:
+- ONE_Agreement_2025-TEST-001.pdf
+- MANUFACTURING_Agreement_2025-TEST-001.pdf
+- ONSITE_Agreement_2025-TEST-001.pdf
+
+All files should be professional PDFs ready for legal review.
+
+TROUBLESHOOTING:
+
+If Puppeteer fails to launch:
+- Check that Chrome/Chromium is available
+- Replit should have it installed by default
+- Check server logs for specific error
+
+If PDFs look wrong:
+- Check HTML output first (use format: 'html')
+- Verify clauses are being fetched
+- Check variable replacement in console logs
+
+This implementation is much simpler and cleaner than DOCX generation!
