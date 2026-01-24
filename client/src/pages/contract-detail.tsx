@@ -543,7 +543,14 @@ export default function ContractDetail() {
       )}
 
       {/* PDF Preview Dialog */}
-      <Dialog open={previewOpen} onOpenChange={closePreview}>
+      <Dialog 
+        open={previewOpen} 
+        onOpenChange={(open) => {
+          if (!open) {
+            closePreview();
+          }
+        }}
+      >
         <DialogContent className="max-w-5xl h-[90vh]" data-testid="dialog-pdf-preview">
           <DialogHeader>
             <DialogTitle>
