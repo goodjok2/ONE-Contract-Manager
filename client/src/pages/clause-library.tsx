@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
@@ -522,11 +523,10 @@ export default function ClauseLibrary() {
                       </div>
                       <div>
                         <label className="text-sm font-medium">Content</label>
-                        <Textarea
-                          value={editData.content || ""}
-                          onChange={(e) => setEditData({ ...editData, content: e.target.value })}
-                          rows={10}
-                          className="font-mono text-sm"
+                        <RichTextEditor
+                          content={editData.content || ""}
+                          onChange={(content) => setEditData({ ...editData, content })}
+                          className="mt-1"
                         />
                       </div>
                       <div className="grid grid-cols-2 gap-3">
