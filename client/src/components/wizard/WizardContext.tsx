@@ -1054,9 +1054,11 @@ export const WizardProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   // Load test draft for faster testing
   const loadTestDraft = useCallback(() => {
+    // Generate unique project number to avoid duplicates
+    const uniqueProjectNumber = `TEST-${Date.now().toString(36).toUpperCase()}`;
     setWizardState(prev => ({
       ...prev,
-      projectData: { ...prev.projectData, ...testDraftData },
+      projectData: { ...prev.projectData, ...testDraftData, projectNumber: uniqueProjectNumber },
       currentStep: 9,
       completedSteps: new Set([1, 2, 3, 4, 5, 6, 7, 8]),
     }));
@@ -1130,12 +1132,53 @@ export const WizardProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       await apiRequest('POST', `/api/projects/${projectId}/client`, clientPayload);
       setGenerationProgress(35);
       
-      // Step 2: Create Child LLC in project
+      // Step 2: Handle LLC (create new or use existing)
       setCurrentGenerationStep(2);
-      let createdLlcId: number | null = null;
+      let linkedLlcId: number | null = null;
+      let llcName: string = '';
       
-      if (pd.llcOption === 'new' && pd.childLlcName) {
-        // Create in llcs table (for LLC Admin)
+      if (pd.llcOption === 'existing' && pd.selectedExistingLlcId) {
+        // Use existing LLC - link to project
+        linkedLlcId = parseInt(pd.selectedExistingLlcId);
+        llcName = 'existing LLC';
+        
+        // Update project with LLC link
+        await apiRequest('PATCH', `/api/projects/${projectId}`, { llcId: linkedLlcId });
+        
+        // Also create child_llcs record using existing LLC's data for backwards compatibility
+        // Fetch the existing LLC details first
+        try {
+          const llcDetailsResponse = await fetch(`/api/llcs/${linkedLlcId}`);
+          if (llcDetailsResponse.ok) {
+            const existingLlc = await llcDetailsResponse.json();
+            // API returns snake_case - handle both snake_case and camelCase field names
+            const childLlcPayload = {
+              projectId,
+              legalName: existingLlc.name,
+              formationState: existingLlc.state_of_formation || existingLlc.stateOfFormation || 'Delaware',
+              entityType: 'LLC',
+              ein: existingLlc.ein_number || existingLlc.einNumber || null,
+              address: existingLlc.address || pd.siteAddress,
+              city: existingLlc.city || pd.siteCity,
+              state: existingLlc.state || pd.siteState,
+              zip: existingLlc.zip || pd.siteZip,
+            };
+            await apiRequest('POST', `/api/projects/${projectId}/child-llc`, childLlcPayload);
+            llcName = existingLlc.name;
+          } else {
+            throw new Error('Failed to fetch LLC details');
+          }
+        } catch (e) {
+          console.error('Child LLC creation from existing LLC failed:', e);
+          // Continue with generation but warn user
+          toast({
+            title: "Warning",
+            description: "LLC data may be incomplete. Please verify contract details.",
+            variant: "destructive",
+          });
+        }
+      } else if (pd.llcOption === 'new' && pd.childLlcName) {
+        // Create new LLC in llcs table (for LLC Admin)
         const llcPayload = {
           name: pd.childLlcName,
           projectName: pd.projectName,
@@ -1153,14 +1196,18 @@ export const WizardProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           const llcResponse = await apiRequest('POST', '/api/llcs', llcPayload);
           if (llcResponse.ok) {
             const llcData = await llcResponse.json();
-            createdLlcId = llcData.id;
+            linkedLlcId = llcData.id;
+            llcName = pd.childLlcName;
             queryClient.invalidateQueries({ queryKey: ['/api/llcs'] });
+            
+            // Update project with LLC link
+            await apiRequest('PATCH', `/api/projects/${projectId}`, { llcId: linkedLlcId });
           }
         } catch (e) {
           console.warn('LLC creation warning:', e);
         }
         
-        // Also create in child_llcs table (linked to project)
+        // Also create in child_llcs table (linked to project) for backwards compatibility
         const childLlcPayload = {
           projectId,
           legalName: pd.childLlcName,
@@ -1266,8 +1313,10 @@ export const WizardProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
       queryClient.invalidateQueries({ queryKey: ['/api/llcs'] });
       
-      const llcMessage = createdLlcId 
-        ? ` Child LLC "${pd.childLlcName}" was created.`
+      const llcMessage = linkedLlcId 
+        ? pd.llcOption === 'new' 
+          ? ` Child LLC "${llcName}" was created.`
+          : ` Linked to existing LLC.`
         : '';
       
       toast({

@@ -211,35 +211,46 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // Get dashboard stats
   app.get("/api/dashboard/stats", async (req, res) => {
     try {
-      const { count, or } = await import("drizzle-orm");
+      const { count, countDistinct, or, and, sql } = await import("drizzle-orm");
       
-      // Total contracts count
-      const totalResult = await db.select({ count: count() }).from(contracts);
+      // Count CONTRACT PACKAGES (unique projects with contracts) instead of individual contracts
+      // A package = 1 project with potentially multiple contracts (ONE, Manufacturing, OnSite)
+      const totalPackagesResult = await db
+        .select({ count: countDistinct(contracts.projectId) })
+        .from(contracts);
       
-      // Drafts count
-      const draftsResult = await db
-        .select({ count: count() })
-        .from(contracts)
-        .where(eq(contracts.status, 'Draft'));
+      // Get all contracts with their project IDs for status-based counting
+      const allContracts = await db
+        .select({
+          projectId: contracts.projectId,
+          contractType: contracts.contractType,
+          status: contracts.status,
+        })
+        .from(contracts);
       
-      // Pending review count  
-      const pendingResult = await db
-        .select({ count: count() })
-        .from(contracts)
-        .where(or(
-          eq(contracts.status, 'PendingReview'),
-          eq(contracts.status, 'Pending Review'),
-          eq(contracts.status, 'Pending')
-        ));
+      // Group by project and determine package status based on ONE Agreement status
+      const packagesByProject = new Map<number, { status: string }>();
+      allContracts.forEach(c => {
+        if (c.projectId && c.contractType === 'one_agreement') {
+          packagesByProject.set(c.projectId, { status: c.status || 'Draft' });
+        }
+      });
       
-      // Signed/Executed count
-      const signedResult = await db
-        .select({ count: count() })
-        .from(contracts)
-        .where(or(
-          eq(contracts.status, 'Executed'),
-          eq(contracts.status, 'Signed')
-        ));
+      // Count packages by status
+      let draftsCount = 0;
+      let pendingCount = 0;
+      let signedCount = 0;
+      
+      packagesByProject.forEach(pkg => {
+        const status = pkg.status.toLowerCase();
+        if (status === 'draft') {
+          draftsCount++;
+        } else if (status === 'pendingreview' || status === 'pending_review' || status === 'pending') {
+          pendingCount++;
+        } else if (status === 'executed' || status === 'signed') {
+          signedCount++;
+        }
+      });
       
       // Pending LLCs (forming status) - use llcs table which has status column
       const pendingLLCsResult = await db
@@ -250,28 +261,47 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           eq(llcs.status, 'forming')
         ));
       
-      // Active projects (non-draft contracts)
-      const activeProjectsResult = await db
-        .select({ count: count() })
-        .from(contracts)
-        .where(or(
-          eq(contracts.status, 'PendingReview'),
-          eq(contracts.status, 'Approved'),
-          eq(contracts.status, 'Sent'),
-          eq(contracts.status, 'Executed')
-        ));
+      // Active projects = packages not in draft status
+      const activeProjectsCount = packagesByProject.size - draftsCount;
+      
+      // Get contract values from financials (design fee + prelim costs as proxy for total value)
+      const financialsData = await db.select().from(financials);
+      const projectValues = new Map<number, number>();
+      financialsData.forEach(f => {
+        const value = ((f.designFee || 0) + (f.prelimOffsite || 0) + (f.prelimOnsite || 0)) / 100;
+        projectValues.set(f.projectId, value);
+      });
+      
+      // Calculate total contract value from packages
+      let totalValue = 0;
+      let draftsValue = 0;
+      let pendingValue = 0;
+      let signedValue = 0;
+      
+      packagesByProject.forEach((pkg, projectId) => {
+        const value = projectValues.get(projectId) || 0;
+        totalValue += value;
+        const status = pkg.status.toLowerCase();
+        if (status === 'draft') {
+          draftsValue += value;
+        } else if (status === 'pendingreview' || status === 'pending_review' || status === 'pending') {
+          pendingValue += value;
+        } else if (status === 'executed' || status === 'signed') {
+          signedValue += value;
+        }
+      });
       
       res.json({
-        totalContracts: totalResult[0]?.count ?? 0,
-        drafts: draftsResult[0]?.count ?? 0,
-        pendingReview: pendingResult[0]?.count ?? 0,
-        signed: signedResult[0]?.count ?? 0,
+        totalContracts: totalPackagesResult[0]?.count ?? 0,
+        drafts: draftsCount,
+        pendingReview: pendingCount,
+        signed: signedCount,
         pendingLLCs: pendingLLCsResult[0]?.count ?? 0,
-        activeProjects: activeProjectsResult[0]?.count ?? 0,
-        totalContractValue: 0, // TODO: Sum financials when available
-        draftsValue: 0,
-        pendingValue: 0,
-        signedValue: 0,
+        activeProjects: activeProjectsCount,
+        totalContractValue: totalValue,
+        draftsValue,
+        pendingValue,
+        signedValue,
       });
     } catch (error) {
       console.error("Failed to fetch dashboard stats:", error);
@@ -1052,7 +1082,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  // Get all contracts with project info
+  // Get all contract packages (grouped by project)
   app.get("/api/contracts", async (req, res) => {
     try {
       const allContracts = await db
@@ -1074,11 +1104,18 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         .leftJoin(projects, eq(contracts.projectId, projects.id))
         .orderBy(contracts.generatedAt);
       
+      // Get financials for contract values
+      const financialsData = await db.select().from(financials);
+      const projectValues = new Map<number, number>();
+      financialsData.forEach(f => {
+        const value = ((f.designFee || 0) + (f.prelimOffsite || 0) + (f.prelimOnsite || 0)) / 100;
+        projectValues.set(f.projectId, value);
+      });
+      
       // Normalize status to lowercase for UI StatusBadge compatibility
       const normalizeStatus = (status: string | null): string => {
         if (!status) return 'draft';
         const normalized = status.toLowerCase().replace(/\s+/g, '_');
-        // Map common variations (all keys are lowercase)
         const statusMap: Record<string, string> = {
           'draft': 'draft',
           'pendingreview': 'pending_review',
@@ -1092,16 +1129,65 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return statusMap[normalized] || 'draft';
       };
       
-      // Format response with computed title and clientName for UI compatibility
-      const formatted = allContracts.map(c => ({
-        ...c,
-        status: normalizeStatus(c.status),
-        title: `${c.projectName || 'Unknown Project'} - ${c.contractType?.replace('_', ' ').toUpperCase() || 'Contract'}`,
-        clientName: c.projectName || 'Unknown',
-        contractValue: null, // Will be populated from financials in the future
+      // Group contracts by project into packages
+      const packageMap = new Map<number, {
+        packageId: number;
+        projectId: number;
+        projectName: string;
+        projectNumber: string;
+        status: string;
+        contractValue: number;
+        generatedAt: string;
+        contracts: Array<{
+          id: number;
+          contractType: string;
+          fileName: string;
+          status: string;
+          generatedAt: string;
+        }>;
+      }>();
+      
+      allContracts.forEach(c => {
+        if (!c.projectId) return;
+        
+        const existing = packageMap.get(c.projectId);
+        const contractInfo = {
+          id: c.id,
+          contractType: c.contractType || '',
+          fileName: c.fileName || '',
+          status: normalizeStatus(c.status),
+          generatedAt: c.generatedAt?.toISOString() || '',
+        };
+        
+        if (existing) {
+          existing.contracts.push(contractInfo);
+          // Update package status from ONE Agreement
+          if (c.contractType === 'one_agreement') {
+            existing.status = normalizeStatus(c.status);
+          }
+        } else {
+          packageMap.set(c.projectId, {
+            packageId: c.projectId,
+            projectId: c.projectId,
+            projectName: c.projectName || 'Unknown Project',
+            projectNumber: c.projectNumber || '',
+            status: normalizeStatus(c.status),
+            contractValue: projectValues.get(c.projectId) || 0,
+            generatedAt: c.generatedAt?.toISOString() || '',
+            contracts: [contractInfo],
+          });
+        }
+      });
+      
+      // Convert to array and add computed fields
+      const packages = Array.from(packageMap.values()).map(pkg => ({
+        ...pkg,
+        title: `${pkg.projectName} Contract Package`,
+        clientName: pkg.projectName,
+        contractCount: pkg.contracts.length,
       }));
       
-      res.json(formatted);
+      res.json(packages);
     } catch (error) {
       console.error("Failed to fetch contracts:", error);
       res.status(500).json({ error: "Failed to fetch contracts" });

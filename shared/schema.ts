@@ -14,6 +14,7 @@ export const projects = pgTable("projects", {
   status: text("status").default("Draft").notNull(), // Draft, Design, GreenLight, Production, Delivered, Complete
   state: text("state"), // Project state (CA, TX, AZ, etc.)
   onSiteSelection: text("on_site_selection").default("CRC"), // CRC or CMOS
+  llcId: integer("llc_id"), // Link to LLC - supports one-to-many (one LLC can serve multiple projects)
   odooProjectId: integer("odoo_project_id"), // Link to Odoo
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
