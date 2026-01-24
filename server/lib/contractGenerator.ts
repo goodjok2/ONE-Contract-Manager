@@ -842,7 +842,7 @@ function formatContent(content: string): string {
       const numContent = formatInlineStyles(escapeHtml(numberedListMatch[2]));
       // Use the letter from the content for proper referencing
       const letter = numberedListMatch[1];
-      listHtml += `<p style="margin-bottom: 6pt; margin-left: 16pt;"><strong>${letter}.</strong> ${numContent}</p>`;
+      listHtml += `<p style="margin-bottom: 6pt; margin-left: 24pt; text-indent: -16pt; padding-left: 16pt;"><strong>${letter}.</strong> ${numContent}</p>`;
     } else {
       // Close any open lists
       if (inBulletList) {
