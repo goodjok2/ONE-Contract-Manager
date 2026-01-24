@@ -559,40 +559,40 @@ function renderClausesHTML(clauses: Clause[], projectData: Record<string, any>):
     if (hierarchyLevel === 1) {
       if (isRomanSection) {
         // Roman numeral section header (I. ATTACHMENTS, II. AGREEMENT)
+        // Only show the name, not the clause_code to avoid duplication
         html += `
           <div class="roman-section">
-            ${escapeHtml(clauseCode)} ${escapeHtml(clauseName.toUpperCase())}
+            ${escapeHtml(clauseName.toUpperCase())}
           </div>
           ${content ? `<p>${content}</p>` : ''}
         `;
       } else {
-        // Section header (Section 1. Scope of Services)
+        // Section header - only show the name, not the clause_code
         html += `
           <div class="section-header">
-            ${clauseCode ? `Section ${escapeHtml(clauseCode)} ` : ''}${escapeHtml(clauseName)}
+            ${escapeHtml(clauseName)}
           </div>
           ${content ? `<p>${content}</p>` : ''}
         `;
       }
     } else if (hierarchyLevel === 2) {
-      // Subsection (1.1. Overview)
+      // Subsection - only show the name, not the clause_code
       html += `
         <div class="subsection-header">
-          ${clauseCode ? `${escapeHtml(clauseCode)} ` : ''}${escapeHtml(clauseName)}
+          ${escapeHtml(clauseName)}
         </div>
         ${content ? `<p>${content}</p>` : ''}
       `;
     } else {
-      // Paragraph level (1.1.1 or deeper)
-      if (clauseCode && clauseCode.trim()) {
+      // Paragraph level - only show name and content, not clause_code
+      if (clauseName && clauseName.trim()) {
         html += `
           <div class="inline-clause">
-            <span class="paragraph-header">${escapeHtml(clauseCode)}</span>
-            ${clauseName ? ` <span style="font-weight: bold;">${escapeHtml(clauseName)}.</span>` : ''}
+            <span style="font-weight: bold;">${escapeHtml(clauseName)}.</span>
             ${content}
           </div>
         `;
-      } else {
+      } else if (content) {
         html += `<p class="indented">${content}</p>`;
       }
     }
