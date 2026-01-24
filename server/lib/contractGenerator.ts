@@ -805,7 +805,7 @@ function formatContent(content: string): string {
       if (!inBulletList) {
         // Close numbered list if open
         if (inNumberedList) {
-          html += `<ol style="margin: 8pt 0 8pt 24pt; padding-left: 16pt;">${listHtml}</ol>`;
+          html += `<div style="margin: 8pt 0 8pt 24pt;">${listHtml}</div>`;
           listHtml = '';
           inNumberedList = false;
         }
@@ -821,7 +821,7 @@ function formatContent(content: string): string {
         inBulletList = false;
       }
       if (inNumberedList) {
-        html += `<ol style="margin: 8pt 0 8pt 24pt; padding-left: 16pt;">${listHtml}</ol>`;
+        html += `<div style="margin: 8pt 0 8pt 24pt;">${listHtml}</div>`;
         listHtml = '';
         inNumberedList = false;
       }
@@ -840,7 +840,9 @@ function formatContent(content: string): string {
         inNumberedList = true;
       }
       const numContent = formatInlineStyles(escapeHtml(numberedListMatch[2]));
-      listHtml += `<li style="margin-bottom: 6pt;">${numContent}</li>`;
+      // Use the letter from the content for proper referencing
+      const letter = numberedListMatch[1];
+      listHtml += `<p style="margin-bottom: 6pt; margin-left: 16pt;"><strong>${letter}.</strong> ${numContent}</p>`;
     } else {
       // Close any open lists
       if (inBulletList) {
@@ -849,7 +851,7 @@ function formatContent(content: string): string {
         inBulletList = false;
       }
       if (inNumberedList) {
-        html += `<ol style="margin: 8pt 0 8pt 24pt; padding-left: 16pt;">${listHtml}</ol>`;
+        html += `<div style="margin: 8pt 0 8pt 24pt;">${listHtml}</div>`;
         listHtml = '';
         inNumberedList = false;
       }
@@ -874,7 +876,7 @@ function formatContent(content: string): string {
     html += `<ul style="margin: 8pt 0 8pt 24pt; list-style-type: circle; padding-left: 16pt;">${listHtml}</ul>`;
   }
   if (inNumberedList) {
-    html += `<ol style="margin: 8pt 0 8pt 24pt; padding-left: 16pt;">${listHtml}</ol>`;
+    html += `<div style="margin: 8pt 0 8pt 24pt;">${listHtml}</div>`;
   }
   
   return html;
@@ -986,7 +988,7 @@ function formatNonTableContent(content: string): string {
       if (!inBulletList) {
         // Close numbered list if open
         if (inNumberedList) {
-          html += `<ol style="margin: 8pt 0 8pt 24pt; padding-left: 16pt;">${listHtml}</ol>`;
+          html += `<div style="margin: 8pt 0 8pt 24pt;">${listHtml}</div>`;
           listHtml = '';
           inNumberedList = false;
         }
