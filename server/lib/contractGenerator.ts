@@ -815,12 +815,25 @@ function formatInlineStyles(text: string): string {
 }
 
 function formatTableContent(content: string): string {
-  const lines = content.split('\n').filter(line => line.trim());
-  let html = '<table>';
+  const lines = content.split('\n');
+  let html = '';
+  let tableHtml = '<table>';
   let isFirstRow = true;
+  let inTable = false;
+  let tableEnded = false;
+  let remainingContent: string[] = [];
   
-  for (const line of lines) {
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    
+    // If we've ended the table, collect remaining content
+    if (tableEnded) {
+      remainingContent.push(line);
+      continue;
+    }
+    
     if (line.includes('|')) {
+      inTable = true;
       const cells = line.split('|').map(cell => cell.trim()).filter(cell => cell);
       
       // Skip separator rows (----)
@@ -829,30 +842,129 @@ function formatTableContent(content: string): string {
       }
       
       if (isFirstRow) {
-        html += '<thead><tr>';
+        tableHtml += '<thead><tr>';
         for (const cell of cells) {
-          html += `<th>${escapeHtml(cell)}</th>`;
+          tableHtml += `<th>${escapeHtml(cell)}</th>`;
         }
-        html += '</tr></thead><tbody>';
+        tableHtml += '</tr></thead><tbody>';
         isFirstRow = false;
       } else {
         // Check if this is a total row
         const isTotalRow = cells.some(cell => /total|sum|subtotal/i.test(cell));
-        html += `<tr${isTotalRow ? ' class="total-row"' : ''}>`;
+        tableHtml += `<tr${isTotalRow ? ' class="total-row"' : ''}>`;
         for (const cell of cells) {
-          html += `<td>${escapeHtml(cell)}</td>`;
+          tableHtml += `<td>${escapeHtml(cell)}</td>`;
         }
-        html += '</tr>';
+        tableHtml += '</tr>';
       }
     } else {
-      // Non-table line, add as a spanning cell or skip
-      if (line.trim()) {
-        html += `<tr><td colspan="100">${escapeHtml(line)}</td></tr>`;
+      // Non-table line
+      if (inTable && line.trim()) {
+        // We were in a table but hit a non-table line - table has ended
+        tableEnded = true;
+        remainingContent.push(line);
+      } else if (!inTable && line.trim()) {
+        // Content before the table starts
+        remainingContent.push(line);
+      }
+      // Empty lines are ignored
+    }
+  }
+  
+  tableHtml += '</tbody></table>';
+  
+  // Build final HTML: table + remaining content formatted normally
+  html = tableHtml;
+  
+  // Format remaining content (after the table)
+  if (remainingContent.length > 0) {
+    const remainingText = remainingContent.join('\n');
+    html += formatNonTableContent(remainingText);
+  }
+  
+  return html;
+}
+
+// Helper to format content that is NOT a table (used after table extraction)
+function formatNonTableContent(content: string): string {
+  if (!content || !content.trim()) return '';
+  
+  let html = '';
+  const lines = content.split('\n');
+  let inBulletList = false;
+  let inNumberedList = false;
+  let listHtml = '';
+  
+  for (let i = 0; i < lines.length; i++) {
+    let line = lines[i];
+    
+    // Detect bullet points (•, -, ○, ◦)
+    const bulletMatch = line.match(/^[\s]*([-•○◦])\s+(.+)$/);
+    // Detect numbered lists (1., 2., etc. at start of line - main numbered items)
+    const numberedMatch = line.match(/^(\d+)\.\s+(.+)$/);
+    
+    if (bulletMatch) {
+      if (!inBulletList) {
+        // Close numbered list if open
+        if (inNumberedList) {
+          html += `<ol style="margin: 8pt 0 8pt 24pt; padding-left: 16pt;">${listHtml}</ol>`;
+          listHtml = '';
+          inNumberedList = false;
+        }
+        inBulletList = true;
+      }
+      const bulletContent = formatInlineStyles(escapeHtml(bulletMatch[2]));
+      listHtml += `<li style="margin-bottom: 6pt;">${bulletContent}</li>`;
+    } else if (numberedMatch) {
+      if (!inNumberedList) {
+        // Close bullet list if open
+        if (inBulletList) {
+          html += `<ul style="margin: 8pt 0 8pt 24pt; list-style-type: disc; padding-left: 16pt;">${listHtml}</ul>`;
+          listHtml = '';
+          inBulletList = false;
+        }
+        inNumberedList = true;
+      }
+      const numContent = formatInlineStyles(escapeHtml(numberedMatch[2]));
+      // Check if this numbered item has a bold heading (like "4. Important Notes")
+      const headingMatch = numberedMatch[2].match(/^([^:]+):?\s*$/);
+      if (headingMatch && !numberedMatch[2].includes('.')) {
+        // This is a section heading like "Important Notes"
+        html += `<p style="margin-top: 16pt; margin-bottom: 8pt; font-weight: bold;">${numberedMatch[1]}. ${escapeHtml(headingMatch[1])}</p>`;
+        inNumberedList = false;
+        listHtml = '';
+      } else {
+        listHtml += `<li value="${numberedMatch[1]}" style="margin-bottom: 6pt;">${numContent}</li>`;
+      }
+    } else {
+      // Close any open lists
+      if (inBulletList) {
+        html += `<ul style="margin: 8pt 0 8pt 24pt; list-style-type: disc; padding-left: 16pt;">${listHtml}</ul>`;
+        listHtml = '';
+        inBulletList = false;
+      }
+      if (inNumberedList) {
+        html += `<ol style="margin: 8pt 0 8pt 24pt; padding-left: 16pt;">${listHtml}</ol>`;
+        listHtml = '';
+        inNumberedList = false;
+      }
+      
+      const trimmedLine = line.trim();
+      if (trimmedLine) {
+        const formattedLine = formatInlineStyles(escapeHtml(trimmedLine));
+        html += `<p style="margin-bottom: 8pt;">${formattedLine}</p>`;
       }
     }
   }
   
-  html += '</tbody></table>';
+  // Close any remaining open lists
+  if (inBulletList) {
+    html += `<ul style="margin: 8pt 0 8pt 24pt; list-style-type: disc; padding-left: 16pt;">${listHtml}</ul>`;
+  }
+  if (inNumberedList) {
+    html += `<ol style="margin: 8pt 0 8pt 24pt; padding-left: 16pt;">${listHtml}</ol>`;
+  }
+  
   return html;
 }
 
