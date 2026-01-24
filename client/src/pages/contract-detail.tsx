@@ -23,6 +23,113 @@ import {
 import { useState, useCallback } from "react";
 import { Eye } from "lucide-react";
 
+// HTML escape function for XSS protection
+const escapeHtml = (text: string): string => {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+};
+
+// Format clause content: convert markdown tables/bullets to HTML
+const formatContent = (content: string): string => {
+  if (!content) return '';
+  
+  const lines = content.split('\n');
+  const outputBlocks: string[] = [];
+  let i = 0;
+  
+  while (i < lines.length) {
+    const line = lines[i].trim();
+    
+    // Detect table: line starts and ends with | and has multiple cells
+    if (line.startsWith('|') && line.endsWith('|') && line.split('|').length > 2) {
+      const tableLines: string[] = [];
+      while (i < lines.length) {
+        const tLine = lines[i].trim();
+        if (tLine.startsWith('|') && tLine.endsWith('|')) {
+          tableLines.push(tLine);
+          i++;
+        } else {
+          break;
+        }
+      }
+      
+      let tableHtml = '<table class="w-full text-sm border-collapse mb-4"><tbody>';
+      let isHeader = true;
+      
+      for (const tLine of tableLines) {
+        // Skip separator rows (|---|---|---| with any number of columns)
+        if (tLine.match(/^\|[\s\-:|]+\|$/)) continue;
+        
+        const cells = tLine.split('|').slice(1, -1).map(c => escapeHtml(c.trim()));
+        if (cells.length > 0) {
+          const tag = isHeader ? 'th' : 'td';
+          const cellClass = isHeader 
+            ? 'border border-border bg-muted/50 px-3 py-2 text-left font-medium'
+            : 'border border-border px-3 py-2';
+          tableHtml += `<tr>${cells.map(c => `<${tag} class="${cellClass}">${c}</${tag}>`).join('')}</tr>`;
+          isHeader = false;
+        }
+      }
+      tableHtml += '</tbody></table>';
+      outputBlocks.push(tableHtml);
+      continue;
+    }
+    
+    // Detect bullet list: line starts with • or - followed by space
+    if (line.startsWith('•') || (line.startsWith('- ') && !line.startsWith('---'))) {
+      const listItems: string[] = [];
+      while (i < lines.length) {
+        const bulletLine = lines[i].trim();
+        if (bulletLine.startsWith('•') || (bulletLine.startsWith('- ') && !bulletLine.startsWith('---'))) {
+          listItems.push(escapeHtml(bulletLine.replace(/^[•\-]\s*/, '')));
+          i++;
+        } else {
+          break;
+        }
+      }
+      const listHtml = `<ul class="list-disc pl-4 my-2">${listItems.map(item => `<li class="ml-4">${item}</li>`).join('')}</ul>`;
+      outputBlocks.push(listHtml);
+      continue;
+    }
+    
+    // Empty line creates paragraph break (skip consecutive empties)
+    if (line === '') {
+      if (outputBlocks.length === 0 || !outputBlocks[outputBlocks.length - 1].endsWith('<br/>')) {
+        outputBlocks.push('<br/>');
+      }
+      i++;
+      continue;
+    }
+    
+    // Regular text - collect consecutive non-special lines
+    const textLines: string[] = [];
+    while (i < lines.length) {
+      const tLine = lines[i].trim();
+      const isBullet = tLine.startsWith('•') || (tLine.startsWith('- ') && !tLine.startsWith('---'));
+      const isTable = tLine.startsWith('|') && tLine.endsWith('|');
+      if (tLine === '' || isBullet || isTable) {
+        break;
+      }
+      textLines.push(escapeHtml(tLine));
+      i++;
+    }
+    if (textLines.length > 0) {
+      outputBlocks.push(`<p class="my-1">${textLines.join('<br/>')}</p>`);
+    }
+  }
+  
+  let formatted = outputBlocks.join('');
+  
+  // Wrap in container
+  formatted = `<div class="prose prose-sm max-w-none dark:prose-invert">${formatted}</div>`;
+  
+  // Highlight variables
+  formatted = formatted.replace(/\{\{([A-Z0-9_]+)\}\}/g, '<span class="bg-primary/20 text-primary px-1 rounded font-mono text-sm">{{$1}}</span>');
+  
+  return formatted;
+};
+
 interface Contract {
   id: number;
   projectId: number;
@@ -492,8 +599,8 @@ export default function ContractDetail() {
                   <CollapsibleContent>
                     <div className="p-4 ml-7 border-l-2 border-muted mt-1">
                       <div 
-                        className="text-sm prose prose-sm dark:prose-invert max-w-none"
-                        dangerouslySetInnerHTML={{ __html: clause.content }}
+                        className="text-sm"
+                        dangerouslySetInnerHTML={{ __html: formatContent(clause.content) }}
                       />
                     </div>
                   </CollapsibleContent>
