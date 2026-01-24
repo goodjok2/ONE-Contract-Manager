@@ -1238,7 +1238,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  // Get clauses for a contract based on contract type
+  // Get clauses for a contract based on contract type (with variable substitution)
   app.get("/api/contracts/:id/clauses", async (req, res) => {
     try {
       const contractId = parseInt(req.params.id);
@@ -1270,7 +1270,37 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       `;
       
       const result = await pool.query(clauseQuery, [templateType]);
-      res.json(result.rows);
+      
+      // Get project data for variable substitution
+      let variables: Record<string, string | number | boolean | null> = {};
+      if (contract.projectId) {
+        const projectData = await getProjectWithRelations(contract.projectId);
+        if (projectData) {
+          variables = mapProjectToVariables(projectData);
+        }
+      }
+      
+      // Replace variables in clause content
+      const clausesWithValues = result.rows.map((clause: any) => {
+        let content = clause.content || '';
+        
+        // Replace all {{VARIABLE_NAME}} patterns with actual values
+        content = content.replace(/\{\{([A-Z0-9_]+)\}\}/g, (match: string, varName: string) => {
+          const value = variables[varName];
+          if (value !== null && value !== undefined && value !== '') {
+            return String(value);
+          }
+          // Keep the placeholder if no value (will be highlighted in UI)
+          return match;
+        });
+        
+        return {
+          ...clause,
+          content
+        };
+      });
+      
+      res.json(clausesWithValues);
     } catch (error) {
       console.error("Failed to fetch contract clauses:", error);
       res.status(500).json({ error: "Failed to fetch clauses" });
