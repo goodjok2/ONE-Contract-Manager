@@ -644,6 +644,62 @@ export function mapProjectToVariables(data: ProjectWithRelations): ContractVaria
     HAS_MULTIPLE_CLIENTS: !!client?.client2LegalName,
     HAS_MANUFACTURER: !!manufacturer,
     HAS_ONSITE_CONTRACTOR: !!onsiteContractor,
+
+    // ===================
+    // CLAUSE VARIABLE ALIASES
+    // These match the exact variable names used in clauses
+    // ===================
+    ON_SITE_SERVICES_SELECTION: project.onSiteSelection === "CRC" 
+      ? "Client-Retained Contractor" 
+      : project.onSiteSelection === "CMOS" 
+        ? "Company-Managed On-Site Services" 
+        : project.onSiteSelection || "CRC",
+    
+    // Pricing aliases to match clause variable names
+    PRELIMINARY_CONTRACT_PRICE: formatCentsAsCurrency(financials?.prelimContractPrice),
+    PRELIMINARY_OFFSITE_PRICE: formatCentsAsCurrency(financials?.prelimOffsite),
+    PRELIMINARY_ONSITE_PRICE: formatCentsAsCurrency(financials?.prelimOnsite),
+    PRELIMINARY_TOTAL_PRICE: formatCentsAsCurrency(financials?.prelimContractPrice),
+    
+    // Child LLC aliases (clauses use DVELE_PARTNERS_XYZ format)
+    DVELE_PARTNERS_XYZ: childLlc?.legalName?.replace(/ LLC$/, '').replace(/, LLC$/, '') || "Dvele Partners",
+    DVELE_PARTNERS_XYZ_LEGAL_NAME: childLlc?.legalName || "",
+    DVELE_PARTNERS_XYZ_STATE: childLlc?.formationState || "Delaware",
+    DVELE_PARTNERS_XYZ_ENTITY_TYPE: "limited liability company",
+    DP_X: childLlc?.legalName || "",
+    DP_X_STATE: childLlc?.formationState || "Delaware",
+    
+    // Contract price alias
+    CONTRACT_PRICE: formatCentsAsCurrency(financials?.prelimContractPrice || financials?.finalContractPrice),
+    
+    // Effective date alias
+    EFFECTIVE_DATE: projectDetails?.agreementExecutionDate || "",
+    
+    // Client signer info - use existing fields
+    CLIENT_FULL_NAME: client?.legalName || "",
+    CLIENT_TITLE: client?.entityType || "",
+    
+    // Milestone percent aliases - get from milestones array
+    MILESTONE_1_PERCENT: milestones.find(m => m.milestoneNumber === 1)?.percentage?.toString() || "20",
+    MILESTONE_2_PERCENT: milestones.find(m => m.milestoneNumber === 2)?.percentage?.toString() || "20",
+    MILESTONE_3_PERCENT: milestones.find(m => m.milestoneNumber === 3)?.percentage?.toString() || "20",
+    MILESTONE_4_PERCENT: milestones.find(m => m.milestoneNumber === 4)?.percentage?.toString() || "20",
+    MILESTONE_5_PERCENT: milestones.find(m => m.milestoneNumber === 5)?.percentage?.toString() || "15",
+    RETAINAGE_PERCENT: "5",
+    RETAINAGE_DAYS: "60",
+    
+    // Project location aliases
+    PROJECT_COUNTY: projectDetails?.deliveryCounty || "",
+    PROJECT_FEDERAL_DISTRICT: "",
+    PROJECT_STATE_CODE: project.state || "",
+    
+    // Home model alias
+    HOME_MODEL_1: projectDetails?.homeModel || "",
+    
+    // Warranty aliases to match clause naming (use correct property names)
+    DVELE_FIT_FINISH_WARRANTY: warrantyTerms?.dveleFitFinishMonths?.toString() || "24",
+    DVELE_ENVELOPE_WARRANTY: warrantyTerms?.dveleBuildingEnvelopeMonths?.toString() || "60",
+    DVELE_STRUCTURAL_WARRANTY: warrantyTerms?.dveleStructuralMonths?.toString() || "120",
   };
 
   return variables;
