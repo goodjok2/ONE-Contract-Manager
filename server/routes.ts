@@ -466,6 +466,27 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  app.post("/api/projects/:projectId/financials", async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.projectId);
+      const [existing] = await db.select().from(financials).where(eq(financials.projectId, projectId));
+      if (existing) {
+        const [result] = await db
+          .update(financials)
+          .set(req.body)
+          .where(eq(financials.projectId, projectId))
+          .returning();
+        res.json(result);
+      } else {
+        const [result] = await db.insert(financials).values({ ...req.body, projectId }).returning();
+        res.json(result);
+      }
+    } catch (error) {
+      console.error("Failed to create/update financials:", error);
+      res.status(500).json({ error: "Failed to create/update financials" });
+    }
+  });
+
   app.patch("/api/projects/:projectId/financials", async (req, res) => {
     try {
       const projectId = parseInt(req.params.projectId);
@@ -952,6 +973,17 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     } catch (error) {
       console.error("Failed to fetch contracts:", error);
       res.status(500).json({ error: "Failed to fetch contracts" });
+    }
+  });
+
+  // Create new contract
+  app.post("/api/contracts", async (req, res) => {
+    try {
+      const [result] = await db.insert(contracts).values(req.body).returning();
+      res.json(result);
+    } catch (error) {
+      console.error("Failed to create contract:", error);
+      res.status(500).json({ error: "Failed to create contract" });
     }
   });
 

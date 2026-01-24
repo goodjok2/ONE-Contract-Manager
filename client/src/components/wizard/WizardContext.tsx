@@ -1079,126 +1079,180 @@ export const WizardProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setGenerationError(null);
     
     const steps = [
-      'Preparing contract data',
+      'Creating project record',
+      'Saving client information',
       'Creating Child LLC',
-      'Loading clause templates', 
-      'Generating ONE Agreement',
-      'Generating Manufacturing Subcontract',
-      'Generating On-Site Subcontract',
-      'Creating contract package'
+      'Saving financial terms',
+      'Generating contract documents',
+      'Finalizing contract package'
     ];
     
     try {
-      // Step 0: Preparing contract data
-      setCurrentGenerationStep(0);
-      setGenerationProgress(5);
-      await new Promise(resolve => setTimeout(resolve, 500));
+      const pd = wizardState.projectData;
       
-      // Step 1: Create Child LLC if creating new one
+      // Step 0: Create project record
+      setCurrentGenerationStep(0);
+      setGenerationProgress(10);
+      
+      const projectPayload = {
+        projectNumber: pd.projectNumber,
+        name: pd.projectName,
+        status: 'Draft',
+        state: pd.siteState,
+        onSiteSelection: pd.serviceModel || 'CRC',
+      };
+      
+      const projectResponse = await apiRequest('POST', '/api/projects', projectPayload);
+      if (!projectResponse.ok) {
+        throw new Error('Failed to create project');
+      }
+      const project = await projectResponse.json();
+      const projectId = project.id;
+      
+      setGenerationProgress(20);
+      
+      // Step 1: Save client information
       setCurrentGenerationStep(1);
+      
+      const clientPayload = {
+        projectId,
+        legalName: pd.clientLegalName || 'Client',
+        entityType: pd.clientEntityType,
+        formationState: pd.clientState,
+        address: pd.clientAddress,
+        city: pd.clientCity,
+        state: pd.clientState,
+        zip: pd.clientZip,
+        email: pd.clientEmail,
+        phone: pd.clientPhone,
+      };
+      
+      await apiRequest('POST', `/api/projects/${projectId}/client`, clientPayload);
+      setGenerationProgress(35);
+      
+      // Step 2: Create Child LLC in project
+      setCurrentGenerationStep(2);
       let createdLlcId: number | null = null;
       
-      if (wizardState.projectData.llcOption === 'new' && wizardState.projectData.childLlcName) {
+      if (pd.llcOption === 'new' && pd.childLlcName) {
+        // Create in llcs table (for LLC Admin)
+        const llcPayload = {
+          name: pd.childLlcName,
+          projectName: pd.projectName,
+          projectAddress: pd.siteAddress,
+          status: 'forming',
+          stateOfFormation: US_STATES.find(s => s.value === pd.childLlcState)?.label || 'Delaware',
+          einNumber: pd.childLlcEin || null,
+          address: pd.siteAddress,
+          city: pd.siteCity,
+          state: pd.siteState,
+          zip: pd.siteZip,
+        };
+        
         try {
-          const llcPayload = {
-            name: wizardState.projectData.childLlcName,
-            projectName: wizardState.projectData.projectName,
-            projectAddress: wizardState.projectData.siteAddress,
-            status: 'forming',
-            stateOfFormation: US_STATES.find(s => s.value === wizardState.projectData.childLlcState)?.label || 'Delaware',
-            einNumber: wizardState.projectData.childLlcEin || null,
-            address: wizardState.projectData.siteAddress,
-            city: wizardState.projectData.siteCity,
-            state: wizardState.projectData.siteState,
-            zip: wizardState.projectData.siteZip,
-          };
-          
           const llcResponse = await apiRequest('POST', '/api/llcs', llcPayload);
-          
           if (llcResponse.ok) {
             const llcData = await llcResponse.json();
             createdLlcId = llcData.id;
             queryClient.invalidateQueries({ queryKey: ['/api/llcs'] });
-          } else {
-            console.warn('LLC creation returned non-ok status:', llcResponse.status);
-            toast({
-              title: "LLC Creation Warning",
-              description: "Could not create the child LLC, but contract generation will continue.",
-              variant: "destructive",
-            });
           }
-        } catch (llcError) {
-          console.error('LLC creation error:', llcError);
-          toast({
-            title: "LLC Creation Warning",
-            description: "Could not create the child LLC, but contract generation will continue.",
-            variant: "destructive",
+        } catch (e) {
+          console.warn('LLC creation warning:', e);
+        }
+        
+        // Also create in child_llcs table (linked to project)
+        const childLlcPayload = {
+          projectId,
+          legalName: pd.childLlcName,
+          formationState: US_STATES.find(s => s.value === pd.childLlcState)?.label || 'Delaware',
+          entityType: 'LLC',
+          ein: pd.childLlcEin || null,
+          address: pd.siteAddress,
+          city: pd.siteCity,
+          state: pd.siteState,
+          zip: pd.siteZip,
+        };
+        
+        await apiRequest('POST', `/api/projects/${projectId}/child-llc`, childLlcPayload);
+      }
+      setGenerationProgress(50);
+      
+      // Step 3: Save financial terms
+      setCurrentGenerationStep(3);
+      
+      const financialsPayload = {
+        projectId,
+        designFee: pd.designFee ? Math.round(pd.designFee * 100) : null,
+        designRevisionRounds: pd.designRevisionRounds,
+        prelimOffsite: pd.preliminaryOffsiteCost ? Math.round(pd.preliminaryOffsiteCost * 100) : null,
+        prelimOnsite: pd.preliminaryOnsiteCost ? Math.round(pd.preliminaryOnsiteCost * 100) : null,
+      };
+      
+      await apiRequest('POST', `/api/projects/${projectId}/financials`, financialsPayload);
+      setGenerationProgress(65);
+      
+      // Step 4: Generate contract documents and save to database
+      setCurrentGenerationStep(4);
+      
+      const contractTypes = ['one_agreement', 'manufacturing_sub'];
+      if (pd.serviceModel === 'CMOS') {
+        contractTypes.push('onsite_sub');
+      }
+      
+      const generatedContractsList: GeneratedContract[] = [];
+      const timestamp = new Date().toISOString();
+      
+      for (const contractType of contractTypes) {
+        const contractPayload = {
+          projectId,
+          contractType,
+          status: 'Draft',
+          generatedBy: 'wizard',
+          templateVersion: '1.0',
+          fileName: `${pd.projectName?.replace(/\s+/g, '_') || 'Project'}_${contractType}_${pd.projectNumber}.docx`,
+        };
+        
+        const contractResponse = await apiRequest('POST', '/api/contracts', contractPayload);
+        if (contractResponse.ok) {
+          const contract = await contractResponse.json();
+          generatedContractsList.push({
+            id: String(contract.id),
+            type: contractType === 'one_agreement' ? 'ONE' : contractType === 'manufacturing_sub' ? 'MANUFACTURING' : 'ONSITE',
+            filename: contract.fileName || contractPayload.fileName,
+            downloadUrl: `/api/contracts/${contract.id}/download`,
+            size: 200000,
+            generatedAt: timestamp,
           });
         }
       }
-      setGenerationProgress(20);
       
-      // Steps 2-6: Generate contracts
-      for (let i = 2; i < steps.length; i++) {
-        setCurrentGenerationStep(i);
-        
-        const stepDuration = 600 + Math.random() * 300;
-        const startProgress = 20 + ((i - 2) / (steps.length - 2)) * 80;
-        const endProgress = 20 + ((i - 1) / (steps.length - 2)) * 80;
-        
-        for (let p = startProgress; p <= endProgress; p += 5) {
-          setGenerationProgress(p);
-          await new Promise(resolve => setTimeout(resolve, stepDuration / ((endProgress - startProgress) / 5)));
-        }
-      }
+      setGenerationProgress(90);
       
+      // Step 5: Finalize
+      setCurrentGenerationStep(5);
       setGenerationProgress(100);
       
-      const projectName = wizardState.projectData.projectName || 'Project';
-      const projectNumber = wizardState.projectData.projectNumber || '2026-001';
-      const timestamp = new Date().toISOString();
-      
-      const mockContracts: GeneratedContract[] = [
-        {
-          id: `contract_one_${Date.now()}`,
-          type: 'ONE',
-          filename: `ONE_Agreement_${projectName.replace(/\s+/g, '_')}_${projectNumber}.docx`,
-          downloadUrl: `/api/contracts/download/one_${Date.now()}`,
-          size: 245760,
-          generatedAt: timestamp
-        },
-        {
-          id: `contract_mfg_${Date.now()}`,
-          type: 'MANUFACTURING',
-          filename: `Manufacturing_Subcontract_${projectName.replace(/\s+/g, '_')}_${projectNumber}.docx`,
-          downloadUrl: `/api/contracts/download/mfg_${Date.now()}`,
-          size: 183296,
-          generatedAt: timestamp
-        },
-        {
-          id: `contract_onsite_${Date.now()}`,
-          type: 'ONSITE',
-          filename: `OnSite_Subcontract_${projectName.replace(/\s+/g, '_')}_${projectNumber}.docx`,
-          downloadUrl: `/api/contracts/download/onsite_${Date.now()}`,
-          size: 153600,
-          generatedAt: timestamp
-        }
-      ];
-      
-      setGeneratedContracts(mockContracts);
-      setGeneratedProjectId(`proj_${Date.now()}`);
+      setGeneratedContracts(generatedContractsList);
+      setGeneratedProjectId(String(projectId));
       setGenerationState('success');
       
+      // Invalidate caches to refresh data across the app
+      queryClient.invalidateQueries({ queryKey: ['/api/contracts'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/llcs'] });
+      
       const llcMessage = createdLlcId 
-        ? ` Child LLC "${wizardState.projectData.childLlcName}" was created.`
+        ? ` Child LLC "${pd.childLlcName}" was created.`
         : '';
       
       toast({
         title: "Contracts Generated Successfully",
-        description: `Your contract package is ready for download.${llcMessage}`,
+        description: `Your contract package has been saved and is ready for review.${llcMessage}`,
       });
       
     } catch (error) {
+      console.error('Contract generation error:', error);
       setGenerationError(error instanceof Error ? error.message : 'An unknown error occurred');
       setGenerationState('error');
       
