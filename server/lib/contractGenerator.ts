@@ -138,7 +138,12 @@ function generateHTMLFromClauses(
   <style>
     @page {
       size: letter;
-      margin: 1in 1in 0.75in 1in;
+      margin: 1in 1in 1in 1in;
+      @bottom-center {
+        content: counter(page);
+        font-family: 'Times New Roman', Times, serif;
+        font-size: 10pt;
+      }
     }
     
     * {
@@ -786,74 +791,89 @@ function formatContent(content: string): string {
   
   let html = '';
   const lines = content.split('\n');
-  let inBulletList = false;
-  let inNumberedList = false;
-  let listHtml = '';
+  let inRomanList = false;      // Level 1: i., ii., iii.
+  let inLetterList = false;     // Level 2: a., b., c.
+  let romanListHtml = '';
+  let letterListHtml = '';
+  
+  // Indentation constants (matching Google Doc style)
+  const ROMAN_INDENT = '36pt';      // First level indent
+  const LETTER_INDENT = '72pt';     // Second level indent (nested under roman)
   
   for (let i = 0; i < lines.length; i++) {
     let line = lines[i];
     
-    // Detect bullet points (•, -, ○, ◦)
-    const bulletMatch = line.match(/^[\s]*([-•○◦])\s+(.+)$/);
+    // Detect roman numeral lists (i., ii., iii., iv., v., vi., vii., viii., ix., x.)
+    const romanMatch = line.match(/^[\s]*(i{1,3}|iv|vi{0,3}|ix|x)\.\s+(.+)$/i);
+    // Detect letter lists (a., b., c., etc.) - second level
+    const letterMatch = line.match(/^[\s]*([a-z])\.\s+(.+)$/);
     // Detect numbered section headers (1. Services:, 2. Initial Payment:, etc.)
-    // These should be rendered as bold headers, not list items
     const numberedHeaderMatch = line.match(/^[\s]*(\d+)\.\s+([^:]+:?)$/);
-    // Detect numbered lists that are actual list items (content after the number)
-    const numberedListMatch = line.match(/^[\s]*([a-z])\.\s+(.+)$/);
     
-    if (bulletMatch) {
-      if (!inBulletList) {
-        // Close numbered list if open
-        if (inNumberedList) {
-          html += `<div style="margin: 8pt 0 8pt 24pt;">${listHtml}</div>`;
-          listHtml = '';
-          inNumberedList = false;
-        }
-        inBulletList = true;
+    if (romanMatch) {
+      // Close letter list if open (it's nested, so close it first)
+      if (inLetterList) {
+        romanListHtml += `<div style="margin-left: ${LETTER_INDENT};">${letterListHtml}</div>`;
+        letterListHtml = '';
+        inLetterList = false;
       }
-      const bulletContent = formatInlineStyles(escapeHtml(bulletMatch[2]));
-      listHtml += `<li style="margin-bottom: 6pt;">${bulletContent}</li>`;
+      if (!inRomanList) {
+        inRomanList = true;
+      }
+      const romanContent = formatInlineStyles(escapeHtml(romanMatch[2]));
+      const romanNumeral = romanMatch[1].toLowerCase();
+      romanListHtml += `<p style="margin-bottom: 6pt; margin-left: ${ROMAN_INDENT}; text-indent: -24pt; padding-left: 24pt;"><span style="display: inline-block; width: 24pt;">${romanNumeral}.</span>${romanContent}</p>`;
+    } else if (letterMatch && inRomanList) {
+      // Only treat as nested letter list if we're inside a roman list
+      if (!inLetterList) {
+        inLetterList = true;
+      }
+      const letterContent = formatInlineStyles(escapeHtml(letterMatch[2]));
+      const letter = letterMatch[1];
+      letterListHtml += `<p style="margin-bottom: 6pt; text-indent: -16pt; padding-left: 16pt;">${letter}. ${letterContent}</p>`;
+    } else if (letterMatch && !inRomanList) {
+      // Standalone letter list (not nested) - used in some clauses
+      if (!inLetterList) {
+        inLetterList = true;
+      }
+      const letterContent = formatInlineStyles(escapeHtml(letterMatch[2]));
+      const letter = letterMatch[1];
+      letterListHtml += `<p style="margin-bottom: 6pt; margin-left: ${ROMAN_INDENT}; text-indent: -16pt; padding-left: 16pt;">${letter}. ${letterContent}</p>`;
     } else if (numberedHeaderMatch) {
       // Close any open lists first
-      if (inBulletList) {
-        html += `<ul style="margin: 8pt 0 8pt 24pt; list-style-type: circle; padding-left: 16pt;">${listHtml}</ul>`;
-        listHtml = '';
-        inBulletList = false;
+      if (inLetterList) {
+        if (inRomanList) {
+          romanListHtml += `<div style="margin-left: ${LETTER_INDENT};">${letterListHtml}</div>`;
+        } else {
+          html += `<div>${letterListHtml}</div>`;
+        }
+        letterListHtml = '';
+        inLetterList = false;
       }
-      if (inNumberedList) {
-        html += `<div style="margin: 8pt 0 8pt 24pt;">${listHtml}</div>`;
-        listHtml = '';
-        inNumberedList = false;
+      if (inRomanList) {
+        html += `<div>${romanListHtml}</div>`;
+        romanListHtml = '';
+        inRomanList = false;
       }
       // Render as a bold numbered header (e.g., "1. Services:", "2. Initial Payment:")
       const num = numberedHeaderMatch[1];
       const headerText = numberedHeaderMatch[2];
       html += `<p style="margin-top: 12pt; margin-bottom: 8pt;"><strong>${escapeHtml(num)}. ${escapeHtml(headerText)}</strong></p>`;
-    } else if (numberedListMatch) {
-      if (!inNumberedList) {
-        // Close bullet list if open
-        if (inBulletList) {
-          html += `<ul style="margin: 8pt 0 8pt 24pt; list-style-type: circle; padding-left: 16pt;">${listHtml}</ul>`;
-          listHtml = '';
-          inBulletList = false;
-        }
-        inNumberedList = true;
-      }
-      const numContent = formatInlineStyles(escapeHtml(numberedListMatch[2]));
-      // Use the letter from the content for proper referencing
-      const letter = numberedListMatch[1];
-      listHtml += `<p style="margin-bottom: 6pt; margin-left: 24pt; text-indent: -16pt; padding-left: 16pt;"><strong>${letter}.</strong> ${numContent}</p>`;
     } else {
       // Close any open lists
-      if (inBulletList) {
-        html += `<ul style="margin: 8pt 0 8pt 24pt; list-style-type: circle; padding-left: 16pt;">${listHtml}</ul>`;
-        listHtml = '';
-        inBulletList = false;
+      if (inLetterList) {
+        if (inRomanList) {
+          romanListHtml += `<div style="margin-left: ${LETTER_INDENT};">${letterListHtml}</div>`;
+        } else {
+          html += `<div>${letterListHtml}</div>`;
+        }
+        letterListHtml = '';
+        inLetterList = false;
       }
-      if (inNumberedList) {
-        html += `<div style="margin: 8pt 0 8pt 24pt;">${listHtml}</div>`;
-        listHtml = '';
-        inNumberedList = false;
+      if (inRomanList) {
+        html += `<div>${romanListHtml}</div>`;
+        romanListHtml = '';
+        inRomanList = false;
       }
       
       // Handle bold section headers (lines that are mostly bold or end with colon)
@@ -872,11 +892,15 @@ function formatContent(content: string): string {
   }
   
   // Close any remaining open lists
-  if (inBulletList) {
-    html += `<ul style="margin: 8pt 0 8pt 24pt; list-style-type: circle; padding-left: 16pt;">${listHtml}</ul>`;
+  if (inLetterList) {
+    if (inRomanList) {
+      romanListHtml += `<div style="margin-left: ${LETTER_INDENT};">${letterListHtml}</div>`;
+    } else {
+      html += `<div>${letterListHtml}</div>`;
+    }
   }
-  if (inNumberedList) {
-    html += `<div style="margin: 8pt 0 8pt 24pt;">${listHtml}</div>`;
+  if (inRomanList) {
+    html += `<div>${romanListHtml}</div>`;
   }
   
   return html;
