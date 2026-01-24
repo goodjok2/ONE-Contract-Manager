@@ -1706,18 +1706,39 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     res.redirect(307, '/api/contracts/download-pdf');
   });
 
-  // PDF download endpoint
+  // PDF download endpoint - accepts projectId and fetches data server-side
   app.post("/api/contracts/download-pdf", async (req, res) => {
     try {
-      const { contractType, projectData } = req.body;
+      const { contractType, projectId, projectData: legacyProjectData } = req.body;
       
-      if (!contractType || !projectData) {
-        return res.status(400).json({ error: "contractType and projectData are required" });
+      if (!contractType) {
+        return res.status(400).json({ error: "contractType is required" });
       }
-
-      console.log(`\n=== Generating ${contractType} contract via clause library ===`);
-      console.log(`Project: ${projectData.projectNumber} - ${projectData.projectName}`);
-      console.log(`Service Model: ${projectData.serviceModel}`);
+      
+      // Support both new projectId approach and legacy projectData for backwards compatibility
+      let projectData: any;
+      
+      if (projectId) {
+        // New approach: fetch and map data server-side
+        const fullProject = await getProjectWithRelations(projectId);
+        if (!fullProject) {
+          return res.status(404).json({ error: "Project not found" });
+        }
+        
+        // Map to flat variable structure using the mapper
+        const { mapProjectToVariables } = await import('./lib/mapper');
+        projectData = mapProjectToVariables(fullProject);
+        
+        console.log(`\n=== Generating ${contractType} contract for project ${projectId} ===`);
+        console.log(`Project: ${projectData.PROJECT_NUMBER} - ${projectData.PROJECT_NAME}`);
+        console.log(`Service Model: ${projectData.ON_SITE_SELECTION}`);
+      } else if (legacyProjectData) {
+        // Legacy approach: use provided projectData directly
+        projectData = legacyProjectData;
+        console.log(`\n=== Generating ${contractType} contract (legacy mode) ===`);
+      } else {
+        return res.status(400).json({ error: "Either projectId or projectData is required" });
+      }
 
       const { generateContract, getContractFilename } = await import('./lib/contractGenerator');
       
@@ -1736,7 +1757,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.send(buffer);
       
     } catch (error) {
-      console.error("Error generating docx:", error);
+      console.error("Error generating PDF:", error);
       res.status(500).json({ 
         error: "Failed to generate document",
         message: error instanceof Error ? error.message : "Unknown error"

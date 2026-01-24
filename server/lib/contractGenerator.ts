@@ -813,8 +813,9 @@ async function convertHTMLToPDF(html: string): Promise<Buffer> {
   }
 }
 
-function escapeHtml(text: string): string {
-  if (!text) return '';
+function escapeHtml(text: string | number | null | undefined): string {
+  if (text === null || text === undefined) return '';
+  const str = String(text);
   const map: Record<string, string> = {
     '&': '&amp;',
     '<': '&lt;',
@@ -822,7 +823,7 @@ function escapeHtml(text: string): string {
     '"': '&quot;',
     "'": '&#039;'
   };
-  return text.replace(/[&<>"']/g, m => map[m]);
+  return str.replace(/[&<>"']/g, m => map[m]);
 }
 
 function getContractTitle(contractType: string): string {
