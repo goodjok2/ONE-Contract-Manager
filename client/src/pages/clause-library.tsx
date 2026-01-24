@@ -171,6 +171,119 @@ export default function ClauseLibrary() {
     return content.replace(/\{\{([A-Z0-9_]+)\}\}/g, '<span class="bg-primary/20 text-primary px-1 rounded font-mono text-sm">{{$1}}</span>');
   };
 
+  // Escape HTML to prevent XSS
+  const escapeHtml = (text: string) => {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  };
+
+  // Format content by converting markdown-style tables and bullets to HTML
+  const formatContent = (content: string) => {
+    if (!content) return "";
+    
+    const lines = content.split('\n');
+    const outputBlocks: string[] = [];
+    let i = 0;
+    
+    while (i < lines.length) {
+      const line = lines[i].trim();
+      
+      // Detect table: line starts and ends with | and has multiple cells
+      if (line.startsWith('|') && line.endsWith('|') && line.split('|').length > 2) {
+        // Collect all table rows
+        const tableLines: string[] = [];
+        while (i < lines.length) {
+          const tLine = lines[i].trim();
+          if (tLine.startsWith('|') && tLine.endsWith('|')) {
+            tableLines.push(tLine);
+            i++;
+          } else {
+            break;
+          }
+        }
+        
+        // Build table HTML
+        let tableHtml = '<table class="w-full text-sm border-collapse mb-4"><tbody>';
+        let isHeader = true;
+        
+        for (const tLine of tableLines) {
+          // Skip separator rows (|---|---|---| with any number of columns)
+          if (tLine.match(/^\|[\s\-:|]+\|$/)) continue;
+          
+          const cells = tLine.split('|').slice(1, -1).map(c => escapeHtml(c.trim()));
+          if (cells.length > 0) {
+            const tag = isHeader ? 'th' : 'td';
+            const cellClass = isHeader 
+              ? 'border border-border bg-muted/50 px-3 py-2 text-left font-medium'
+              : 'border border-border px-3 py-2';
+            tableHtml += `<tr>${cells.map(c => `<${tag} class="${cellClass}">${c}</${tag}>`).join('')}</tr>`;
+            isHeader = false;
+          }
+        }
+        tableHtml += '</tbody></table>';
+        outputBlocks.push(tableHtml);
+        continue;
+      }
+      
+      // Detect bullet list: line starts with • or - followed by space
+      if (line.startsWith('•') || (line.startsWith('- ') && !line.startsWith('---'))) {
+        const listItems: string[] = [];
+        while (i < lines.length) {
+          const bulletLine = lines[i].trim();
+          if (bulletLine.startsWith('•') || (bulletLine.startsWith('- ') && !bulletLine.startsWith('---'))) {
+            listItems.push(escapeHtml(bulletLine.replace(/^[•\-]\s*/, '')));
+            i++;
+          } else {
+            break;
+          }
+        }
+        const listHtml = `<ul class="list-disc pl-4 my-2">${listItems.map(item => `<li class="ml-4">${item}</li>`).join('')}</ul>`;
+        outputBlocks.push(listHtml);
+        continue;
+      }
+      
+      // Empty line creates paragraph break (skip consecutive empties)
+      if (line === '') {
+        // Only add <br/> if the last block wasn't already a break
+        if (outputBlocks.length === 0 || !outputBlocks[outputBlocks.length - 1].endsWith('<br/>')) {
+          outputBlocks.push('<br/>');
+        }
+        i++;
+        continue;
+      }
+      
+      // Regular text - collect consecutive non-special lines
+      const textLines: string[] = [];
+      while (i < lines.length) {
+        const tLine = lines[i].trim();
+        const isBullet = tLine.startsWith('•') || (tLine.startsWith('- ') && !tLine.startsWith('---'));
+        const isTable = tLine.startsWith('|') && tLine.endsWith('|');
+        if (tLine === '' || isBullet || isTable) {
+          break;
+        }
+        textLines.push(escapeHtml(tLine));
+        i++;
+      }
+      if (textLines.length > 0) {
+        outputBlocks.push(`<p class="my-1">${textLines.join('<br/>')}</p>`);
+      }
+    }
+    
+    let formatted = outputBlocks.join('');
+    
+    // Wrap in container
+    formatted = `<div class="prose prose-sm max-w-none dark:prose-invert">${formatted}</div>`;
+    
+    // Highlight variables (after escaping, so we unescape the variable pattern)
+    formatted = formatted.replace(/\{\{([A-Z0-9_]+)\}\}/g, '<span class="bg-primary/20 text-primary px-1 rounded font-mono text-sm">{{$1}}</span>');
+    
+    return formatted;
+  };
+
   return (
     <div className="flex-1 p-6 md:p-8">
       <div className="max-w-7xl mx-auto">
@@ -319,8 +432,8 @@ export default function ClauseLibrary() {
                             <div className="px-3 pb-3 pt-0">
                               <Separator className="mb-3" />
                               <div
-                                className="text-sm prose prose-sm dark:prose-invert max-w-none"
-                                dangerouslySetInnerHTML={{ __html: highlightVariables(clause.content || "") }}
+                                className="text-sm max-w-none"
+                                dangerouslySetInnerHTML={{ __html: formatContent(clause.content || "") }}
                               />
                               {clause.variables_used && clause.variables_used.length > 0 && (
                                 <div className="mt-3 flex flex-wrap gap-1">
@@ -464,8 +577,8 @@ export default function ClauseLibrary() {
                       <div>
                         <h5 className="text-sm font-medium mb-2">Content</h5>
                         <div
-                          className="text-sm prose prose-sm dark:prose-invert max-w-none bg-muted/50 p-3 rounded-lg max-h-64 overflow-y-auto"
-                          dangerouslySetInnerHTML={{ __html: highlightVariables(selectedClause.content || "") }}
+                          className="text-sm max-w-none bg-muted/50 p-3 rounded-lg max-h-64 overflow-y-auto"
+                          dangerouslySetInnerHTML={{ __html: formatContent(selectedClause.content || "") }}
                         />
                       </div>
 
