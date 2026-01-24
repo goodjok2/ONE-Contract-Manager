@@ -591,18 +591,6 @@ function stripDuplicateHeader(content: string, clauseName: string, clauseCode: s
     cleanContent = lines.join('\n').trim();
   }
   
-  // For recitals, strip leading letter prefixes like "A.", "B.", etc.
-  // if the clause name contains "Recital A", "Recital B", etc.
-  if (/Recital\s+[A-Z]/i.test(clauseName)) {
-    // Extract the letter from the name
-    const letterMatch = clauseName.match(/Recital\s+([A-Z])/i);
-    if (letterMatch) {
-      const letter = letterMatch[1].toUpperCase();
-      // Remove leading "A." or "A. " from content
-      cleanContent = cleanContent.replace(new RegExp(`^${letter}\\.\\s*`, 'i'), '');
-    }
-  }
-  
   return cleanContent;
 }
 
