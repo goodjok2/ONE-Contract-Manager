@@ -90,6 +90,8 @@ export default function ClauseLibrary() {
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState<Partial<Clause>>({});
   const [expandedClauses, setExpandedClauses] = useState<Set<number>>(new Set());
+  const [inlineEditingId, setInlineEditingId] = useState<number | null>(null);
+  const [inlineEditContent, setInlineEditContent] = useState("");
   const { toast } = useToast();
 
   const { data, isLoading, error } = useQuery<ClauseResponse>({
@@ -131,6 +133,43 @@ export default function ClauseLibrary() {
 
   const handleSave = () => {
     updateMutation.mutate(editData);
+  };
+
+  const inlineUpdateMutation = useMutation({
+    mutationFn: async ({ id, content }: { id: number; content: string }) => {
+      const response = await apiRequest("PATCH", `/api/clauses/${id}`, { content });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clauses"] });
+      setInlineEditingId(null);
+      setInlineEditContent("");
+      toast({
+        title: "Clause Updated",
+        description: "The clause content has been updated successfully.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to update clause. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const startInlineEdit = (clause: Clause) => {
+    setInlineEditingId(clause.id);
+    setInlineEditContent(clause.content || "");
+  };
+
+  const saveInlineEdit = (id: number) => {
+    inlineUpdateMutation.mutate({ id, content: inlineEditContent });
+  };
+
+  const cancelInlineEdit = () => {
+    setInlineEditingId(null);
+    setInlineEditContent("");
   };
 
   const toggleExpanded = (id: number) => {
@@ -432,10 +471,61 @@ export default function ClauseLibrary() {
                           <CollapsibleContent>
                             <div className="px-3 pb-3 pt-0">
                               <Separator className="mb-3" />
-                              <div
-                                className="text-sm max-w-none"
-                                dangerouslySetInnerHTML={{ __html: formatContent(clause.content || "") }}
-                              />
+                              <div className="flex items-center justify-end gap-2 mb-2">
+                                {inlineEditingId === clause.id ? (
+                                  <>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        cancelInlineEdit();
+                                      }}
+                                      data-testid={`button-cancel-inline-${clause.id}`}
+                                    >
+                                      <X className="h-4 w-4 mr-1" />
+                                      Cancel
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        saveInlineEdit(clause.id);
+                                      }}
+                                      disabled={inlineUpdateMutation.isPending}
+                                      data-testid={`button-save-inline-${clause.id}`}
+                                    >
+                                      <Save className="h-4 w-4 mr-1" />
+                                      Save
+                                    </Button>
+                                  </>
+                                ) : (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      startInlineEdit(clause);
+                                    }}
+                                    data-testid={`button-edit-inline-${clause.id}`}
+                                  >
+                                    <Edit className="h-4 w-4 mr-1" />
+                                    Edit Content
+                                  </Button>
+                                )}
+                              </div>
+                              {inlineEditingId === clause.id ? (
+                                <RichTextEditor
+                                  content={inlineEditContent}
+                                  onChange={setInlineEditContent}
+                                  className="min-h-[200px]"
+                                />
+                              ) : (
+                                <div
+                                  className="text-sm max-w-none"
+                                  dangerouslySetInnerHTML={{ __html: formatContent(clause.content || "") }}
+                                />
+                              )}
                               {clause.variables_used && clause.variables_used.length > 0 && (
                                 <div className="mt-3 flex flex-wrap gap-1">
                                   {clause.variables_used.map((v) => (
