@@ -48,6 +48,120 @@ interface Clause {
   section_number: string;
 }
 
+interface ProjectWithRelations {
+  project: {
+    id: number;
+    projectNumber: string;
+    name: string;
+    status: string;
+    state: string;
+    onSiteSelection?: string;
+  };
+  client?: {
+    legalName?: string;
+    entityType?: string;
+    state?: string;
+    email?: string;
+    phone?: string;
+    signerName?: string;
+    signerTitle?: string;
+  };
+  childLlc?: {
+    legalName?: string;
+    formationState?: string;
+  };
+  projectDetails?: {
+    siteAddress?: string;
+    siteCity?: string;
+    siteState?: string;
+    siteZip?: string;
+    siteCounty?: string;
+    totalUnits?: number;
+  };
+  financials?: {
+    designFee?: number;
+    prelimOffsite?: number;
+    prelimOnsite?: number;
+    designRevisionRounds?: number;
+  };
+  warrantyTerms?: {
+    fitFinishMonths?: number;
+    buildingEnvelopeMonths?: number;
+    structuralMonths?: number;
+  };
+  milestones?: Array<{
+    milestoneType: string;
+    percent?: number;
+    amount?: number;
+  }>;
+  contractors?: Array<{
+    contractorType: string;
+    name?: string;
+    license?: string;
+  }>;
+}
+
+// Flatten nested project data for the PDF generator
+function flattenProjectData(data: ProjectWithRelations): Record<string, any> {
+  const { project, client, childLlc, projectDetails, financials, warrantyTerms, milestones, contractors } = data;
+  
+  // Find specific milestone/contractor types
+  const generalContractor = contractors?.find(c => c.contractorType === 'general');
+  
+  // Calculate milestone amounts
+  const totalPrice = (financials?.designFee || 0) + (financials?.prelimOffsite || 0) + (financials?.prelimOnsite || 0);
+  
+  return {
+    // Project basics
+    projectNumber: project.projectNumber,
+    projectName: project.name,
+    projectState: project.state,
+    serviceModel: project.onSiteSelection || 'CRC',
+    totalUnits: projectDetails?.totalUnits || 1,
+    
+    // Client info
+    clientLegalName: client?.legalName,
+    clientEntityType: client?.entityType,
+    clientState: client?.state,
+    clientEmail: client?.email,
+    clientPhone: client?.phone,
+    clientSignerName: client?.signerName,
+    clientTitle: client?.signerTitle,
+    clientFullName: client?.legalName,
+    
+    // Child LLC
+    childLlcName: childLlc?.legalName,
+    childLlcState: childLlc?.formationState || 'Delaware',
+    
+    // Site/Property
+    siteAddress: projectDetails?.siteAddress,
+    siteCity: projectDetails?.siteCity,
+    siteState: projectDetails?.siteState,
+    siteZip: projectDetails?.siteZip,
+    siteCounty: projectDetails?.siteCounty,
+    
+    // Financials
+    designFee: financials?.designFee,
+    designRevisionRounds: financials?.designRevisionRounds || 3,
+    preliminaryOffsitePrice: financials?.prelimOffsite,
+    deliveryInstallationPrice: financials?.prelimOnsite,
+    totalPreliminaryContractPrice: totalPrice,
+    
+    // Warranty terms
+    warrantyFitFinishMonths: warrantyTerms?.fitFinishMonths || 24,
+    warrantyBuildingEnvelopeMonths: warrantyTerms?.buildingEnvelopeMonths || 60,
+    warrantyStructuralMonths: warrantyTerms?.structuralMonths || 120,
+    
+    // Contractor info (for CRC)
+    contractorName: generalContractor?.name,
+    contractorLicense: generalContractor?.license,
+    
+    // Default dates (can be enhanced later)
+    agreementDate: new Date().toISOString(),
+    effectiveDate: new Date().toISOString(),
+  };
+}
+
 const statusSteps = [
   { key: "Draft", label: "Draft", icon: Edit3, description: "Initial draft created" },
   { key: "PendingReview", label: "Pending Review", icon: Clock, description: "Awaiting review" },
@@ -129,10 +243,13 @@ export default function ContractDetail() {
   });
 
   // Fetch project data for PDF generation
-  const { data: projectData } = useQuery({
+  const { data: rawProjectData } = useQuery<ProjectWithRelations>({
     queryKey: ["/api/projects", contract?.projectId],
     enabled: !!contract?.projectId,
   });
+  
+  // Flatten the nested project data for the PDF generator
+  const projectData = rawProjectData ? flattenProjectData(rawProjectData) : null;
 
   const updateStatusMutation = useMutation({
     mutationFn: async (newStatus: string) => {
