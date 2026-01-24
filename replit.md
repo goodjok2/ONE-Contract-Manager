@@ -18,7 +18,6 @@ This application helps Dvele manage construction projects through dedicated chil
 ## Features
 
 - **Dashboard**: Overview with 4 stat cards (Total Contracts, Drafts, Pending Review, Signed), Recent Contracts section, Quick Start Templates, and Contract Value Overview
-- **Contract Builder**: Multi-step wizard for creating new project agreements
 - **Generate Contracts Wizard**: 9-step wizard at /generate-contracts for creating complete contract packages:
   - Step 1: Project Basics (name, type, total units)
   - Step 2: Service Model (CRC vs CMOS selection)
@@ -135,7 +134,6 @@ This application helps Dvele manage construction projects through dedicated chil
 ### Main Section
 - Dashboard
 - Generate Contracts (/generate-contracts)
-- Contract Builder (/contract-builder)
 - Active Contracts (/contracts)
 - LLC Admin (/llc-admin)
 - Templates (/templates)

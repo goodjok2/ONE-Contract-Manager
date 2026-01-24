@@ -10,7 +10,6 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
 import AgreementsNew from "@/pages/agreements-new";
-import ContractBuilder from "@/pages/contract-builder";
 import LLCAdmin from "@/pages/llc-admin";
 import LLCDetail from "@/pages/llc-detail";
 import Settings from "@/pages/settings";
@@ -26,7 +25,6 @@ function Router() {
     <Switch>
       <Route path="/" component={Dashboard} />
       <Route path="/agreements/new" component={AgreementsNew} />
-      <Route path="/contract-builder" component={ContractBuilder} />
       <Route path="/clause-library" component={ClauseLibrary} />
       <Route path="/contract-preview" component={ContractPreview} />
       <Route path="/generate-contracts" component={GenerateContracts} />

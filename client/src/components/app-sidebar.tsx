@@ -6,7 +6,6 @@ import {
   Files,
   Building2,
   Settings,
-  Hammer,
   Eye,
   Wand2,
   Variable
@@ -35,11 +34,6 @@ const mainNavItems = [
     title: "Generate Contracts",
     url: "/generate-contracts",
     icon: Wand2,
-  },
-  {
-    title: "Contract Builder",
-    url: "/contract-builder",
-    icon: Hammer,
   },
   {
     title: "Active Contracts",

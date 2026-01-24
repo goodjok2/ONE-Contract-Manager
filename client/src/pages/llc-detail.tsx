@@ -369,10 +369,10 @@ export default function LLCDetail() {
                 <div className="text-center py-8 text-muted-foreground">
                   <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
                   <p className="text-sm">No contracts linked yet</p>
-                  <Link href="/contract-builder">
+                  <Link href="/generate-contracts">
                     <Button variant="outline" size="sm" className="mt-4">
                       <ExternalLink className="h-4 w-4 mr-2" />
-                      Go to Contract Builder
+                      Generate Contracts
                     </Button>
                   </Link>
                 </div>

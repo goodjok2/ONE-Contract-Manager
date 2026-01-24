@@ -753,10 +753,10 @@ function LLCDetailPanel({ llc, onDelete, onUpdate, isDeleting, onClose }: LLCDet
             <div className="text-center py-6 text-muted-foreground">
               <FileText className="h-8 w-8 mx-auto mb-2 opacity-50" />
               <p className="text-sm">No contracts linked yet</p>
-              <p className="text-xs mt-1">Generate contracts using the Contract Builder</p>
-              <Link href="/contract-builder">
+              <p className="text-xs mt-1">Generate contracts using the Generate Contracts wizard</p>
+              <Link href="/generate-contracts">
                 <Button variant="outline" size="sm" className="mt-4" data-testid="button-go-to-contracts">
-                  Go to Contract Builder
+                  Generate Contracts
                 </Button>
               </Link>
             </div>
