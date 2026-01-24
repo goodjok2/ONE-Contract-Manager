@@ -140,7 +140,7 @@ export const Step9ReviewGenerate: React.FC = () => {
     try {
       setIsDownloading(contractType);
       
-      const response = await fetch('/api/contracts/download-docx', {
+      const response = await fetch('/api/contracts/download-pdf', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -159,7 +159,7 @@ export const Step9ReviewGenerate: React.FC = () => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${projectData.projectNumber || 'Contract'}_${contractName.replace(/\s+/g, '_')}.docx`;
+      a.download = `${projectData.projectNumber || 'Contract'}_${contractName.replace(/\s+/g, '_')}.pdf`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);

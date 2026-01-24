@@ -20,7 +20,14 @@ import {
   FileCheck,
   Edit3
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useCallback } from "react";
+import { Eye } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface Contract {
   id: number;
@@ -113,6 +120,9 @@ export default function ContractDetail() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [expandedClauses, setExpandedClauses] = useState<Set<number>>(new Set());
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   const contractId = parseInt(params.id || "0");
 
@@ -124,6 +134,12 @@ export default function ContractDetail() {
   const { data: clauses, isLoading: clausesLoading } = useQuery<Clause[]>({
     queryKey: ["/api/contracts", contractId, "clauses"],
     enabled: contractId > 0,
+  });
+
+  // Fetch project data for PDF generation
+  const { data: projectData } = useQuery({
+    queryKey: ["/api/projects", contract?.projectId],
+    enabled: !!contract?.projectId,
   });
 
   const updateStatusMutation = useMutation({
@@ -159,9 +175,92 @@ export default function ContractDetail() {
     });
   };
 
-  const handleDownload = () => {
-    if (contract?.fileName) {
-      window.open(`/api/contracts/download/${encodeURIComponent(contract.fileName)}`, '_blank');
+  // Map contract type from stored format to API format
+  const getContractTypeForApi = (contractType: string): string => {
+    const typeMap: Record<string, string> = {
+      'one_agreement': 'ONE',
+      'ONE': 'ONE',
+      'manufacturing_sub': 'MANUFACTURING',
+      'MANUFACTURING': 'MANUFACTURING',
+      'onsite_sub': 'ONSITE',
+      'ONSITE': 'ONSITE',
+    };
+    return typeMap[contractType] || 'ONE';
+  };
+
+  const generatePdf = useCallback(async (): Promise<Blob | null> => {
+    if (!contract || !projectData) {
+      toast({
+        title: "Cannot Generate PDF",
+        description: "Contract or project data not available.",
+        variant: "destructive",
+      });
+      return null;
+    }
+
+    setIsGenerating(true);
+    try {
+      const response = await fetch('/api/contracts/download-pdf', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contractType: getContractTypeForApi(contract.contractType),
+          projectData: projectData,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate PDF');
+      }
+
+      return await response.blob();
+    } catch (error) {
+      console.error('PDF generation error:', error);
+      toast({
+        title: "Generation Failed",
+        description: "Failed to generate PDF document.",
+        variant: "destructive",
+      });
+      return null;
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [contract, projectData, toast]);
+
+  const handleDownload = async () => {
+    const blob = await generatePdf();
+    if (blob) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${contract?.projectNumber || 'Contract'}_${getContractTypeName(contract?.contractType || 'ONE').replace(/\s+/g, '_')}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+  };
+
+  const handlePreview = async () => {
+    const blob = await generatePdf();
+    if (blob) {
+      // Clean up previous URL if exists
+      if (pdfUrl) {
+        URL.revokeObjectURL(pdfUrl);
+      }
+      const url = URL.createObjectURL(blob);
+      setPdfUrl(url);
+      setPreviewOpen(true);
+    }
+  };
+
+  const closePreview = () => {
+    setPreviewOpen(false);
+    if (pdfUrl) {
+      URL.revokeObjectURL(pdfUrl);
+      setPdfUrl(null);
     }
   };
 
@@ -224,12 +323,23 @@ export default function ContractDetail() {
           <Badge variant={getStatusBadgeVariant(contract.status)} data-testid="badge-status">
             {getStatusDisplayLabel(contract.status)}
           </Badge>
-          {contract.fileName && (
-            <Button onClick={handleDownload} data-testid="button-download">
-              <Download className="mr-2 h-4 w-4" />
-              Download
-            </Button>
-          )}
+          <Button 
+            variant="outline" 
+            onClick={handlePreview} 
+            disabled={isGenerating || !projectData}
+            data-testid="button-preview"
+          >
+            <Eye className="mr-2 h-4 w-4" />
+            {isGenerating ? 'Generating...' : 'Preview'}
+          </Button>
+          <Button 
+            onClick={handleDownload} 
+            disabled={isGenerating || !projectData}
+            data-testid="button-download"
+          >
+            <Download className="mr-2 h-4 w-4" />
+            {isGenerating ? 'Generating...' : 'Download PDF'}
+          </Button>
         </div>
       </div>
 
@@ -431,6 +541,27 @@ export default function ContractDetail() {
           </CardContent>
         </Card>
       )}
+
+      {/* PDF Preview Dialog */}
+      <Dialog open={previewOpen} onOpenChange={closePreview}>
+        <DialogContent className="max-w-5xl h-[90vh]" data-testid="dialog-pdf-preview">
+          <DialogHeader>
+            <DialogTitle>
+              {getContractTypeName(contract.contractType)} - Preview
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 h-full min-h-0">
+            {pdfUrl && (
+              <iframe
+                src={pdfUrl}
+                className="w-full h-[calc(90vh-100px)] border rounded"
+                title="PDF Preview"
+                data-testid="iframe-pdf-preview"
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

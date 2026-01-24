@@ -1701,7 +1701,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   // Download contract as properly formatted Word document
   // Uses clause library to dynamically generate contracts
+  // Legacy endpoint for backward compatibility
   app.post("/api/contracts/download-docx", async (req, res) => {
+    res.redirect(307, '/api/contracts/download-pdf');
+  });
+
+  // PDF download endpoint
+  app.post("/api/contracts/download-pdf", async (req, res) => {
     try {
       const { contractType, projectData } = req.body;
       
