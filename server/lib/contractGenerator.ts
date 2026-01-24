@@ -807,8 +807,11 @@ function formatContent(content: string): string {
     
     // Detect bullet points (•, -, ○, ◦)
     const bulletMatch = line.match(/^[\s]*([-•○◦])\s+(.+)$/);
-    // Detect numbered lists (1., 2., etc.)
-    const numberedMatch = line.match(/^[\s]*(\d+)\.\s+(.+)$/);
+    // Detect numbered section headers (1. Services:, 2. Initial Payment:, etc.)
+    // These should be rendered as bold headers, not list items
+    const numberedHeaderMatch = line.match(/^[\s]*(\d+)\.\s+([^:]+:?)$/);
+    // Detect numbered lists that are actual list items (content after the number)
+    const numberedListMatch = line.match(/^[\s]*([a-z])\.\s+(.+)$/);
     
     if (bulletMatch) {
       if (!inBulletList) {
@@ -822,7 +825,23 @@ function formatContent(content: string): string {
       }
       const bulletContent = formatInlineStyles(escapeHtml(bulletMatch[2]));
       listHtml += `<li style="margin-bottom: 6pt;">${bulletContent}</li>`;
-    } else if (numberedMatch) {
+    } else if (numberedHeaderMatch) {
+      // Close any open lists first
+      if (inBulletList) {
+        html += `<ul style="margin: 8pt 0 8pt 24pt; list-style-type: circle; padding-left: 16pt;">${listHtml}</ul>`;
+        listHtml = '';
+        inBulletList = false;
+      }
+      if (inNumberedList) {
+        html += `<ol style="margin: 8pt 0 8pt 24pt; padding-left: 16pt;">${listHtml}</ol>`;
+        listHtml = '';
+        inNumberedList = false;
+      }
+      // Render as a bold numbered header (e.g., "1. Services:", "2. Initial Payment:")
+      const num = numberedHeaderMatch[1];
+      const headerText = numberedHeaderMatch[2];
+      html += `<p style="margin-top: 12pt; margin-bottom: 8pt;"><strong>${escapeHtml(num)}. ${escapeHtml(headerText)}</strong></p>`;
+    } else if (numberedListMatch) {
       if (!inNumberedList) {
         // Close bullet list if open
         if (inBulletList) {
@@ -832,8 +851,8 @@ function formatContent(content: string): string {
         }
         inNumberedList = true;
       }
-      const numContent = formatInlineStyles(escapeHtml(numberedMatch[2]));
-      listHtml += `<li value="${numberedMatch[1]}" style="margin-bottom: 6pt;">${numContent}</li>`;
+      const numContent = formatInlineStyles(escapeHtml(numberedListMatch[2]));
+      listHtml += `<li style="margin-bottom: 6pt;">${numContent}</li>`;
     } else {
       // Close any open lists
       if (inBulletList) {
