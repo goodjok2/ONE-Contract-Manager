@@ -69,7 +69,7 @@ interface ClauseResponse {
 
 const CONTRACT_TYPES = [
   { value: "ALL", label: "All Contract Types" },
-  { value: "ONE", label: "ONE Agreement" },
+  { value: "ONE Agreement", label: "ONE Agreement" },
   { value: "MANUFACTURING", label: "Manufacturing Subcontract" },
   { value: "ONSITE", label: "OnSite Subcontract" },
 ];
