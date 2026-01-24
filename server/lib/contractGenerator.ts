@@ -138,11 +138,7 @@ function generateHTMLFromClauses(
   <style>
     @page {
       size: letter;
-      margin: 1in 1in 1in 1in;
-    }
-    
-    @page :first {
-      margin-top: 0.5in;
+      margin: 1in 1in 0.75in 1in;
     }
     
     * {
@@ -152,9 +148,9 @@ function generateHTMLFromClauses(
     }
     
     body {
-      font-family: 'Times New Roman', Times, Georgia, serif;
-      font-size: 12pt;
-      line-height: 1.5;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 11pt;
+      line-height: 1.15;
       color: #000;
       background: #fff;
     }
@@ -167,35 +163,35 @@ function generateHTMLFromClauses(
     /* Title Page Styles */
     .title-page {
       text-align: center;
-      padding-top: 2.5in;
+      padding-top: 1.5in;
       page-break-after: always;
-      min-height: 9in;
+      min-height: 8in;
     }
     
     .contract-title {
-      font-size: 16pt;
+      font-size: 24pt;
       font-weight: bold;
-      margin-bottom: 24pt;
-      text-transform: uppercase;
-      letter-spacing: 1px;
+      margin-bottom: 36pt;
+      color: #1a73e8;
     }
     
     .project-info {
-      font-size: 14pt;
+      font-size: 16pt;
       margin-bottom: 8pt;
-      line-height: 1.6;
+      line-height: 1.4;
+      color: #333;
     }
     
     .date-line {
-      margin-top: 48pt;
+      margin-top: 36pt;
       font-size: 12pt;
-      font-style: italic;
+      color: #666;
     }
     
     .parties-section {
-      margin-top: 60pt;
+      margin-top: 48pt;
       text-align: left;
-      padding: 0 40pt;
+      padding: 0 20pt;
     }
     
     .parties-section .party {
@@ -204,56 +200,80 @@ function generateHTMLFromClauses(
     
     /* Contract Body Styles */
     .contract-body {
-      text-align: justify;
-      hyphens: auto;
+      text-align: left;
     }
     
-    /* Article/Section Headers (Level 1) */
-    .article-header {
-      font-size: 12pt;
+    /* Document Summary Box */
+    .document-summary {
+      background-color: #e8f0fe;
+      border: 1px solid #1a73e8;
+      border-radius: 4px;
+      padding: 16pt;
+      margin-bottom: 24pt;
+      page-break-inside: avoid;
+    }
+    
+    .document-summary h2 {
+      color: #1a73e8;
+      font-size: 14pt;
+      margin-bottom: 12pt;
+      border-bottom: none;
+    }
+    
+    .document-summary p {
+      text-indent: 0;
+      margin-bottom: 8pt;
+      font-size: 10pt;
+    }
+    
+    /* Roman numeral sections (I. ATTACHMENTS, II. AGREEMENT) */
+    .roman-section {
+      font-size: 14pt;
       font-weight: bold;
-      text-transform: uppercase;
-      text-align: center;
+      color: #1a73e8;
       margin-top: 24pt;
       margin-bottom: 12pt;
+      padding-bottom: 4pt;
+      border-bottom: 2px solid #1a73e8;
       page-break-after: avoid;
-      letter-spacing: 0.5px;
     }
     
-    /* Subsection Headers (Level 2) */
+    /* Section Headers (Section 1. Scope of Services) */
     .section-header {
-      font-size: 12pt;
+      font-size: 13pt;
       font-weight: bold;
-      margin-top: 18pt;
+      color: #1a73e8;
+      margin-top: 20pt;
       margin-bottom: 10pt;
       page-break-after: avoid;
-      text-indent: 0;
     }
     
-    /* Paragraph Headers (Level 3+) */
+    /* Subsection Headers (1.1. Overview) */
     .subsection-header {
-      font-size: 12pt;
+      font-size: 11pt;
       font-weight: bold;
-      margin-top: 12pt;
+      margin-top: 14pt;
       margin-bottom: 6pt;
       page-break-after: avoid;
+    }
+    
+    /* Paragraph level (1.1.1) */
+    .paragraph-header {
+      font-size: 11pt;
+      font-weight: bold;
       display: inline;
     }
     
     /* Regular paragraphs */
     p {
-      margin-bottom: 12pt;
-      text-align: justify;
-      line-height: 1.5;
-      text-indent: 0.5in;
-    }
-    
-    p.no-indent {
+      margin-bottom: 10pt;
+      text-align: left;
+      line-height: 1.15;
       text-indent: 0;
     }
     
-    p.first-paragraph {
-      text-indent: 0;
+    p.indented {
+      margin-left: 0.25in;
     }
     
     /* Clause numbering */
@@ -262,19 +282,19 @@ function generateHTMLFromClauses(
     }
     
     .inline-clause {
-      margin-bottom: 12pt;
-      text-align: justify;
-      line-height: 1.5;
+      margin-bottom: 10pt;
+      line-height: 1.15;
+      margin-left: 0.25in;
     }
     
     .inline-clause .clause-number {
-      margin-right: 6pt;
+      margin-right: 4pt;
     }
     
     /* Lists */
     ol, ul {
-      margin: 12pt 0;
-      padding-left: 0.75in;
+      margin: 8pt 0 8pt 0.5in;
+      padding-left: 0;
     }
     
     ol {
@@ -286,107 +306,172 @@ function generateHTMLFromClauses(
     }
     
     li {
-      margin-bottom: 8pt;
-      text-align: justify;
-      line-height: 1.5;
+      margin-bottom: 6pt;
+      line-height: 1.15;
     }
     
-    /* Definitions */
-    .definition-term {
+    /* Tables - Professional styling matching Google Docs */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12pt 0 16pt 0;
+      font-size: 10pt;
+      page-break-inside: avoid;
+    }
+    
+    table thead {
+      background-color: #1a73e8;
+    }
+    
+    table th {
+      background-color: #1a73e8;
+      color: #fff;
       font-weight: bold;
+      padding: 8pt 10pt;
+      text-align: left;
+      vertical-align: middle;
+      border: 1px solid #1a73e8;
+    }
+    
+    table td {
+      border: 1px solid #dadce0;
+      padding: 8pt 10pt;
+      text-align: left;
+      vertical-align: top;
+    }
+    
+    table tr:nth-child(even) {
+      background-color: #f8f9fa;
+    }
+    
+    table tr:hover {
+      background-color: #e8f0fe;
+    }
+    
+    /* Financial tables */
+    table.financial td:last-child,
+    table.financial th:last-child {
+      text-align: right;
+    }
+    
+    table.financial td:first-child {
+      font-weight: 500;
+    }
+    
+    /* Compact tables for schedules */
+    table.compact {
+      font-size: 9pt;
+    }
+    
+    table.compact td,
+    table.compact th {
+      padding: 4pt 6pt;
+    }
+    
+    /* Totals row styling */
+    table tr.total-row {
+      background-color: #e8f0fe !important;
+      font-weight: bold;
+    }
+    
+    table tr.total-row td {
+      border-top: 2px solid #1a73e8;
     }
     
     /* Signature Block */
     .signature-section {
-      margin-top: 48pt;
+      margin-top: 36pt;
       page-break-inside: avoid;
     }
     
     .signature-block {
-      margin-top: 36pt;
+      margin-top: 24pt;
       page-break-inside: avoid;
     }
     
     .signature-line {
       border-bottom: 1px solid #000;
       width: 3in;
-      margin-top: 36pt;
+      margin-top: 24pt;
       margin-bottom: 4pt;
     }
     
     .signature-name {
-      font-size: 11pt;
+      font-size: 10pt;
+      margin-top: 4pt;
     }
     
     .signature-title {
-      font-size: 10pt;
-      color: #333;
+      font-size: 9pt;
+      color: #666;
     }
     
     /* Exhibit/Schedule headers */
     .exhibit-header {
-      font-size: 14pt;
+      font-size: 16pt;
       font-weight: bold;
       text-align: center;
-      text-transform: uppercase;
-      margin-top: 36pt;
-      margin-bottom: 24pt;
+      color: #1a73e8;
+      margin-top: 24pt;
+      margin-bottom: 16pt;
       page-break-before: always;
     }
     
-    /* Tables */
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin: 12pt 0;
-      font-size: 11pt;
-    }
-    
-    th, td {
-      border: 1px solid #333;
-      padding: 6pt 8pt;
-      text-align: left;
-      vertical-align: top;
-    }
-    
-    th {
-      background-color: #f5f5f5;
-      font-weight: bold;
-    }
-    
-    /* Page numbers - handled by Puppeteer */
-    
     /* Recitals / Whereas clauses */
     .recitals {
-      margin-top: 24pt;
-      margin-bottom: 24pt;
+      margin-top: 16pt;
+      margin-bottom: 16pt;
+      background-color: #f8f9fa;
+      padding: 12pt;
+      border-left: 3px solid #1a73e8;
+    }
+    
+    .recitals-title {
+      font-weight: bold;
+      font-size: 12pt;
+      margin-bottom: 10pt;
+      color: #1a73e8;
     }
     
     .recital {
-      margin-bottom: 12pt;
-      text-indent: 0.5in;
+      margin-bottom: 8pt;
+      font-size: 10pt;
     }
     
     .recital-label {
       font-weight: bold;
-      text-transform: uppercase;
     }
     
     /* Agreement statement */
     .agreement-statement {
-      margin-top: 24pt;
-      margin-bottom: 24pt;
+      margin-top: 16pt;
+      margin-bottom: 20pt;
+      font-size: 10pt;
+      font-style: italic;
       text-align: center;
-      font-weight: bold;
+    }
+    
+    /* Important notices */
+    .notice-box {
+      background-color: #fef7e0;
+      border: 1px solid #f9ab00;
+      border-radius: 4px;
+      padding: 12pt;
+      margin: 12pt 0;
+      font-size: 10pt;
+    }
+    
+    .notice-box strong {
+      color: #e37400;
     }
     
     /* Indentation levels */
-    .indent-1 { margin-left: 0.5in; }
-    .indent-2 { margin-left: 1in; }
-    .indent-3 { margin-left: 1.5in; }
+    .indent-1 { margin-left: 0.25in; }
+    .indent-2 { margin-left: 0.5in; }
+    .indent-3 { margin-left: 0.75in; }
     
     /* Keep headers with following content */
-    h1, h2, h3, .article-header, .section-header, .subsection-header {
+    h1, h2, h3, .roman-section, .section-header, .subsection-header {
       page-break-after: avoid;
       orphans: 3;
       widows: 3;
@@ -396,6 +481,18 @@ function generateHTMLFromClauses(
     p {
       orphans: 2;
       widows: 2;
+    }
+    
+    /* Page footer */
+    .page-footer {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      text-align: center;
+      font-size: 9pt;
+      color: #666;
+      padding: 8pt;
     }
     
     @media print {
@@ -416,49 +513,24 @@ function generateHTMLFromClauses(
 }
 
 function renderTitlePage(title: string, projectData: Record<string, any>): string {
-  const clientName = projectData.clientLegalName || projectData.clientFullName || '[CLIENT NAME]';
-  const llcName = projectData.childLlcName || 'Dvele Partners LLC';
+  const projectNumber = projectData.projectNumber || '[NUMBER]';
+  const projectName = projectData.projectName || '[PROJECT NAME]';
   
   return `
     <div class="title-page">
-      <div class="contract-title">${title}</div>
-      
-      <div class="project-info">
-        <div style="font-weight: bold; margin-bottom: 4pt;">
-          Project ${escapeHtml(projectData.projectNumber || '[NUMBER]')}
-        </div>
-        <div>${escapeHtml(projectData.projectName || '[PROJECT NAME]')}</div>
+      <div class="contract-title">
+        ${title}
       </div>
       
-      <div class="parties-section">
-        <div style="margin-bottom: 24pt; text-align: center;">
-          <div style="font-weight: bold;">by and between</div>
-        </div>
-        
-        <div style="text-align: center; margin-bottom: 18pt;">
-          <div style="font-weight: bold; font-size: 13pt;">${escapeHtml(llcName)}</div>
-          <div style="font-size: 11pt; margin-top: 4pt;">a Delaware limited liability company</div>
-          <div style="font-size: 11pt; font-style: italic;">("Company")</div>
-        </div>
-        
-        <div style="text-align: center; margin-bottom: 18pt;">
-          <div style="font-weight: bold;">and</div>
-        </div>
-        
-        <div style="text-align: center; margin-bottom: 18pt;">
-          <div style="font-weight: bold; font-size: 13pt;">${escapeHtml(clientName)}</div>
-          ${projectData.clientEntityType && projectData.clientState ? `
-            <div style="font-size: 11pt; margin-top: 4pt;">
-              a ${escapeHtml(projectData.clientState)} ${escapeHtml(getEntityTypeText(projectData.clientEntityType))}
-            </div>
-          ` : ''}
-          <div style="font-size: 11pt; font-style: italic;">("Client")</div>
+      <div class="project-info">
+        <div style="font-size: 18pt; color: #1a73e8; margin-bottom: 8pt;">
+          ${escapeHtml(projectNumber)} - ${escapeHtml(projectName)}
         </div>
       </div>
       
       ${projectData.agreementDate ? `
         <div class="date-line">
-          Dated as of ${formatDate(projectData.agreementDate)}
+          ${formatDate(projectData.agreementDate)}
         </div>
       ` : ''}
     </div>
@@ -468,43 +540,61 @@ function renderTitlePage(title: string, projectData: Record<string, any>): strin
 function renderClausesHTML(clauses: Clause[], projectData: Record<string, any>): string {
   let html = '<div class="contract-body">';
   
-  // Add preamble/recitals section
-  html += renderPreamble(projectData);
+  // Add document summary section (like the Google Doc)
+  html += renderDocumentSummary(projectData);
+  
+  // Add recitals section
+  html += renderRecitals(projectData);
+  
+  let currentSection = '';
   
   for (const clause of clauses) {
     const hierarchyLevel = typeof clause.hierarchy_level === 'number' ? clause.hierarchy_level : parseInt(String(clause.hierarchy_level)) || 1;
     const content = clause.content ? formatContent(clause.content) : '';
+    const clauseCode = clause.clause_code || '';
+    const clauseName = clause.name || '';
+    
+    // Check for Roman numeral sections (I., II., etc.)
+    const isRomanSection = /^[IVX]+\.?\s/.test(clauseCode) || /^[IVX]+\.?\s/.test(clauseName);
     
     if (hierarchyLevel === 1) {
-      // Article/Major Section - centered, uppercase
-      html += `
-        <div class="article-header">
-          ${clause.clause_code ? `ARTICLE ${escapeHtml(clause.clause_code)}` : ''}
-          ${clause.name ? `<br>${escapeHtml(clause.name.toUpperCase())}` : ''}
-        </div>
-        ${content ? `<p class="first-paragraph">${content}</p>` : ''}
-      `;
+      if (isRomanSection) {
+        // Roman numeral section header (I. ATTACHMENTS, II. AGREEMENT)
+        html += `
+          <div class="roman-section">
+            ${escapeHtml(clauseCode)} ${escapeHtml(clauseName.toUpperCase())}
+          </div>
+          ${content ? `<p>${content}</p>` : ''}
+        `;
+      } else {
+        // Section header (Section 1. Scope of Services)
+        html += `
+          <div class="section-header">
+            ${clauseCode ? `Section ${escapeHtml(clauseCode)} ` : ''}${escapeHtml(clauseName)}
+          </div>
+          ${content ? `<p>${content}</p>` : ''}
+        `;
+      }
     } else if (hierarchyLevel === 2) {
-      // Section - bold, left-aligned with number
+      // Subsection (1.1. Overview)
       html += `
-        <div class="section-header">
-          ${clause.clause_code ? `<span class="clause-number">${escapeHtml(clause.clause_code)}</span> ` : ''}
-          ${escapeHtml(clause.name || '')}
+        <div class="subsection-header">
+          ${clauseCode ? `${escapeHtml(clauseCode)} ` : ''}${escapeHtml(clauseName)}
         </div>
-        ${content ? `<p class="first-paragraph">${content}</p>` : ''}
+        ${content ? `<p>${content}</p>` : ''}
       `;
     } else {
-      // Subsection/Paragraph - inline bold number with content
-      if (clause.clause_code && clause.clause_code.trim()) {
+      // Paragraph level (1.1.1 or deeper)
+      if (clauseCode && clauseCode.trim()) {
         html += `
           <div class="inline-clause">
-            <span class="clause-number">(${escapeHtml(clause.clause_code)})</span>
-            ${clause.name ? `<span style="font-weight: bold;">${escapeHtml(clause.name)}.</span> ` : ''}
+            <span class="paragraph-header">${escapeHtml(clauseCode)}</span>
+            ${clauseName ? ` <span style="font-weight: bold;">${escapeHtml(clauseName)}.</span>` : ''}
             ${content}
           </div>
         `;
       } else {
-        html += `<p>${content}</p>`;
+        html += `<p class="indented">${content}</p>`;
       }
     }
   }
@@ -516,21 +606,43 @@ function renderClausesHTML(clauses: Clause[], projectData: Record<string, any>):
   return html;
 }
 
-function renderPreamble(projectData: Record<string, any>): string {
+function renderDocumentSummary(projectData: Record<string, any>): string {
   const clientName = projectData.clientLegalName || projectData.clientFullName || '[CLIENT NAME]';
-  const llcName = projectData.childLlcName || 'Dvele Partners LLC';
-  const agreementDate = formatDate(projectData.agreementDate) || '[DATE]';
+  const designFee = formatCurrency(projectData.designFee || 0);
+  const totalPrice = formatCurrency(projectData.totalPreliminaryContractPrice || 0);
   
   return `
-    <p class="no-indent" style="margin-bottom: 18pt;">
-      <strong>THIS AGREEMENT</strong> (this "Agreement") is made and entered into as of 
-      ${agreementDate} (the "Effective Date"), by and between 
-      <strong>${escapeHtml(llcName)}</strong>, a Delaware limited liability company ("Company"), 
-      and <strong>${escapeHtml(clientName)}</strong>${projectData.clientEntityType ? `, a ${escapeHtml(projectData.clientState || '')} ${escapeHtml(getEntityTypeText(projectData.clientEntityType))}` : ''} ("Client").
-    </p>
-    
+    <div class="document-summary">
+      <h2>Document Summary</h2>
+      <p><strong>What the Client is Signing:</strong></p>
+      <p><strong>1. Services:</strong> Company will provide design, engineering, manufacturing, and delivery services for modular home(s) as specified in this Agreement.</p>
+      <p><strong>2. Initial Payment:</strong> Design & Engineering Fee of ${designFee} is due upon signing.</p>
+      <p><strong>3. What Happens Next:</strong> After design approval, production begins per the milestone payment schedule.</p>
+      <p><strong>4. Important Notes:</strong> This is a preliminary pricing agreement. Final costs will be confirmed during the design phase.</p>
+      <p><strong>5. Client's Responsibilities:</strong> Provide site access, project information, and timely approvals as outlined.</p>
+      <p><strong>6. When Does This End?</strong> Either party may exit at designated milestones per Section 10.</p>
+      <p><strong>7. Peace of Mind Guarantee:</strong> Limited warranty coverage as described in Section 6.</p>
+    </div>
+  `;
+}
+
+function renderRecitals(projectData: Record<string, any>): string {
+  const clientName = projectData.clientLegalName || projectData.clientFullName || '[CLIENT NAME]';
+  const llcName = projectData.childLlcName || 'Dvele Partners LLC';
+  const siteAddress = projectData.siteAddress || '[ADDRESS]';
+  const siteCity = projectData.siteCity || '[CITY]';
+  const siteState = projectData.siteState || '[STATE]';
+  const totalUnits = projectData.totalUnits || '1';
+  
+  return `
     <div class="recitals">
-      <p class="no-indent" style="font-weight: bold; text-align: center; margin-bottom: 12pt;">RECITALS</p>
+      <div class="recitals-title">RECITALS</div>
+      
+      <p class="recital">
+        This Master Purchase Agreement ("Agreement") is entered into as of the Effective Date by and between 
+        <strong>${escapeHtml(llcName)}</strong>, a Delaware limited liability company ("Company"), and 
+        <strong>${escapeHtml(clientName)}</strong>${projectData.clientEntityType ? `, a ${escapeHtml(projectData.clientState || '')} ${escapeHtml(getEntityTypeText(projectData.clientEntityType))}` : ''} ("Client").
+      </p>
       
       <p class="recital">
         <span class="recital-label">WHEREAS,</span> Company is engaged in the business of designing, 
@@ -539,23 +651,19 @@ function renderPreamble(projectData: Record<string, any>): string {
       
       <p class="recital">
         <span class="recital-label">WHEREAS,</span> Client desires to engage Company to design, manufacture, 
-        and deliver ${projectData.totalUnits || '1'} modular home unit(s) to the property located at 
-        ${escapeHtml(projectData.siteAddress || '[ADDRESS]')}, ${escapeHtml(projectData.siteCity || '[CITY]')}, 
-        ${escapeHtml(projectData.siteState || '[STATE]')} ${escapeHtml(projectData.siteZip || '[ZIP]')}
-        (the "Project Site"); and
+        and deliver ${escapeHtml(totalUnits)} modular home unit(s) to the property located at 
+        ${escapeHtml(siteAddress)}, ${escapeHtml(siteCity)}, ${escapeHtml(siteState)} (the "Project Site"); and
       </p>
       
       <p class="recital">
-        <span class="recital-label">WHEREAS,</span> Company agrees to perform such services upon the terms 
+        <span class="recital-label">WHEREAS,</span> Company is willing to perform such services upon the terms 
         and conditions set forth herein.
       </p>
+      
+      <p class="recital" style="font-weight: bold; text-align: center; margin-top: 12pt;">
+        NOW, THEREFORE, in consideration of the mutual covenants herein, the parties agree as follows:
+      </p>
     </div>
-    
-    <p class="agreement-statement" style="margin-top: 18pt; margin-bottom: 24pt;">
-      NOW, THEREFORE, in consideration of the mutual covenants and agreements hereinafter set forth and for 
-      other good and valuable consideration, the receipt and sufficiency of which are hereby acknowledged, 
-      the parties agree as follows:
-    </p>
   `;
 }
 
@@ -564,42 +672,115 @@ function renderSignatureBlocks(projectData: Record<string, any>): string {
   const llcName = projectData.childLlcName || 'Dvele Partners LLC';
   
   return `
-    <div class="signature-section">
-      <p class="no-indent" style="margin-top: 36pt; margin-bottom: 24pt;">
-        <strong>IN WITNESS WHEREOF,</strong> the parties hereto have executed this Agreement as of the date first written above.
+    <div class="signature-section" style="margin-top: 48pt; page-break-inside: avoid;">
+      <p style="font-weight: bold; margin-bottom: 24pt;">
+        IN WITNESS WHEREOF, the parties hereto have executed this Agreement as of the date first written above.
       </p>
       
-      <div style="display: flex; justify-content: space-between; margin-top: 36pt;">
-        <div class="signature-block" style="width: 45%;">
-          <div style="font-weight: bold; margin-bottom: 36pt;">COMPANY:</div>
-          <div style="font-weight: bold;">${escapeHtml(llcName)}</div>
-          <div class="signature-line"></div>
-          <div class="signature-name">By: _______________________________</div>
-          <div class="signature-title">Name: _____________________________</div>
-          <div class="signature-title">Title: ______________________________</div>
-          <div class="signature-title">Date: _____________________________</div>
-        </div>
-        
-        <div class="signature-block" style="width: 45%;">
-          <div style="font-weight: bold; margin-bottom: 36pt;">CLIENT:</div>
-          <div style="font-weight: bold;">${escapeHtml(clientName)}</div>
-          <div class="signature-line"></div>
-          <div class="signature-name">By: _______________________________</div>
-          <div class="signature-title">Name: ${escapeHtml(projectData.clientSignerName || '_____________________________')}</div>
-          <div class="signature-title">Title: ${escapeHtml(projectData.clientTitle || '______________________________')}</div>
-          <div class="signature-title">Date: _____________________________</div>
-        </div>
-      </div>
+      <table style="width: 100%; border: none; margin-top: 24pt;">
+        <tr>
+          <td style="width: 48%; border: none; vertical-align: top; padding-right: 20pt;">
+            <div style="font-weight: bold; color: #1a73e8; margin-bottom: 8pt;">COMPANY:</div>
+            <div style="font-weight: bold; margin-bottom: 24pt;">${escapeHtml(llcName)}</div>
+            <div style="border-bottom: 1px solid #000; margin-bottom: 4pt; height: 24pt;"></div>
+            <div style="font-size: 9pt; color: #666;">Signature</div>
+            <div style="margin-top: 16pt; border-bottom: 1px solid #000; margin-bottom: 4pt; height: 18pt;"></div>
+            <div style="font-size: 9pt; color: #666;">Name (Print)</div>
+            <div style="margin-top: 16pt; border-bottom: 1px solid #000; margin-bottom: 4pt; height: 18pt;"></div>
+            <div style="font-size: 9pt; color: #666;">Title</div>
+            <div style="margin-top: 16pt; border-bottom: 1px solid #000; margin-bottom: 4pt; height: 18pt;"></div>
+            <div style="font-size: 9pt; color: #666;">Date</div>
+          </td>
+          <td style="width: 4%; border: none;"></td>
+          <td style="width: 48%; border: none; vertical-align: top;">
+            <div style="font-weight: bold; color: #1a73e8; margin-bottom: 8pt;">CLIENT:</div>
+            <div style="font-weight: bold; margin-bottom: 24pt;">${escapeHtml(clientName)}</div>
+            <div style="border-bottom: 1px solid #000; margin-bottom: 4pt; height: 24pt;"></div>
+            <div style="font-size: 9pt; color: #666;">Signature</div>
+            <div style="margin-top: 16pt; border-bottom: 1px solid #000; margin-bottom: 4pt; height: 18pt;"></div>
+            <div style="font-size: 9pt; color: #666;">Name (Print): ${projectData.clientSignerName ? escapeHtml(projectData.clientSignerName) : ''}</div>
+            <div style="margin-top: 16pt; border-bottom: 1px solid #000; margin-bottom: 4pt; height: 18pt;"></div>
+            <div style="font-size: 9pt; color: #666;">Title: ${projectData.clientTitle ? escapeHtml(projectData.clientTitle) : ''}</div>
+            <div style="margin-top: 16pt; border-bottom: 1px solid #000; margin-bottom: 4pt; height: 18pt;"></div>
+            <div style="font-size: 9pt; color: #666;">Date</div>
+          </td>
+        </tr>
+      </table>
     </div>
   `;
 }
 
 function formatContent(content: string): string {
   if (!content) return '';
+  
+  // Check if content contains table markers or tab-separated data
+  if (content.includes('|') && content.split('\n').some(line => line.includes('|'))) {
+    return formatTableContent(content);
+  }
+  
   let escaped = escapeHtml(content);
+  
+  // Handle bullet points
+  escaped = escaped.replace(/^[\s]*[-•]\s+(.+)$/gm, '<li>$1</li>');
+  if (escaped.includes('<li>')) {
+    escaped = escaped.replace(/(<li>[\s\S]*?<\/li>)/g, '<ul style="margin: 8pt 0 8pt 24pt;">$1</ul>');
+  }
+  
+  // Handle numbered lists (1., 2., etc.)
+  escaped = escaped.replace(/^[\s]*(\d+)\.\s+(.+)$/gm, '<li value="$1">$2</li>');
+  
+  // Handle lettered lists (a., b., etc.)
+  escaped = escaped.replace(/^[\s]*([a-z])\.\s+(.+)$/gm, '<li>$2</li>');
+  
+  // Convert double newlines to paragraph breaks
   escaped = escaped.replace(/\n\n/g, '</p><p>');
+  
+  // Convert single newlines to line breaks
   escaped = escaped.replace(/\n/g, '<br>');
+  
   return escaped;
+}
+
+function formatTableContent(content: string): string {
+  const lines = content.split('\n').filter(line => line.trim());
+  let html = '<table>';
+  let isFirstRow = true;
+  
+  for (const line of lines) {
+    if (line.includes('|')) {
+      const cells = line.split('|').map(cell => cell.trim()).filter(cell => cell);
+      
+      // Skip separator rows (----)
+      if (cells.every(cell => /^[-:]+$/.test(cell))) {
+        continue;
+      }
+      
+      if (isFirstRow) {
+        html += '<thead><tr>';
+        for (const cell of cells) {
+          html += `<th>${escapeHtml(cell)}</th>`;
+        }
+        html += '</tr></thead><tbody>';
+        isFirstRow = false;
+      } else {
+        // Check if this is a total row
+        const isTotalRow = cells.some(cell => /total|sum|subtotal/i.test(cell));
+        html += `<tr${isTotalRow ? ' class="total-row"' : ''}>`;
+        for (const cell of cells) {
+          html += `<td>${escapeHtml(cell)}</td>`;
+        }
+        html += '</tr>';
+      }
+    } else {
+      // Non-table line, add as a spanning cell or skip
+      if (line.trim()) {
+        html += `<tr><td colspan="100">${escapeHtml(line)}</td></tr>`;
+      }
+    }
+  }
+  
+  html += '</tbody></table>';
+  return html;
 }
 
 async function convertHTMLToPDF(html: string): Promise<Buffer> {
