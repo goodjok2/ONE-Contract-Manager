@@ -838,6 +838,23 @@ function getContractTitle(contractType: string): string {
 function buildVariableMap(projectData: Record<string, any>): Record<string, string> {
   const map: Record<string, string> = {};
   
+  // Check if data is already in UPPERCASE format (from mapper.ts)
+  // If so, use the values directly instead of looking for camelCase properties
+  const isAlreadyMapped = 'PROJECT_NUMBER' in projectData || 'CLIENT_LEGAL_NAME' in projectData;
+  
+  if (isAlreadyMapped) {
+    // Data is already in correct format from mapProjectToVariables
+    // Just ensure all values are strings
+    for (const [key, value] of Object.entries(projectData)) {
+      if (value !== null && value !== undefined) {
+        map[key] = String(value);
+      }
+    }
+    console.log(`Using pre-mapped variables: ${Object.keys(map).length} variables`);
+    return map;
+  }
+  
+  // Legacy path: data is in camelCase format, need to transform
   map['PROJECT_NUMBER'] = projectData.projectNumber || '';
   map['PROJECT_NAME'] = projectData.projectName || '';
   map['TOTAL_UNITS'] = projectData.totalUnits?.toString() || '1';
