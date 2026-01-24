@@ -258,11 +258,11 @@ export default function ContractBuilder() {
   }, [form]);
 
   useEffect(() => {
-    if (projectName && !spvManuallyEdited) {
-      const cleanName = projectName.replace(/\s+/g, " ").trim();
-      form.setValue("spvLegalName", `Dvele Partners ${cleanName} LLC`);
+    if (siteAddress && !spvManuallyEdited) {
+      const cleanAddress = siteAddress.replace(/[^a-zA-Z0-9\s]/g, '').trim();
+      form.setValue("spvLegalName", `DP ${cleanAddress} LLC`);
     }
-  }, [projectName, spvManuallyEdited, form]);
+  }, [siteAddress, spvManuallyEdited, form]);
 
   useEffect(() => {
     if (siteAddress) {

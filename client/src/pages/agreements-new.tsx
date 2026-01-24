@@ -83,7 +83,7 @@ export default function AgreementsNew() {
 
   useEffect(() => {
     if (!llcManuallyEdited && projectName) {
-      form.setValue("llcLegalName", `Dvele Partners ${projectName} LLC`);
+      form.setValue("llcLegalName", `DP ${projectName} LLC`);
     }
   }, [projectName, llcManuallyEdited, form]);
 

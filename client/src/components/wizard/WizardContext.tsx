@@ -1080,6 +1080,7 @@ export const WizardProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     
     const steps = [
       'Preparing contract data',
+      'Creating Child LLC',
       'Loading clause templates', 
       'Generating ONE Agreement',
       'Generating Manufacturing Subcontract',
@@ -1088,12 +1089,62 @@ export const WizardProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     ];
     
     try {
-      for (let i = 0; i < steps.length; i++) {
+      // Step 0: Preparing contract data
+      setCurrentGenerationStep(0);
+      setGenerationProgress(5);
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Step 1: Create Child LLC if creating new one
+      setCurrentGenerationStep(1);
+      let createdLlcId: number | null = null;
+      
+      if (wizardState.projectData.llcOption === 'new' && wizardState.projectData.childLlcName) {
+        try {
+          const llcPayload = {
+            name: wizardState.projectData.childLlcName,
+            projectName: wizardState.projectData.projectName,
+            projectAddress: wizardState.projectData.siteAddress,
+            status: 'forming',
+            stateOfFormation: US_STATES.find(s => s.value === wizardState.projectData.childLlcState)?.label || 'Delaware',
+            einNumber: wizardState.projectData.childLlcEin || null,
+            address: wizardState.projectData.siteAddress,
+            city: wizardState.projectData.siteCity,
+            state: wizardState.projectData.siteState,
+            zip: wizardState.projectData.siteZip,
+          };
+          
+          const llcResponse = await apiRequest('POST', '/api/llcs', llcPayload);
+          
+          if (llcResponse.ok) {
+            const llcData = await llcResponse.json();
+            createdLlcId = llcData.id;
+            queryClient.invalidateQueries({ queryKey: ['/api/llcs'] });
+          } else {
+            console.warn('LLC creation returned non-ok status:', llcResponse.status);
+            toast({
+              title: "LLC Creation Warning",
+              description: "Could not create the child LLC, but contract generation will continue.",
+              variant: "destructive",
+            });
+          }
+        } catch (llcError) {
+          console.error('LLC creation error:', llcError);
+          toast({
+            title: "LLC Creation Warning",
+            description: "Could not create the child LLC, but contract generation will continue.",
+            variant: "destructive",
+          });
+        }
+      }
+      setGenerationProgress(20);
+      
+      // Steps 2-6: Generate contracts
+      for (let i = 2; i < steps.length; i++) {
         setCurrentGenerationStep(i);
         
-        const stepDuration = 800 + Math.random() * 400;
-        const startProgress = (i / steps.length) * 100;
-        const endProgress = ((i + 1) / steps.length) * 100;
+        const stepDuration = 600 + Math.random() * 300;
+        const startProgress = 20 + ((i - 2) / (steps.length - 2)) * 80;
+        const endProgress = 20 + ((i - 1) / (steps.length - 2)) * 80;
         
         for (let p = startProgress; p <= endProgress; p += 5) {
           setGenerationProgress(p);
@@ -1138,9 +1189,13 @@ export const WizardProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       setGeneratedProjectId(`proj_${Date.now()}`);
       setGenerationState('success');
       
+      const llcMessage = createdLlcId 
+        ? ` Child LLC "${wizardState.projectData.childLlcName}" was created.`
+        : '';
+      
       toast({
         title: "Contracts Generated Successfully",
-        description: "Your contract package is ready for download.",
+        description: `Your contract package is ready for download.${llcMessage}`,
       });
       
     } catch (error) {
@@ -1153,7 +1208,7 @@ export const WizardProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         variant: "destructive",
       });
     }
-  }, [wizardState.projectData, toast]);
+  }, [wizardState.projectData, toast, queryClient]);
 
   // Context value
   const contextValue: WizardContextType = {
