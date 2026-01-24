@@ -40,10 +40,11 @@ export const Step9ReviewGenerate: React.FC = () => {
     goToStep,
     setShowClausePreview,
     setConfirmationChecked,
-    setGenerationState,
     confirmationChecked,
     generationState,
-    generationProgress
+    generationProgress,
+    generatedContracts,
+    generateContracts
   } = useWizard();
   
   const { projectData } = wizardState;
@@ -129,11 +130,8 @@ export const Step9ReviewGenerate: React.FC = () => {
   }, [projectData]);
   
   const handleGenerateContracts = async () => {
-    setGenerationState('generating');
-    
-    await new Promise(resolve => setTimeout(resolve, 3000));
-    
-    setGenerationState('success');
+    // Call the real generateContracts from WizardContext which saves to the database
+    await generateContracts();
   };
   
   const [isDownloading, setIsDownloading] = useState<string | null>(null);
