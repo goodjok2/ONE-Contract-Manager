@@ -513,8 +513,9 @@ function generateHTMLFromClauses(
 }
 
 function renderTitlePage(title: string, projectData: Record<string, any>): string {
-  const projectNumber = projectData.projectNumber || '[NUMBER]';
-  const projectName = projectData.projectName || '[PROJECT NAME]';
+  // Support both uppercase (from mapper) and camelCase (legacy) variable names
+  const projectNumber = projectData.PROJECT_NUMBER || projectData.projectNumber || '[NUMBER]';
+  const projectName = projectData.PROJECT_NAME || projectData.projectName || '[PROJECT NAME]';
   
   return `
     <div class="title-page">
@@ -528,9 +529,9 @@ function renderTitlePage(title: string, projectData: Record<string, any>): strin
         </div>
       </div>
       
-      ${projectData.agreementDate ? `
+      ${(projectData.AGREEMENT_EXECUTION_DATE || projectData.agreementDate) ? `
         <div class="date-line">
-          ${formatDate(projectData.agreementDate)}
+          ${formatDate(projectData.AGREEMENT_EXECUTION_DATE || projectData.agreementDate)}
         </div>
       ` : ''}
     </div>
@@ -607,9 +608,10 @@ function renderClausesHTML(clauses: Clause[], projectData: Record<string, any>):
 }
 
 function renderDocumentSummary(projectData: Record<string, any>): string {
-  const clientName = projectData.clientLegalName || projectData.clientFullName || '[CLIENT NAME]';
-  const designFee = formatCurrency(projectData.designFee || 0);
-  const totalPrice = formatCurrency(projectData.totalPreliminaryContractPrice || 0);
+  // Support both uppercase (from mapper) and camelCase (legacy) variable names
+  const clientName = projectData.CLIENT_LEGAL_NAME || projectData.clientLegalName || projectData.clientFullName || '[CLIENT NAME]';
+  const designFee = formatCurrency(projectData.DESIGN_FEE || projectData.designFee || 0);
+  const totalPrice = formatCurrency(projectData.TOTAL_PRELIMINARY_CONTRACT_PRICE || projectData.totalPreliminaryContractPrice || 0);
   
   return `
     <div class="document-summary">
@@ -627,12 +629,15 @@ function renderDocumentSummary(projectData: Record<string, any>): string {
 }
 
 function renderRecitals(projectData: Record<string, any>): string {
-  const clientName = projectData.clientLegalName || projectData.clientFullName || '[CLIENT NAME]';
-  const llcName = projectData.childLlcName || 'Dvele Partners LLC';
-  const siteAddress = projectData.siteAddress || '[ADDRESS]';
-  const siteCity = projectData.siteCity || '[CITY]';
-  const siteState = projectData.siteState || '[STATE]';
-  const totalUnits = projectData.totalUnits || '1';
+  // Support both uppercase (from mapper) and camelCase (legacy) variable names
+  const clientName = projectData.CLIENT_LEGAL_NAME || projectData.clientLegalName || projectData.clientFullName || '[CLIENT NAME]';
+  const llcName = projectData.CHILD_LLC_LEGAL_NAME || projectData.childLlcName || 'Dvele Partners LLC';
+  const siteAddress = projectData.DELIVERY_ADDRESS || projectData.siteAddress || '[ADDRESS]';
+  const siteCity = projectData.DELIVERY_CITY || projectData.siteCity || '[CITY]';
+  const siteState = projectData.DELIVERY_STATE || projectData.siteState || '[STATE]';
+  const totalUnits = projectData.TOTAL_UNITS || projectData.totalUnits || '1';
+  const clientEntityType = projectData.CLIENT_ENTITY_TYPE || projectData.clientEntityType || '';
+  const clientState = projectData.CLIENT_STATE || projectData.clientState || '';
   
   return `
     <div class="recitals">
@@ -641,7 +646,7 @@ function renderRecitals(projectData: Record<string, any>): string {
       <p class="recital">
         This Master Purchase Agreement ("Agreement") is entered into as of the Effective Date by and between 
         <strong>${escapeHtml(llcName)}</strong>, a Delaware limited liability company ("Company"), and 
-        <strong>${escapeHtml(clientName)}</strong>${projectData.clientEntityType ? `, a ${escapeHtml(projectData.clientState || '')} ${escapeHtml(getEntityTypeText(projectData.clientEntityType))}` : ''} ("Client").
+        <strong>${escapeHtml(clientName)}</strong>${clientEntityType ? `, a ${escapeHtml(clientState)} ${escapeHtml(getEntityTypeText(clientEntityType))}` : ''} ("Client").
       </p>
       
       <p class="recital">
@@ -668,8 +673,11 @@ function renderRecitals(projectData: Record<string, any>): string {
 }
 
 function renderSignatureBlocks(projectData: Record<string, any>): string {
-  const clientName = projectData.clientLegalName || projectData.clientFullName || '[CLIENT NAME]';
-  const llcName = projectData.childLlcName || 'Dvele Partners LLC';
+  // Support both uppercase (from mapper) and camelCase (legacy) variable names
+  const clientName = projectData.CLIENT_LEGAL_NAME || projectData.clientLegalName || projectData.clientFullName || '[CLIENT NAME]';
+  const llcName = projectData.CHILD_LLC_LEGAL_NAME || projectData.childLlcName || 'Dvele Partners LLC';
+  const clientSignerName = projectData.CLIENT_SIGNER_NAME || projectData.clientSignerName || '';
+  const clientTitle = projectData.CLIENT_TITLE || projectData.clientTitle || '';
   
   return `
     <div class="signature-section" style="margin-top: 48pt; page-break-inside: avoid;">
@@ -698,9 +706,9 @@ function renderSignatureBlocks(projectData: Record<string, any>): string {
             <div style="border-bottom: 1px solid #000; margin-bottom: 4pt; height: 24pt;"></div>
             <div style="font-size: 9pt; color: #666;">Signature</div>
             <div style="margin-top: 16pt; border-bottom: 1px solid #000; margin-bottom: 4pt; height: 18pt;"></div>
-            <div style="font-size: 9pt; color: #666;">Name (Print): ${projectData.clientSignerName ? escapeHtml(projectData.clientSignerName) : ''}</div>
+            <div style="font-size: 9pt; color: #666;">Name (Print): ${clientSignerName ? escapeHtml(clientSignerName) : ''}</div>
             <div style="margin-top: 16pt; border-bottom: 1px solid #000; margin-bottom: 4pt; height: 18pt;"></div>
-            <div style="font-size: 9pt; color: #666;">Title: ${projectData.clientTitle ? escapeHtml(projectData.clientTitle) : ''}</div>
+            <div style="font-size: 9pt; color: #666;">Title: ${clientTitle ? escapeHtml(clientTitle) : ''}</div>
             <div style="margin-top: 16pt; border-bottom: 1px solid #000; margin-bottom: 4pt; height: 18pt;"></div>
             <div style="font-size: 9pt; color: #666;">Date</div>
           </td>
