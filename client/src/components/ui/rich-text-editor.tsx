@@ -2,6 +2,12 @@ import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { 
   Bold, 
   Italic, 
@@ -9,7 +15,10 @@ import {
   List, 
   ListOrdered,
   Undo,
-  Redo
+  Redo,
+  Indent,
+  Outdent,
+  ChevronDown
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -42,7 +51,7 @@ export function RichTextEditor({ content, onChange, className, placeholder }: Ri
     },
     editorProps: {
       attributes: {
-        class: 'prose prose-sm max-w-none min-h-[200px] p-3 focus:outline-none',
+        class: 'prose prose-sm max-w-none min-h-[200px] p-3 focus:outline-none bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100',
       },
     },
   });
@@ -85,25 +94,53 @@ export function RichTextEditor({ content, onChange, className, placeholder }: Ri
           <UnderlineIcon className="h-4 w-4" />
         </Button>
         <div className="w-px h-6 bg-border mx-1" />
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className={cn("h-8 px-2 gap-1", (editor.isActive('bulletList') || editor.isActive('orderedList')) && "bg-muted")}
+              data-testid="button-list-dropdown"
+            >
+              <ListOrdered className="h-4 w-4" />
+              <ChevronDown className="h-3 w-3" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <DropdownMenuItem onClick={() => editor.chain().focus().toggleOrderedList().run()}>
+              <ListOrdered className="h-4 w-4 mr-2" />
+              Roman Numerals (i. ii. iii.)
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => editor.chain().focus().toggleBulletList().run()}>
+              <List className="h-4 w-4 mr-2" />
+              Letters (a. b. c.)
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <Button
           type="button"
           variant="ghost"
           size="sm"
-          onClick={() => editor.chain().focus().toggleBulletList().run()}
-          className={cn("h-8 w-8 p-0", editor.isActive('bulletList') && "bg-muted")}
-          data-testid="button-bullet-list"
+          onClick={() => editor.chain().focus().liftListItem('listItem').run()}
+          disabled={!editor.can().liftListItem('listItem')}
+          className="h-8 w-8 p-0"
+          title="Outdent"
+          data-testid="button-outdent"
         >
-          <List className="h-4 w-4" />
+          <Outdent className="h-4 w-4" />
         </Button>
         <Button
           type="button"
           variant="ghost"
           size="sm"
-          onClick={() => editor.chain().focus().toggleOrderedList().run()}
-          className={cn("h-8 w-8 p-0", editor.isActive('orderedList') && "bg-muted")}
-          data-testid="button-ordered-list"
+          onClick={() => editor.chain().focus().sinkListItem('listItem').run()}
+          disabled={!editor.can().sinkListItem('listItem')}
+          className="h-8 w-8 p-0"
+          title="Indent"
+          data-testid="button-indent"
         >
-          <ListOrdered className="h-4 w-4" />
+          <Indent className="h-4 w-4" />
         </Button>
         <div className="w-px h-6 bg-border mx-1" />
         <Button
@@ -129,9 +166,6 @@ export function RichTextEditor({ content, onChange, className, placeholder }: Ri
           <Redo className="h-4 w-4" />
         </Button>
         <div className="flex-1" />
-        <span className="text-xs text-muted-foreground mr-2">
-          Roman numerals: i. ii. iii. | Letters: a. b. c.
-        </span>
       </div>
       <div className="flex-1 overflow-y-auto">
         <EditorContent editor={editor} />
