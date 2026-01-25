@@ -561,35 +561,7 @@ export default function ClauseLibrary() {
             {selectedClause ? (
               <Card>
                 <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <CardTitle className="text-lg">Clause Details</CardTitle>
-                    <div className="flex gap-2">
-                      {isEditing ? (
-                        <>
-                          <Button variant="ghost" size="sm" onClick={() => setIsEditing(false)}>
-                            <X className="h-4 w-4" />
-                          </Button>
-                          <Button size="sm" onClick={handleSave} disabled={updateMutation.isPending}>
-                            <Save className="h-4 w-4 mr-1" />
-                            Save
-                          </Button>
-                        </>
-                      ) : (
-                        <Button variant="outline" size="sm" onClick={() => {
-                          setEditData({
-                            name: selectedClause.name,
-                            content: selectedClause.content,
-                            risk_level: selectedClause.risk_level,
-                            negotiable: selectedClause.negotiable,
-                          });
-                          setIsEditing(true);
-                        }} data-testid="button-edit-clause">
-                          <Edit className="h-4 w-4 mr-1" />
-                          Edit
-                        </Button>
-                      )}
-                    </div>
-                  </div>
+                  <CardTitle className="text-lg">Clause Details</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -602,105 +574,46 @@ export default function ClauseLibrary() {
                     )}
                   </div>
 
-                  {isEditing ? (
-                    <div className="space-y-3">
-                      <div>
-                        <label className="text-sm font-medium">Name</label>
-                        <Input
-                          value={editData.name || ""}
-                          onChange={(e) => setEditData({ ...editData, name: e.target.value })}
-                        />
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium">Content</label>
-                        <RichTextEditor
-                          content={editData.content || ""}
-                          onChange={(content) => setEditData({ ...editData, content })}
-                          className="mt-1"
-                        />
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="text-sm font-medium">Risk Level</label>
-                          <Select
-                            value={editData.risk_level || "low"}
-                            onValueChange={(v) => setEditData({ ...editData, risk_level: v })}
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="low">Low</SelectItem>
-                              <SelectItem value="medium">Medium</SelectItem>
-                              <SelectItem value="high">High</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div>
-                          <label className="text-sm font-medium">Negotiable</label>
-                          <Select
-                            value={editData.negotiable ? "yes" : "no"}
-                            onValueChange={(v) => setEditData({ ...editData, negotiable: v === "yes" })}
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="yes">Yes</SelectItem>
-                              <SelectItem value="no">No</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
+                  <div>
+                    <h4 className="font-medium mb-1">{selectedClause.name}</h4>
+                    <p className="text-sm text-muted-foreground">
+                      {selectedClause.category} | Level {selectedClause.hierarchy_level}
+                    </p>
+                  </div>
+
+                  {selectedClause.variables_used && selectedClause.variables_used.length > 0 && (
                     <>
-                      <div>
-                        <h4 className="font-medium mb-1">{selectedClause.name}</h4>
-                        <p className="text-sm text-muted-foreground">
-                          {selectedClause.category} | Level {selectedClause.hierarchy_level}
-                        </p>
-                      </div>
-
                       <Separator />
-
                       <div>
-                        <h5 className="text-sm font-medium mb-2">Content</h5>
-                        <div
-                          className="text-sm max-w-none bg-muted/50 p-3 rounded-lg max-h-64 overflow-y-auto"
-                          dangerouslySetInnerHTML={{ __html: formatContent(selectedClause.content || "") }}
-                        />
+                        <h5 className="text-sm font-medium mb-2 flex items-center gap-1">
+                          <Code className="h-4 w-4" />
+                          Variables Used ({selectedClause.variables_used.length})
+                        </h5>
+                        <div className="flex flex-wrap gap-1">
+                          {selectedClause.variables_used.map((v) => (
+                            <Badge key={v} variant="outline" className="font-mono text-xs">
+                              {v}
+                            </Badge>
+                          ))}
+                        </div>
                       </div>
+                    </>
+                  )}
 
-                      {selectedClause.variables_used && selectedClause.variables_used.length > 0 && (
-                        <div>
-                          <h5 className="text-sm font-medium mb-2 flex items-center gap-1">
-                            <Code className="h-4 w-4" />
-                            Variables Used ({selectedClause.variables_used.length})
-                          </h5>
-                          <div className="flex flex-wrap gap-1">
-                            {selectedClause.variables_used.map((v) => (
-                              <Badge key={v} variant="outline" className="font-mono text-xs">
-                                {v}
-                              </Badge>
-                            ))}
-                          </div>
+                  {selectedClause.conditions && (
+                    <>
+                      <Separator />
+                      <div>
+                        <h5 className="text-sm font-medium mb-2 flex items-center gap-1">
+                          <Zap className="h-4 w-4 text-amber-500" />
+                          Conditional Logic
+                        </h5>
+                        <div className="p-2 bg-amber-500/10 rounded-lg">
+                          <pre className="text-xs font-mono overflow-x-auto">
+                            {JSON.stringify(selectedClause.conditions, null, 2)}
+                          </pre>
                         </div>
-                      )}
-
-                      {selectedClause.conditions && (
-                        <div>
-                          <h5 className="text-sm font-medium mb-2 flex items-center gap-1">
-                            <Zap className="h-4 w-4 text-amber-500" />
-                            Conditional Logic
-                          </h5>
-                          <div className="p-2 bg-amber-500/10 rounded-lg">
-                            <pre className="text-xs font-mono overflow-x-auto">
-                              {JSON.stringify(selectedClause.conditions, null, 2)}
-                            </pre>
-                          </div>
-                        </div>
-                      )}
+                      </div>
                     </>
                   )}
                 </CardContent>

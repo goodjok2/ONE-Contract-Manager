@@ -52,8 +52,8 @@ export function RichTextEditor({ content, onChange, className, placeholder }: Ri
   }
 
   return (
-    <div className={cn("border rounded-md bg-background", className)}>
-      <div className="flex items-center gap-1 p-2 border-b bg-muted/30 flex-wrap">
+    <div className={cn("border rounded-md bg-background flex flex-col max-h-[70vh]", className)}>
+      <div className="flex items-center gap-1 p-2 border-b bg-muted/30 flex-wrap sticky top-0 z-10">
         <Button
           type="button"
           variant="ghost"
@@ -133,7 +133,9 @@ export function RichTextEditor({ content, onChange, className, placeholder }: Ri
           Roman numerals: i. ii. iii. | Letters: a. b. c.
         </span>
       </div>
-      <EditorContent editor={editor} />
+      <div className="flex-1 overflow-y-auto">
+        <EditorContent editor={editor} />
+      </div>
     </div>
   );
 }
