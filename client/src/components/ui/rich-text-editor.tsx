@@ -51,7 +51,7 @@ export function RichTextEditor({ content, onChange, className, placeholder }: Ri
     },
     editorProps: {
       attributes: {
-        class: 'prose prose-sm max-w-none min-h-[200px] p-3 focus:outline-none bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100',
+        class: 'prose prose-sm max-w-none min-h-[200px] p-3 focus:outline-none bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 editor-content',
       },
     },
   });
@@ -62,6 +62,30 @@ export function RichTextEditor({ content, onChange, className, placeholder }: Ri
 
   return (
     <div className={cn("border rounded-md bg-background flex flex-col max-h-[70vh]", className)}>
+      <style>{`
+        .editor-content ol {
+          list-style-type: lower-roman !important;
+          margin-left: 1.5rem;
+          padding-left: 0.5rem;
+        }
+        .editor-content ul {
+          list-style-type: lower-alpha !important;
+          margin-left: 1.5rem;
+          padding-left: 0.5rem;
+        }
+        .editor-content ol ol,
+        .editor-content ul ul,
+        .editor-content ol ul,
+        .editor-content ul ol {
+          margin-left: 1.5rem;
+        }
+        .editor-content li {
+          margin-bottom: 0.25rem;
+        }
+        .editor-content li p {
+          margin: 0;
+        }
+      `}</style>
       <div className="flex items-center gap-1 p-2 border-b bg-muted/30 flex-wrap sticky top-0 z-10">
         <Button
           type="button"
