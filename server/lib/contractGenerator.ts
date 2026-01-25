@@ -113,10 +113,16 @@ function replaceVariables(content: string, variableMap: Record<string, string>):
   
   let result = content;
   
+  // Replace variables with their values wrapped in blue span for visibility
   Object.entries(variableMap).forEach(([key, value]) => {
     const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
-    result = result.replace(regex, value || '[NOT PROVIDED]');
+    const displayValue = value || '[NOT PROVIDED]';
+    // Wrap the substituted value in a blue span for easy identification
+    result = result.replace(regex, `<span class="variable-value">${escapeHtml(displayValue)}</span>`);
   });
+  
+  // Also catch any remaining unsubstituted variables and display them in blue
+  result = result.replace(/\{\{([A-Z_]+)\}\}/g, '<span class="variable-placeholder">{{$1}}</span>');
   
   return result;
 }
@@ -468,6 +474,22 @@ function generateHTMLFromClauses(
     
     .notice-box strong {
       color: #e37400;
+    }
+    
+    /* Variable substitutions - display in blue for easy visibility */
+    .variable-value {
+      color: #1a73e8;
+      font-weight: 500;
+    }
+    
+    /* Unsubstituted variables - display in blue with background */
+    .variable-placeholder {
+      color: #1a73e8;
+      background-color: #e8f0fe;
+      padding: 0 2pt;
+      border-radius: 2pt;
+      font-family: monospace;
+      font-size: 10pt;
     }
     
     /* Indentation levels */
