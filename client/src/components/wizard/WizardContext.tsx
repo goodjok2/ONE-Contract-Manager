@@ -1024,18 +1024,127 @@ export const WizardProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
   }, [wizardState.currentStep, wizardState.completedSteps]);
 
-  // Save draft
-  const saveDraft = useCallback(() => {
-    localStorage.setItem('contractWizardDraft', JSON.stringify({
-      projectData: wizardState.projectData,
-      currentStep: wizardState.currentStep,
-      completedSteps: Array.from(wizardState.completedSteps),
-    }));
-    toast({
-      title: "Draft Saved",
-      description: "Your progress has been saved locally.",
-    });
-  }, [wizardState, toast]);
+  // Save draft - persists to database
+  const saveDraft = useCallback(async () => {
+    try {
+      const pd = wizardState.projectData;
+      
+      // Validate minimum required fields
+      if (!pd.projectName?.trim()) {
+        toast({
+          title: "Cannot Save Draft",
+          description: "Please enter a project name first.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Generate unique project number for draft if not provided or if it might conflict
+      const uniqueId = Math.random().toString(36).substring(2, 8).toUpperCase();
+      const draftProjectNumber = pd.projectNumber 
+        ? `${pd.projectNumber}-DRAFT-${uniqueId}` 
+        : `DRAFT-${Date.now()}-${uniqueId}`;
+      
+      // Create project record
+      const projectPayload = {
+        projectNumber: draftProjectNumber,
+        name: pd.projectName,
+        status: 'Draft',
+        state: pd.siteState || null,
+        onSiteSelection: pd.serviceModel || 'CRC',
+      };
+      
+      const projectResponse = await apiRequest('POST', '/api/projects', projectPayload);
+      if (!projectResponse.ok) {
+        const errorData = await projectResponse.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to create project');
+      }
+      const project = await projectResponse.json();
+      const projectId = project.id;
+      
+      // Save client information if provided
+      if (pd.clientLegalName) {
+        const clientPayload = {
+          projectId,
+          legalName: pd.clientLegalName,
+          entityType: pd.clientEntityType,
+          formationState: pd.clientState,
+          address: pd.clientAddress,
+          city: pd.clientCity,
+          state: pd.clientState,
+          zip: pd.clientZip,
+          email: pd.clientEmail,
+          phone: pd.clientPhone,
+        };
+        await apiRequest('POST', `/api/projects/${projectId}/client`, clientPayload);
+      }
+      
+      // Save LLC information if provided
+      const finalLlcName = pd.childLlcName || generateLLCName(pd.siteAddress || '', pd.projectName);
+      if (pd.llcOption === 'new' && finalLlcName) {
+        const llcPayload = {
+          name: finalLlcName,
+          projectName: pd.projectName,
+          projectAddress: pd.siteAddress,
+          status: 'forming',
+          stateOfFormation: US_STATES.find(s => s.value === pd.childLlcState)?.label || 'Delaware',
+          einNumber: pd.childLlcEin || null,
+          address: pd.siteAddress,
+          city: pd.siteCity,
+          state: pd.siteState,
+          zip: pd.siteZip,
+        };
+        
+        try {
+          const llcResponse = await apiRequest('POST', '/api/llcs', llcPayload);
+          if (llcResponse.ok) {
+            const llcData = await llcResponse.json();
+            await apiRequest('PATCH', `/api/projects/${projectId}`, { llcId: llcData.id });
+            queryClient.invalidateQueries({ queryKey: ['/api/llcs'] });
+          }
+        } catch (e) {
+          console.warn('LLC creation warning:', e);
+        }
+      }
+      
+      // Save financial terms if any are provided
+      const hasFinancials = pd.designFee || pd.preliminaryOffsiteCost || pd.deliveryInstallationPrice;
+      if (hasFinancials) {
+        const financialsPayload = {
+          projectId,
+          designFee: pd.designFee ? Math.round(pd.designFee * 100) : null,
+          designRevisionRounds: pd.designRevisionRounds || 3,
+          prelimOffsite: pd.preliminaryOffsiteCost ? Math.round(pd.preliminaryOffsiteCost * 100) : null,
+          prelimOnsite: pd.deliveryInstallationPrice ? Math.round(pd.deliveryInstallationPrice * 100) : null,
+          prelimContractPrice: pd.totalPreliminaryContractPrice ? Math.round(pd.totalPreliminaryContractPrice * 100) : null,
+        };
+        await apiRequest('POST', `/api/projects/${projectId}/financials`, financialsPayload);
+      }
+      
+      // Also save to localStorage for session recovery
+      localStorage.setItem('contractWizardDraft', JSON.stringify({
+        projectData: wizardState.projectData,
+        currentStep: wizardState.currentStep,
+        completedSteps: Array.from(wizardState.completedSteps),
+      }));
+      
+      // Invalidate queries to refresh UI
+      queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
+      
+      toast({
+        title: "Draft Saved",
+        description: `Project "${pd.projectName}" has been saved as a draft.`,
+      });
+    } catch (error) {
+      console.error('Failed to save draft:', error);
+      toast({
+        title: "Save Failed",
+        description: "Could not save draft to database. Please try again.",
+        variant: "destructive",
+      });
+    }
+  }, [wizardState, toast, queryClient]);
 
   // Load draft
   const loadDraft = useCallback(() => {
