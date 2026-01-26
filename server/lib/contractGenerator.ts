@@ -108,23 +108,38 @@ async function fetchClausesForContract(
   }
 }
 
+// Use special markers that won't be escaped by escapeHtml
+const VAR_START = '\u0001VAR\u0002';
+const VAR_END = '\u0001/VAR\u0002';
+const PLACEHOLDER_START = '\u0001PH\u0002';
+const PLACEHOLDER_END = '\u0001/PH\u0002';
+
 function replaceVariables(content: string, variableMap: Record<string, string>): string {
   if (!content) return '';
   
   let result = content;
   
-  // Replace variables with their values wrapped in blue span for visibility
+  // Replace variables with their values using special markers
+  // These markers will be converted to HTML spans after formatting
   Object.entries(variableMap).forEach(([key, value]) => {
     const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
     const displayValue = value || '[NOT PROVIDED]';
-    // Wrap the substituted value in a blue span for easy identification
-    result = result.replace(regex, `<span class="variable-value">${escapeHtml(displayValue)}</span>`);
+    result = result.replace(regex, `${VAR_START}${displayValue}${VAR_END}`);
   });
   
-  // Also catch any remaining unsubstituted variables and display them in blue
-  result = result.replace(/\{\{([A-Z_]+)\}\}/g, '<span class="variable-placeholder">{{$1}}</span>');
+  // Also catch any remaining unsubstituted variables
+  result = result.replace(/\{\{([A-Z_]+)\}\}/g, `${PLACEHOLDER_START}{{$1}}${PLACEHOLDER_END}`);
   
   return result;
+}
+
+// Convert variable markers to HTML spans (call this after all formatting is done)
+function convertVariableMarkersToHtml(html: string): string {
+  return html
+    .replace(new RegExp(VAR_START, 'g'), '<span class="variable-value">')
+    .replace(new RegExp(VAR_END, 'g'), '</span>')
+    .replace(new RegExp(PLACEHOLDER_START, 'g'), '<span class="variable-placeholder">')
+    .replace(new RegExp(PLACEHOLDER_END, 'g'), '</span>');
 }
 
 function generateHTMLFromClauses(
@@ -134,7 +149,7 @@ function generateHTMLFromClauses(
 ): string {
   const title = getContractTitle(contractType);
   
-  return `
+  const rawHtml = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -537,6 +552,9 @@ function generateHTMLFromClauses(
 </body>
 </html>
   `.trim();
+  
+  // Convert variable markers to styled HTML spans
+  return convertVariableMarkersToHtml(rawHtml);
 }
 
 function renderTitlePage(title: string, projectData: Record<string, any>): string {
