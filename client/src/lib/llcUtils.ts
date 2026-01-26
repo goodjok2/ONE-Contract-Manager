@@ -1,9 +1,14 @@
-export function generateLLCName(projectAddress: string): string {
-  if (!projectAddress || projectAddress.trim() === '') {
+export function generateLLCName(projectAddress: string, projectName?: string): string {
+  // Prefer site address, fallback to project name
+  const source = (projectAddress && projectAddress.trim() !== '') 
+    ? projectAddress 
+    : (projectName || '');
+  
+  if (!source || source.trim() === '') {
     return '';
   }
-  const cleanAddress = projectAddress.replace(/[^a-zA-Z0-9\s]/g, '').trim();
-  return `DP ${cleanAddress} LLC`;
+  const cleanSource = source.replace(/[^a-zA-Z0-9\s]/g, '').trim();
+  return `DP ${cleanSource} LLC`;
 }
 
 export function canEditLLCName(status: string): boolean {

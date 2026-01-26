@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useCallback, useEffect, ReactNode 
 import { useToast } from '@/hooks/use-toast';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
+import { generateLLCName } from '@/lib/llcUtils';
 
 // Shell Testing Mode: Set to false when step content components are added
 // When true: skips form validation and allows navigation to all steps without completing forms
@@ -822,7 +823,9 @@ export const WizardProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         }
         break;
       case 4:
-        if (!data.childLlcName.trim()) errors.childLlcName = 'LLC name is required';
+        // Use childLlcName or auto-generated name from project name/site address
+        const llcName = data.childLlcName || generateLLCName(data.siteAddress || '', data.projectName);
+        if (!llcName.trim()) errors.childLlcName = 'LLC name is required';
         break;
       case 5:
         if (!data.siteAddress.trim()) errors.siteAddress = 'Site address is required';
@@ -1177,50 +1180,40 @@ export const WizardProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             variant: "destructive",
           });
         }
-      } else if (pd.llcOption === 'new' && pd.childLlcName) {
-        // Create new LLC in llcs table (for LLC Admin)
-        const llcPayload = {
-          name: pd.childLlcName,
-          projectName: pd.projectName,
-          projectAddress: pd.siteAddress,
-          status: 'forming',
-          stateOfFormation: US_STATES.find(s => s.value === pd.childLlcState)?.label || 'Delaware',
-          einNumber: pd.childLlcEin || null,
-          address: pd.siteAddress,
-          city: pd.siteCity,
-          state: pd.siteState,
-          zip: pd.siteZip,
-        };
+      } else if (pd.llcOption === 'new') {
+        // Use provided name or auto-generate from site address / project name
+        const finalLlcName = pd.childLlcName || generateLLCName(pd.siteAddress || '', pd.projectName);
         
-        try {
-          const llcResponse = await apiRequest('POST', '/api/llcs', llcPayload);
-          if (llcResponse.ok) {
-            const llcData = await llcResponse.json();
-            linkedLlcId = llcData.id;
-            llcName = pd.childLlcName;
-            queryClient.invalidateQueries({ queryKey: ['/api/llcs'] });
-            
-            // Update project with LLC link
-            await apiRequest('PATCH', `/api/projects/${projectId}`, { llcId: linkedLlcId });
+        if (finalLlcName) {
+          // Create new LLC in llcs table (for LLC Admin)
+          const llcPayload = {
+            name: finalLlcName,
+            projectName: pd.projectName,
+            projectAddress: pd.siteAddress,
+            status: 'forming',
+            stateOfFormation: US_STATES.find(s => s.value === pd.childLlcState)?.label || 'Delaware',
+            einNumber: pd.childLlcEin || null,
+            address: pd.siteAddress,
+            city: pd.siteCity,
+            state: pd.siteState,
+            zip: pd.siteZip,
+          };
+          
+          try {
+            const llcResponse = await apiRequest('POST', '/api/llcs', llcPayload);
+            if (llcResponse.ok) {
+              const llcData = await llcResponse.json();
+              linkedLlcId = llcData.id;
+              llcName = finalLlcName;
+              queryClient.invalidateQueries({ queryKey: ['/api/llcs'] });
+              
+              // Update project with LLC link
+              await apiRequest('PATCH', `/api/projects/${projectId}`, { llcId: linkedLlcId });
+            }
+          } catch (e) {
+            console.warn('LLC creation warning:', e);
           }
-        } catch (e) {
-          console.warn('LLC creation warning:', e);
         }
-        
-        // Also create in child_llcs table (linked to project) for backwards compatibility
-        const childLlcPayload = {
-          projectId,
-          legalName: pd.childLlcName,
-          formationState: US_STATES.find(s => s.value === pd.childLlcState)?.label || 'Delaware',
-          entityType: 'LLC',
-          ein: pd.childLlcEin || null,
-          address: pd.siteAddress,
-          city: pd.siteCity,
-          state: pd.siteState,
-          zip: pd.siteZip,
-        };
-        
-        await apiRequest('POST', `/api/projects/${projectId}/child-llc`, childLlcPayload);
       }
       setGenerationProgress(50);
       
