@@ -484,7 +484,7 @@ export const insertProjectDetailsSchema = createInsertSchema(projectDetails);
 // Enhanced LLC table with full administration features
 export const llcs = pgTable("llcs", {
   id: serial("id").primaryKey(),
-  name: text("name").notNull(),
+  name: text("name").notNull().unique(),
   projectName: text("project_name").notNull(),
   projectId: integer("project_id"), // Link to project if exists
   clientLastName: text("client_last_name"), // For auto-generation

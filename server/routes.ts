@@ -553,6 +553,18 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     try {
       const projectId = parseInt(req.params.projectId);
       const llcData = mapChildLlcToLlcs(req.body, projectId);
+      
+      // Check if LLC with same name already exists
+      const [existingLlc] = await db.select().from(llcs).where(eq(llcs.name, llcData.name));
+      if (existingLlc) {
+        // Update existing LLC to link to this project instead of creating duplicate
+        const [updated] = await db.update(llcs)
+          .set({ projectId, projectName: llcData.projectName })
+          .where(eq(llcs.id, existingLlc.id))
+          .returning();
+        return res.json(mapLlcsToChildLlc(updated));
+      }
+      
       const [result] = await db.insert(llcs).values(llcData).returning();
       res.json(mapLlcsToChildLlc(result));
     } catch (error) {
@@ -1894,6 +1906,15 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         formationDate, address, city, state, zip, members, 
         annualReportDueDate, annualReportStatus
       } = req.body;
+      
+      // Check if LLC with same name already exists
+      const existing = await pool.query('SELECT * FROM llcs WHERE name = $1', [name]);
+      if (existing.rows.length > 0) {
+        return res.status(409).json({ 
+          error: "An LLC with this name already exists",
+          existingLlc: existing.rows[0]
+        });
+      }
       
       const result = await pool.query(`
         INSERT INTO llcs (
