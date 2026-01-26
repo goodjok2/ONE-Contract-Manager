@@ -5,7 +5,6 @@ import { pool } from "./db";
 import {
   projects,
   clients,
-  childLlcs,
   projectDetails,
   financials,
   milestones,
@@ -39,17 +38,36 @@ async function getProjectWithRelations(projectId: number): Promise<ProjectWithRe
   if (!project) return null;
 
   const [client] = await db.select().from(clients).where(eq(clients.projectId, projectId));
-  const [childLlc] = await db.select().from(childLlcs).where(eq(childLlcs.projectId, projectId));
+  // Use the consolidated PostgreSQL llcs table
+  const [llcRecord] = await db.select().from(llcs).where(eq(llcs.projectId, projectId));
   const [projectDetail] = await db.select().from(projectDetails).where(eq(projectDetails.projectId, projectId));
   const [financial] = await db.select().from(financials).where(eq(financials.projectId, projectId));
   const [warranty] = await db.select().from(warrantyTerms).where(eq(warrantyTerms.projectId, projectId));
   const projectMilestones = await db.select().from(milestones).where(eq(milestones.projectId, projectId));
   const projectContractors = await db.select().from(contractors).where(eq(contractors.projectId, projectId));
 
+  // Map llcs fields to childLlc format for backwards compatibility
+  const childLlc = llcRecord ? {
+    id: llcRecord.id,
+    projectId: llcRecord.projectId,
+    legalName: llcRecord.name,
+    formationState: llcRecord.stateOfFormation,
+    entityType: 'LLC',
+    ein: llcRecord.einNumber,
+    formationDate: llcRecord.formationDate,
+    registeredAgent: llcRecord.registeredAgent,
+    registeredAgentAddress: llcRecord.registeredAgentAddress,
+    address: llcRecord.address,
+    city: llcRecord.city,
+    state: llcRecord.state,
+    zip: llcRecord.zip,
+    status: llcRecord.status,
+  } : null;
+
   return {
     project,
     client: client || null,
-    childLlc: childLlc || null,
+    childLlc: childLlc,
     projectDetails: projectDetail || null,
     financials: financial || null,
     warrantyTerms: warranty || null,
@@ -475,14 +493,57 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // ---------------------------------------------------------------------------
-  // CHILD LLC
+  // CHILD LLC (uses consolidated PostgreSQL llcs table)
   // ---------------------------------------------------------------------------
+
+  // Helper to map wizard childLlc format to llcs table format
+  const mapChildLlcToLlcs = (data: any, projectId: number) => {
+    return {
+      name: data.legalName || data.name || '',
+      projectName: data.projectName || '',
+      projectId: projectId,
+      clientLastName: data.clientLastName || '',
+      deliveryAddress: data.deliveryAddress || data.address || '',
+      status: data.status || 'forming',
+      stateOfFormation: data.formationState || data.stateOfFormation || 'Delaware',
+      einNumber: data.ein || data.einNumber || null,
+      registeredAgent: data.registeredAgent || null,
+      registeredAgentAddress: data.registeredAgentAddress || null,
+      formationDate: data.formationDate || null,
+      address: data.address || null,
+      city: data.city || null,
+      state: data.state || null,
+      zip: data.zip || null,
+      members: data.members || null,
+    };
+  };
+
+  // Helper to map llcs record to childLlc format for backwards compatibility
+  const mapLlcsToChildLlc = (record: any) => {
+    if (!record) return null;
+    return {
+      id: record.id,
+      projectId: record.projectId,
+      legalName: record.name,
+      formationState: record.stateOfFormation,
+      entityType: 'LLC',
+      ein: record.einNumber,
+      formationDate: record.formationDate,
+      registeredAgent: record.registeredAgent,
+      registeredAgentAddress: record.registeredAgentAddress,
+      address: record.address,
+      city: record.city,
+      state: record.state,
+      zip: record.zip,
+      status: record.status,
+    };
+  };
 
   app.get("/api/projects/:projectId/child-llc", async (req, res) => {
     try {
       const projectId = parseInt(req.params.projectId);
-      const [llc] = await db.select().from(childLlcs).where(eq(childLlcs.projectId, projectId));
-      res.json(llc || null);
+      const [llcRecord] = await db.select().from(llcs).where(eq(llcs.projectId, projectId));
+      res.json(mapLlcsToChildLlc(llcRecord));
     } catch (error) {
       console.error("Failed to fetch child LLC:", error);
       res.status(500).json({ error: "Failed to fetch child LLC" });
@@ -492,8 +553,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.post("/api/projects/:projectId/child-llc", async (req, res) => {
     try {
       const projectId = parseInt(req.params.projectId);
-      const [result] = await db.insert(childLlcs).values({ ...req.body, projectId }).returning();
-      res.json(result);
+      const llcData = mapChildLlcToLlcs(req.body, projectId);
+      const [result] = await db.insert(llcs).values(llcData).returning();
+      res.json(mapLlcsToChildLlc(result));
     } catch (error) {
       console.error("Failed to create child LLC:", error);
       res.status(500).json({ error: "Failed to create child LLC" });
@@ -503,17 +565,38 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.patch("/api/projects/:projectId/child-llc", async (req, res) => {
     try {
       const projectId = parseInt(req.params.projectId);
-      const [existing] = await db.select().from(childLlcs).where(eq(childLlcs.projectId, projectId));
+      const [existing] = await db.select().from(llcs).where(eq(llcs.projectId, projectId));
+      
+      // Map incoming fields to llcs format (handle both old and new field names)
+      const updateData: any = {};
+      if (req.body.legalName !== undefined) updateData.name = req.body.legalName;
+      if (req.body.name !== undefined) updateData.name = req.body.name;
+      if (req.body.formationState !== undefined) updateData.stateOfFormation = req.body.formationState;
+      if (req.body.stateOfFormation !== undefined) updateData.stateOfFormation = req.body.stateOfFormation;
+      if (req.body.ein !== undefined) updateData.einNumber = req.body.ein;
+      if (req.body.einNumber !== undefined) updateData.einNumber = req.body.einNumber;
+      if (req.body.formationDate !== undefined) updateData.formationDate = req.body.formationDate;
+      if (req.body.registeredAgent !== undefined) updateData.registeredAgent = req.body.registeredAgent;
+      if (req.body.registeredAgentAddress !== undefined) updateData.registeredAgentAddress = req.body.registeredAgentAddress;
+      if (req.body.address !== undefined) updateData.address = req.body.address;
+      if (req.body.city !== undefined) updateData.city = req.body.city;
+      if (req.body.state !== undefined) updateData.state = req.body.state;
+      if (req.body.zip !== undefined) updateData.zip = req.body.zip;
+      if (req.body.status !== undefined) updateData.status = req.body.status;
+      if (req.body.members !== undefined) updateData.members = req.body.members;
+      if (req.body.projectName !== undefined) updateData.projectName = req.body.projectName;
+      
       if (existing) {
         const [result] = await db
-          .update(childLlcs)
-          .set(req.body)
-          .where(eq(childLlcs.projectId, projectId))
+          .update(llcs)
+          .set(updateData)
+          .where(eq(llcs.projectId, projectId))
           .returning();
-        res.json(result);
+        res.json(mapLlcsToChildLlc(result));
       } else {
-        const [result] = await db.insert(childLlcs).values({ ...req.body, projectId }).returning();
-        res.json(result);
+        const llcData = mapChildLlcToLlcs(req.body, projectId);
+        const [result] = await db.insert(llcs).values(llcData).returning();
+        res.json(mapLlcsToChildLlc(result));
       }
     } catch (error) {
       console.error("Failed to update child LLC:", error);
@@ -1610,7 +1693,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       };
       
       // Helper function to generate a single contract
-      async function generateSingleContract(contractType: string) {
+      const generateSingleContract = async (contractType: string) => {
         // Get the template
         const templateQuery = `
           SELECT * FROM contract_templates
@@ -1686,7 +1769,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           filename,
           clauseCount: clauses.length
         };
-      }
+      };
       
       // Generate all three contracts
       const [oneAgreement, manufacturing, onsite] = await Promise.all([

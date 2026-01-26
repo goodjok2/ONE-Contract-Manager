@@ -48,6 +48,8 @@ export const clients = sqliteTable("clients", {
   ownershipSplit: text("ownership_split"), // e.g., "50/50", "60/40"
 });
 
+// DEPRECATED: childLlcs table has been replaced by PostgreSQL llcs table in shared/schema.ts
+// Keeping definition for migration compatibility only - DO NOT USE
 export const childLlcs = sqliteTable("child_llcs", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   projectId: integer("project_id")

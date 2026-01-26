@@ -1,7 +1,6 @@
 import type {
   Project,
   Client,
-  ChildLlc,
   ProjectDetails,
   Financial,
   Milestone,
@@ -12,6 +11,28 @@ import type {
 // =============================================================================
 // TYPE DEFINITIONS
 // =============================================================================
+
+// ChildLlc type - compatible with both old SQLite and new PostgreSQL llcs table
+export interface ChildLlc {
+  id: number;
+  projectId: number | null;
+  legalName: string;
+  formationState: string | null;
+  entityType: string | null;
+  ein: string | null;
+  formationDate: string | null;
+  registeredAgent: string | null;
+  registeredAgentAddress: string | null;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  zip: string | null;
+  status: string | null;
+  // Additional fields from PostgreSQL llcs table
+  insuranceStatus?: string | null;
+  insuranceExpiration?: string | null;
+  annualReportDue?: string | null;
+}
 
 export interface ProjectWithRelations {
   project: Project;

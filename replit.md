@@ -10,7 +10,7 @@ This application helps Dvele manage construction projects through dedicated chil
 
 - **Frontend**: React (Vite) with Tailwind CSS and Shadcn UI components
 - **Backend**: Express.js with TypeScript
-- **Database**: PostgreSQL (legacy contracts/LLCs) + SQLite (projects/clients/financials)
+- **Database**: PostgreSQL (contracts, LLCs, clauses) + SQLite (projects, clients, financials)
 - **State Management**: TanStack Query v5
 - **Routing**: wouter
 - **Forms**: react-hook-form with zod validation
@@ -98,15 +98,21 @@ This application helps Dvele manage construction projects through dedicated chil
 
 ## Database Schema
 
-### PostgreSQL (Legacy)
-- **llcs**: Child LLC entities with name, project, status, formation details
+### PostgreSQL (Primary)
+- **llcs**: Consolidated LLC entities with full administration features (name, projectId, status, EIN, registered agent, compliance tracking, members). Used by both LLC Admin and Generate Contracts wizard.
 - **contracts**: Agreements with status, value, dates
+- **clauses**: Contract clauses with hierarchy, content, conditions
 
-### SQLite (New Projects System)
+### SQLite (Projects System)
 - **projects**: Project information with number, name, status, state
-- **clients**: Client details linked to projects
-- **child_llcs**: Child LLC entities linked to projects
+- **clients**: Client details linked to projects  
 - **financials**: Budget information (design fee, prelim offsite/onsite)
+- **projectDetails**: Additional project metadata
+- **milestones**: Payment milestone definitions
+- **warrantyTerms**: Warranty period configurations
+- **contractors**: Contractor information (manufacturer, onsite)
+
+> **Note**: The `child_llcs` table in SQLite is deprecated. All LLC data now uses the PostgreSQL `llcs` table.
 
 ## API Endpoints
 
