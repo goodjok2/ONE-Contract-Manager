@@ -98,12 +98,11 @@ This application helps Dvele manage construction projects through dedicated chil
 
 ## Database Schema
 
-### PostgreSQL (Primary)
-- **llcs**: Consolidated LLC entities with full administration features (name, projectId, status, EIN, registered agent, compliance tracking, members). Used by both LLC Admin and Generate Contracts wizard.
+### PostgreSQL (Consolidated)
+All data now uses PostgreSQL tables:
+- **llcs**: LLC entities with full administration features (name, projectId, status, EIN, registered agent, compliance tracking, members)
 - **contracts**: Agreements with status, value, dates
 - **clauses**: Contract clauses with hierarchy, content, conditions
-
-### SQLite (Projects System)
 - **projects**: Project information with number, name, status, state
 - **clients**: Client details linked to projects  
 - **financials**: Budget information (design fee, prelim offsite/onsite)
@@ -111,8 +110,7 @@ This application helps Dvele manage construction projects through dedicated chil
 - **milestones**: Payment milestone definitions
 - **warrantyTerms**: Warranty period configurations
 - **contractors**: Contractor information (manufacturer, onsite)
-
-> **Note**: The `child_llcs` table in SQLite is deprecated. All LLC data now uses the PostgreSQL `llcs` table.
+- **contract_variables**: Variable definitions for contract generation with ERP mapping support
 
 ## API Endpoints
 

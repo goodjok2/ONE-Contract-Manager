@@ -51,35 +51,6 @@ export const clients = pgTable("clients", {
   ownershipSplit: text("ownership_split"), // e.g., "50/50", "60/40"
 });
 
-export const childLlcs = pgTable("child_llcs", {
-  id: serial("id").primaryKey(),
-  projectId: integer("project_id")
-    .references(() => projects.id, { onDelete: "cascade" })
-    .notNull(),
-  
-  // Entity Info
-  legalName: text("legal_name").notNull(), // "Dvele Partners {ProjectName} LLC"
-  formationState: text("formation_state").default("Delaware"),
-  entityType: text("entity_type").default("LLC"),
-  ein: text("ein"),
-  formationDate: text("formation_date"),
-  
-  // Registered Agent
-  registeredAgent: text("registered_agent"),
-  registeredAgentAddress: text("registered_agent_address"),
-  
-  // Address (if different from registered agent)
-  address: text("address"),
-  city: text("city"),
-  state: text("state"),
-  zip: text("zip"),
-  
-  // Status Tracking
-  insuranceStatus: text("insurance_status").default("Pending").notNull(), // Pending, Active, Expired
-  insuranceExpiration: text("insurance_expiration"),
-  annualReportDue: text("annual_report_due"),
-});
-
 // =============================================================================
 // PROJECT DETAILS
 // =============================================================================
@@ -384,10 +355,6 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
     fields: [projects.id],
     references: [clients.projectId],
   }),
-  childLlc: one(childLlcs, {
-    fields: [projects.id],
-    references: [childLlcs.projectId],
-  }),
   projectDetails: one(projectDetails, {
     fields: [projects.id],
     references: [projectDetails.projectId],
@@ -408,13 +375,6 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
 export const clientsRelations = relations(clients, ({ one }) => ({
   project: one(projects, {
     fields: [clients.projectId],
-    references: [projects.id],
-  }),
-}));
-
-export const childLlcsRelations = relations(childLlcs, ({ one }) => ({
-  project: one(projects, {
-    fields: [childLlcs.projectId],
     references: [projects.id],
   }),
 }));
@@ -470,9 +430,6 @@ export type NewProject = typeof projects.$inferInsert;
 
 export type Client = typeof clients.$inferSelect;
 export type NewClient = typeof clients.$inferInsert;
-
-export type ChildLlc = typeof childLlcs.$inferSelect;
-export type NewChildLlc = typeof childLlcs.$inferInsert;
 
 export type ProjectDetails = typeof projectDetails.$inferSelect;
 export type NewProjectDetails = typeof projectDetails.$inferInsert;
