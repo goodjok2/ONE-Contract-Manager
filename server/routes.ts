@@ -11,7 +11,6 @@ import {
   warrantyTerms,
   contractors,
   contracts,
-  erpFieldMappings,
   llcs,
 } from "../shared/schema";
 import { eq } from "drizzle-orm";
@@ -1449,69 +1448,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     } catch (error) {
       console.error("Failed to mark contract as executed:", error);
       res.status(500).json({ error: "Failed to mark contract as executed" });
-    }
-  });
-
-  // ---------------------------------------------------------------------------
-  // ERP FIELD MAPPINGS
-  // ---------------------------------------------------------------------------
-
-  app.get("/api/erp-mappings", async (req, res) => {
-    try {
-      const mappings = await db.select().from(erpFieldMappings);
-      res.json(mappings);
-    } catch (error) {
-      console.error("Failed to fetch ERP mappings:", error);
-      res.status(500).json({ error: "Failed to fetch ERP mappings" });
-    }
-  });
-
-  // Get mappings by category
-  app.get("/api/erp-mappings/category/:category", async (req, res) => {
-    try {
-      const category = req.params.category;
-      const mappings = await db.select().from(erpFieldMappings);
-      const filtered = mappings.filter(m => m.variableCategory === category);
-      res.json(filtered);
-    } catch (error) {
-      console.error("Failed to fetch ERP mappings:", error);
-      res.status(500).json({ error: "Failed to fetch ERP mappings" });
-    }
-  });
-
-  app.post("/api/erp-mappings", async (req, res) => {
-    try {
-      const [result] = await db.insert(erpFieldMappings).values(req.body).returning();
-      res.json(result);
-    } catch (error) {
-      console.error("Failed to create ERP mapping:", error);
-      res.status(500).json({ error: "Failed to create ERP mapping" });
-    }
-  });
-
-  app.patch("/api/erp-mappings/:id", async (req, res) => {
-    try {
-      const mappingId = parseInt(req.params.id);
-      const [result] = await db
-        .update(erpFieldMappings)
-        .set(req.body)
-        .where(eq(erpFieldMappings.id, mappingId))
-        .returning();
-      res.json(result);
-    } catch (error) {
-      console.error("Failed to update ERP mapping:", error);
-      res.status(500).json({ error: "Failed to update ERP mapping" });
-    }
-  });
-
-  app.delete("/api/erp-mappings/:id", async (req, res) => {
-    try {
-      const mappingId = parseInt(req.params.id);
-      await db.delete(erpFieldMappings).where(eq(erpFieldMappings.id, mappingId));
-      res.json({ success: true });
-    } catch (error) {
-      console.error("Failed to delete ERP mapping:", error);
-      res.status(500).json({ error: "Failed to delete ERP mapping" });
     }
   });
 

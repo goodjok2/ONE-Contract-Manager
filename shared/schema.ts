@@ -326,36 +326,6 @@ export const contracts = pgTable("contracts", {
 });
 
 // =============================================================================
-// ERP FIELD MAPPINGS (Odoo Integration)
-// =============================================================================
-
-export const erpFieldMappings = pgTable("erp_field_mappings", {
-  id: serial("id").primaryKey(),
-  
-  // Contract Variable
-  variableName: text("variable_name").notNull().unique(),
-  variableDescription: text("variable_description"),
-  variableCategory: text("variable_category"), // client, project, financial, dates, warranty
-  
-  // Odoo Mapping
-  odooModel: text("odoo_model"), // e.g., "res.partner", "sale.order"
-  odooField: text("odoo_field"), // e.g., "name", "amount_total"
-  odooRelatedField: text("odoo_related_field"), // For nested fields like "partner_id.name"
-  
-  // Transformation
-  transformFunction: text("transform_function"), // Optional JS function name for transformation
-  defaultValue: text("default_value"),
-  
-  // Validation
-  isRequired: boolean("is_required").default(false),
-  validationRegex: text("validation_regex"),
-  
-  // Status
-  isActive: boolean("is_active").default(true),
-  lastSyncedAt: timestamp("last_synced_at"),
-});
-
-// =============================================================================
 // CLAUSE LIBRARY - Contract Content Management
 // =============================================================================
 
@@ -522,9 +492,6 @@ export type NewContractor = typeof contractors.$inferInsert;
 export type Contract = typeof contracts.$inferSelect;
 export type NewContract = typeof contracts.$inferInsert;
 
-export type ErpFieldMapping = typeof erpFieldMappings.$inferSelect;
-export type NewErpFieldMapping = typeof erpFieldMappings.$inferInsert;
-
 export type ContractTemplate = typeof contractTemplates.$inferSelect;
 export type NewContractTemplate = typeof contractTemplates.$inferInsert;
 
@@ -543,9 +510,6 @@ export const selectProjectSchema = createSelectSchema(projects);
 
 export const insertClientSchema = createInsertSchema(clients);
 export const selectClientSchema = createSelectSchema(clients);
-
-export const insertChildLlcSchema = createInsertSchema(childLlcs);
-export const selectChildLlcSchema = createSelectSchema(childLlcs);
 
 export const insertContractSchema = createInsertSchema(contracts);
 export const selectContractSchema = createSelectSchema(contracts);

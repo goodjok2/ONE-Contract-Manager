@@ -294,36 +294,6 @@ export const contracts = sqliteTable("contracts", {
 });
 
 // =============================================================================
-// ERP FIELD MAPPINGS (Odoo Integration)
-// =============================================================================
-
-export const erpFieldMappings = sqliteTable("erp_field_mappings", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  
-  // Contract Variable
-  variableName: text("variable_name").notNull().unique(), // e.g., "CLIENT_LEGAL_NAME"
-  variableDescription: text("variable_description"),
-  variableCategory: text("variable_category"), // client, project, financial, dates, warranty
-  
-  // Odoo Mapping
-  odooModel: text("odoo_model"), // e.g., "res.partner", "sale.order"
-  odooField: text("odoo_field"), // e.g., "name", "amount_total"
-  odooRelatedField: text("odoo_related_field"), // For nested fields like "partner_id.name"
-  
-  // Transformation
-  transformFunction: text("transform_function"), // Optional JS function name for transformation
-  defaultValue: text("default_value"),
-  
-  // Validation
-  isRequired: integer("is_required", { mode: "boolean" }).default(false),
-  validationRegex: text("validation_regex"),
-  
-  // Status
-  isActive: integer("is_active", { mode: "boolean" }).default(true),
-  lastSyncedAt: text("last_synced_at"),
-});
-
-// =============================================================================
 // RELATIONS
 // =============================================================================
 
@@ -425,6 +395,3 @@ export type NewContractor = typeof contractors.$inferInsert;
 
 export type Contract = typeof contracts.$inferSelect;
 export type NewContract = typeof contracts.$inferInsert;
-
-export type ErpFieldMapping = typeof erpFieldMappings.$inferSelect;
-export type NewErpFieldMapping = typeof erpFieldMappings.$inferInsert;
