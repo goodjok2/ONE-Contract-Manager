@@ -464,9 +464,15 @@ export const testDraftData: Partial<ProjectData> = {
 const WizardContext = createContext<WizardContextType | undefined>(undefined);
 
 // Provider component
-export const WizardProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+interface WizardProviderProps {
+  children: ReactNode;
+  loadProjectId?: string | null;
+}
+
+export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadProjectId }) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [isLoadingDraft, setIsLoadingDraft] = useState(!!loadProjectId);
   
   // Core wizard state
   const [wizardState, setWizardState] = useState<WizardState>({
@@ -509,16 +515,155 @@ export const WizardProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     staleTime: 0,
   });
 
-  // Auto-populate project number on first load
+  // Auto-populate project number on first load (only if not loading a draft)
   useEffect(() => {
-    if (nextNumberData?.projectNumber && !wizardState.projectData.projectNumber) {
+    if (nextNumberData?.projectNumber && !wizardState.projectData.projectNumber && !loadProjectId) {
       setWizardState(prev => ({
         ...prev,
         projectData: { ...prev.projectData, projectNumber: nextNumberData.projectNumber },
       }));
       setNumberIsUnique(true);
     }
-  }, [nextNumberData]);
+  }, [nextNumberData, loadProjectId]);
+
+  // Load draft data when loadProjectId is provided
+  useEffect(() => {
+    if (!loadProjectId) {
+      setIsLoadingDraft(false);
+      return;
+    }
+    
+    const loadDraft = async () => {
+      try {
+        setIsLoadingDraft(true);
+        const projectId = parseInt(loadProjectId);
+        
+        // Fetch all data in parallel for efficiency
+        const [projectRes, clientRes, financialsRes, detailsRes] = await Promise.all([
+          fetch(`/api/projects/${projectId}`),
+          fetch(`/api/projects/${projectId}/client`),
+          fetch(`/api/projects/${projectId}/financials`),
+          fetch(`/api/projects/${projectId}/details`),
+        ]);
+        
+        if (!projectRes.ok) throw new Error('Failed to load project');
+        const project = await projectRes.json();
+        const client = clientRes.ok ? await clientRes.json() : null;
+        const financials = financialsRes.ok ? await financialsRes.json() : null;
+        const details = detailsRes.ok ? await detailsRes.json() : null;
+        
+        // Build the project data from fetched data
+        const loadedData: Partial<ProjectData> = {
+          projectName: project.name || '',
+          projectNumber: project.projectNumber || '',
+          serviceModel: project.onSiteSelection || 'CRC',
+        };
+        
+        // Add client data if available
+        if (client) {
+          loadedData.clientLegalName = client.legalName || '';
+          loadedData.clientEntityType = client.entityType || '';
+          loadedData.clientEmail = client.email || '';
+          loadedData.clientPhone = client.phone || '';
+          loadedData.clientAddress = client.address || '';
+          loadedData.clientCity = client.city || '';
+          loadedData.clientState = client.state || '';
+          loadedData.clientZip = client.zip || '';
+          loadedData.clientSignerName = client.trusteeName || '';
+        }
+        
+        // Add site details if available
+        if (details) {
+          loadedData.siteAddress = details.deliveryAddress || '';
+          loadedData.siteCity = details.deliveryCity || '';
+          loadedData.siteState = details.deliveryState || '';
+          loadedData.siteZip = details.deliveryZip || '';
+          loadedData.siteCounty = details.deliveryCounty || '';
+          loadedData.siteApn = details.deliveryApn || '';
+          loadedData.totalUnits = details.totalUnits || 1;
+          
+          // Build units array from details if home specs are available
+          if (details.homeModel || details.homeSqFt) {
+            const units = [];
+            for (let i = 0; i < (details.totalUnits || 1); i++) {
+              units.push({
+                id: i + 1,
+                model: details.homeModel || '',
+                squareFootage: details.homeSqFt || 1500,
+                bedrooms: details.homeBedrooms || 3,
+                bathrooms: details.homeBathrooms || 2,
+                price: 0, // Price not stored in details - user will need to re-enter
+              });
+            }
+            loadedData.units = units;
+          }
+        }
+        
+        // Add financials if available - convert cents to dollars
+        if (financials) {
+          loadedData.designFee = financials.designFee ? financials.designFee / 100 : 5000;
+          loadedData.designRevisionRounds = financials.designRevisionRounds || 3;
+          loadedData.preliminaryOffsiteCost = financials.prelimOffsite ? financials.prelimOffsite / 100 : 0;
+          loadedData.preliminaryOnsiteCost = financials.prelimOnsite ? financials.prelimOnsite / 100 : 0;
+          loadedData.deliveryInstallationPrice = financials.deliveryInstallCost ? financials.deliveryInstallCost / 100 : 25000;
+          
+          // CMOS-specific fields
+          loadedData.sitePrepPrice = financials.sitePrepCost ? financials.sitePrepCost / 100 : 0;
+          loadedData.utilitiesPrice = financials.utilitiesCost ? financials.utilitiesCost / 100 : 0;
+          loadedData.completionPrice = financials.onsiteCompletionCost ? financials.onsiteCompletionCost / 100 : 0;
+          
+          // Milestones - stored as percentages (integers)
+          loadedData.milestone1Percent = financials.milestone1Percent ?? 20;
+          loadedData.milestone2Percent = financials.milestone2Percent ?? 20;
+          loadedData.milestone3Percent = financials.milestone3Percent ?? 20;
+          loadedData.milestone4Percent = financials.milestone4Percent ?? 20;
+          loadedData.milestone5Percent = financials.milestone5Percent ?? 15;
+          loadedData.retainagePercent = financials.retainagePercent ?? 5;
+        }
+        
+        // Load LLC data if project has llcId
+        if (project.llcId) {
+          try {
+            const llcRes = await fetch(`/api/llcs/${project.llcId}`);
+            if (llcRes.ok) {
+              const llc = await llcRes.json();
+              loadedData.llcOption = 'existing';
+              loadedData.selectedExistingLlcId = String(llc.id);
+              loadedData.childLlcName = llc.name || '';
+              loadedData.childLlcState = llc.state || 'DE';
+              loadedData.childLlcEin = llc.ein || '';
+            }
+          } catch (llcError) {
+            console.warn('Could not load LLC data:', llcError);
+          }
+        }
+        
+        // Update wizard state with loaded data
+        setWizardState(prev => ({
+          ...prev,
+          projectData: { ...prev.projectData, ...loadedData },
+        }));
+        
+        const projectName = project.name || loadedData.projectName || 'your project';
+        toast({
+          title: "Draft Loaded",
+          description: `Resuming draft for "${projectName}"`,
+        });
+        
+      } catch (error) {
+        console.error('Failed to load draft:', error);
+        toast({
+          title: "Error Loading Draft",
+          description: "Could not load the saved draft. Starting fresh.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoadingDraft(false);
+      }
+    };
+    
+    loadDraft();
+  }, [loadProjectId, toast]);
 
   // Sync units array when totalUnits changes
   useEffect(() => {
@@ -823,11 +968,7 @@ export const WizardProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         }
         break;
       case 4:
-        // Use childLlcName or auto-generated name from project name/site address
-        const llcName = data.childLlcName || generateLLCName(data.siteAddress || '', data.projectName);
-        if (!llcName.trim()) errors.childLlcName = 'LLC name is required';
-        break;
-      case 5:
+        // Site & Home validation (moved from step 5 to step 4)
         if (!data.siteAddress.trim()) errors.siteAddress = 'Site address is required';
         if (!data.siteCity.trim()) errors.siteCity = 'City is required';
         if (!data.siteState.trim()) errors.siteState = 'Site state is required';
@@ -850,6 +991,12 @@ export const WizardProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             errors[`unit_${index}_price`] = 'Unit price must be at least $100,000';
           }
         });
+        break;
+      case 5:
+        // Child LLC validation (moved from step 4 to step 5)
+        // Use childLlcName or auto-generated name from project name/site address
+        const llcName = data.childLlcName || generateLLCName(data.siteAddress || '', data.projectName);
+        if (!llcName.trim()) errors.childLlcName = 'LLC name is required';
         break;
       case 6:
         if (!data.effectiveDate) errors.effectiveDate = 'Effective date is required';

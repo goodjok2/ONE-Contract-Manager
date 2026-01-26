@@ -1167,6 +1167,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // Get all contract packages (grouped by project)
   app.get("/api/contracts", async (req, res) => {
     try {
+      // Get all generated contracts
       const allContracts = await db
         .select({
           id: contracts.id,
@@ -1185,6 +1186,18 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         .from(contracts)
         .leftJoin(projects, eq(contracts.projectId, projects.id))
         .orderBy(contracts.generatedAt);
+      
+      // Get all draft projects (status = 'Draft') that haven't generated contracts yet
+      const draftProjects = await db
+        .select({
+          id: projects.id,
+          name: projects.name,
+          projectNumber: projects.projectNumber,
+          status: projects.status,
+          createdAt: projects.createdAt,
+        })
+        .from(projects)
+        .where(eq(projects.status, 'Draft'));
       
       // Get financials for contract values
       const financialsData = await db.select().from(financials);
@@ -1220,6 +1233,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         status: string;
         contractValue: number;
         generatedAt: string;
+        isDraft: boolean;
         contracts: Array<{
           id: number;
           contractType: string;
@@ -1229,6 +1243,25 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         }>;
       }>();
       
+      // First, add draft projects that don't have contracts yet
+      const projectsWithContracts = new Set(allContracts.map(c => c.projectId));
+      draftProjects.forEach(p => {
+        if (!projectsWithContracts.has(p.id)) {
+          packageMap.set(p.id, {
+            packageId: p.id,
+            projectId: p.id,
+            projectName: p.name || 'Untitled Draft',
+            projectNumber: p.projectNumber || '',
+            status: 'draft',
+            contractValue: projectValues.get(p.id) || 0,
+            generatedAt: p.createdAt?.toISOString() || '',
+            isDraft: true,
+            contracts: [],
+          });
+        }
+      });
+      
+      // Then add projects with generated contracts
       allContracts.forEach(c => {
         if (!c.projectId) return;
         
@@ -1243,6 +1276,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         
         if (existing) {
           existing.contracts.push(contractInfo);
+          existing.isDraft = false;
           // Update package status from ONE Agreement
           if (c.contractType === 'one_agreement') {
             existing.status = normalizeStatus(c.status);
@@ -1256,6 +1290,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             status: normalizeStatus(c.status),
             contractValue: projectValues.get(c.projectId) || 0,
             generatedAt: c.generatedAt?.toISOString() || '',
+            isDraft: false,
             contracts: [contractInfo],
           });
         }
@@ -1268,6 +1303,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         clientName: pkg.projectName,
         contractCount: pkg.contracts.length,
       }));
+      
+      // Sort: drafts first (by createdAt desc), then contracts (by generatedAt desc)
+      packages.sort((a, b) => {
+        if (a.isDraft && !b.isDraft) return -1;
+        if (!a.isDraft && b.isDraft) return 1;
+        return new Date(b.generatedAt).getTime() - new Date(a.generatedAt).getTime();
+      });
       
       res.json(packages);
     } catch (error) {

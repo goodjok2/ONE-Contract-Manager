@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { FileCheck, Plus, ChevronDown, ChevronRight, FileText, Package } from "lucide-react";
+import { FileCheck, Plus, ChevronDown, ChevronRight, FileText, Package, Pencil } from "lucide-react";
 import { Link } from "wouter";
 
 interface ContractInfo {
@@ -28,6 +28,7 @@ interface ContractPackage {
   title: string;
   clientName: string;
   contractCount: number;
+  isDraft?: boolean;
 }
 
 export default function Contracts() {
@@ -108,76 +109,111 @@ export default function Contracts() {
           ) : packages.length > 0 ? (
             <div className="space-y-2">
               {packages.map((pkg, index) => (
-                <Collapsible 
-                  key={pkg.packageId}
-                  open={expandedPackages.has(pkg.packageId)}
-                  onOpenChange={() => togglePackage(pkg.packageId)}
-                >
+                pkg.isDraft ? (
                   <div 
+                    key={pkg.packageId}
                     className="rounded-lg border bg-card"
                     data-testid={`row-package-${index}`}
                   >
-                    <CollapsibleTrigger asChild>
-                      <div className="flex items-center justify-between gap-4 py-4 px-4 cursor-pointer hover-elevate rounded-lg">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/10">
-                            <Package className="h-5 w-5 text-primary" />
-                          </div>
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                              <p className="text-sm font-medium">{pkg.projectName}</p>
-                              <Badge variant="outline" className="text-xs">
-                                {pkg.contractCount} contracts
-                              </Badge>
-                            </div>
-                            <p className="text-xs text-muted-foreground">
-                              {pkg.projectNumber} • {formatCurrency(pkg.contractValue)}
-                            </p>
-                          </div>
+                    <div className="flex items-center justify-between gap-4 py-4 px-4">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-md bg-amber-500/10">
+                          <Pencil className="h-5 w-5 text-amber-600" />
                         </div>
-                        <div className="flex items-center gap-3 shrink-0">
-                          <StatusBadge status={pkg.status} />
-                          {expandedPackages.has(pkg.packageId) ? (
-                            <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                          ) : (
-                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                          )}
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-medium">{pkg.projectName}</p>
+                            <Badge variant="secondary" className="text-xs">
+                              Draft
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {pkg.projectNumber} • Not yet generated
+                          </p>
                         </div>
                       </div>
-                    </CollapsibleTrigger>
-                    
-                    <CollapsibleContent>
-                      <div className="border-t px-4 py-3 bg-muted/30">
-                        <p className="text-xs font-medium text-muted-foreground mb-3">Contracts in this package:</p>
-                        <div className="space-y-2">
-                          {pkg.contracts.map((contract) => (
-                            <div 
-                              key={contract.id}
-                              className="flex items-center justify-between gap-4 py-2 px-3 rounded-md bg-background"
-                              data-testid={`row-contract-${contract.id}`}
-                            >
-                              <div className="flex items-center gap-3 min-w-0">
-                                <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
-                                <div className="min-w-0">
-                                  <p className="text-sm font-medium">{formatContractType(contract.contractType)}</p>
-                                  <p className="text-xs text-muted-foreground truncate">{contract.fileName}</p>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <Link href={`/generate-contracts?projectId=${pkg.projectId}`}>
+                          <Button variant="outline" size="sm" data-testid={`button-resume-draft-${pkg.projectId}`}>
+                            <Pencil className="h-3 w-3 mr-2" />
+                            Resume Draft
+                          </Button>
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <Collapsible 
+                    key={pkg.packageId}
+                    open={expandedPackages.has(pkg.packageId)}
+                    onOpenChange={() => togglePackage(pkg.packageId)}
+                  >
+                    <div 
+                      className="rounded-lg border bg-card"
+                      data-testid={`row-package-${index}`}
+                    >
+                      <CollapsibleTrigger asChild>
+                        <div className="flex items-center justify-between gap-4 py-4 px-4 cursor-pointer hover-elevate rounded-lg">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/10">
+                              <Package className="h-5 w-5 text-primary" />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                <p className="text-sm font-medium">{pkg.projectName}</p>
+                                <Badge variant="outline" className="text-xs">
+                                  {pkg.contractCount} contracts
+                                </Badge>
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                {pkg.projectNumber} • {formatCurrency(pkg.contractValue)}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3 shrink-0">
+                            <StatusBadge status={pkg.status} />
+                            {expandedPackages.has(pkg.packageId) ? (
+                              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                            )}
+                          </div>
+                        </div>
+                      </CollapsibleTrigger>
+                      
+                      <CollapsibleContent>
+                        <div className="border-t px-4 py-3 bg-muted/30">
+                          <p className="text-xs font-medium text-muted-foreground mb-3">Contracts in this package:</p>
+                          <div className="space-y-2">
+                            {pkg.contracts.map((contract) => (
+                              <div 
+                                key={contract.id}
+                                className="flex items-center justify-between gap-4 py-2 px-3 rounded-md bg-background"
+                                data-testid={`row-contract-${contract.id}`}
+                              >
+                                <div className="flex items-center gap-3 min-w-0">
+                                  <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-medium">{formatContractType(contract.contractType)}</p>
+                                    <p className="text-xs text-muted-foreground truncate">{contract.fileName}</p>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <StatusBadge status={contract.status} size="sm" />
+                                  <Link href={`/contracts/${contract.id}`}>
+                                    <Button variant="outline" size="sm" data-testid={`button-view-contract-${contract.id}`}>
+                                      View
+                                    </Button>
+                                  </Link>
                                 </div>
                               </div>
-                              <div className="flex items-center gap-2 shrink-0">
-                                <StatusBadge status={contract.status} size="sm" />
-                                <Link href={`/contracts/${contract.id}`}>
-                                  <Button variant="outline" size="sm" data-testid={`button-view-contract-${contract.id}`}>
-                                    View
-                                  </Button>
-                                </Link>
-                              </div>
-                            </div>
-                          ))}
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    </CollapsibleContent>
-                  </div>
-                </Collapsible>
+                      </CollapsibleContent>
+                    </div>
+                  </Collapsible>
+                )
               ))}
             </div>
           ) : (

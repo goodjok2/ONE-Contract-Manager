@@ -15,6 +15,56 @@ export const Step7Pricing: React.FC = () => {
   
   const { projectData, validationErrors } = wizardState;
   
+  // Calculate unit total price from units data
+  const unitsTotalPrice = useMemo(() => {
+    const totalUnits = projectData.totalUnits || 1;
+    return projectData.units.slice(0, totalUnits).reduce((sum, unit) => sum + (unit.price || 0), 0);
+  }, [projectData.totalUnits, projectData.units]);
+  
+  // Pre-populate pricing fields based on unit data - runs whenever data changes
+  // Only sets values when they are 0 (empty) to avoid overwriting user edits
+  useEffect(() => {
+    const updates: Record<string, number> = {};
+    const totalUnits = projectData.totalUnits || 1;
+    
+    // Set offsite cost from unit prices if not already set
+    if (unitsTotalPrice > 0 && projectData.preliminaryOffsiteCost <= 0) {
+      updates.preliminaryOffsiteCost = unitsTotalPrice;
+    }
+    
+    // Calculate delivery & installation: $25,000 base + $15,000 per additional unit
+    if (projectData.deliveryInstallationPrice <= 0) {
+      updates.deliveryInstallationPrice = 25000 + (Math.max(0, totalUnits - 1) * 15000);
+    }
+    
+    // For CMOS, calculate additional costs based on offsite cost
+    if (projectData.serviceModel === 'CMOS') {
+      const baseOffsiteCost = unitsTotalPrice > 0 ? unitsTotalPrice : (projectData.preliminaryOffsiteCost > 0 ? projectData.preliminaryOffsiteCost : 500000);
+      
+      // Site prep: 12% of offsite cost
+      if (projectData.sitePrepPrice <= 0) {
+        updates.sitePrepPrice = Math.round(baseOffsiteCost * 0.12);
+      }
+      
+      // Utilities: 6% of offsite cost  
+      if (projectData.utilitiesPrice <= 0) {
+        updates.utilitiesPrice = Math.round(baseOffsiteCost * 0.06);
+      }
+      
+      // Completion: 8% of offsite cost
+      if (projectData.completionPrice <= 0) {
+        updates.completionPrice = Math.round(baseOffsiteCost * 0.08);
+      }
+    }
+    
+    // Apply updates if any
+    if (Object.keys(updates).length > 0) {
+      updateProjectData(updates);
+    }
+  }, [unitsTotalPrice, projectData.totalUnits, projectData.serviceModel, 
+      projectData.preliminaryOffsiteCost, projectData.deliveryInstallationPrice,
+      projectData.sitePrepPrice, projectData.utilitiesPrice, projectData.completionPrice]);
+  
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',

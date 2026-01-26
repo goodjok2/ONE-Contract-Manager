@@ -32,8 +32,8 @@ const STEPS = [
   { number: 1, title: "Project Info", description: "Basic project details", icon: FileText },
   { number: 2, title: "Service Model", description: "CRC or CMOS selection", icon: Settings2 },
   { number: 3, title: "Party Info", description: "Client & SPV details", icon: Users },
-  { number: 4, title: "Child LLC", description: "LLC entity setup", icon: Building2 },
-  { number: 5, title: "Site & Home", description: "Property details", icon: Home },
+  { number: 4, title: "Site & Home", description: "Property details", icon: Home },
+  { number: 5, title: "Child LLC", description: "LLC entity setup", icon: Building2 },
   { number: 6, title: "Dates & Schedule", description: "Timeline", icon: Calendar },
   { number: 7, title: "Pricing", description: "Financial terms", icon: DollarSign },
   { number: 8, title: "Schedule & Warranty", description: "Timeline & terms", icon: Shield },
@@ -140,8 +140,8 @@ export const WizardShell: React.FC = () => {
         {wizardState.currentStep === 1 && <Step1ProjectInfo />}
         {wizardState.currentStep === 2 && <Step2ServiceModel />}
         {wizardState.currentStep === 3 && <Step3PartyInfo />}
-        {wizardState.currentStep === 4 && <Step4ChildLLC />}
-        {wizardState.currentStep === 5 && <Step5SiteAndHome />}
+        {wizardState.currentStep === 4 && <Step5SiteAndHome />}
+        {wizardState.currentStep === 5 && <Step4ChildLLC />}
         {wizardState.currentStep === 6 && <Step6DatesSchedule />}
         {wizardState.currentStep === 7 && <Step7Pricing />}
         {wizardState.currentStep === 8 && <Step8ScheduleWarranty />}

@@ -22,13 +22,14 @@ This application helps Dvele manage construction projects through dedicated chil
   - Step 1: Project Basics (name, type, total units)
   - Step 2: Service Model (CRC vs CMOS selection)
   - Step 3: Party Information (client details, contractor info for CRC)
-  - Step 4: Child LLC (auto-generated name)
-  - Step 5: Site & Property (address, multi-unit specifications with add/remove)
+  - Step 4: Site & Property (address, multi-unit specifications with add/remove) - **moved before Child LLC**
+  - Step 5: Child LLC (auto-generated name from site address) - **moved after Site & Property**
   - Step 6: Key Dates (effective, manufacturing start, completion)
   - Step 7: Financial Terms (comprehensive pricing and payment configuration):
     - Design Phase: Design fee ($1k-$100k), revision rounds
-    - Preliminary Pricing: Offsite/delivery costs, CMOS-specific fields
-    - Payment Milestones: 5 milestones summing to 95%, retainage settings
+    - Preliminary Pricing: Offsite cost (auto-calculated from unit prices), delivery costs
+    - CMOS-specific: Site prep (12%), Utilities (6%), Completion (8%) auto-calculated
+    - Payment Milestones: 5 milestones summing to 95%, retainage settings (defaults: 20/20/20/20/15)
     - Manufacturing Payments: Design/production/delivery payment schedule
   - Step 8: Schedule & Warranty:
     - Project Schedule: Effective date, completion timeframe, phase durations
@@ -43,7 +44,10 @@ This application helps Dvele manage construction projects through dedicated chil
     - Contracts to be Generated section (ONE Agreement, Manufacturing Subcontract, OnSite Subcontract)
     - Clause Preview modal showing included clauses per contract
     - Generate Contract Package button (disabled until all required fields complete)
-- **Active Contracts**: List and manage all contracts
+- **Active Contracts**: List and manage all contracts and draft projects
+  - Shows generated contract packages with expandable details
+  - Shows draft projects with "Resume Draft" button to continue editing
+  - Drafts link to /generate-contracts?projectId={id} for seamless resume
 - **Templates**: Pre-configured contract templates (DTC Standard, B2B Developer)
 - **Clause Library**: Browse 276 contract clauses with filtering by contract type (ONE/MANUFACTURING/ONSITE), hierarchy level (Sections/Subsections/Paragraphs), search, expandable rows showing conditional logic, and edit capability for legal team
 - **Variable Mappings**: Configure contract variables with ERP integration support:
