@@ -1672,6 +1672,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         });
       }
       
+      // LOG THE ACTUAL DATA BEING SENT
+      console.log('\n=== WIZARD DATA RECEIVED ===');
+      console.log(JSON.stringify(projectData, null, 2));
+      console.log('=== END WIZARD DATA ===\n');
+      
       console.log("Generating contract package for project:", projectData.PROJECT_NAME);
       
       // Add calculated/derived fields
@@ -2016,6 +2021,44 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     } catch (error) {
       console.error("Failed to delete LLC:", error);
       res.status(500).json({ error: "Failed to delete LLC" });
+    }
+  });
+
+  // ==========================================
+  // DEBUG ENDPOINTS
+  // ==========================================
+  
+  // Debug endpoint - get all unique variables used in clauses
+  app.get('/api/debug/variables-in-clauses', async (req, res) => {
+    try {
+      const clausesResult = await pool.query('SELECT content FROM clauses');
+      const clauses = clausesResult.rows;
+      
+      // Extract all {{VARIABLE_NAME}} patterns
+      const variableSet = new Set<string>();
+      
+      clauses.forEach((clause: any) => {
+        const content = clause.content || '';
+        const matches = content.match(/\{\{([A-Z_0-9]+)\}\}/g);
+        if (matches) {
+          matches.forEach((match: string) => {
+            // Remove {{ and }}
+            const varName = match.replace(/[{}]/g, '');
+            variableSet.add(varName);
+          });
+        }
+      });
+      
+      const variables = Array.from(variableSet).sort();
+      
+      res.json({
+        totalVariables: variables.length,
+        variables: variables,
+        clausesChecked: clauses.length
+      });
+      
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
     }
   });
 

@@ -127,8 +127,17 @@ function replaceVariables(content: string, variableMap: Record<string, string>):
     result = result.replace(regex, `${VAR_START}${displayValue}${VAR_END}`);
   });
   
-  // Also catch any remaining unsubstituted variables
-  result = result.replace(/\{\{([A-Z_]+)\}\}/g, `${PLACEHOLDER_START}{{$1}}${PLACEHOLDER_END}`);
+  // Find any remaining unreplaced variables and log them
+  const unreplaced = result.match(/\{\{([A-Z_0-9]+)\}\}/g);
+  if (unreplaced && unreplaced.length > 0) {
+    const uniqueUnreplaced = [...new Set(unreplaced)];
+    console.warn('⚠️  Unreplaced variables found:', uniqueUnreplaced);
+    // Replace with placeholder so we can see what's missing
+    uniqueUnreplaced.forEach(variable => {
+      const varName = variable.replace(/[{}]/g, '');
+      result = result.replace(new RegExp(`\\{\\{${varName}\\}\\}`, 'g'), `${PLACEHOLDER_START}[MISSING: ${varName}]${PLACEHOLDER_END}`);
+    });
+  }
   
   return result;
 }
@@ -1322,6 +1331,209 @@ function buildVariableMap(projectData: Record<string, any>): Record<string, stri
     map['UTILITIES_PRICE'] = formatCurrency(projectData.utilitiesPrice);
     map['COMPLETION_PRICE'] = formatCurrency(projectData.completionPrice);
   }
+  
+  // ============================================
+  // ADDITIONAL VARIABLES FOR COMPLETE COVERAGE
+  // ============================================
+  
+  // Insurance limits
+  map['GL_INSURANCE_LIMIT'] = '$2,000,000';
+  map['GL_AGGREGATE_LIMIT'] = '$4,000,000';
+  
+  // Contract pricing calculations
+  map['PRELIMINARY_CONTRACT_PRICE'] = formatCurrency(projectData.totalPreliminaryContractPrice);
+  map['PRELIMINARY_ONSITE_PRICE'] = projectData.serviceModel === 'CMOS' 
+    ? formatCurrency(
+        (parseFloat(projectData.sitePrepPrice || '0') +
+         parseFloat(projectData.utilitiesPrice || '0') +
+         parseFloat(projectData.completionPrice || '0'))
+      )
+    : 'Not Applicable (Client-Retained Contractor)';
+  
+  map['FINAL_CONTRACT_PRICE'] = formatCurrency(projectData.totalPreliminaryContractPrice);
+  
+  // State of formation (for legal jurisdiction)
+  map['STATE_OF_FORMATION'] = projectData.childLlcState || 'Delaware';
+  map['COUNTY'] = projectData.projectCounty || projectData.siteCounty || '';
+  
+  // Cancellation and fees
+  map['CANCELLATION_FEE_PERCENT'] = '15';
+  map['MATERIAL_INCREASE_THRESHOLD'] = '10';
+  map['INFLATION_ADJUSTMENT_PERCENT'] = '5';
+  
+  // Warranty periods (alternate naming conventions)
+  map['DVELE_FIT_FINISH_WARRANTY'] = projectData.warrantyFitFinishMonths?.toString() || '24';
+  map['DVELE_ENVELOPE_WARRANTY'] = projectData.warrantyBuildingEnvelopeMonths?.toString() || '60';
+  map['DVELE_STRUCTURAL_WARRANTY'] = projectData.warrantyStructuralMonths?.toString() || '120';
+  
+  // Timeline durations in weeks
+  map['DESIGN_DURATION'] = (parseInt(projectData.designPhaseDays || '90') / 7).toFixed(0);
+  map['PERMITTING_DURATION'] = '4-8';
+  map['PRODUCTION_DURATION'] = (parseInt(projectData.manufacturingDurationDays || '120') / 7).toFixed(0);
+  map['DELIVERY_DURATION'] = '1';
+  map['COMPLETION_DURATION'] = (parseInt(projectData.onsiteDurationDays || '90') / 7).toFixed(0);
+  
+  // Key dates
+  map['PLAN_DATE'] = formatDate(projectData.agreementDate);
+  map['SURVEY_DATE'] = formatDate(projectData.agreementDate);
+  map['GREEN_LIGHT_DATE'] = 'To Be Determined';
+  map['DELIVERY_DATE'] = 'To Be Determined';
+  map['COMPLETION_DATE'] = map['ESTIMATED_COMPLETION_DATE'] || 'To Be Determined';
+  
+  // Unit descriptions
+  for (let i = 1; i <= totalUnits; i++) {
+    map[`UNIT_${i}_DESCRIPTION`] = projectData[`unit${i}Model`] || `Unit ${i}`;
+    map[`UNIT_${i}_MODULES`] = projectData[`unit${i}Modules`] || '2-4';
+  }
+  
+  // Totals
+  map['TOTAL_MODULES'] = (parseInt(projectData.totalUnits || '1') * 3).toString();
+  
+  // Location for arbitration
+  const arbCity = projectData.siteCity || '';
+  const arbState = projectData.siteState || '';
+  map['ARBITRATION_LOCATION'] = [arbCity, arbState].filter(Boolean).join(', ');
+  
+  // Payment schedule labels
+  map['MILESTONE_1_NAME'] = 'Agreement Execution';
+  map['MILESTONE_2_NAME'] = 'Design Completion';
+  map['MILESTONE_3_NAME'] = 'Green Light / Production Start';
+  map['MILESTONE_4_NAME'] = 'Production Complete';
+  map['MILESTONE_5_NAME'] = 'Delivery';
+  
+  // Legal references
+  map['GOVERNING_LAW_STATE'] = projectData.siteState || 'California';
+  map['FEDERAL_DISTRICT'] = projectData.projectFederalDistrict || '';
+  
+  // Company information
+  map['DVELE_LEGAL_NAME'] = 'Dvele, Inc.';
+  map['DVELE_ADDRESS'] = '123 Main Street, San Diego, CA 92101';
+  map['DVELE_STATE'] = 'Delaware';
+  map['DVELE_ENTITY_TYPE'] = 'corporation';
+  
+  // Project details
+  map['PROJECT_TYPE'] = projectData.projectType || 'Single Family Residence';
+  map['SERVICE_MODEL'] = projectData.serviceModel || 'CRC';
+  
+  // APN and lot information  
+  map['APN'] = projectData.siteApn || '';
+  map['LOT_SIZE'] = projectData.lotSize || '';
+  
+  // ============================================
+  // ADDITIONAL MISSING VARIABLES FROM CLAUSES
+  // ============================================
+  
+  // Client name alias
+  map['CLIENT_NAME'] = projectData.clientLegalName || '';
+  map['ENTITY_TYPE'] = getEntityTypeText(projectData.clientEntityType);
+  
+  // Company/Dvele details
+  map['COMPANY_NAME'] = 'Dvele, Inc.';
+  map['COMPANY_SIGNATORY_NAME'] = 'Authorized Representative';
+  map['COMPANY_SIGNATORY_TITLE'] = 'CEO';
+  
+  // Dates
+  map['COO_DATE'] = 'To Be Determined';
+  map['MASTER_AGREEMENT_DATE'] = formatDate(projectData.agreementDate);
+  map['DELIVERY_READY_DATE'] = 'To Be Determined';
+  map['PRODUCTION_START_DATE'] = 'To Be Determined';
+  map['PRODUCTION_MIDPOINT_DATE'] = 'To Be Determined';
+  map['PRODUCTION_COMPLETE_DATE'] = 'To Be Determined';
+  map['ONSITE_READY_DATE'] = 'To Be Determined';
+  map['ONSITE_FOUNDATION_DATE'] = 'To Be Determined';
+  map['ONSITE_MOBILIZATION_DATE'] = 'To Be Determined';
+  
+  // Address alias
+  map['PROJECT_ADDRESS'] = formatAddress(projectData);
+  
+  // Building codes
+  map['ENERGY_CODE'] = projectData.energyCode || 'Title 24';
+  map['LOCAL_BUILDING_CODE'] = projectData.localBuildingCode || '';
+  map['STATE_BUILDING_CODE'] = projectData.stateBuildingCode || 'California Building Code';
+  
+  // Delay penalty
+  map['DELAY_PENALTY'] = '$500';
+  map['ONSITE_DELAY_PENALTY'] = '$500';
+  
+  // Manufacturer details
+  map['MANUFACTURER_NAME'] = 'Dvele, Inc.';
+  map['MANUFACTURER_STATE'] = 'Delaware';
+  map['MANUFACTURER_ENTITY_TYPE'] = 'corporation';
+  map['MANUFACTURER_SIGNATORY_NAME'] = 'Authorized Representative';
+  map['MANUFACTURER_SIGNATORY_TITLE'] = 'CEO';
+  
+  // Manufacturing (MFG) pricing
+  const offsitePrice = parseFloat(projectData.preliminaryOffsitePrice || '0');
+  map['MFG_BASE_PRICE'] = formatCurrency(offsitePrice);
+  map['MFG_UPGRADES'] = formatCurrency(projectData.upgrades || 0);
+  map['MFG_TOTAL_PRICE'] = formatCurrency(offsitePrice);
+  map['MFG_MARKUP_PERCENT'] = '0';
+  map['MFG_RETAINAGE_PERCENT'] = '5';
+  
+  // MFG payment schedule (deposit, start, mid, complete, delivery)
+  map['MFG_DEPOSIT_PERCENT'] = '20';
+  map['MFG_DEPOSIT_AMOUNT'] = formatCurrency(offsitePrice * 0.20);
+  map['MFG_START_PERCENT'] = '20';
+  map['MFG_START_AMOUNT'] = formatCurrency(offsitePrice * 0.20);
+  map['MFG_MID_PERCENT'] = '25';
+  map['MFG_MID_AMOUNT'] = formatCurrency(offsitePrice * 0.25);
+  map['MFG_COMPLETE_PERCENT'] = '25';
+  map['MFG_COMPLETE_AMOUNT'] = formatCurrency(offsitePrice * 0.25);
+  map['MFG_DELIVERY_PERCENT'] = '10';
+  map['MFG_DELIVERY_AMOUNT'] = formatCurrency(offsitePrice * 0.10);
+  
+  // MFG insurance limits
+  map['MFG_GL_LIMIT'] = '$2,000,000';
+  map['MFG_GL_AGGREGATE'] = '$4,000,000';
+  map['MFG_EL_LIMIT'] = '$1,000,000';
+  map['MFG_AUTO_LIMIT'] = '$1,000,000';
+  map['MFG_UMBRELLA_LIMIT'] = '$5,000,000';
+  map['MFG_PRODUCTS_LIMIT'] = '$2,000,000';
+  
+  // Onsite contractor details
+  map['ONSITE_CONTRACTOR_NAME'] = projectData.contractorName || 'To Be Determined';
+  map['ONSITE_CONTRACTOR_STATE'] = projectData.contractorState || '';
+  map['ONSITE_CONTRACTOR_ENTITY_TYPE'] = projectData.contractorEntityType || '';
+  map['ONSITE_CONTRACTOR_SIGNATORY_NAME'] = projectData.contractorSignatory || 'Authorized Representative';
+  map['ONSITE_CONTRACTOR_SIGNATORY_TITLE'] = 'President';
+  
+  // Onsite pricing
+  const onsiteTotal = parseFloat(projectData.sitePrepPrice || '0') +
+                      parseFloat(projectData.utilitiesPrice || '0') +
+                      parseFloat(projectData.completionPrice || '0');
+  map['ONSITE_TOTAL_PRICE'] = formatCurrency(onsiteTotal);
+  map['ONSITE_MARKUP_PERCENT'] = '0';
+  map['ONSITE_RETAINAGE_PERCENT'] = '5';
+  map['ONSITE_RETAINAGE_AMOUNT'] = formatCurrency(onsiteTotal * 0.05);
+  
+  // Onsite prep/utilities/completion
+  map['ONSITE_PREP_PRICE'] = formatCurrency(projectData.sitePrepPrice);
+  map['ONSITE_UTILITIES_PRICE'] = formatCurrency(projectData.utilitiesPrice);
+  map['ONSITE_COMPLETION_PRICE'] = formatCurrency(projectData.completionPrice);
+  map['ONSITE_FOUNDATION_PRICE'] = formatCurrency(parseFloat(projectData.sitePrepPrice || '0') * 0.5);
+  map['ONSITE_SET_PRICE'] = formatCurrency(parseFloat(projectData.sitePrepPrice || '0') * 0.3);
+  
+  // Onsite payment percentages
+  map['ONSITE_MOBILIZATION_PERCENT'] = '10';
+  map['ONSITE_MOBILIZATION_AMOUNT'] = formatCurrency(onsiteTotal * 0.10);
+  map['ONSITE_FOUNDATION_PERCENT'] = '25';
+  map['ONSITE_FOUNDATION_AMOUNT'] = formatCurrency(onsiteTotal * 0.25);
+  map['ONSITE_SET_PERCENT'] = '25';
+  map['ONSITE_SET_AMOUNT'] = formatCurrency(onsiteTotal * 0.25);
+  map['ONSITE_UTILITIES_PERCENT'] = '20';
+  map['ONSITE_UTILITIES_AMOUNT'] = formatCurrency(onsiteTotal * 0.20);
+  map['ONSITE_COMPLETION_PERCENT'] = '20';
+  map['ONSITE_COMPLETION_AMOUNT'] = formatCurrency(onsiteTotal * 0.20);
+  
+  // Onsite insurance limits
+  map['ONSITE_GL_LIMIT'] = '$2,000,000';
+  map['ONSITE_GL_AGGREGATE'] = '$4,000,000';
+  map['ONSITE_EL_LIMIT'] = '$1,000,000';
+  map['ONSITE_AUTO_LIMIT'] = '$1,000,000';
+  map['ONSITE_UMBRELLA_LIMIT'] = '$5,000,000';
+  
+  // Test variable (remove after testing)
+  map['TEST_VARIABLE_ADDITION'] = '';
   
   return map;
 }

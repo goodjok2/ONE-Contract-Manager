@@ -1,0 +1,205 @@
+FIX: Complete Variable Replacement
+FIX VARIABLE REPLACEMENT IN CONTRACT GENERATOR
+
+Many variables in generated contracts are not being replaced. This is a critical fix needed before the system is production-ready.
+
+STEP 1: AUDIT ALL VARIABLES IN CLAUSE LIBRARY
+
+Add this endpoint to server/routes.ts to see what variables are actually being used:
+```typescript
+// Debug endpoint - get all unique variables used in clauses
+app.get('/api/debug/variables-in-clauses', async (req, res) => {
+  try {
+    const response = await fetch('http://localhost:5000/api/clauses');
+    const data = await response.json();
+    const clauses = data.clauses || [];
+    
+    // Extract all {{VARIABLE_NAME}} patterns
+    const variableSet = new Set<string>();
+    
+    clauses.forEach((clause: any) => {
+      const content = clause.content || '';
+      const matches = content.match(/\{\{([A-Z_0-9]+)\}\}/g);
+      if (matches) {
+        matches.forEach((match: string) => {
+          // Remove {{ and }}
+          const varName = match.replace(/[{}]/g, '');
+          variableSet.add(varName);
+        });
+      }
+    });
+    
+    const variables = Array.from(variableSet).sort();
+    
+    res.json({
+      totalVariables: variables.length,
+      variables: variables,
+      clausesChecked: clauses.length
+    });
+    
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+```
+
+STEP 2: LOG ACTUAL WIZARD DATA
+
+In server/routes.ts, in the generate-package endpoint, add logging to see what data is actually being sent:
+```typescript
+app.post('/api/contracts/generate-package', async (req, res) => {
+  try {
+    const { wizardData } = req.body;
+    
+    // LOG THE ACTUAL DATA BEING SENT
+    console.log('\n=== WIZARD DATA RECEIVED ===');
+    console.log(JSON.stringify(wizardData, null, 2));
+    console.log('=== END WIZARD DATA ===\n');
+    
+    // ... rest of endpoint
+  }
+});
+```
+
+STEP 3: UPDATE VARIABLE MAP WITH ALL MISSING VARIABLES
+
+In server/lib/contractGenerator.ts, update the buildVariableMap function to include ALL variables found in the clause library.
+
+Add these missing variables to the function:
+```typescript
+function buildVariableMap(projectData: Record<string, any>): Record<string, string> {
+  const map: Record<string, string> = {};
+  
+  // ... existing variables ...
+  
+  // ADD THESE MISSING VARIABLES:
+  
+  // Test/placeholder variables
+  map['TEST_VARIABLE_ADDITION'] = ''; // Remove after testing
+  
+  // Insurance limits
+  map['GL_INSURANCE_LIMIT'] = '$2,000,000';
+  map['GL_AGGREGATE_LIMIT'] = '$4,000,000';
+  
+  // Contract pricing (check if these match wizard field names)
+  map['PRELIMINARY_CONTRACT_PRICE'] = formatCurrency(projectData.totalPreliminaryContractPrice);
+  map['PRELIMINARY_ONSITE_PRICE'] = projectData.serviceModel === 'CMOS' 
+    ? formatCurrency(
+        (parseFloat(projectData.sitePrepPrice || '0') +
+         parseFloat(projectData.utilitiesPrice || '0') +
+         parseFloat(projectData.completionPrice || '0'))
+      )
+    : 'Not Applicable (Client-Retained Contractor)';
+  
+  map['FINAL_CONTRACT_PRICE'] = formatCurrency(projectData.totalPreliminaryContractPrice);
+  
+  // State of formation (for legal jurisdiction)
+  map['STATE_OF_FORMATION'] = projectData.childLlcState || 'Delaware';
+  map['COUNTY'] = projectData.projectCounty || projectData.siteCounty || '';
+  
+  // Cancellation and fees
+  map['CANCELLATION_FEE_PERCENT'] = '15';
+  map['MATERIAL_INCREASE_THRESHOLD'] = '10';
+  map['INFLATION_ADJUSTMENT_PERCENT'] = '5';
+  
+  // Warranty periods (check field names match wizard)
+  map['DVELE_FIT_FINISH_WARRANTY'] = projectData.warrantyFitFinishMonths?.toString() || '24';
+  map['DVELE_ENVELOPE_WARRANTY'] = projectData.warrantyBuildingEnvelopeMonths?.toString() || '60';
+  map['DVELE_STRUCTURAL_WARRANTY'] = projectData.warrantyStructuralMonths?.toString() || '120';
+  
+  // Timeline durations
+  map['DESIGN_DURATION'] = (parseInt(projectData.designPhaseDays || '90') / 7).toFixed(0);
+  map['PERMITTING_DURATION'] = '4-8';
+  map['PRODUCTION_DURATION'] = (parseInt(projectData.manufacturingDurationDays || '120') / 7).toFixed(0);
+  map['DELIVERY_DURATION'] = '1';
+  map['COMPLETION_DURATION'] = (parseInt(projectData.onsiteDurationDays || '90') / 7).toFixed(0);
+  
+  // Key dates
+  map['PLAN_DATE'] = formatDate(projectData.agreementDate);
+  map['SURVEY_DATE'] = formatDate(projectData.agreementDate);
+  map['GREEN_LIGHT_DATE'] = 'To Be Determined';
+  map['DELIVERY_DATE'] = 'To Be Determined';
+  map['COMPLETION_DATE'] = map['ESTIMATED_COMPLETION_DATE'] || 'To Be Determined';
+  
+  // Unit descriptions
+  for (let i = 1; i <= (parseInt(projectData.totalUnits) || 1); i++) {
+    map[`UNIT_${i}_DESCRIPTION`] = projectData[`unit${i}Model`] || `Unit ${i}`;
+    map[`UNIT_${i}_MODULES`] = projectData[`unit${i}Modules`] || '2-4';
+  }
+  
+  // Totals
+  map['TOTAL_MODULES'] = (parseInt(projectData.totalUnits) * 3).toString(); // Estimate
+  
+  // Location for arbitration
+  map['ARBITRATION_LOCATION'] = `${projectData.siteCity || ''}, ${projectData.siteState || ''}`.trim().replace(/^,\s*/, '');
+  
+  return map;
+}
+```
+
+STEP 4: ADD VARIABLE NAME ALIASES
+
+Some variables might have alternate names. Add this helper function before buildVariableMap:
+```typescript
+function normalizeVariableName(name: string): string {
+  // Handle common variations
+  const aliases: Record<string, string> = {
+    'PRELIMINARY_ONSITE_PRICE': 'PRELIMINARY_ONSITE_PRICE',
+    'PRELIM_ONSITE_PRICE': 'PRELIMINARY_ONSITE_PRICE',
+    'ON_SITE_PRICE': 'PRELIMINARY_ONSITE_PRICE',
+    // Add more as needed
+  };
+  
+  return aliases[name] || name;
+}
+```
+
+STEP 5: TEST THE FIX
+
+1. Visit http://localhost:5000/api/debug/variables-in-clauses
+2. Save the output to a file
+3. Compare with variables in buildVariableMap()
+4. Add any missing ones
+5. Generate a new contract
+6. Search PDF for {{ to find any unreplaced variables
+7. Fix and repeat until all variables are replaced
+
+STEP 6: ADD FALLBACK FOR UNDEFINED VARIABLES
+
+Update the replaceVariables function to provide better feedback:
+```typescript
+function replaceVariables(content: string, variableMap: Record<string, string>): string {
+  if (!content) return '';
+  
+  let result = content;
+  
+  // First pass: replace known variables
+  Object.entries(variableMap).forEach(([key, value]) => {
+    const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
+    result = result.replace(regex, value || '[NOT PROVIDED]');
+  });
+  
+  // Second pass: find any remaining unreplaced variables and log them
+  const unreplaced = result.match(/\{\{([A-Z_0-9]+)\}\}/g);
+  if (unreplaced && unreplaced.length > 0) {
+    console.warn('⚠️  Unreplaced variables found:', unreplaced);
+    // Replace with placeholder so we can see what's missing
+    unreplaced.forEach(variable => {
+      const varName = variable.replace(/[{}]/g, '');
+      result = result.replace(variable, `[MISSING: ${varName}]`);
+    });
+  }
+  
+  return result;
+}
+```
+
+EXPECTED OUTCOME:
+
+After these changes:
+1. All variables should be replaced
+2. Financial fields should show actual values
+3. No {{VARIABLE_NAME}} should remain in output
+4. Console will log any missing variables for easy debugging
+
+Run the test project again and check the PDF for improvements.
