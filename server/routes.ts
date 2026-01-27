@@ -222,6 +222,129 @@ async function generateContract(options: GenerateContractOptions): Promise<Gener
 export async function registerRoutes(httpServer: Server, app: Express): Promise<void> {
   
   // ---------------------------------------------------------------------------
+  // DEBUG - Variable Audit (temporary)
+  // ---------------------------------------------------------------------------
+  
+  app.get('/api/debug/audit-variables', async (req, res) => {
+    try {
+      console.log('Starting variable audit...');
+      
+      // Fetch all clauses directly from database
+      const clauseResult = await pool.query('SELECT * FROM clauses');
+      const clauseList = clauseResult.rows || [];
+      
+      console.log(`Fetched ${clauseList.length} clauses`);
+      
+      // Extract all {{VARIABLE_NAME}} patterns
+      const variableSet = new Set<string>();
+      const variablesByContract: Record<string, Set<string>> = {
+        ONE: new Set(),
+        MANUFACTURING: new Set(),
+        ONSITE: new Set()
+      };
+      
+      clauseList.forEach((clause: any) => {
+        const content = (clause.content || '') + ' ' + (clause.name || '');
+        const matches = content.match(/\{\{([A-Z_0-9]+)\}\}/g);
+        
+        if (matches) {
+          matches.forEach((match: string) => {
+            const varName = match.replace(/[{}]/g, '');
+            variableSet.add(varName);
+            
+            // Track by contract type
+            const contractType = (clause.contract_type || '').toLowerCase();
+            if (contractType.includes('one')) {
+              variablesByContract.ONE.add(varName);
+            } else if (contractType.includes('manufacturing') || contractType.includes('offsite')) {
+              variablesByContract.MANUFACTURING.add(varName);
+            } else if (contractType.includes('onsite') || contractType.includes('installation')) {
+              variablesByContract.ONSITE.add(varName);
+            }
+          });
+        }
+      });
+      
+      const allVariables = Array.from(variableSet).sort();
+      
+      // Find common vs unique variables
+      const oneVars = Array.from(variablesByContract.ONE);
+      const mfgVars = Array.from(variablesByContract.MANUFACTURING);
+      const onsiteVars = Array.from(variablesByContract.ONSITE);
+      
+      const commonVars = allVariables.filter(v => 
+        variablesByContract.ONE.has(v) && 
+        variablesByContract.MANUFACTURING.has(v) && 
+        variablesByContract.ONSITE.has(v)
+      );
+      
+      const oneOnly = allVariables.filter(v => 
+        variablesByContract.ONE.has(v) && 
+        !variablesByContract.MANUFACTURING.has(v) && 
+        !variablesByContract.ONSITE.has(v)
+      );
+      
+      const mfgOnly = allVariables.filter(v => 
+        !variablesByContract.ONE.has(v) && 
+        variablesByContract.MANUFACTURING.has(v) && 
+        !variablesByContract.ONSITE.has(v)
+      );
+      
+      const onsiteOnly = allVariables.filter(v => 
+        !variablesByContract.ONE.has(v) && 
+        !variablesByContract.MANUFACTURING.has(v) && 
+        variablesByContract.ONSITE.has(v)
+      );
+      
+      console.log('\n=== VARIABLE AUDIT COMPLETE ===');
+      console.log(`Total unique variables: ${allVariables.length}`);
+      console.log(`Common across all three: ${commonVars.length}`);
+      console.log(`ONE only: ${oneOnly.length}`);
+      console.log(`MANUFACTURING only: ${mfgOnly.length}`);
+      console.log(`ONSITE only: ${onsiteOnly.length}`);
+      
+      res.json({
+        summary: {
+          totalVariables: allVariables.length,
+          clausesChecked: clauseList.length,
+          commonVariables: commonVars.length,
+          oneOnlyVariables: oneOnly.length,
+          manufacturingOnlyVariables: mfgOnly.length,
+          onsiteOnlyVariables: onsiteOnly.length
+        },
+        allVariables: allVariables,
+        byContract: {
+          ONE: {
+            total: oneVars.length,
+            variables: oneVars.sort()
+          },
+          MANUFACTURING: {
+            total: mfgVars.length,
+            variables: mfgVars.sort()
+          },
+          ONSITE: {
+            total: onsiteVars.length,
+            variables: onsiteVars.sort()
+          }
+        },
+        analysis: {
+          commonToAll: commonVars.sort(),
+          oneOnly: oneOnly.sort(),
+          manufacturingOnly: mfgOnly.sort(),
+          onsiteOnly: onsiteOnly.sort()
+        }
+      });
+      
+    } catch (error: any) {
+      console.error('Variable audit error:', error);
+      res.status(500).json({ 
+        error: 'Failed to audit variables', 
+        message: error.message 
+      });
+    }
+  });
+  
+  // ---------------------------------------------------------------------------
   // DASHBOARD
   // ---------------------------------------------------------------------------
   
