@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
@@ -808,6 +808,174 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
     },
   });
 
+  // Autosave debounce ref
+  const autosaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isAutosavingRef = useRef(false);
+  const lastSavedDataRef = useRef<string>('');
+
+  // Silent autosave function - saves all wizard data without notifications
+  const performAutosave = useCallback(async () => {
+    // Don't autosave if already saving
+    if (isAutosavingRef.current) return;
+    
+    const pd = wizardState.projectData;
+    
+    // Need at least a project name to save
+    if (!pd.projectName?.trim()) return;
+    
+    // Check if data has actually changed
+    const currentDataHash = JSON.stringify({
+      projectName: pd.projectName,
+      projectNumber: pd.projectNumber,
+      serviceModel: pd.serviceModel,
+      clientLegalName: pd.clientLegalName,
+      clientEmail: pd.clientEmail,
+      siteAddress: pd.siteAddress,
+      siteCity: pd.siteCity,
+      siteState: pd.siteState,
+      designFee: pd.designFee,
+      preliminaryOffsiteCost: pd.preliminaryOffsiteCost,
+      effectiveDate: pd.effectiveDate,
+    });
+    
+    if (currentDataHash === lastSavedDataRef.current) return;
+    
+    isAutosavingRef.current = true;
+    
+    try {
+      let projectId = draftProjectId;
+      
+      // Create or update project
+      if (!projectId) {
+        // Generate unique project number for draft
+        const uniqueId = Math.random().toString(36).substring(2, 8).toUpperCase();
+        const draftProjectNumber = pd.projectNumber 
+          ? `${new Date().getFullYear()}-${Date.now().toString().slice(-3)}-DRAFT-${uniqueId}`
+          : `DRAFT-${Date.now()}-${uniqueId}`;
+        
+        const projectPayload = {
+          projectNumber: draftProjectNumber,
+          name: pd.projectName,
+          status: 'Draft',
+          state: pd.siteState || null,
+          onSiteSelection: pd.serviceModel || 'CRC',
+        };
+        
+        const projectResponse = await apiRequest('POST', '/api/projects', projectPayload);
+        if (projectResponse.ok) {
+          const project = await projectResponse.json();
+          projectId = project.id;
+          setDraftProjectId(project.id);
+        }
+      } else {
+        // Update existing project
+        await apiRequest('PATCH', `/api/projects/${projectId}`, {
+          name: pd.projectName,
+          state: pd.siteState || null,
+          onSiteSelection: pd.serviceModel || 'CRC',
+        });
+      }
+      
+      if (projectId) {
+        // Save/update client information
+        if (pd.clientLegalName) {
+          const clientPayload = {
+            projectId,
+            legalName: pd.clientLegalName,
+            entityType: pd.clientEntityType,
+            formationState: pd.clientState,
+            address: pd.clientAddress,
+            city: pd.clientCity,
+            state: pd.clientState,
+            zip: pd.clientZip,
+            email: pd.clientEmail,
+            phone: pd.clientPhone,
+          };
+          await apiRequest('POST', `/api/projects/${projectId}/client`, clientPayload);
+        }
+        
+        // Save financial terms
+        const hasFinancials = pd.designFee || pd.preliminaryOffsiteCost || pd.deliveryInstallationPrice;
+        if (hasFinancials) {
+          const financialsPayload = {
+            projectId,
+            designFee: pd.designFee ? Math.round(pd.designFee * 100) : null,
+            designRevisionRounds: pd.designRevisionRounds || 3,
+            prelimOffsite: pd.preliminaryOffsiteCost ? Math.round(pd.preliminaryOffsiteCost * 100) : null,
+            prelimOnsite: pd.deliveryInstallationPrice ? Math.round(pd.deliveryInstallationPrice * 100) : null,
+            prelimContractPrice: pd.totalPreliminaryContractPrice ? Math.round(pd.totalPreliminaryContractPrice * 100) : null,
+          };
+          await apiRequest('POST', `/api/projects/${projectId}/financials`, financialsPayload);
+        }
+        
+        // Save LLC if creating new one
+        const finalLlcName = pd.childLlcName || generateLLCName(pd.siteAddress || '', pd.projectName);
+        if (pd.llcOption === 'new' && finalLlcName && pd.siteAddress) {
+          const llcPayload = {
+            name: finalLlcName,
+            projectName: pd.projectName,
+            projectAddress: pd.siteAddress,
+            status: 'forming',
+            stateOfFormation: US_STATES.find(s => s.value === pd.childLlcState)?.label || 'Delaware',
+            einNumber: pd.childLlcEin || null,
+            address: pd.siteAddress,
+            city: pd.siteCity,
+            state: pd.siteState,
+            zip: pd.siteZip,
+          };
+          
+          try {
+            const llcResponse = await apiRequest('POST', '/api/llcs', llcPayload);
+            if (llcResponse.ok) {
+              const llcData = await llcResponse.json();
+              await apiRequest('PATCH', `/api/projects/${projectId}`, { llcId: llcData.id });
+            }
+          } catch (e) {
+            // LLC might already exist, ignore
+          }
+        }
+        
+        // Save to localStorage as backup
+        localStorage.setItem('contractWizardDraft', JSON.stringify({
+          projectData: wizardState.projectData,
+          currentStep: wizardState.currentStep,
+          completedSteps: Array.from(wizardState.completedSteps),
+          draftProjectId: projectId,
+        }));
+        
+        lastSavedDataRef.current = currentDataHash;
+        
+        // Silently invalidate queries in background
+        queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
+      }
+    } catch (error) {
+      console.warn('Autosave failed:', error);
+    } finally {
+      isAutosavingRef.current = false;
+    }
+  }, [wizardState.projectData, wizardState.currentStep, wizardState.completedSteps, draftProjectId, queryClient]);
+
+  // Debounced autosave on projectData changes
+  useEffect(() => {
+    // Clear existing timeout
+    if (autosaveTimeoutRef.current) {
+      clearTimeout(autosaveTimeoutRef.current);
+    }
+    
+    // Set new debounced autosave (2 second delay)
+    autosaveTimeoutRef.current = setTimeout(() => {
+      performAutosave();
+    }, 2000);
+    
+    // Cleanup on unmount
+    return () => {
+      if (autosaveTimeoutRef.current) {
+        clearTimeout(autosaveTimeoutRef.current);
+      }
+    };
+  }, [wizardState.projectData, performAutosave]);
+
   // Fetch clause comparison data
   const { data: comparisonData, isLoading: comparisonLoading } = useQuery<ClauseComparison>({
     queryKey: ['/api/contracts/compare-service-models'],
@@ -1146,16 +1314,19 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
     });
   }, [wizardState.currentStep, wizardState.projectData, validateStep, toast, draftProjectId, createDraftProjectMutation, updateProjectMutation]);
 
-  // Previous step
+  // Previous step - triggers autosave before navigating
   const prevStep = useCallback(() => {
+    // Trigger immediate autosave before navigation
+    performAutosave();
+    
     setWizardState(prev => ({
       ...prev,
       currentStep: Math.max(prev.currentStep - 1, 1),
       validationErrors: {},
     }));
-  }, []);
+  }, [performAutosave]);
 
-  // Go to step
+  // Go to step - triggers autosave before navigating
   const goToStep = useCallback((stepNumber: number) => {
     // In testing mode, allow navigation to any step
     const canNavigate = SHELL_TESTING_MODE || 
@@ -1163,13 +1334,16 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
                        wizardState.completedSteps.has(stepNumber - 1) || 
                        stepNumber === 1;
     if (canNavigate) {
+      // Trigger immediate autosave before navigation
+      performAutosave();
+      
       setWizardState(prev => ({
         ...prev,
         currentStep: stepNumber,
         validationErrors: {},
       }));
     }
-  }, [wizardState.currentStep, wizardState.completedSteps]);
+  }, [wizardState.currentStep, wizardState.completedSteps, performAutosave]);
 
   // Save draft - persists to database
   const saveDraft = useCallback(async () => {
