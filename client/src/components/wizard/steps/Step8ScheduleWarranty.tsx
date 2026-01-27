@@ -101,15 +101,41 @@ export const Step8ScheduleWarranty: React.FC = () => {
             Project Timeline
           </CardTitle>
           <CardDescription>
-            Visual overview of project phases and milestones
+            Set the effective date and review project phases
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span>Total Project Duration</span>
-              <span className="font-medium">{totalDays} days</span>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="effectiveDate">
+                Effective Date <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                id="effectiveDate"
+                type="date"
+                value={projectData.effectiveDate || ''}
+                onChange={(e) => updateProjectData({ effectiveDate: e.target.value })}
+                className={validationErrors.effectiveDate ? 'border-red-500' : ''}
+                data-testid="input-effective-date"
+              />
+              {validationErrors.effectiveDate && (
+                <p className="text-sm text-red-500">{validationErrors.effectiveDate}</p>
+              )}
+              <p className="text-xs text-muted-foreground">
+                The date when the contract becomes effective
+              </p>
             </div>
+            <div className="flex items-end">
+              <div className="space-y-1">
+                <div className="flex justify-between text-sm">
+                  <span>Total Project Duration</span>
+                  <span className="font-medium">{totalDays} days</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div className="space-y-2 pt-2 border-t">
             <div className="h-8 flex rounded-md overflow-hidden border">
               <div 
                 className="bg-primary/70 dark:bg-primary/50 flex items-center justify-center text-xs text-primary-foreground font-medium"
