@@ -1,0 +1,94 @@
+Simplified Variable Mapping
+IMPLEMENT SIMPLIFIED VARIABLE MAPPING WITH AUTOMATIC ALIASING
+
+This approach maps core values once and creates aliases automatically, reducing complexity while handling all 139 variables.
+
+STEP 1: REPLACE buildVariableMap IN server/lib/contractGenerator.ts
+
+Replace the entire buildVariableMap function with the version in /tmp/simplified_variable_map.ts
+
+The key improvements:
+1. Define each core value ONCE (e.g., companyName = ...)
+2. Map to ALL naming variations automatically
+3. Only contract-specific variables get special treatment
+
+STEP 2: VERIFY HELPER FUNCTIONS EXIST
+
+Make sure these helper functions are present in the file:
+```typescript
+function formatCurrency(value: string | number | undefined): string {
+  if (value === undefined || value === null || value === '') return '$0';
+  const num = typeof value === 'string' ? parseFloat(value) : value;
+  if (isNaN(num)) return '$0';
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0
+  }).format(num);
+}
+
+function formatDate(dateString: string | undefined): string {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return '';
+  return date.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+}
+
+function formatAddress(projectData: Record<string, any>): string {
+  const parts = [
+    projectData.siteAddress,
+    projectData.siteCity,
+    projectData.siteState,
+    projectData.siteZip
+  ].filter(Boolean);
+  return parts.join(', ');
+}
+
+function getEntityTypeText(entityType: string | undefined): string {
+  const types: Record<string, string> = {
+    'Individual': 'individual',
+    'LLC': 'limited liability company',
+    'Corporation': 'corporation',
+    'Partnership': 'partnership',
+    'Trust': 'trust'
+  };
+  return types[entityType || 'Individual'] || 'individual';
+}
+
+function calculateEstimatedCompletion(projectData: Record<string, any>): string {
+  if (!projectData.effectiveDate) return 'To Be Determined';
+  
+  const startDate = new Date(projectData.effectiveDate);
+  const totalDays = (parseInt(projectData.designPhaseDays) || 90) +
+                   (parseInt(projectData.manufacturingDurationDays) || 120) +
+                   (parseInt(projectData.onsiteDurationDays) || 90);
+  
+  const completionDate = new Date(startDate);
+  completionDate.setDate(completionDate.getDate() + totalDays);
+  
+  return formatDate(completionDate.toISOString());
+}
+```
+
+STEP 3: TEST
+
+1. Generate all three contracts
+2. Check console logs for variable count
+3. Download PDFs and search for "{{" 
+4. Verify:
+   - No unreplaced variables
+   - Financial amounts show real values (not $0)
+   - Dates are formatted correctly
+   - Party names are filled in
+
+Expected results:
+- ~140 variables mapped
+- All contracts generate successfully
+- No {{VARIABLE_NAME}} remaining in PDFs
+
+If any variables are still unreplaced, the console will show warnings.

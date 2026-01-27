@@ -6,7 +6,23 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FileText, Clock, CheckCircle, Plus, Building2, TrendingUp } from "lucide-react";
-import type { DashboardStats, Contract, LLC } from "@shared/schema";
+import type { DashboardStats, LLC } from "@shared/schema";
+
+// Contract package type returned by /api/contracts
+interface ContractPackage {
+  packageId: number;
+  projectId: number;
+  projectName: string;
+  projectNumber: string;
+  status: string;
+  contractValue: number;
+  generatedAt: string;
+  isDraft: boolean;
+  contracts: any[];
+  title: string;
+  clientName: string;
+  contractCount: number;
+}
 
 interface StatCardProps {
   title: string;
@@ -52,7 +68,7 @@ export default function Dashboard() {
     queryKey: ["/api/dashboard/stats"],
   });
 
-  const { data: contracts = [], isLoading: contractsLoading } = useQuery<Contract[]>({
+  const { data: contracts = [], isLoading: contractsLoading } = useQuery<ContractPackage[]>({
     queryKey: ["/api/contracts"],
   });
 
@@ -238,7 +254,7 @@ export default function Dashboard() {
                   <div className="space-y-1">
                     {recentContracts.map((contract, index) => (
                       <div 
-                        key={contract.id} 
+                        key={contract.packageId} 
                         className="flex items-center justify-between gap-4 py-2 px-3 rounded-lg hover-elevate"
                         data-testid={`row-contract-${index}`}
                       >
@@ -247,8 +263,8 @@ export default function Dashboard() {
                             <FileText className="h-4 w-4 text-muted-foreground" />
                           </div>
                           <div className="min-w-0">
-                            <p className="text-sm font-medium truncate">{contract.contractType}</p>
-                            <p className="text-xs text-muted-foreground truncate">Project #{contract.projectId}</p>
+                            <p className="text-sm font-medium truncate">{contract.projectName}</p>
+                            <p className="text-xs text-muted-foreground truncate">{contract.projectNumber}</p>
                           </div>
                         </div>
                         <StatusBadge status={contract.status || 'draft'} />
