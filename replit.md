@@ -44,6 +44,13 @@ This application helps Dvele manage construction projects through dedicated chil
     - Contracts to be Generated section (ONE Agreement, Manufacturing Subcontract, OnSite Subcontract)
     - Clause Preview modal showing included clauses per contract
     - Generate Contract Package button (disabled until all required fields complete)
+- **Autosave System**: Automatic draft saving to protect user progress
+  - 2-second debounced autosave on data changes
+  - Saves on step navigation (Next/Back/goToStep)
+  - Creates draft with DRAFT suffix in project number
+  - Preserves user-entered project numbers
+  - Resume via URL: /generate-contracts?projectId={id}
+  - Silent saving (no toast notifications during autosave)
 - **Active Contracts**: List and manage all contracts and draft projects
   - Shows generated contract packages with expandable details
   - Shows draft projects with "Resume Draft" button to continue editing
