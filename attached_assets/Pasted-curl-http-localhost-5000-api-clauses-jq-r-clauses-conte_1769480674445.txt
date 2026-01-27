@@ -1,0 +1,149 @@
+curl http://localhost:5000/api/clauses | jq -r '.clauses[].content' | grep -o '{{[A-Z_0-9]*}}' | sort -u | sed 's/[{}]//g' > /tmp/all_variables.txt && cat /tmp/all_variables.txt
+```
+
+**Or if that doesn't work, use this prompt:**
+
+---
+
+## 🤖 REPLIT AGENT PROMPT - STEP 1: Audit Variables
+```
+CREATE DEBUG ENDPOINT TO AUDIT ALL VARIABLES
+
+Add this temporary debug endpoint to server/routes.ts to see ALL variables used in the clause library:
+```typescript
+// DEBUG ENDPOINT - Add this temporarily to audit variables
+app.get('/api/debug/audit-variables', async (req, res) => {
+  try {
+    console.log('Starting variable audit...');
+    
+    // Fetch all clauses
+    const response = await fetch('http://localhost:5000/api/clauses');
+    const data = await response.json();
+    const clauses = data.clauses || [];
+    
+    console.log(`Fetched ${clauses.length} clauses`);
+    
+    // Extract all {{VARIABLE_NAME}} patterns
+    const variableSet = new Set<string>();
+    const variablesByContract: Record<string, Set<string>> = {
+      ONE: new Set(),
+      MANUFACTURING: new Set(),
+      ONSITE: new Set()
+    };
+    
+    clauses.forEach((clause: any) => {
+      const content = (clause.content || '') + ' ' + (clause.name || '');
+      const matches = content.match(/\{\{([A-Z_0-9]+)\}\}/g);
+      
+      if (matches) {
+        matches.forEach((match: string) => {
+          const varName = match.replace(/[{}]/g, '');
+          variableSet.add(varName);
+          
+          // Track by contract type
+          const contractType = clause.contractType || '';
+          if (contractType.includes('one')) {
+            variablesByContract.ONE.add(varName);
+          } else if (contractType.includes('manufacturing') || contractType.includes('offsite')) {
+            variablesByContract.MANUFACTURING.add(varName);
+          } else if (contractType.includes('onsite') || contractType.includes('installation')) {
+            variablesByContract.ONSITE.add(varName);
+          }
+        });
+      }
+    });
+    
+    const allVariables = Array.from(variableSet).sort();
+    
+    // Find common vs unique variables
+    const oneVars = Array.from(variablesByContract.ONE);
+    const mfgVars = Array.from(variablesByContract.MANUFACTURING);
+    const onsiteVars = Array.from(variablesByContract.ONSITE);
+    
+    const commonVars = allVariables.filter(v => 
+      variablesByContract.ONE.has(v) && 
+      variablesByContract.MANUFACTURING.has(v) && 
+      variablesByContract.ONSITE.has(v)
+    );
+    
+    const oneOnly = allVariables.filter(v => 
+      variablesByContract.ONE.has(v) && 
+      !variablesByContract.MANUFACTURING.has(v) && 
+      !variablesByContract.ONSITE.has(v)
+    );
+    
+    const mfgOnly = allVariables.filter(v => 
+      !variablesByContract.ONE.has(v) && 
+      variablesByContract.MANUFACTURING.has(v) && 
+      !variablesByContract.ONSITE.has(v)
+    );
+    
+    const onsiteOnly = allVariables.filter(v => 
+      !variablesByContract.ONE.has(v) && 
+      !variablesByContract.MANUFACTURING.has(v) && 
+      variablesByContract.ONSITE.has(v)
+    );
+    
+    console.log('\n=== VARIABLE AUDIT COMPLETE ===');
+    console.log(`Total unique variables: ${allVariables.length}`);
+    console.log(`Common across all three: ${commonVars.length}`);
+    console.log(`ONE only: ${oneOnly.length}`);
+    console.log(`MANUFACTURING only: ${mfgOnly.length}`);
+    console.log(`ONSITE only: ${onsiteOnly.length}`);
+    
+    res.json({
+      summary: {
+        totalVariables: allVariables.length,
+        clausesChecked: clauses.length,
+        commonVariables: commonVars.length,
+        oneOnlyVariables: oneOnly.length,
+        manufacturingOnlyVariables: mfgOnly.length,
+        onsiteOnlyVariables: onsiteOnly.length
+      },
+      allVariables: allVariables,
+      byContract: {
+        ONE: {
+          total: oneVars.length,
+          variables: oneVars.sort()
+        },
+        MANUFACTURING: {
+          total: mfgVars.length,
+          variables: mfgVars.sort()
+        },
+        ONSITE: {
+          total: onsiteVars.length,
+          variables: onsiteVars.sort()
+        }
+      },
+      analysis: {
+        commonToAll: commonVars.sort(),
+        oneOnly: oneOnly.sort(),
+        manufacturingOnly: mfgOnly.sort(),
+        onsiteOnly: onsiteOnly.sort()
+      }
+    });
+    
+  } catch (error: any) {
+    console.error('Variable audit error:', error);
+    res.status(500).json({ 
+      error: 'Failed to audit variables', 
+      message: error.message 
+    });
+  }
+});
+```
+
+After adding this endpoint:
+
+1. Restart your server
+2. Visit: http://localhost:5000/api/debug/audit-variables
+3. Save the JSON output to a file
+4. Share the results with me
+
+This will tell us:
+- Total number of unique variables
+- Which variables are common across all contracts
+- Which are specific to each contract type
+- Complete list of every variable we need to map
+
+Once we see this, we'll know exactly what to fix.

@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import { useWizard } from '../WizardContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -22,11 +21,7 @@ export const Step1ProjectInfo: React.FC = () => {
     return `${year}-${random}`;
   };
   
-  useEffect(() => {
-    if (!projectData.projectNumber) {
-      updateProjectData({ projectNumber: generateProjectNumber() });
-    }
-  }, []);
+  // Note: Project number auto-population is handled in WizardContext via the /api/projects/next-number API
   
   return (
     <div className="space-y-6">

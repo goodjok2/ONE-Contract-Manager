@@ -48,8 +48,23 @@ export const WizardShell: React.FC = () => {
     goToStep, 
     saveDraft,
     loadTestDraft,
-    validateStep 
+    validateStep,
+    isLoadingDraft
   } = useWizard();
+  
+  // Show loading state while draft is being loaded
+  if (isLoadingDraft) {
+    return (
+      <div className="max-w-5xl mx-auto space-y-6">
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-center space-y-4">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+            <p className="text-muted-foreground">Loading draft...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
   
   const currentStepInfo = STEPS[wizardState.currentStep - 1];
   const validationResult = validateStep(wizardState.currentStep);

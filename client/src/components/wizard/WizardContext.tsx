@@ -282,6 +282,7 @@ export interface WizardContextType {
   isCheckingNumber: boolean;
   numberIsUnique: boolean | null;
   isLoadingNumber: boolean;
+  isLoadingDraft: boolean;
   existingLlcs: LLCData[] | undefined;
   comparisonData: ClauseComparison | undefined;
   comparisonLoading: boolean;
@@ -547,16 +548,18 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
         ]);
         
         if (!projectRes.ok) throw new Error('Failed to load project');
-        const project = await projectRes.json();
+        const projectResponse = await projectRes.json();
+        // API returns { project: {...}, client: {...}, ... } - extract the project object
+        const project = projectResponse.project;
         const client = clientRes.ok ? await clientRes.json() : null;
         const financials = financialsRes.ok ? await financialsRes.json() : null;
         const details = detailsRes.ok ? await detailsRes.json() : null;
         
         // Build the project data from fetched data
         const loadedData: Partial<ProjectData> = {
-          projectName: project.name || '',
-          projectNumber: project.projectNumber || '',
-          serviceModel: project.onSiteSelection || 'CRC',
+          projectName: project?.name || '',
+          projectNumber: project?.projectNumber || '',
+          serviceModel: project?.onSiteSelection || 'CRC',
         };
         
         // Add client data if available
@@ -1829,6 +1832,7 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
     isCheckingNumber,
     numberIsUnique,
     isLoadingNumber,
+    isLoadingDraft,
     existingLlcs,
     comparisonData,
     comparisonLoading,
