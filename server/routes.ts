@@ -13,7 +13,7 @@ import {
   contracts,
   llcs,
 } from "../shared/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import Docxtemplater from "docxtemplater";
 import PizZip from "pizzip";
 import * as fs from "fs";
@@ -528,9 +528,35 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  // Create project
+  // Create project (with duplicate prevention)
   app.post("/api/projects", async (req, res) => {
     try {
+      const { name, projectNumber, status } = req.body;
+      
+      // Check for existing draft with same name to prevent duplicates
+      if (name && status === 'Draft') {
+        const [existingDraft] = await db
+          .select()
+          .from(projects)
+          .where(and(
+            eq(projects.name, name),
+            eq(projects.status, 'Draft')
+          ))
+          .limit(1);
+        
+        if (existingDraft) {
+          // Update existing draft instead of creating duplicate
+          console.log(`Found existing draft for "${name}" (ID: ${existingDraft.id}), updating instead of creating new`);
+          const [updated] = await db
+            .update(projects)
+            .set({ ...req.body, updatedAt: new Date() })
+            .where(eq(projects.id, existingDraft.id))
+            .returning();
+          return res.json(updated);
+        }
+      }
+      
+      // No existing draft found, create new project
       const [result] = await db.insert(projects).values(req.body).returning();
       res.json(result);
     } catch (error) {
