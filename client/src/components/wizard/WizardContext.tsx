@@ -644,6 +644,24 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
           projectData: { ...prev.projectData, ...loadedData },
         }));
         
+        // Set draftProjectId so autosave updates this project instead of creating new one
+        setDraftProjectId(projectId);
+        
+        // Update lastSavedDataRef to prevent immediate autosave
+        lastSavedDataRef.current = JSON.stringify({
+          projectName: loadedData.projectName,
+          projectNumber: loadedData.projectNumber,
+          serviceModel: loadedData.serviceModel,
+          clientLegalName: loadedData.clientLegalName,
+          clientEmail: loadedData.clientEmail,
+          siteAddress: loadedData.siteAddress,
+          siteCity: loadedData.siteCity,
+          siteState: loadedData.siteState,
+          designFee: loadedData.designFee,
+          preliminaryOffsiteCost: loadedData.preliminaryOffsiteCost,
+          effectiveDate: loadedData.effectiveDate,
+        });
+        
         const projectName = project.name || loadedData.projectName || 'your project';
         toast({
           title: "Draft Loaded",
@@ -812,11 +830,15 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
   const autosaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isAutosavingRef = useRef(false);
   const lastSavedDataRef = useRef<string>('');
+  const pendingSaveRef = useRef(false); // Track if new data came in during save
 
   // Silent autosave function - saves all wizard data without notifications
   const performAutosave = useCallback(async () => {
-    // Don't autosave if already saving
-    if (isAutosavingRef.current) return;
+    // If already saving, mark that new data came in so we retry after current save
+    if (isAutosavingRef.current) {
+      pendingSaveRef.current = true;
+      return;
+    }
     
     const pd = wizardState.projectData;
     
@@ -847,11 +869,15 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
       
       // Create or update project
       if (!projectId) {
-        // Generate unique project number for draft
+        // Generate unique project number for draft only if user hasn't entered one
         const uniqueId = Math.random().toString(36).substring(2, 8).toUpperCase();
-        const draftProjectNumber = pd.projectNumber 
-          ? `${new Date().getFullYear()}-${Date.now().toString().slice(-3)}-DRAFT-${uniqueId}`
-          : `DRAFT-${Date.now()}-${uniqueId}`;
+        // Preserve user-entered project number, only add DRAFT suffix if not already a draft
+        let draftProjectNumber = pd.projectNumber;
+        if (!draftProjectNumber) {
+          draftProjectNumber = `DRAFT-${Date.now()}-${uniqueId}`;
+        } else if (!draftProjectNumber.includes('DRAFT')) {
+          draftProjectNumber = `${pd.projectNumber}-DRAFT-${uniqueId}`;
+        }
         
         const projectPayload = {
           projectNumber: draftProjectNumber,
@@ -877,10 +903,9 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
       }
       
       if (projectId) {
-        // Save/update client information
+        // Save/update client information (use PATCH for upsert behavior)
         if (pd.clientLegalName) {
           const clientPayload = {
-            projectId,
             legalName: pd.clientLegalName,
             entityType: pd.clientEntityType,
             formationState: pd.clientState,
@@ -891,7 +916,7 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
             email: pd.clientEmail,
             phone: pd.clientPhone,
           };
-          await apiRequest('POST', `/api/projects/${projectId}/client`, clientPayload);
+          await apiRequest('PATCH', `/api/projects/${projectId}/client`, clientPayload);
         }
         
         // Save financial terms
@@ -953,6 +978,12 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
       console.warn('Autosave failed:', error);
     } finally {
       isAutosavingRef.current = false;
+      
+      // If new data came in during save, schedule another save
+      if (pendingSaveRef.current) {
+        pendingSaveRef.current = false;
+        setTimeout(() => performAutosave(), 500);
+      }
     }
   }, [wizardState.projectData, wizardState.currentStep, wizardState.completedSteps, draftProjectId, queryClient]);
 
@@ -1478,6 +1509,27 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
         currentStep: parsed.currentStep,
         completedSteps: new Set(parsed.completedSteps),
       }));
+      
+      // Restore draftProjectId if saved
+      if (parsed.draftProjectId) {
+        setDraftProjectId(parsed.draftProjectId);
+      }
+      
+      // Update lastSavedDataRef to prevent immediate autosave
+      lastSavedDataRef.current = JSON.stringify({
+        projectName: parsed.projectData.projectName,
+        projectNumber: parsed.projectData.projectNumber,
+        serviceModel: parsed.projectData.serviceModel,
+        clientLegalName: parsed.projectData.clientLegalName,
+        clientEmail: parsed.projectData.clientEmail,
+        siteAddress: parsed.projectData.siteAddress,
+        siteCity: parsed.projectData.siteCity,
+        siteState: parsed.projectData.siteState,
+        designFee: parsed.projectData.designFee,
+        preliminaryOffsiteCost: parsed.projectData.preliminaryOffsiteCost,
+        effectiveDate: parsed.projectData.effectiveDate,
+      });
+      
       toast({
         title: "Draft Loaded",
         description: "Your previous progress has been restored.",
