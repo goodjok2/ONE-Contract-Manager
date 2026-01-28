@@ -14,7 +14,7 @@ import {
   contracts,
   llcs,
 } from "../shared/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, desc } from "drizzle-orm";
 import Docxtemplater from "docxtemplater";
 import PizZip from "pizzip";
 import * as fs from "fs";
@@ -2217,10 +2217,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   app.get("/api/llcs", async (req, res) => {
     try {
-      const result = await pool.query(`
-        SELECT * FROM llcs ORDER BY created_at DESC
-      `);
-      res.json(result.rows);
+      const result = await db.select().from(llcs).orderBy(desc(llcs.createdAt));
+      res.json(result);
     } catch (error) {
       console.error("Failed to fetch LLCs:", error);
       res.status(500).json({ error: "Failed to fetch LLCs" });
