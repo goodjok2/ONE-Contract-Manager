@@ -1,3 +1,4 @@
+import { useState, useEffect, useRef } from 'react';
 import { useWizard } from '../WizardContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -5,13 +6,16 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { HelpCircle, RefreshCw } from 'lucide-react';
+import { HelpCircle, RefreshCw, AlertTriangle, CheckCircle } from 'lucide-react';
 
 export const Step1ProjectInfo: React.FC = () => {
   const { 
     wizardState, 
     updateProjectData
   } = useWizard();
+  
+  const [projectNumberStatus, setProjectNumberStatus] = useState<'idle' | 'checking' | 'exists' | 'available'>('idle');
+  const checkTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   const { projectData, validationErrors } = wizardState;
   
@@ -20,6 +24,51 @@ export const Step1ProjectInfo: React.FC = () => {
     const random = Math.floor(Math.random() * 900) + 100;
     return `${year}-${random}`;
   };
+  
+  // Check project number availability with debounce
+  useEffect(() => {
+    const projectNumber = projectData.projectNumber;
+    
+    // Clear any pending check
+    if (checkTimeoutRef.current) {
+      clearTimeout(checkTimeoutRef.current);
+    }
+    
+    // Skip check for empty, draft numbers, or very short numbers
+    if (!projectNumber || projectNumber.length < 4 || projectNumber.includes('DRAFT')) {
+      setProjectNumberStatus('idle');
+      return;
+    }
+    
+    setProjectNumberStatus('checking');
+    
+    // Debounce the check by 500ms - capture projectNumber to guard against stale responses
+    const numberToCheck = projectNumber;
+    checkTimeoutRef.current = setTimeout(async () => {
+      try {
+        const response = await fetch(`/api/projects/check-number/${encodeURIComponent(numberToCheck)}`);
+        // Guard against stale responses - only update if still checking this number
+        if (projectData.projectNumber !== numberToCheck) {
+          return; // Ignore stale response
+        }
+        if (response.ok) {
+          const data = await response.json();
+          setProjectNumberStatus(data.exists ? 'exists' : 'available');
+        } else {
+          setProjectNumberStatus('idle');
+        }
+      } catch (error) {
+        console.error('Failed to check project number:', error);
+        setProjectNumberStatus('idle');
+      }
+    }, 500);
+    
+    return () => {
+      if (checkTimeoutRef.current) {
+        clearTimeout(checkTimeoutRef.current);
+      }
+    };
+  }, [projectData.projectNumber]);
   
   // Note: Project number auto-population is handled in WizardContext via the /api/projects/next-number API
   
@@ -46,14 +95,31 @@ export const Step1ProjectInfo: React.FC = () => {
               </Tooltip>
             </Label>
             <div className="flex gap-2">
-              <Input
-                id="projectNumber"
-                value={projectData.projectNumber}
-                onChange={(e) => updateProjectData({ projectNumber: e.target.value })}
-                placeholder="2025-042"
-                className={validationErrors.projectNumber ? 'border-red-500' : ''}
-                data-testid="input-project-number"
-              />
+              <div className="relative flex-1">
+                <Input
+                  id="projectNumber"
+                  value={projectData.projectNumber}
+                  onChange={(e) => updateProjectData({ projectNumber: e.target.value })}
+                  placeholder="2025-042"
+                  className={`${validationErrors.projectNumber || projectNumberStatus === 'exists' ? 'border-red-500' : projectNumberStatus === 'available' ? 'border-green-500' : ''} pr-10`}
+                  data-testid="input-project-number"
+                />
+                {projectNumberStatus === 'checking' && (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground" />
+                  </div>
+                )}
+                {projectNumberStatus === 'exists' && (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    <AlertTriangle className="h-4 w-4 text-red-500" />
+                  </div>
+                )}
+                {projectNumberStatus === 'available' && (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    <CheckCircle className="h-4 w-4 text-green-500" />
+                  </div>
+                )}
+              </div>
               <Button
                 variant="outline"
                 size="icon"
@@ -63,6 +129,18 @@ export const Step1ProjectInfo: React.FC = () => {
                 <RefreshCw className="h-4 w-4" />
               </Button>
             </div>
+            {projectNumberStatus === 'exists' && (
+              <p className="text-sm text-red-500 flex items-center gap-1">
+                <AlertTriangle className="h-3 w-3" />
+                This project number already exists. Please use a different number or resume the existing draft.
+              </p>
+            )}
+            {projectNumberStatus === 'available' && (
+              <p className="text-sm text-green-600 flex items-center gap-1">
+                <CheckCircle className="h-3 w-3" />
+                Project number is available
+              </p>
+            )}
             {validationErrors.projectNumber && (
               <p className="text-sm text-red-500">{validationErrors.projectNumber}</p>
             )}
