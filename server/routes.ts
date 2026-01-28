@@ -13,8 +13,9 @@ import {
   contractorEntities,
   contracts,
   llcs,
+  clauses,
 } from "../shared/schema";
-import { eq, and, sql, desc } from "drizzle-orm";
+import { eq, and, sql, desc, count } from "drizzle-orm";
 import Docxtemplater from "docxtemplater";
 import PizZip from "pizzip";
 import * as fs from "fs";
@@ -2575,13 +2576,15 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // Get clause contract types
   app.get("/api/clauses/meta/contract-types", async (req, res) => {
     try {
-      const result = await pool.query(`
-        SELECT DISTINCT contract_type, COUNT(*) as count
-        FROM clauses
-        GROUP BY contract_type
-        ORDER BY contract_type
-      `);
-      res.json(result.rows);
+      const result = await db
+        .select({
+          contractType: clauses.contractType,
+          count: count(),
+        })
+        .from(clauses)
+        .groupBy(clauses.contractType)
+        .orderBy(clauses.contractType);
+      res.json(result.map(r => ({ contract_type: r.contractType, count: Number(r.count) })));
     } catch (error) {
       console.error("Failed to fetch contract types:", error);
       res.status(500).json({ error: "Failed to fetch contract types" });
