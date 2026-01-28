@@ -656,6 +656,7 @@ function renderClausesHTML(clauses: Clause[], projectData: Record<string, any>):
   // in the correct order with proper variable substitution
   
   let currentSection = '';
+  let currentExhibit = '';
   
   for (const clause of clauses) {
     const hierarchyLevel = typeof clause.hierarchy_level === 'number' ? clause.hierarchy_level : parseInt(String(clause.hierarchy_level)) || 1;
@@ -669,6 +670,17 @@ function renderClausesHTML(clauses: Clause[], projectData: Record<string, any>):
     
     // Check for Roman numeral sections (I., II., etc.)
     const isRomanSection = /^[IVX]+\.?\s/.test(clauseCode) || /^[IVX]+\.?\s/.test(clauseName);
+    
+    // Check if this is a new top-level Exhibit (e.g., ONE-EXHIBIT-A, ONE-EXHIBIT-B, etc.)
+    // Only match exact exhibit codes like EXHIBIT-A, EXHIBIT-B, not sub-clauses like EXHIBIT-A-1
+    const exhibitMatch = clauseCode.match(/EXHIBIT-([A-G])$/);
+    const isNewExhibit = exhibitMatch && exhibitMatch[1] !== currentExhibit;
+    
+    // Add page break before each new Exhibit
+    if (isNewExhibit) {
+      currentExhibit = exhibitMatch[1];
+      html += `<div style="page-break-before: always;"></div>`;
+    }
     
     if (hierarchyLevel === 1) {
       if (isRomanSection) {
