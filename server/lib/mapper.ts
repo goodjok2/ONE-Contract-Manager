@@ -542,6 +542,9 @@ export function mapProjectToVariables(data: ProjectWithRelations): ContractVaria
     FINAL_CONTRACT_PRICE: centsToDollars(financials?.finalContractPrice),
     FINAL_CONTRACT_PRICE_WRITTEN: formatCentsAsCurrency(financials?.finalContractPrice),
     
+    // Reimbursable Expenses
+    ADMIN_FEE_PERCENT: (financials as any)?.adminFeePercent ? `${(financials as any).adminFeePercent}%` : "15%",
+    
     INFLATION_TRIGGER_DATE: financials?.inflationTriggerDate || "",
     INFLATION_TRIGGER_DATE_WRITTEN: formatDateWritten(financials?.inflationTriggerDate),
     INFLATION_ADJUSTMENT_PERCENT: financials?.inflationAdjustmentPercent ? `${financials.inflationAdjustmentPercent}%` : "5%",

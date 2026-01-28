@@ -134,6 +134,9 @@ export const financials = pgTable("financials", {
   lockedAt: timestamp("locked_at"),
   lockedBy: text("locked_by"),
   
+  // Reimbursable Expenses
+  adminFeePercent: real("admin_fee_percent").default(15.0),
+  
   // Inflation/Adjustment Triggers
   inflationTriggerDate: text("inflation_trigger_date"),
   inflationAdjustmentPercent: real("inflation_adjustment_percent").default(5.0),
