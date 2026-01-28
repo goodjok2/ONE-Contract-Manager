@@ -44,7 +44,8 @@ export const Step9ReviewGenerate: React.FC = () => {
     generationState,
     generationProgress,
     generatedContracts,
-    generateContracts
+    generateContracts,
+    draftProjectId
   } = useWizard();
   
   const { projectData } = wizardState;
@@ -172,9 +173,45 @@ export const Step9ReviewGenerate: React.FC = () => {
   };
   
   const handleDownloadAll = async () => {
-    for (const contract of contracts) {
-      await handleDownload(contract.type, contract.name);
-      await new Promise(resolve => setTimeout(resolve, 500));
+    if (!draftProjectId) {
+      // Fallback to individual downloads if no project ID
+      for (const contract of contracts) {
+        await handleDownload(contract.type, contract.name);
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+      return;
+    }
+    
+    try {
+      setIsDownloading('all');
+      
+      const response = await fetch('/api/contracts/download-all-zip', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          projectId: draftProjectId
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to generate contract package');
+      }
+      
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${projectData.projectNumber || 'Contracts'}_Package.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Download all error:', error);
+    } finally {
+      setIsDownloading(null);
     }
   };
   

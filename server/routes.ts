@@ -1966,6 +1966,87 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     res.redirect(307, '/api/contracts/download-pdf');
   });
 
+  // Download all contracts as a single ZIP file
+  app.post("/api/contracts/download-all-zip", async (req, res) => {
+    try {
+      const { projectId } = req.body;
+      
+      if (!projectId) {
+        return res.status(400).json({ error: "projectId is required" });
+      }
+      
+      // Fetch project data
+      const fullProject = await getProjectWithRelations(projectId);
+      if (!fullProject) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+      
+      // Map to flat variable structure
+      const { mapProjectToVariables } = await import('./lib/mapper');
+      const projectData = mapProjectToVariables(fullProject);
+      
+      console.log(`\n=== Generating ALL contracts as ZIP for project ${projectId} ===`);
+      console.log(`Project: ${projectData.PROJECT_NUMBER} - ${projectData.PROJECT_NAME}`);
+      
+      const { generateContract, getContractFilename } = await import('./lib/contractGenerator');
+      const archiver = (await import('archiver')).default;
+      
+      // Determine which contracts to generate based on service model
+      const contractTypes: Array<'ONE' | 'MANUFACTURING' | 'ONSITE'> = ['ONE', 'MANUFACTURING', 'ONSITE'];
+      
+      // Generate all contracts
+      const contracts: Array<{ buffer: Buffer; filename: string }> = [];
+      
+      for (const contractType of contractTypes) {
+        try {
+          const buffer = await generateContract({
+            contractType,
+            projectData,
+            format: 'pdf'
+          });
+          const filename = getContractFilename(contractType, projectData, 'pdf');
+          contracts.push({ buffer, filename });
+          console.log(`Generated ${contractType}: ${filename} (${buffer.length} bytes)`);
+        } catch (err) {
+          console.error(`Failed to generate ${contractType}:`, err);
+          // Continue with other contracts even if one fails
+        }
+      }
+      
+      if (contracts.length === 0) {
+        return res.status(500).json({ error: "Failed to generate any contracts" });
+      }
+      
+      // Create zip archive
+      const archive = archiver('zip', { zlib: { level: 9 } });
+      
+      // Set response headers
+      const zipFilename = `${projectData.PROJECT_NUMBER || 'Contracts'}_Package.zip`;
+      res.setHeader('Content-Type', 'application/zip');
+      res.setHeader('Content-Disposition', `attachment; filename="${zipFilename}"`);
+      
+      // Pipe archive to response
+      archive.pipe(res);
+      
+      // Add each contract to the archive
+      for (const contract of contracts) {
+        archive.append(contract.buffer, { name: contract.filename });
+      }
+      
+      // Finalize the archive
+      await archive.finalize();
+      
+      console.log(`ZIP archive created with ${contracts.length} contracts`);
+      
+    } catch (error) {
+      console.error("Error generating ZIP:", error);
+      res.status(500).json({ 
+        error: "Failed to generate contract package",
+        message: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
   // PDF download endpoint - accepts projectId and fetches data server-side
   app.post("/api/contracts/download-pdf", async (req, res) => {
     try {
