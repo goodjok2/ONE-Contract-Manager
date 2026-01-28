@@ -873,7 +873,7 @@ function formatContent(content: string): string {
       }
       const romanContent = formatInlineStyles(escapeHtml(romanMatch[2]));
       const romanNumeral = romanMatch[1].toLowerCase();
-      romanListHtml += `<p style="margin-bottom: 6pt; margin-left: ${ROMAN_INDENT}; text-indent: -24pt; padding-left: 24pt;"><span style="display: inline-block; width: 24pt;">${romanNumeral}.</span>${romanContent}</p>`;
+      romanListHtml += `<div style="margin-bottom: 6pt; margin-left: ${ROMAN_INDENT}; display: flex;"><span style="flex-shrink: 0; width: 28pt;">${romanNumeral}.</span><span style="flex: 1;">${romanContent}</span></div>`;
     } else if (letterMatch && inRomanList) {
       // Only treat as nested letter list if we're inside a roman list
       if (!inLetterList) {
@@ -1104,7 +1104,7 @@ function formatNonTableContent(content: string): string {
       }
       const romanContent = formatInlineStyles(escapeHtml(romanMatch[2]));
       const romanNumeral = romanMatch[1].toLowerCase();
-      romanListHtml += `<p style="margin-bottom: 6pt; margin-left: ${ROMAN_INDENT}; text-indent: -24pt; padding-left: 24pt;"><span style="display: inline-block; width: 24pt;">${romanNumeral}.</span>${romanContent}</p>`;
+      romanListHtml += `<div style="margin-bottom: 6pt; margin-left: ${ROMAN_INDENT}; display: flex;"><span style="flex-shrink: 0; width: 28pt;">${romanNumeral}.</span><span style="flex: 1;">${romanContent}</span></div>`;
     } else if (bulletMatch) {
       // Close roman list if open
       if (inRomanList) {
