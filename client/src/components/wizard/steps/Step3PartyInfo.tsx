@@ -1,10 +1,33 @@
+import { useState } from 'react';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { useWizard, US_STATES, ENTITY_TYPES } from '../WizardContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { UserCheck, Mail, Phone, Briefcase, Shield, AlertCircle } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { UserCheck, Mail, Phone, Briefcase, Shield, AlertCircle, Factory, HardHat, Plus } from 'lucide-react';
+import { apiRequest, queryClient } from '@/lib/queryClient';
+
+interface ContractorEntity {
+  id: number;
+  contractorType: string;
+  legalName: string;
+  formationState?: string;
+  entityType?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zip?: string;
+  licenseNumber?: string;
+  licenseState?: string;
+  contactName?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  isActive: boolean;
+}
 
 export const Step3PartyInfo: React.FC = () => {
   const { 
@@ -13,6 +36,112 @@ export const Step3PartyInfo: React.FC = () => {
   } = useWizard();
   
   const { projectData, validationErrors } = wizardState;
+  
+  // State for add new contractor dialogs
+  const [showManufacturerDialog, setShowManufacturerDialog] = useState(false);
+  const [showOnsiteDialog, setShowOnsiteDialog] = useState(false);
+  const [newContractorName, setNewContractorName] = useState('');
+  const [newContractorAddress, setNewContractorAddress] = useState('');
+  const [newContractorState, setNewContractorState] = useState('');
+  const [newContractorLicense, setNewContractorLicense] = useState('');
+  
+  // Fetch manufacturer entities
+  const { data: manufacturers = [] } = useQuery<ContractorEntity[]>({
+    queryKey: ['/api/contractor-entities/type/manufacturer'],
+  });
+  
+  // Fetch onsite contractor entities
+  const { data: onsiteContractors = [] } = useQuery<ContractorEntity[]>({
+    queryKey: ['/api/contractor-entities/type/onsite'],
+  });
+  
+  // Create contractor entity mutation
+  const createContractorMutation = useMutation({
+    mutationFn: async (data: { contractorType: string; legalName: string; address?: string; formationState?: string; licenseNumber?: string }) => {
+      const response = await apiRequest('POST', '/api/contractor-entities', data);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/contractor-entities'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/contractor-entities/type/manufacturer'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/contractor-entities/type/onsite'] });
+    }
+  });
+  
+  // Handle manufacturer selection
+  const handleManufacturerChange = (value: string) => {
+    if (value === 'add-new') {
+      setShowManufacturerDialog(true);
+      return;
+    }
+    const selected = manufacturers.find(m => m.id.toString() === value);
+    if (selected) {
+      updateProjectData({
+        manufacturerEntityId: selected.id,
+        manufacturerName: selected.legalName,
+        manufacturerAddress: selected.address || ''
+      });
+    }
+  };
+  
+  // Handle onsite contractor selection
+  const handleOnsiteChange = (value: string) => {
+    if (value === 'add-new') {
+      setShowOnsiteDialog(true);
+      return;
+    }
+    const selected = onsiteContractors.find(c => c.id.toString() === value);
+    if (selected) {
+      updateProjectData({
+        onsiteContractorEntityId: selected.id,
+        onsiteContractorName: selected.legalName,
+        onsiteContractorAddress: selected.address || ''
+      });
+    }
+  };
+  
+  // Create new manufacturer
+  const handleCreateManufacturer = async () => {
+    const result = await createContractorMutation.mutateAsync({
+      contractorType: 'manufacturer',
+      legalName: newContractorName,
+      address: newContractorAddress,
+      formationState: newContractorState,
+      licenseNumber: newContractorLicense
+    });
+    updateProjectData({
+      manufacturerEntityId: result.id,
+      manufacturerName: result.legalName,
+      manufacturerAddress: result.address || ''
+    });
+    setShowManufacturerDialog(false);
+    resetNewContractorForm();
+  };
+  
+  // Create new onsite contractor
+  const handleCreateOnsite = async () => {
+    const result = await createContractorMutation.mutateAsync({
+      contractorType: 'onsite',
+      legalName: newContractorName,
+      address: newContractorAddress,
+      formationState: newContractorState,
+      licenseNumber: newContractorLicense
+    });
+    updateProjectData({
+      onsiteContractorEntityId: result.id,
+      onsiteContractorName: result.legalName,
+      onsiteContractorAddress: result.address || ''
+    });
+    setShowOnsiteDialog(false);
+    resetNewContractorForm();
+  };
+  
+  const resetNewContractorForm = () => {
+    setNewContractorName('');
+    setNewContractorAddress('');
+    setNewContractorState('');
+    setNewContractorLicense('');
+  };
   
   return (
     <div className="space-y-6">
@@ -291,21 +420,273 @@ export const Step3PartyInfo: React.FC = () => {
         </Card>
       )}
       
+      {/* Manufacturer Selection - Always shown */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Factory className="h-5 w-5 text-primary" />
+            Manufacturer
+            <Badge variant="outline" className="ml-2">Subcontract</Badge>
+          </CardTitle>
+          <CardDescription>
+            Select the manufacturing company for the modular home production
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="manufacturerSelect">
+              Manufacturer <span className="text-red-500">*</span>
+            </Label>
+            <Select
+              value={projectData.manufacturerEntityId?.toString() || ''}
+              onValueChange={handleManufacturerChange}
+            >
+              <SelectTrigger
+                id="manufacturerSelect"
+                className={validationErrors.manufacturerName ? 'border-red-500' : ''}
+                data-testid="select-manufacturer"
+              >
+                <SelectValue placeholder="Select a manufacturer..." />
+              </SelectTrigger>
+              <SelectContent>
+                {manufacturers.map(m => (
+                  <SelectItem key={m.id} value={m.id.toString()}>
+                    {m.legalName}
+                    {m.formationState && <span className="text-muted-foreground ml-2">({m.formationState})</span>}
+                  </SelectItem>
+                ))}
+                <SelectItem value="add-new" className="text-primary font-medium">
+                  <span className="flex items-center gap-2">
+                    <Plus className="h-4 w-4" />
+                    Add New Manufacturer
+                  </span>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            {validationErrors.manufacturerName && (
+              <p className="text-sm text-red-500">{validationErrors.manufacturerName}</p>
+            )}
+          </div>
+          
+          {projectData.manufacturerName && (
+            <div className="p-3 bg-muted/50 rounded-md space-y-1">
+              <p className="text-sm font-medium">{projectData.manufacturerName}</p>
+              {projectData.manufacturerAddress && (
+                <p className="text-xs text-muted-foreground">{projectData.manufacturerAddress}</p>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+      
+      {/* On-Site Contractor Selection - Always shown */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <HardHat className="h-5 w-5 text-primary" />
+            On-Site Contractor
+            <Badge variant="outline" className="ml-2">Subcontract</Badge>
+          </CardTitle>
+          <CardDescription>
+            Select the on-site installation contractor (leave empty to add later)
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="onsiteSelect">
+              On-Site Contractor
+            </Label>
+            <Select
+              value={projectData.onsiteContractorEntityId?.toString() || ''}
+              onValueChange={handleOnsiteChange}
+            >
+              <SelectTrigger
+                id="onsiteSelect"
+                data-testid="select-onsite-contractor"
+              >
+                <SelectValue placeholder="Select an on-site contractor..." />
+              </SelectTrigger>
+              <SelectContent>
+                {onsiteContractors.map(c => (
+                  <SelectItem key={c.id} value={c.id.toString()}>
+                    {c.legalName}
+                    {c.formationState && <span className="text-muted-foreground ml-2">({c.formationState})</span>}
+                  </SelectItem>
+                ))}
+                <SelectItem value="add-new" className="text-primary font-medium">
+                  <span className="flex items-center gap-2">
+                    <Plus className="h-4 w-4" />
+                    Add New On-Site Contractor
+                  </span>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          
+          {projectData.onsiteContractorName && (
+            <div className="p-3 bg-muted/50 rounded-md space-y-1">
+              <p className="text-sm font-medium">{projectData.onsiteContractorName}</p>
+              {projectData.onsiteContractorAddress && (
+                <p className="text-xs text-muted-foreground">{projectData.onsiteContractorAddress}</p>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+      
       <Card className="bg-muted/30">
         <CardContent className="pt-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <p className="text-sm font-medium">Contract Variables</p>
               <p className="text-xs text-muted-foreground">
-                This step populates {projectData.serviceModel === 'CRC' ? '10+' : '7+'} contract variables
+                This step populates {projectData.serviceModel === 'CRC' ? '12+' : '10+'} contract variables
               </p>
             </div>
             <Badge variant="secondary" className="text-xs">
-              CLIENT_LEGAL_NAME, CLIENT_STATE, CLIENT_ENTITY_TYPE, CLIENT_EMAIL, etc.
+              CLIENT_LEGAL_NAME, MANUFACTURER_NAME, ONSITE_CONTRACTOR_NAME, etc.
             </Badge>
           </div>
         </CardContent>
       </Card>
+      
+      {/* Add New Manufacturer Dialog */}
+      <Dialog open={showManufacturerDialog} onOpenChange={setShowManufacturerDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add New Manufacturer</DialogTitle>
+            <DialogDescription>
+              Create a new manufacturer entity for subcontracts
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="newManufacturerName">Legal Name <span className="text-red-500">*</span></Label>
+              <Input
+                id="newManufacturerName"
+                value={newContractorName}
+                onChange={(e) => setNewContractorName(e.target.value)}
+                placeholder="e.g., ABC Manufacturing, LLC"
+                data-testid="input-new-manufacturer-name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="newManufacturerAddress">Address</Label>
+              <Input
+                id="newManufacturerAddress"
+                value={newContractorAddress}
+                onChange={(e) => setNewContractorAddress(e.target.value)}
+                placeholder="e.g., 123 Factory Dr, Phoenix, AZ 85001"
+                data-testid="input-new-manufacturer-address"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="newManufacturerState">State</Label>
+                <Select value={newContractorState} onValueChange={setNewContractorState}>
+                  <SelectTrigger id="newManufacturerState" data-testid="select-new-manufacturer-state">
+                    <SelectValue placeholder="Select..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {US_STATES.map(state => (
+                      <SelectItem key={state.value} value={state.value}>{state.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="newManufacturerLicense">License #</Label>
+                <Input
+                  id="newManufacturerLicense"
+                  value={newContractorLicense}
+                  onChange={(e) => setNewContractorLicense(e.target.value)}
+                  placeholder="e.g., MFG-12345"
+                  data-testid="input-new-manufacturer-license"
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowManufacturerDialog(false)}>Cancel</Button>
+            <Button 
+              onClick={handleCreateManufacturer} 
+              disabled={!newContractorName || createContractorMutation.isPending}
+              data-testid="button-save-manufacturer"
+            >
+              {createContractorMutation.isPending ? 'Saving...' : 'Save Manufacturer'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Add New On-Site Contractor Dialog */}
+      <Dialog open={showOnsiteDialog} onOpenChange={setShowOnsiteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add New On-Site Contractor</DialogTitle>
+            <DialogDescription>
+              Create a new on-site contractor entity for subcontracts
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="newOnsiteName">Legal Name <span className="text-red-500">*</span></Label>
+              <Input
+                id="newOnsiteName"
+                value={newContractorName}
+                onChange={(e) => setNewContractorName(e.target.value)}
+                placeholder="e.g., XYZ Construction, Inc."
+                data-testid="input-new-onsite-name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="newOnsiteAddress">Address</Label>
+              <Input
+                id="newOnsiteAddress"
+                value={newContractorAddress}
+                onChange={(e) => setNewContractorAddress(e.target.value)}
+                placeholder="e.g., 456 Builder Blvd, Los Angeles, CA 90001"
+                data-testid="input-new-onsite-address"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="newOnsiteState">State</Label>
+                <Select value={newContractorState} onValueChange={setNewContractorState}>
+                  <SelectTrigger id="newOnsiteState" data-testid="select-new-onsite-state">
+                    <SelectValue placeholder="Select..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {US_STATES.map(state => (
+                      <SelectItem key={state.value} value={state.value}>{state.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="newOnsiteLicense">License #</Label>
+                <Input
+                  id="newOnsiteLicense"
+                  value={newContractorLicense}
+                  onChange={(e) => setNewContractorLicense(e.target.value)}
+                  placeholder="e.g., CSLB-67890"
+                  data-testid="input-new-onsite-license"
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowOnsiteDialog(false)}>Cancel</Button>
+            <Button 
+              onClick={handleCreateOnsite} 
+              disabled={!newContractorName || createContractorMutation.isPending}
+              data-testid="button-save-onsite"
+            >
+              {createContractorMutation.isPending ? 'Saving...' : 'Save On-Site Contractor'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

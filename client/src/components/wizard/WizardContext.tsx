@@ -203,6 +203,10 @@ export interface ProjectData {
   contractorInsurance: string;
   manufacturerName: string;
   manufacturerAddress: string;
+  manufacturerEntityId: number | null;
+  onsiteContractorName: string;
+  onsiteContractorAddress: string;
+  onsiteContractorEntityId: number | null;
   insuranceProvider: string;
   insurancePolicyNumber: string;
   insuranceCoverageAmount: number;
@@ -399,8 +403,12 @@ export const initialProjectData: ProjectData = {
   contractorLicense: '',
   contractorAddress: '',
   contractorInsurance: '',
-  manufacturerName: 'Dvele, Inc.',
+  manufacturerName: 'Dvele AZ, LLC',
   manufacturerAddress: '',
+  manufacturerEntityId: null,
+  onsiteContractorName: '',
+  onsiteContractorAddress: '',
+  onsiteContractorEntityId: null,
   insuranceProvider: '',
   insurancePolicyNumber: '',
   insuranceCoverageAmount: 0,
