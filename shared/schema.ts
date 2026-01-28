@@ -216,7 +216,53 @@ export const warrantyTerms = pgTable("warranty_terms", {
 });
 
 // =============================================================================
-// CONTRACTORS
+// CONTRACTOR ENTITIES (Reusable across projects)
+// =============================================================================
+
+export const contractorEntities = pgTable("contractor_entities", {
+  id: serial("id").primaryKey(),
+  
+  // Contractor Type
+  contractorType: text("contractor_type").notNull(), // 'manufacturer', 'onsite'
+  
+  // Entity Info
+  legalName: text("legal_name").notNull(),
+  formationState: text("formation_state"), // State where entity was formed
+  entityType: text("entity_type"), // LLC, Corporation, etc.
+  
+  // Address
+  address: text("address"),
+  city: text("city"),
+  state: text("state"),
+  zip: text("zip"),
+  
+  // Licensing
+  licenseNumber: text("license_number"),
+  licenseState: text("license_state"),
+  licenseExpiration: text("license_expiration"),
+  
+  // Contact
+  contactName: text("contact_name"),
+  contactEmail: text("contact_email"),
+  contactPhone: text("contact_phone"),
+  
+  // Insurance & Bonding
+  bondAmount: integer("bond_amount"),
+  insuranceAmount: integer("insurance_amount"),
+  insuranceExpiration: text("insurance_expiration"),
+  insuranceCarrier: text("insurance_carrier"),
+  
+  // Status
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertContractorEntitySchema = createInsertSchema(contractorEntities);
+export type ContractorEntity = typeof contractorEntities.$inferSelect;
+export type NewContractorEntity = typeof contractorEntities.$inferInsert;
+
+// =============================================================================
+// CONTRACTORS (Project-specific assignments)
 // =============================================================================
 
 export const contractors = pgTable("contractors", {
@@ -227,6 +273,9 @@ export const contractors = pgTable("contractors", {
   
   // Contractor Type
   contractorType: text("contractor_type").notNull(), // 'manufacturer', 'onsite_general', 'onsite_sub'
+  
+  // Link to contractor entity (if selected from list)
+  contractorEntityId: integer("contractor_entity_id"),
   
   // Entity Info
   legalName: text("legal_name").notNull(),
