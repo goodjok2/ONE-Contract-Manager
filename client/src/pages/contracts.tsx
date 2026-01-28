@@ -172,6 +172,19 @@ export default function Contracts() {
                           </div>
                           <div className="flex items-center gap-3 shrink-0">
                             <StatusBadge status={pkg.status} />
+                            {pkg.status === "draft" && (
+                              <Link href={`/generate-contracts?projectId=${pkg.projectId}`}>
+                                <Button 
+                                  variant="outline" 
+                                  size="sm" 
+                                  data-testid={`button-edit-package-${pkg.projectId}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <Pencil className="h-3 w-3 mr-2" />
+                                  Edit
+                                </Button>
+                              </Link>
+                            )}
                             {expandedPackages.has(pkg.packageId) ? (
                               <ChevronDown className="h-4 w-4 text-muted-foreground" />
                             ) : (
