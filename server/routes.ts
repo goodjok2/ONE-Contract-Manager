@@ -1987,6 +1987,18 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       
       console.log(`\n=== Generating ALL contracts as ZIP for project ${projectId} ===`);
       console.log(`Project: ${projectData.PROJECT_NUMBER} - ${projectData.PROJECT_NAME}`);
+      console.log(`DEBUG Financials from DB:`, JSON.stringify({
+        designFee: fullProject.financials?.designFee,
+        prelimOffsite: fullProject.financials?.prelimOffsite,
+        prelimOnsite: fullProject.financials?.prelimOnsite,
+        prelimContractPrice: fullProject.financials?.prelimContractPrice
+      }));
+      console.log(`DEBUG Mapped Variables:`, JSON.stringify({
+        DESIGN_FEE: projectData.DESIGN_FEE,
+        PRELIMINARY_OFFSITE_PRICE: projectData.PRELIMINARY_OFFSITE_PRICE,
+        PRELIMINARY_ONSITE_PRICE: projectData.PRELIMINARY_ONSITE_PRICE,
+        PRELIMINARY_CONTRACT_PRICE: projectData.PRELIMINARY_CONTRACT_PRICE
+      }));
       
       const { generateContract, getContractFilename } = await import('./lib/contractGenerator');
       const archiver = (await import('archiver')).default;
