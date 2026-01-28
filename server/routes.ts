@@ -10,6 +10,7 @@ import {
   milestones,
   warrantyTerms,
   contractors,
+  contractorEntities,
   contracts,
   llcs,
 } from "../shared/schema";
@@ -1136,6 +1137,75 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     } catch (error) {
       console.error("Failed to delete contractor:", error);
       res.status(500).json({ error: "Failed to delete contractor" });
+    }
+  });
+
+  // ---------------------------------------------------------------------------
+  // CONTRACTOR ENTITIES (Reusable across projects)
+  // ---------------------------------------------------------------------------
+
+  // Get all contractor entities (optionally filter by type)
+  app.get("/api/contractor-entities", async (req, res) => {
+    try {
+      const { type } = req.query;
+      let query = db.select().from(contractorEntities).where(eq(contractorEntities.isActive, true));
+      
+      const allEntities = await query;
+      
+      // Filter by type if specified
+      const filtered = type 
+        ? allEntities.filter(e => e.contractorType === type)
+        : allEntities;
+      
+      res.json(filtered);
+    } catch (error) {
+      console.error("Failed to fetch contractor entities:", error);
+      res.status(500).json({ error: "Failed to fetch contractor entities" });
+    }
+  });
+
+  // Get contractor entities by type
+  app.get("/api/contractor-entities/type/:type", async (req, res) => {
+    try {
+      const contractorType = req.params.type;
+      const entities = await db
+        .select()
+        .from(contractorEntities)
+        .where(and(
+          eq(contractorEntities.contractorType, contractorType),
+          eq(contractorEntities.isActive, true)
+        ));
+      res.json(entities);
+    } catch (error) {
+      console.error("Failed to fetch contractor entities by type:", error);
+      res.status(500).json({ error: "Failed to fetch contractor entities" });
+    }
+  });
+
+  // Create new contractor entity
+  app.post("/api/contractor-entities", async (req, res) => {
+    try {
+      const [result] = await db.insert(contractorEntities).values(req.body).returning();
+      res.json(result);
+    } catch (error) {
+      console.error("Failed to create contractor entity:", error);
+      res.status(500).json({ error: "Failed to create contractor entity" });
+    }
+  });
+
+  // Update contractor entity
+  app.patch("/api/contractor-entities/:id", async (req, res) => {
+    try {
+      const entityId = parseInt(req.params.id);
+      const [result] = await db
+        .update(contractorEntities)
+        .set(req.body)
+        .where(eq(contractorEntities.id, entityId))
+        .returning();
+      res.json(result);
+    } catch (error) {
+      console.error("Failed to update contractor entity:", error);
+      res.status(500).json({ error: "Failed to update contractor entity" });
     }
   });
 
