@@ -59,12 +59,18 @@ export const Step3PartyInfo: React.FC = () => {
   const createContractorMutation = useMutation({
     mutationFn: async (data: { contractorType: string; legalName: string; address?: string; formationState?: string; licenseNumber?: string }) => {
       const response = await apiRequest('POST', '/api/contractor-entities', data);
+      if (!response.ok) {
+        throw new Error('Failed to create contractor entity');
+      }
       return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/contractor-entities'] });
       queryClient.invalidateQueries({ queryKey: ['/api/contractor-entities/type/manufacturer'] });
       queryClient.invalidateQueries({ queryKey: ['/api/contractor-entities/type/onsite'] });
+    },
+    onError: (error) => {
+      console.error('Failed to create contractor entity:', error);
     }
   });
   
@@ -102,38 +108,46 @@ export const Step3PartyInfo: React.FC = () => {
   
   // Create new manufacturer
   const handleCreateManufacturer = async () => {
-    const result = await createContractorMutation.mutateAsync({
-      contractorType: 'manufacturer',
-      legalName: newContractorName,
-      address: newContractorAddress,
-      formationState: newContractorState,
-      licenseNumber: newContractorLicense
-    });
-    updateProjectData({
-      manufacturerEntityId: result.id,
-      manufacturerName: result.legalName,
-      manufacturerAddress: result.address || ''
-    });
-    setShowManufacturerDialog(false);
-    resetNewContractorForm();
+    try {
+      const result = await createContractorMutation.mutateAsync({
+        contractorType: 'manufacturer',
+        legalName: newContractorName,
+        address: newContractorAddress,
+        formationState: newContractorState,
+        licenseNumber: newContractorLicense
+      });
+      updateProjectData({
+        manufacturerEntityId: result.id,
+        manufacturerName: result.legalName,
+        manufacturerAddress: result.address || ''
+      });
+      setShowManufacturerDialog(false);
+      resetNewContractorForm();
+    } catch (error) {
+      console.error('Failed to create manufacturer:', error);
+    }
   };
   
   // Create new onsite contractor
   const handleCreateOnsite = async () => {
-    const result = await createContractorMutation.mutateAsync({
-      contractorType: 'onsite',
-      legalName: newContractorName,
-      address: newContractorAddress,
-      formationState: newContractorState,
-      licenseNumber: newContractorLicense
-    });
-    updateProjectData({
-      onsiteContractorEntityId: result.id,
-      onsiteContractorName: result.legalName,
-      onsiteContractorAddress: result.address || ''
-    });
-    setShowOnsiteDialog(false);
-    resetNewContractorForm();
+    try {
+      const result = await createContractorMutation.mutateAsync({
+        contractorType: 'onsite',
+        legalName: newContractorName,
+        address: newContractorAddress,
+        formationState: newContractorState,
+        licenseNumber: newContractorLicense
+      });
+      updateProjectData({
+        onsiteContractorEntityId: result.id,
+        onsiteContractorName: result.legalName,
+        onsiteContractorAddress: result.address || ''
+      });
+      setShowOnsiteDialog(false);
+      resetNewContractorForm();
+    } catch (error) {
+      console.error('Failed to create onsite contractor:', error);
+    }
   };
   
   const resetNewContractorForm = () => {

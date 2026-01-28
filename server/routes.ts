@@ -1103,14 +1103,37 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // Upsert contractor - create or update based on projectId and contractorType
   app.post("/api/projects/:projectId/contractors", async (req, res) => {
     try {
       const projectId = parseInt(req.params.projectId);
-      const [result] = await db.insert(contractors).values({ ...req.body, projectId }).returning();
-      res.json(result);
+      const { contractorType, ...otherData } = req.body;
+      
+      // Check if contractor of this type already exists for this project
+      const existing = await db
+        .select()
+        .from(contractors)
+        .where(and(
+          eq(contractors.projectId, projectId),
+          eq(contractors.contractorType, contractorType)
+        ));
+      
+      if (existing.length > 0) {
+        // Update existing contractor
+        const [result] = await db
+          .update(contractors)
+          .set(otherData)
+          .where(eq(contractors.id, existing[0].id))
+          .returning();
+        res.json(result);
+      } else {
+        // Create new contractor
+        const [result] = await db.insert(contractors).values({ ...req.body, projectId }).returning();
+        res.json(result);
+      }
     } catch (error) {
-      console.error("Failed to create contractor:", error);
-      res.status(500).json({ error: "Failed to create contractor" });
+      console.error("Failed to create/update contractor:", error);
+      res.status(500).json({ error: "Failed to create/update contractor" });
     }
   });
 

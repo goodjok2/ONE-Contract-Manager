@@ -21,7 +21,7 @@ This application helps Dvele manage construction projects through dedicated chil
 - **Generate Contracts Wizard**: 9-step wizard at /generate-contracts for creating complete contract packages:
   - Step 1: Project Basics (name, type, total units)
   - Step 2: Service Model (CRC vs CMOS selection)
-  - Step 3: Party Information (client details, contractor info for CRC)
+  - Step 3: Party Information (client details, contractor info for CRC, manufacturer/onsite contractor selection for subcontracts)
   - Step 4: Site & Property (address, multi-unit specifications with add/remove) - **moved before Child LLC**
   - Step 5: Child LLC (auto-generated name from site address) - **moved after Site & Property**
   - Step 6: Key Dates (effective, manufacturing start, completion)
@@ -120,7 +120,8 @@ All data now uses PostgreSQL tables:
 - **projectDetails**: Additional project metadata
 - **milestones**: Payment milestone definitions
 - **warrantyTerms**: Warranty period configurations
-- **contractors**: Contractor information (manufacturer, onsite)
+- **contractors**: Project-specific contractor assignments (manufacturer, onsite_general) linked to projects
+- **contractor_entities**: Reusable contractor entities (manufacturers, on-site contractors) with legal info, licensing, contact details
 - **contract_variables**: Variable definitions for contract generation with ERP mapping support
 
 ## API Endpoints
@@ -143,6 +144,10 @@ All data now uses PostgreSQL tables:
 - `PATCH /api/variable-mappings/:id` - Update variable
 - `DELETE /api/variable-mappings/:id` - Delete variable
 - `POST /api/contracts/compare-service-models` - Compare CRC vs CMOS clause differences
+- `GET /api/contractor-entities` - List all contractor entities (optionally filter by type)
+- `GET /api/contractor-entities/type/:type` - Get contractor entities by type (manufacturer/onsite)
+- `POST /api/contractor-entities` - Create new contractor entity
+- `PATCH /api/contractor-entities/:id` - Update contractor entity
 
 ## Navigation Structure
 
