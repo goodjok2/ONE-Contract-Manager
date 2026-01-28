@@ -559,9 +559,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       // No existing draft found, create new project
       const [result] = await db.insert(projects).values(req.body).returning();
       res.json(result);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to create project:", error);
-      res.status(500).json({ error: "Failed to create project" });
+      res.status(500).json({ 
+        error: "Failed to create project",
+        details: error?.message || String(error)
+      });
     }
   });
 
