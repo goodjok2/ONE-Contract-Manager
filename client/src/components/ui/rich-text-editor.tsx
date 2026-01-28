@@ -259,8 +259,9 @@ function convertPlainTextToHtml(text: string): string {
 }
 
 function convertHtmlToPlainText(html: string): string {
-  const tempDiv = document.createElement('div');
-  tempDiv.innerHTML = html;
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+  const tempDiv = doc.body;
   
   let result = '';
   let romanCounter = 0;
