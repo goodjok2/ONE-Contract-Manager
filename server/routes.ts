@@ -13,7 +13,7 @@ import {
   contracts,
   llcs,
 } from "../shared/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import Docxtemplater from "docxtemplater";
 import PizZip from "pizzip";
 import * as fs from "fs";
@@ -2719,6 +2719,59 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     } catch (error) {
       console.error("Failed to delete variable:", error);
       res.status(500).json({ error: "Failed to delete variable" });
+    }
+  });
+
+  // Clean up duplicate draft projects - keeps most recent, deletes older duplicates
+  app.post("/api/admin/cleanup-duplicate-drafts", async (req, res) => {
+    try {
+      // Find all draft projects grouped by name, keeping track of duplicates
+      const duplicatesQuery = `
+        WITH ranked_drafts AS (
+          SELECT 
+            id, 
+            name, 
+            project_number,
+            created_at,
+            ROW_NUMBER() OVER (PARTITION BY name ORDER BY created_at DESC) as rn
+          FROM projects
+          WHERE status = 'Draft'
+        )
+        SELECT id, name, project_number, created_at
+        FROM ranked_drafts
+        WHERE rn > 1
+        ORDER BY name, created_at DESC
+      `;
+      
+      const duplicates = await pool.query(duplicatesQuery);
+      
+      if (duplicates.rows.length === 0) {
+        return res.json({ 
+          message: "No duplicate drafts found", 
+          deleted: [] 
+        });
+      }
+      
+      // Delete the duplicates
+      const idsToDelete = duplicates.rows.map(r => r.id);
+      await db.delete(projects).where(
+        sql`id = ANY(${idsToDelete})`
+      );
+      
+      res.json({
+        message: `Cleaned up ${duplicates.rows.length} duplicate drafts`,
+        deleted: duplicates.rows.map(r => ({
+          id: r.id,
+          name: r.name,
+          projectNumber: r.project_number
+        }))
+      });
+    } catch (error: any) {
+      console.error("Failed to cleanup duplicate drafts:", error);
+      res.status(500).json({ 
+        error: "Failed to cleanup duplicates",
+        details: error?.message 
+      });
     }
   });
 
