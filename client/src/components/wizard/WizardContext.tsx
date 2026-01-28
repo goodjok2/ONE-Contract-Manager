@@ -1484,6 +1484,29 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
         await apiRequest('POST', `/api/projects/${projectId}/financials`, financialsPayload);
       }
       
+      // Save contractor information (manufacturer and onsite contractor)
+      if (pd.manufacturerName) {
+        const manufacturerPayload = {
+          projectId,
+          contractorType: 'manufacturer',
+          legalName: pd.manufacturerName,
+          address: pd.manufacturerAddress || '',
+          contractorEntityId: pd.manufacturerEntityId || null,
+        };
+        await apiRequest('POST', `/api/projects/${projectId}/contractors`, manufacturerPayload);
+      }
+      
+      if (pd.onsiteContractorName) {
+        const onsitePayload = {
+          projectId,
+          contractorType: 'onsite_general',
+          legalName: pd.onsiteContractorName,
+          address: pd.onsiteContractorAddress || '',
+          contractorEntityId: pd.onsiteContractorEntityId || null,
+        };
+        await apiRequest('POST', `/api/projects/${projectId}/contractors`, onsitePayload);
+      }
+      
       // Also save to localStorage for session recovery
       localStorage.setItem('contractWizardDraft', JSON.stringify({
         projectData: wizardState.projectData,
@@ -1746,6 +1769,32 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
       };
       
       await apiRequest('PATCH', `/api/projects/${projectId}/details`, projectDetailsPayload);
+      setGenerationProgress(65);
+      
+      // Save contractor information (manufacturer and onsite contractor)
+      // Save manufacturer contractor
+      if (pd.manufacturerName) {
+        const manufacturerPayload = {
+          projectId,
+          contractorType: 'manufacturer',
+          legalName: pd.manufacturerName,
+          address: pd.manufacturerAddress || '',
+          contractorEntityId: pd.manufacturerEntityId || null,
+        };
+        await apiRequest('POST', `/api/projects/${projectId}/contractors`, manufacturerPayload);
+      }
+      
+      // Save onsite contractor
+      if (pd.onsiteContractorName) {
+        const onsitePayload = {
+          projectId,
+          contractorType: 'onsite_general',
+          legalName: pd.onsiteContractorName,
+          address: pd.onsiteContractorAddress || '',
+          contractorEntityId: pd.onsiteContractorEntityId || null,
+        };
+        await apiRequest('POST', `/api/projects/${projectId}/contractors`, onsitePayload);
+      }
       setGenerationProgress(70);
       
       // Step 4: Generate contract documents and save to database
