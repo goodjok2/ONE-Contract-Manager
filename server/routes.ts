@@ -181,19 +181,19 @@ async function generateContract(options: GenerateContractOptions): Promise<Gener
     // Calculate file hash for integrity
     const fileHash = crypto.createHash("sha256").update(buf).digest("hex");
 
-    // Get current version number for this contract type
-    const existingContracts = await db
-      .select()
-      .from(contracts)
-      .where(eq(contracts.projectId, projectId));
-    const sameTypeContracts = existingContracts.filter(c => c.contractType === contractType);
-    const newVersion = sameTypeContracts.length + 1;
+    // Delete existing contract of the same type for this project (replace instead of duplicate)
+    await db
+      .delete(contracts)
+      .where(and(
+        eq(contracts.projectId, projectId),
+        eq(contracts.contractType, contractType)
+      ));
 
-    // Record in database
+    // Record in database (always version 1 since we replace)
     const [result] = await db.insert(contracts).values({
       projectId,
       contractType,
-      version: newVersion,
+      version: 1,
       status: "Draft",
       generatedBy,
       filePath: outputPath,
