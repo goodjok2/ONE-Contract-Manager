@@ -145,6 +145,11 @@ export interface ProjectData {
   siteZip: string;
   siteCounty: string;
   siteApn: string;
+  billingAddressDifferent: boolean;
+  billingAddress: string;
+  billingCity: string;
+  billingState: string;
+  billingZip: string;
   homeModel: string;
   homeSquareFootage: number;
   homeBedrooms: number;
@@ -349,6 +354,11 @@ export const initialProjectData: ProjectData = {
   siteZip: '',
   siteCounty: '',
   siteApn: '',
+  billingAddressDifferent: false,
+  billingAddress: '',
+  billingCity: '',
+  billingState: '',
+  billingZip: '',
   homeModel: '',
   homeSquareFootage: 0,
   homeBedrooms: 0,
@@ -1159,6 +1169,18 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
         if (!data.agreementDate) {
           errors.agreementDate = 'Agreement date is required';
         }
+        // Site address validation (moved from Step 4)
+        if (!data.siteAddress.trim()) errors.siteAddress = 'Site address is required';
+        if (!data.siteCity.trim()) errors.siteCity = 'City is required';
+        if (!data.siteState.trim()) errors.siteState = 'State is required';
+        if (!data.siteZip.trim()) errors.siteZip = 'ZIP code is required';
+        // Billing address validation (if different from site)
+        if (data.billingAddressDifferent) {
+          if (!data.billingAddress.trim()) errors.billingAddress = 'Billing address is required';
+          if (!data.billingCity.trim()) errors.billingCity = 'Billing city is required';
+          if (!data.billingState.trim()) errors.billingState = 'Billing state is required';
+          if (!data.billingZip.trim()) errors.billingZip = 'Billing ZIP code is required';
+        }
         break;
       case 2:
         if (!data.serviceModel) errors.serviceModel = 'Service model is required';
@@ -1187,12 +1209,8 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
         }
         break;
       case 4:
-        // Site & Home validation (moved from step 5 to step 4)
-        if (!data.siteAddress.trim()) errors.siteAddress = 'Site address is required';
-        if (!data.siteCity.trim()) errors.siteCity = 'City is required';
-        if (!data.siteState.trim()) errors.siteState = 'Site state is required';
-        if (!data.siteZip.trim()) errors.siteZip = 'ZIP code is required';
-        // Units are now stored in the database - use dbUnitsCount instead of legacy data.units
+        // Home Models validation (site address moved to Step 1)
+        // Units are stored in the database - use dbUnitsCount
         if (dbUnitsCount < 1) {
           errors.units = 'At least one home model is required';
         }

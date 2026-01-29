@@ -68,10 +68,10 @@ export const Step4ChildLLC: React.FC = () => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Building2 className="h-5 w-5 text-primary" />
-            Child LLC / Special Purpose Vehicle
+            Company Entity Setup
           </CardTitle>
           <CardDescription>
-            Each project is managed through a dedicated child entity
+            Each project is managed through a dedicated company entity
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">

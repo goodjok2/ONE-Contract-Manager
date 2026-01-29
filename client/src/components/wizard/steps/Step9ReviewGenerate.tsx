@@ -115,6 +115,8 @@ export const Step9ReviewGenerate: React.FC = () => {
     });
   };
   
+  const [showMissingVariables, setShowMissingVariables] = useState(false);
+  
   const variableCoverage = useMemo(() => {
     const requiredFields = [
       'projectNumber', 'projectName', 'projectType', 'serviceModel',
@@ -128,16 +130,22 @@ export const Step9ReviewGenerate: React.FC = () => {
       'projectState', 'projectCounty', 'projectFederalDistrict', 'arbitrationProvider'
     ];
     
+    const missingFields: string[] = [];
     const populated = requiredFields.filter(field => {
       const value = (projectData as any)[field];
-      return value !== undefined && value !== null && value !== '' && value !== 0;
+      const isPopulated = value !== undefined && value !== null && value !== '' && value !== 0;
+      if (!isPopulated) {
+        missingFields.push(field);
+      }
+      return isPopulated;
     }).length;
     
     const total = requiredFields.length;
     return { 
       populated, 
       total, 
-      percentage: Math.round((populated / total) * 100) 
+      percentage: Math.round((populated / total) * 100),
+      missingFields
     };
   }, [projectData]);
   
@@ -413,9 +421,38 @@ export const Step9ReviewGenerate: React.FC = () => {
               <span className="font-medium">{variableCoverage.populated}/{variableCoverage.total} variables</span>
             </div>
             <Progress value={variableCoverage.percentage} className="h-2" />
-            <p className="text-xs text-muted-foreground">
-              {variableCoverage.percentage}% of contract variables are populated
-            </p>
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-muted-foreground">
+                {variableCoverage.percentage}% of contract variables are populated
+              </p>
+              {variableCoverage.missingFields.length > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowMissingVariables(!showMissingVariables)}
+                  data-testid="button-show-missing"
+                >
+                  {showMissingVariables ? 'Hide Missing' : 'Show Missing'}
+                </Button>
+              )}
+            </div>
+            {showMissingVariables && variableCoverage.missingFields.length > 0 && (
+              <div className="mt-2 p-3 bg-muted/50 rounded-lg" data-testid="missing-variables-list">
+                <p className="text-xs font-medium text-muted-foreground mb-2">Missing Variables ({variableCoverage.missingFields.length}):</p>
+                <div className="flex flex-wrap gap-1">
+                  {variableCoverage.missingFields.map(field => (
+                    <Badge 
+                      key={field} 
+                      variant="outline" 
+                      className="text-xs text-destructive border-destructive/30"
+                      data-testid={`badge-missing-${field}`}
+                    >
+                      {field}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -456,11 +493,19 @@ export const Step9ReviewGenerate: React.FC = () => {
               </div>
               <div>
                 <p className="text-muted-foreground">Project Type</p>
-                <p className="font-medium">{projectData.projectType || '-'}</p>
+                <p className="font-medium">{projectData.projectType || projectData.homeModel || 'Modular Construction'}</p>
               </div>
               <div>
                 <p className="text-muted-foreground">Service Model</p>
                 <Badge variant="outline">{projectData.serviceModel}</Badge>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Company Entity</p>
+                <p className="font-medium">{projectData.childLlcName || '-'}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Total Units</p>
+                <p className="font-medium">{pricingSummary?.unitCount || projectData.totalUnits || '-'}</p>
               </div>
             </div>
           </CardContent>
@@ -506,7 +551,7 @@ export const Step9ReviewGenerate: React.FC = () => {
                 <p className="font-medium">{projectData.clientSignerName || '-'}</p>
               </div>
               <div>
-                <p className="text-muted-foreground">Child LLC</p>
+                <p className="text-muted-foreground">Company Entity</p>
                 <p className="font-medium">{projectData.childLlcName || '-'}</p>
               </div>
             </div>
@@ -800,7 +845,7 @@ export const Step9ReviewGenerate: React.FC = () => {
           <Tabs defaultValue="ONE" className="w-full">
             <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="ONE" data-testid="tab-one-agreement">ONE Agreement</TabsTrigger>
-              <TabsTrigger value="MANUFACTURING" data-testid="tab-manufacturing">Manufacturing</TabsTrigger>
+              <TabsTrigger value="MANUFACTURING" data-testid="tab-manufacturing">Offsite (Manufacturing)</TabsTrigger>
               <TabsTrigger value="ONSITE" data-testid="tab-onsite">OnSite</TabsTrigger>
             </TabsList>
             {contracts.map((contract) => (
