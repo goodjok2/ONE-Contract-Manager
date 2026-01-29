@@ -1298,329 +1298,344 @@ function getContractTitle(contractType: string): string {
 function buildVariableMap(projectData: Record<string, any>): Record<string, string> {
   const map: Record<string, string> = {};
   
-  // =========================================================================
-  // STEP 1: CORE VALUES (Define once, use everywhere)
-  // =========================================================================
+  // Check if data is already in UPPERCASE format (from mapper.ts)
+  const isAlreadyMapped = 'PROJECT_NUMBER' in projectData || 'CLIENT_LEGAL_NAME' in projectData;
   
-  // Company information
-  const companyName = projectData.childLlcName || 'Dvele, Inc.';
-  const companyEntityType = 'limited liability company';
-  const companyState = projectData.childLlcState || 'Delaware';
-  const companySignatoryName = 'Kirk Miller';
-  const companySignatoryTitle = 'VP of Operations';
+  if (isAlreadyMapped) {
+    for (const [key, value] of Object.entries(projectData)) {
+      if (value !== null && value !== undefined) {
+        map[key] = String(value);
+      }
+    }
+    console.log(`Using pre-mapped variables: ${Object.keys(map).length} variables`);
+    return map;
+  }
   
-  // Client information
-  const clientName = projectData.clientLegalName || '';
+  // ============================================
+  // CORE VALUES - Define once, alias automatically
+  // ============================================
+  
+  // Project Information
+  const projectName = projectData.projectName || '';
+  const projectNumber = projectData.projectNumber || '';
+  const totalUnits = parseInt(projectData.totalUnits) || 1;
+  const serviceModel = projectData.serviceModel || 'CRC';
+  
+  // Site/Property Information
+  const siteAddress = projectData.siteAddress || '';
+  const siteCity = projectData.siteCity || '';
+  const siteState = projectData.siteState || '';
+  const siteZip = projectData.siteZip || '';
+  const siteCounty = projectData.siteCounty || projectData.projectCounty || '';
+  const fullAddress = [siteAddress, siteCity, siteState, siteZip].filter(Boolean).join(', ');
+  
+  // Client Information
+  const clientName = projectData.clientLegalName || projectData.clientFullName || '';
   const clientState = projectData.clientState || '';
   const clientEntityType = getEntityTypeText(projectData.clientEntityType);
+  const clientTitle = projectData.clientTitle || '';
   
-  // Project information
-  const projectNumber = projectData.projectNumber || '';
-  const projectName = projectData.projectName || '';
-  const projectAddress = formatAddress(projectData);
-  const totalUnits = projectData.totalUnits?.toString() || '1';
+  // Child LLC Information
+  const llcName = projectData.childLlcName || '';
+  const llcBaseName = llcName.replace(' LLC', '').replace(', LLC', '') || 'Dvele Partners';
+  const llcState = projectData.childLlcState || 'Delaware';
   
   // Dates
   const agreementDate = formatDate(projectData.agreementDate);
-  const effectiveDate = formatDate(projectData.effectiveDate || projectData.agreementDate);
+  const effectiveDate = formatDate(projectData.effectiveDate);
+  const estimatedCompletion = calculateEstimatedCompletion(projectData);
   
-  // Location/Jurisdiction
-  const county = projectData.projectCounty || projectData.siteCounty || '';
-  const state = projectData.siteState || '';
-  const city = projectData.siteCity || '';
-  const arbitrationLocation = `${city}, ${state}`.trim().replace(/^,\s*/, '') || 'Los Angeles, CA';
+  // Pricing
+  const designFee = projectData.designFee || 0;
+  const offsitePrice = parseFloat(projectData.preliminaryOffsitePrice || '0');
+  const totalContractPrice = parseFloat(projectData.totalPreliminaryContractPrice || '0');
+  const sitePrepPrice = parseFloat(projectData.sitePrepPrice || '0');
+  const utilitiesPrice = parseFloat(projectData.utilitiesPrice || '0');
+  const completionPrice = parseFloat(projectData.completionPrice || '0');
+  const onsiteTotal = sitePrepPrice + utilitiesPrice + completionPrice;
   
-  // Building codes
-  const stateCode = `${state || 'State'} Building Code`;
-  const energyCode = `${state || 'State'} Energy Code`;
-  const localCode = `${city || 'Local'} Building Code`;
+  // Milestones
+  const m1Pct = parseFloat(projectData.milestone1Percent || '20');
+  const m2Pct = parseFloat(projectData.milestone2Percent || '20');
+  const m3Pct = parseFloat(projectData.milestone3Percent || '20');
+  const m4Pct = parseFloat(projectData.milestone4Percent || '20');
+  const m5Pct = parseFloat(projectData.milestone5Percent || '15');
+  const retainagePct = parseFloat(projectData.retainagePercent || '5');
   
-  // =========================================================================
-  // STEP 2: COMMON VARIABLES (Used across all contracts)
-  // =========================================================================
+  // Warranty Periods
+  const warrantyFitFinish = projectData.warrantyFitFinishMonths?.toString() || '24';
+  const warrantyEnvelope = projectData.warrantyBuildingEnvelopeMonths?.toString() || '60';
+  const warrantyStructural = projectData.warrantyStructuralMonths?.toString() || '120';
   
-  // Project basics
+  // Durations
+  const designDays = parseInt(projectData.designPhaseDays || '90');
+  const mfgDays = parseInt(projectData.manufacturingDurationDays || '120');
+  const onsiteDays = parseInt(projectData.onsiteDurationDays || '90');
+  
+  // ============================================
+  // MAP ALL VARIABLES WITH AUTOMATIC ALIASING
+  // ============================================
+  
+  // --- PROJECT (with aliases) ---
   map['PROJECT_NAME'] = projectName;
   map['PROJECT_NUMBER'] = projectNumber;
-  map['TOTAL_UNITS'] = totalUnits;
+  map['TOTAL_UNITS'] = totalUnits.toString();
+  map['PROJECT_TYPE'] = projectData.projectType || 'Single Family Residence';
+  map['SERVICE_MODEL'] = serviceModel;
+  map['TOTAL_MODULES'] = (totalUnits * 3).toString();
   
-  // Company (map to ALL variations)
-  map['COMPANY_NAME'] = companyName;
-  map['ENTITY_TYPE'] = companyEntityType;
-  map['COMPANY_ENTITY_TYPE'] = companyEntityType;
-  map['COMPANY_SIGNATORY_NAME'] = companySignatoryName;
-  map['COMPANY_SIGNATORY_TITLE'] = companySignatoryTitle;
+  // --- SITE/ADDRESS (with aliases) ---
+  map['SITE_ADDRESS'] = siteAddress;
+  map['SITE_CITY'] = siteCity;
+  map['SITE_STATE'] = siteState;
+  map['SITE_ZIP'] = siteZip;
+  map['SITE_COUNTY'] = siteCounty;
+  map['PROJECT_ADDRESS'] = fullAddress;
+  map['DELIVERY_ADDRESS'] = fullAddress;
+  map['APN'] = projectData.siteApn || '';
+  map['LOT_SIZE'] = projectData.lotSize || '';
   
-  // Client (map to ALL variations)
-  map['CLIENT_NAME'] = clientName;
+  // --- LEGAL JURISDICTION (shared across all contracts) ---
+  map['STATE_OF_FORMATION'] = llcState;
+  map['COUNTY'] = siteCounty;
+  map['PROJECT_STATE'] = siteState;
+  map['PROJECT_COUNTY'] = siteCounty;
+  map['PROJECT_FEDERAL_DISTRICT'] = projectData.projectFederalDistrict || '';
+  map['FEDERAL_DISTRICT'] = projectData.projectFederalDistrict || '';
+  map['GOVERNING_LAW_STATE'] = siteState || 'California';
+  map['ARBITRATION_PROVIDER'] = projectData.arbitrationProvider || 'JAMS';
+  map['ARBITRATION_LOCATION'] = [siteCity, siteState].filter(Boolean).join(', ');
+  
+  // --- CLIENT (with aliases) ---
   map['CLIENT_LEGAL_NAME'] = clientName;
-  map['CLIENT_FULL_NAME'] = projectData.clientFullName || clientName;
+  map['CLIENT_NAME'] = clientName;
+  map['CLIENT_FULL_NAME'] = clientName;
   map['CLIENT_STATE'] = clientState;
   map['CLIENT_ENTITY_TYPE'] = clientEntityType;
-  map['CLIENT_TITLE'] = projectData.clientTitle || '';
+  map['CLIENT_TITLE'] = clientTitle;
+  map['CLIENT_EMAIL'] = projectData.clientEmail || '';
+  map['CLIENT_PHONE'] = projectData.clientPhone || '';
+  map['CLIENT_SIGNER_NAME'] = projectData.clientSignerName || '';
+  map['ENTITY_TYPE'] = clientEntityType;
   
-  // Address (map to ALL variations)
-  map['PROJECT_ADDRESS'] = projectAddress;
-  map['DELIVERY_ADDRESS'] = projectAddress;
+  // --- CHILD LLC (with aliases) ---
+  map['DVELE_PARTNERS_XYZ'] = llcBaseName;
+  map['DVELE_PARTNERS_XYZ_LEGAL_NAME'] = llcName;
+  map['DVELE_PARTNERS_XYZ_STATE'] = llcState;
+  map['DVELE_PARTNERS_XYZ_ENTITY_TYPE'] = 'limited liability company';
+  map['DP_X'] = llcName;
+  map['DP_X_STATE'] = llcState;
   
-  // Dates (map to ALL variations)
+  // --- COMPANY/DVELE (static values) ---
+  map['COMPANY_NAME'] = 'Dvele, Inc.';
+  map['COMPANY_SIGNATORY_NAME'] = 'Authorized Representative';
+  map['COMPANY_SIGNATORY_TITLE'] = 'CEO';
+  map['DVELE_LEGAL_NAME'] = 'Dvele, Inc.';
+  map['DVELE_ADDRESS'] = '123 Main Street, San Diego, CA 92101';
+  map['DVELE_STATE'] = 'Delaware';
+  map['DVELE_ENTITY_TYPE'] = 'corporation';
+  
+  // --- DATES ---
   map['AGREEMENT_DATE'] = agreementDate;
   map['AGREEMENT_EXECUTION_DATE'] = agreementDate;
-  map['MASTER_AGREEMENT_DATE'] = agreementDate;
   map['EFFECTIVE_DATE'] = effectiveDate;
+  map['MASTER_AGREEMENT_DATE'] = agreementDate;
+  map['ESTIMATED_COMPLETION_DATE'] = estimatedCompletion;
+  map['COMPLETION_DATE'] = estimatedCompletion || 'To Be Determined';
   map['PLAN_DATE'] = agreementDate;
   map['SURVEY_DATE'] = agreementDate;
+  map['GREEN_LIGHT_DATE'] = 'To Be Determined';
+  map['DELIVERY_DATE'] = 'To Be Determined';
+  map['COO_DATE'] = 'To Be Determined';
+  map['DELIVERY_READY_DATE'] = 'To Be Determined';
+  map['PRODUCTION_START_DATE'] = 'To Be Determined';
+  map['PRODUCTION_MIDPOINT_DATE'] = 'To Be Determined';
+  map['PRODUCTION_COMPLETE_DATE'] = 'To Be Determined';
+  map['ONSITE_READY_DATE'] = 'To Be Determined';
+  map['ONSITE_FOUNDATION_DATE'] = 'To Be Determined';
+  map['ONSITE_MOBILIZATION_DATE'] = 'To Be Determined';
   
-  // Jurisdiction (map to ALL variations)
-  map['STATE_OF_FORMATION'] = companyState;
-  map['COUNTY'] = county;
-  map['PROJECT_STATE'] = state;
-  map['PROJECT_COUNTY'] = county;
-  map['ARBITRATION_LOCATION'] = arbitrationLocation;
-  map['ARBITRATION_PROVIDER'] = 'JAMS';
+  // --- TIMELINE DURATIONS ---
+  map['DESIGN_PHASE_DAYS'] = designDays.toString();
+  map['MANUFACTURING_DURATION_DAYS'] = mfgDays.toString();
+  map['ONSITE_DURATION_DAYS'] = onsiteDays.toString();
+  map['DESIGN_DURATION'] = Math.round(designDays / 7).toString();
+  map['PRODUCTION_DURATION'] = Math.round(mfgDays / 7).toString();
+  map['COMPLETION_DURATION'] = Math.round(onsiteDays / 7).toString();
+  map['DELIVERY_DURATION'] = '1';
+  map['PERMITTING_DURATION'] = '4-8';
   
-  // Building codes (map to ALL variations)
-  map['STATE_BUILDING_CODE'] = stateCode;
-  map['ENERGY_CODE'] = energyCode;
-  map['LOCAL_BUILDING_CODE'] = localCode;
+  // --- WARRANTY ---
+  map['WARRANTY_FIT_FINISH_MONTHS'] = warrantyFitFinish;
+  map['WARRANTY_BUILDING_ENVELOPE_MONTHS'] = warrantyEnvelope;
+  map['WARRANTY_STRUCTURAL_MONTHS'] = warrantyStructural;
+  map['DVELE_FIT_FINISH_WARRANTY'] = warrantyFitFinish;
+  map['DVELE_ENVELOPE_WARRANTY'] = warrantyEnvelope;
+  map['DVELE_STRUCTURAL_WARRANTY'] = warrantyStructural;
   
-  // =========================================================================
-  // STEP 3: ONE AGREEMENT SPECIFIC
-  // =========================================================================
-  
-  // LLC/SPV (only in ONE Agreement)
-  const llcBaseName = companyName.replace(' LLC', '').replace(', LLC', '');
-  map['DVELE_PARTNERS_XYZ'] = llcBaseName;
-  map['DVELE_PARTNERS_XYZ_LEGAL_NAME'] = companyName;
-  map['DVELE_PARTNERS_XYZ_STATE'] = companyState;
-  map['DVELE_PARTNERS_XYZ_ENTITY_TYPE'] = companyEntityType;
-  
-  // Design & Financial
-  map['DESIGN_FEE'] = formatCurrency(projectData.designFee);
+  // --- DESIGN & PRICING ---
+  map['DESIGN_FEE'] = formatCurrency(designFee);
   map['DESIGN_REVISION_ROUNDS'] = projectData.designRevisionRounds?.toString() || '3';
-  map['PRELIMINARY_OFFSITE_PRICE'] = formatCurrency(projectData.preliminaryOffsitePrice);
+  map['PRELIMINARY_OFFSITE_PRICE'] = formatCurrency(offsitePrice);
+  map['PRELIMINARY_CONTRACT_PRICE'] = formatCurrency(totalContractPrice);
+  map['TOTAL_PRELIMINARY_CONTRACT_PRICE'] = formatCurrency(totalContractPrice);
+  map['FINAL_CONTRACT_PRICE'] = formatCurrency(totalContractPrice);
+  map['DELIVERY_INSTALLATION_PRICE'] = formatCurrency(projectData.deliveryInstallationPrice);
   
-  const onsiteTotal = projectData.serviceModel === 'CMOS'
-    ? (parseFloat(projectData.sitePrepPrice || '0') +
-       parseFloat(projectData.utilitiesPrice || '0') +
-       parseFloat(projectData.completionPrice || '0'))
-    : 0;
+  // --- MILESTONES (ONE Agreement) ---
+  map['MILESTONE_1_PERCENT'] = m1Pct.toString();
+  map['MILESTONE_2_PERCENT'] = m2Pct.toString();
+  map['MILESTONE_3_PERCENT'] = m3Pct.toString();
+  map['MILESTONE_4_PERCENT'] = m4Pct.toString();
+  map['MILESTONE_5_PERCENT'] = m5Pct.toString();
+  map['RETAINAGE_PERCENT'] = retainagePct.toString();
+  map['RETAINAGE_DAYS'] = projectData.retainageDays?.toString() || '60';
+  map['MILESTONE_1_AMOUNT'] = formatCurrency(totalContractPrice * (m1Pct / 100));
+  map['MILESTONE_2_AMOUNT'] = formatCurrency(totalContractPrice * (m2Pct / 100));
+  map['MILESTONE_3_AMOUNT'] = formatCurrency(totalContractPrice * (m3Pct / 100));
+  map['MILESTONE_4_AMOUNT'] = formatCurrency(totalContractPrice * (m4Pct / 100));
+  map['MILESTONE_5_AMOUNT'] = formatCurrency(totalContractPrice * (m5Pct / 100));
+  map['RETAINAGE_AMOUNT'] = formatCurrency(totalContractPrice * (retainagePct / 100));
+  map['MILESTONE_1_NAME'] = 'Agreement Execution';
+  map['MILESTONE_2_NAME'] = 'Design Completion';
+  map['MILESTONE_3_NAME'] = 'Green Light / Production Start';
+  map['MILESTONE_4_NAME'] = 'Production Complete';
+  map['MILESTONE_5_NAME'] = 'Delivery';
   
-  map['PRELIMINARY_ONSITE_PRICE'] = projectData.serviceModel === 'CMOS'
+  // --- SERVICE MODEL SELECTION ---
+  map['ON_SITE_SERVICES_SELECTION'] = serviceModel === 'CRC' 
+    ? 'CLIENT-RETAINED CONTRACTOR' 
+    : 'COMPANY-MANAGED ON-SITE SERVICES';
+  map['PRELIMINARY_ONSITE_PRICE'] = serviceModel === 'CMOS' 
     ? formatCurrency(onsiteTotal)
     : 'Not Applicable (Client-Retained Contractor)';
   
-  const totalPrice = parseFloat(projectData.totalPreliminaryContractPrice || '0');
-  map['PRELIMINARY_CONTRACT_PRICE'] = formatCurrency(totalPrice);
-  map['FINAL_CONTRACT_PRICE'] = formatCurrency(totalPrice);
-  map['TOTAL_PRELIMINARY_CONTRACT_PRICE'] = formatCurrency(totalPrice);
-  
-  // Client payment milestones (5 + retainage)
-  map['MILESTONE_1_PERCENT'] = '20';
-  map['MILESTONE_2_PERCENT'] = '20';
-  map['MILESTONE_3_PERCENT'] = '20';
-  map['MILESTONE_4_PERCENT'] = '20';
-  map['MILESTONE_5_PERCENT'] = '15';
-  map['RETAINAGE_PERCENT'] = '5';
-  map['RETAINAGE_DAYS'] = '60';
-  
-  map['MILESTONE_1_AMOUNT'] = formatCurrency(totalPrice * 0.20);
-  map['MILESTONE_2_AMOUNT'] = formatCurrency(totalPrice * 0.20);
-  map['MILESTONE_3_AMOUNT'] = formatCurrency(totalPrice * 0.20);
-  map['MILESTONE_4_AMOUNT'] = formatCurrency(totalPrice * 0.20);
-  map['MILESTONE_5_AMOUNT'] = formatCurrency(totalPrice * 0.15);
-  map['RETAINAGE_AMOUNT'] = formatCurrency(totalPrice * 0.05);
-  
-  // Warranty
-  map['DVELE_FIT_FINISH_WARRANTY'] = projectData.warrantyFitFinishMonths?.toString() || '24';
-  map['DVELE_ENVELOPE_WARRANTY'] = projectData.warrantyBuildingEnvelopeMonths?.toString() || '60';
-  map['DVELE_STRUCTURAL_WARRANTY'] = projectData.warrantyStructuralMonths?.toString() || '120';
-  
-  // Insurance
+  // --- INSURANCE (static defaults) ---
   map['GL_INSURANCE_LIMIT'] = '$2,000,000';
   map['GL_AGGREGATE_LIMIT'] = '$4,000,000';
   
-  // Service model
-  map['ON_SITE_SERVICES_SELECTION'] = projectData.serviceModel === 'CRC'
-    ? 'CLIENT-RETAINED CONTRACTOR'
-    : 'COMPANY-MANAGED ON-SITE SERVICES';
-  
-  // Timeline estimates
-  map['DESIGN_DURATION'] = Math.ceil((parseInt(projectData.designPhaseDays || '90')) / 7).toString();
-  map['PERMITTING_DURATION'] = '4-8';
-  map['PRODUCTION_DURATION'] = Math.ceil((parseInt(projectData.manufacturingDurationDays || '120')) / 7).toString();
-  map['DELIVERY_DURATION'] = '1';
-  map['COMPLETION_DURATION'] = Math.ceil((parseInt(projectData.onsiteDurationDays || '90')) / 7).toString();
-  
-  // Key dates
-  map['GREEN_LIGHT_DATE'] = 'To Be Determined';
-  map['DELIVERY_DATE'] = 'To Be Determined';
-  map['COMPLETION_DATE'] = calculateEstimatedCompletion(projectData);
-  
-  // Fees
+  // --- FEES & THRESHOLDS ---
   map['CANCELLATION_FEE_PERCENT'] = '15';
   map['MATERIAL_INCREASE_THRESHOLD'] = '10';
   map['INFLATION_ADJUSTMENT_PERCENT'] = '5';
+  map['DELAY_PENALTY'] = '$500';
   
-  // Units
-  const numUnits = parseInt(totalUnits) || 1;
-  map['TOTAL_MODULES'] = (numUnits * 3).toString();
-  for (let i = 1; i <= Math.min(numUnits, 10); i++) {
-    map[`UNIT_${i}_DESCRIPTION`] = projectData[`unit${i}Model`] || `Unit ${i}`;
-    map[`UNIT_${i}_MODULES`] = '2-4';
-    map[`UNIT_${i}_PRICE`] = formatCurrency(projectData[`unit${i}Price`]);
+  // --- BUILDING CODES ---
+  map['ENERGY_CODE'] = projectData.energyCode || 'Title 24';
+  map['LOCAL_BUILDING_CODE'] = projectData.localBuildingCode || '';
+  map['STATE_BUILDING_CODE'] = projectData.stateBuildingCode || 'California Building Code';
+  
+  // --- UNITS ---
+  for (let i = 1; i <= Math.max(totalUnits, 2); i++) {
+    const model = projectData[`unit${i}Model`] || '';
+    const price = projectData[`unit${i}Price`] || 0;
+    const modules = projectData[`unit${i}Modules`] || '2-4';
+    map[`UNIT_${i}_MODEL`] = model;
+    map[`UNIT_${i}_SQFT`] = projectData[`unit${i}Sqft`] || '';
+    map[`UNIT_${i}_BEDROOMS`] = projectData[`unit${i}Bedrooms`]?.toString() || '';
+    map[`UNIT_${i}_BATHROOMS`] = projectData[`unit${i}Bathrooms`]?.toString() || '';
+    map[`UNIT_${i}_PRICE`] = formatCurrency(price);
+    map[`UNIT_${i}_DESCRIPTION`] = model || `Unit ${i}`;
+    map[`UNIT_${i}_MODULES`] = modules;
+  }
+  map['HOME_MODEL'] = projectData.unit1Model || '';
+  map['HOME_MODEL_1'] = projectData.unit1Model || '';
+  
+  // --- CRC-SPECIFIC (Client-Retained Contractor) ---
+  if (serviceModel === 'CRC') {
+    map['ONSITE_PROVIDER_NAME'] = projectData.contractorName || '';
+    map['CONTRACTOR_LICENSE'] = projectData.contractorLicense || '';
+    map['CONTRACTOR_NAME'] = projectData.contractorName || '';
   }
   
-  // =========================================================================
-  // STEP 4: MANUFACTURING SUBCONTRACT SPECIFIC
-  // =========================================================================
+  // --- CMOS-SPECIFIC (Company-Managed On-Site) ---
+  if (serviceModel === 'CMOS') {
+    map['SITE_PREP_PRICE'] = formatCurrency(sitePrepPrice);
+    map['UTILITIES_PRICE'] = formatCurrency(utilitiesPrice);
+    map['COMPLETION_PRICE'] = formatCurrency(completionPrice);
+  }
   
-  // Manufacturer party
-  map['MANUFACTURER_NAME'] = 'Dvele Manufacturing, LLC';
-  map['MANUFACTURER_ENTITY_TYPE'] = 'limited liability company';
-  map['MANUFACTURER_STATE'] = 'California';
-  map['MANUFACTURER_SIGNATORY_NAME'] = 'Manufacturing Manager';
-  map['MANUFACTURER_SIGNATORY_TITLE'] = 'Operations Manager';
+  // --- MANUFACTURING PAYMENTS ---
+  map['MANUFACTURING_DESIGN_PAYMENT'] = formatCurrency(projectData.manufacturingDesignPayment);
+  map['MANUFACTURING_PRODUCTION_START'] = formatCurrency(projectData.manufacturingProductionStart);
+  map['MANUFACTURING_PRODUCTION_COMPLETE'] = formatCurrency(projectData.manufacturingProductionComplete);
+  map['MANUFACTURING_DELIVERY_READY'] = formatCurrency(projectData.manufacturingDeliveryReady);
   
-  // Manufacturing pricing
-  const offsitePrice = parseFloat(projectData.preliminaryOffsitePrice || '0');
-  const mfgUpgrades = parseFloat(projectData.designFee || '0');
-  const mfgTotal = offsitePrice + mfgUpgrades;
+  // ============================================
+  // MANUFACTURER SUBCONTRACT VARIABLES
+  // ============================================
+  map['MANUFACTURER_NAME'] = 'Dvele, Inc.';
+  map['MANUFACTURER_STATE'] = 'Delaware';
+  map['MANUFACTURER_ENTITY_TYPE'] = 'corporation';
+  map['MANUFACTURER_SIGNATORY_NAME'] = 'Authorized Representative';
+  map['MANUFACTURER_SIGNATORY_TITLE'] = 'CEO';
   
   map['MFG_BASE_PRICE'] = formatCurrency(offsitePrice);
-  map['MFG_UPGRADES'] = formatCurrency(mfgUpgrades);
-  map['MFG_TOTAL_PRICE'] = formatCurrency(mfgTotal);
-  
-  // Manufacturing payment schedule
-  map['MFG_DEPOSIT_PERCENT'] = '10';
-  map['MFG_START_PERCENT'] = '30';
-  map['MFG_MID_PERCENT'] = '30';
-  map['MFG_COMPLETE_PERCENT'] = '25';
+  map['MFG_UPGRADES'] = formatCurrency(projectData.upgrades || 0);
+  map['MFG_TOTAL_PRICE'] = formatCurrency(offsitePrice);
+  map['MFG_MARKUP_PERCENT'] = '0';
   map['MFG_RETAINAGE_PERCENT'] = '5';
   
-  map['MFG_DEPOSIT_AMOUNT'] = formatCurrency(mfgTotal * 0.10);
-  map['MFG_START_AMOUNT'] = formatCurrency(mfgTotal * 0.30);
-  map['MFG_MID_AMOUNT'] = formatCurrency(mfgTotal * 0.30);
-  map['MFG_COMPLETE_AMOUNT'] = formatCurrency(mfgTotal * 0.25);
-  map['MFG_DELIVERY_AMOUNT'] = formatCurrency(mfgTotal * 0.05);
+  map['MFG_DEPOSIT_PERCENT'] = '20';
+  map['MFG_DEPOSIT_AMOUNT'] = formatCurrency(offsitePrice * 0.20);
+  map['MFG_START_PERCENT'] = '20';
+  map['MFG_START_AMOUNT'] = formatCurrency(offsitePrice * 0.20);
+  map['MFG_MID_PERCENT'] = '25';
+  map['MFG_MID_AMOUNT'] = formatCurrency(offsitePrice * 0.25);
+  map['MFG_COMPLETE_PERCENT'] = '25';
+  map['MFG_COMPLETE_AMOUNT'] = formatCurrency(offsitePrice * 0.25);
+  map['MFG_DELIVERY_PERCENT'] = '10';
+  map['MFG_DELIVERY_AMOUNT'] = formatCurrency(offsitePrice * 0.10);
   
-  // Manufacturing schedule
-  const startDate = new Date(projectData.effectiveDate || projectData.agreementDate || Date.now());
-  const designDays = parseInt(projectData.designPhaseDays || '90');
-  const mfgDays = parseInt(projectData.manufacturingDurationDays || '120');
-  
-  const productionStart = new Date(startDate);
-  productionStart.setDate(productionStart.getDate() + designDays);
-  
-  const productionMid = new Date(productionStart);
-  productionMid.setDate(productionMid.getDate() + Math.floor(mfgDays / 2));
-  
-  const productionComplete = new Date(productionStart);
-  productionComplete.setDate(productionComplete.getDate() + mfgDays);
-  
-  const deliveryReady = new Date(productionComplete);
-  deliveryReady.setDate(deliveryReady.getDate() + 7);
-  
-  map['PRODUCTION_START_DATE'] = formatDate(productionStart.toISOString());
-  map['PRODUCTION_MIDPOINT_DATE'] = formatDate(productionMid.toISOString());
-  map['PRODUCTION_COMPLETE_DATE'] = formatDate(productionComplete.toISOString());
-  map['DELIVERY_READY_DATE'] = formatDate(deliveryReady.toISOString());
-  
-  // Manufacturing insurance
   map['MFG_GL_LIMIT'] = '$2,000,000';
   map['MFG_GL_AGGREGATE'] = '$4,000,000';
   map['MFG_EL_LIMIT'] = '$1,000,000';
   map['MFG_AUTO_LIMIT'] = '$1,000,000';
-  map['MFG_PRODUCTS_LIMIT'] = '$2,000,000';
   map['MFG_UMBRELLA_LIMIT'] = '$5,000,000';
+  map['MFG_PRODUCTS_LIMIT'] = '$2,000,000';
   
-  // Manufacturing terms
-  map['MFG_MARKUP_PERCENT'] = '15';
-  map['DELAY_PENALTY'] = '$500';
+  // ============================================
+  // ONSITE SUBCONTRACT VARIABLES
+  // ============================================
+  map['ONSITE_CONTRACTOR_NAME'] = projectData.contractorName || 'To Be Determined';
+  map['ONSITE_CONTRACTOR_STATE'] = projectData.contractorState || '';
+  map['ONSITE_CONTRACTOR_ENTITY_TYPE'] = projectData.contractorEntityType || '';
+  map['ONSITE_CONTRACTOR_SIGNATORY_NAME'] = projectData.contractorSignatory || 'Authorized Representative';
+  map['ONSITE_CONTRACTOR_SIGNATORY_TITLE'] = 'President';
+  map['ONSITE_DELAY_PENALTY'] = '$500';
   
-  // =========================================================================
-  // STEP 5: ONSITE SUBCONTRACT SPECIFIC
-  // =========================================================================
-  
-  // On-site contractor party
-  if (projectData.serviceModel === 'CMOS') {
-    map['ONSITE_CONTRACTOR_NAME'] = 'Company-Managed Services';
-    map['ONSITE_CONTRACTOR_ENTITY_TYPE'] = 'managed by Company';
-    map['ONSITE_CONTRACTOR_STATE'] = state;
-    map['ONSITE_CONTRACTOR_SIGNATORY_NAME'] = 'Site Manager';
-    map['ONSITE_CONTRACTOR_SIGNATORY_TITLE'] = 'Construction Manager';
-  } else {
-    map['ONSITE_CONTRACTOR_NAME'] = projectData.contractorName || 'To Be Determined';
-    map['ONSITE_CONTRACTOR_ENTITY_TYPE'] = 'To Be Determined';
-    map['ONSITE_CONTRACTOR_STATE'] = state;
-    map['ONSITE_CONTRACTOR_SIGNATORY_NAME'] = 'To Be Determined';
-    map['ONSITE_CONTRACTOR_SIGNATORY_TITLE'] = 'To Be Determined';
-  }
-  
-  // On-site pricing breakdown
-  map['ONSITE_PREP_PRICE'] = formatCurrency(projectData.sitePrepPrice || '0');
-  map['ONSITE_FOUNDATION_PRICE'] = formatCurrency(parseFloat(projectData.sitePrepPrice || '0') * 0.5);
-  map['ONSITE_UTILITIES_PRICE'] = formatCurrency(projectData.utilitiesPrice || '0');
-  map['ONSITE_SET_PRICE'] = formatCurrency(parseFloat(projectData.deliveryInstallationPrice || '0') * 0.3);
-  map['ONSITE_COMPLETION_PRICE'] = formatCurrency(projectData.completionPrice || '0');
   map['ONSITE_TOTAL_PRICE'] = formatCurrency(onsiteTotal);
-  
-  // On-site payment schedule
-  map['ONSITE_MOBILIZATION_PERCENT'] = '10';
-  map['ONSITE_FOUNDATION_PERCENT'] = '30';
-  map['ONSITE_UTILITIES_PERCENT'] = '20';
-  map['ONSITE_SET_PERCENT'] = '15';
-  map['ONSITE_COMPLETION_PERCENT'] = '20';
+  map['ONSITE_MARKUP_PERCENT'] = '0';
   map['ONSITE_RETAINAGE_PERCENT'] = '5';
-  
-  map['ONSITE_MOBILIZATION_AMOUNT'] = formatCurrency(onsiteTotal * 0.10);
-  map['ONSITE_FOUNDATION_AMOUNT'] = formatCurrency(onsiteTotal * 0.30);
-  map['ONSITE_UTILITIES_AMOUNT'] = formatCurrency(onsiteTotal * 0.20);
-  map['ONSITE_SET_AMOUNT'] = formatCurrency(onsiteTotal * 0.15);
-  map['ONSITE_COMPLETION_AMOUNT'] = formatCurrency(onsiteTotal * 0.20);
   map['ONSITE_RETAINAGE_AMOUNT'] = formatCurrency(onsiteTotal * 0.05);
   
-  // On-site schedule
-  const onsiteDays = parseInt(projectData.onsiteDurationDays || '90');
-  const onsiteStart = new Date(deliveryReady);
-  const foundationComplete = new Date(onsiteStart);
-  foundationComplete.setDate(foundationComplete.getDate() + Math.floor(onsiteDays * 0.3));
+  map['ONSITE_PREP_PRICE'] = formatCurrency(sitePrepPrice);
+  map['ONSITE_UTILITIES_PRICE'] = formatCurrency(utilitiesPrice);
+  map['ONSITE_COMPLETION_PRICE'] = formatCurrency(completionPrice);
+  map['ONSITE_FOUNDATION_PRICE'] = formatCurrency(sitePrepPrice * 0.5);
+  map['ONSITE_SET_PRICE'] = formatCurrency(sitePrepPrice * 0.3);
   
-  const siteReady = new Date(foundationComplete);
-  siteReady.setDate(siteReady.getDate() + 7);
+  map['ONSITE_MOBILIZATION_PERCENT'] = '10';
+  map['ONSITE_MOBILIZATION_AMOUNT'] = formatCurrency(onsiteTotal * 0.10);
+  map['ONSITE_FOUNDATION_PERCENT'] = '25';
+  map['ONSITE_FOUNDATION_AMOUNT'] = formatCurrency(onsiteTotal * 0.25);
+  map['ONSITE_SET_PERCENT'] = '25';
+  map['ONSITE_SET_AMOUNT'] = formatCurrency(onsiteTotal * 0.25);
+  map['ONSITE_UTILITIES_PERCENT'] = '20';
+  map['ONSITE_UTILITIES_AMOUNT'] = formatCurrency(onsiteTotal * 0.20);
+  map['ONSITE_COMPLETION_PERCENT'] = '20';
+  map['ONSITE_COMPLETION_AMOUNT'] = formatCurrency(onsiteTotal * 0.20);
   
-  const onsiteComplete = new Date(onsiteStart);
-  onsiteComplete.setDate(onsiteComplete.getDate() + onsiteDays);
-  
-  const cooDate = new Date(onsiteComplete);
-  cooDate.setDate(cooDate.getDate() + 14);
-  
-  map['ONSITE_MOBILIZATION_DATE'] = 'Upon Subcontract Execution';
-  map['ONSITE_FOUNDATION_DATE'] = formatDate(foundationComplete.toISOString());
-  map['ONSITE_READY_DATE'] = formatDate(siteReady.toISOString());
-  map['COO_DATE'] = formatDate(cooDate.toISOString());
-  
-  // On-site insurance
   map['ONSITE_GL_LIMIT'] = '$2,000,000';
   map['ONSITE_GL_AGGREGATE'] = '$4,000,000';
   map['ONSITE_EL_LIMIT'] = '$1,000,000';
   map['ONSITE_AUTO_LIMIT'] = '$1,000,000';
   map['ONSITE_UMBRELLA_LIMIT'] = '$5,000,000';
   
-  // On-site terms
-  map['ONSITE_MARKUP_PERCENT'] = '15';
-  map['ONSITE_DELAY_PENALTY'] = '$500';
+  // Test variable placeholder
+  map['TEST_VARIABLE_ADDITION'] = '';
   
-  // =========================================================================
-  // LOGGING
-  // =========================================================================
-  
-  console.log('\n=== VARIABLE MAP SUMMARY ===');
-  console.log(`Total variables mapped: ${Object.keys(map).length}`);
-  console.log(`Common variables: ~40 (mapped to all variations)`);
-  console.log(`Contract-specific: ~${Object.keys(map).length - 40}`);
-  console.log('=========================\n');
-  
+  console.log(`Built variable map with ${Object.keys(map).length} variables`);
   return map;
 }
 
@@ -1669,12 +1684,12 @@ function getEntityTypeText(entityType: string | undefined): string {
 }
 
 function calculateEstimatedCompletion(projectData: Record<string, any>): string {
-  if (!projectData.effectiveDate && !projectData.agreementDate) return 'To Be Determined';
+  if (!projectData.effectiveDate) return '';
   
-  const startDate = new Date(projectData.effectiveDate || projectData.agreementDate);
-  const totalDays = (parseInt(projectData.designPhaseDays) || 90) +
-                   (parseInt(projectData.manufacturingDurationDays) || 120) +
-                   (parseInt(projectData.onsiteDurationDays) || 90);
+  const startDate = new Date(projectData.effectiveDate);
+  const totalDays = (parseInt(projectData.designPhaseDays) || 0) +
+                   (parseInt(projectData.manufacturingDurationDays) || 0) +
+                   (parseInt(projectData.onsiteDurationDays) || 0);
   
   const completionDate = new Date(startDate);
   completionDate.setDate(completionDate.getDate() + totalDays);
