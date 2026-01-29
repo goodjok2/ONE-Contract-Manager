@@ -31,6 +31,7 @@ import {
   type ProjectWithRelations 
 } from "./lib/mapper";
 import { generateContract as generateContractFromTemplate, getContractFilename } from "./lib/contractGenerator";
+import { calculateProjectPricing } from "./services/pricingEngine";
 
 // =============================================================================
 // HELPER: Fetch project with all relations
@@ -913,6 +914,31 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     } catch (error) {
       console.error("Failed to create/update financials:", error);
       res.status(500).json({ error: "Failed to create/update financials" });
+    }
+  });
+
+  // ---------------------------------------------------------------------------
+  // PRICING ENGINE - Multi-Unit Pricing Summary
+  // ---------------------------------------------------------------------------
+
+  app.get("/api/projects/:id/pricing-summary", async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.id);
+      
+      if (isNaN(projectId)) {
+        return res.status(400).json({ error: "Invalid project ID" });
+      }
+
+      const pricingSummary = await calculateProjectPricing(projectId);
+      res.json(pricingSummary);
+    } catch (error: any) {
+      console.error("Failed to calculate pricing summary:", error);
+      
+      if (error.message?.includes('not found')) {
+        return res.status(404).json({ error: error.message });
+      }
+      
+      res.status(500).json({ error: "Failed to calculate pricing summary" });
     }
   });
 
