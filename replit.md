@@ -26,6 +26,13 @@ The application is built on a modern full-stack architecture.
     - **Multi-step Wizard**: A 9-step wizard for contract generation (`/generate-contracts`) with autosave functionality, step validation, and a review/generate final step.
     - **Theme**: Supports Dark Mode.
     - **LLC Naming**: Automated child LLC naming convention "DP + Project_Address + LLC".
+    - **Phase C UI Updates (Jan 2026)**:
+        - Site Address moved from Step 4 to Step 1 for better workflow
+        - Optional Billing Address with "different from site" checkbox
+        - Step 4 renamed "Home Models" (was "Site & Home")
+        - Step 5 renamed "Company Entity" (was "Child LLC")
+        - "Manufacturing" labels changed to "Offsite (Manufacturing)"
+        - Step 9 enhanced with Project Type, Company Entity display, and "Show Missing" variable toggle
 
 **Backend**:
 - **Framework**: Express.js
