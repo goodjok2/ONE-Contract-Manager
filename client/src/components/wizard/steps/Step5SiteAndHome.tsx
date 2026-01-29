@@ -37,7 +37,8 @@ export const Step5SiteAndHome: React.FC = () => {
   const { 
     wizardState, 
     updateProjectData,
-    draftProjectId
+    draftProjectId,
+    setDbUnitsCount
   } = useWizard();
   
   const queryClient = useQueryClient();
@@ -79,6 +80,7 @@ export const Step5SiteAndHome: React.FC = () => {
     if (projectUnits.length !== projectData.totalUnits) {
       updateProjectData({ totalUnits: projectUnits.length || 1 });
     }
+    setDbUnitsCount(projectUnits.length);
   }, [projectUnits.length]);
 
   useEffect(() => {

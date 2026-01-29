@@ -290,6 +290,7 @@ export interface WizardContextType {
   existingLlcs: LLCData[] | undefined;
   comparisonData: ClauseComparison | undefined;
   comparisonLoading: boolean;
+  dbUnitsCount: number;
   
   // Methods
   updateProjectData: (updates: Partial<ProjectData>) => void;
@@ -312,6 +313,7 @@ export interface WizardContextType {
   updateUnit: (unitId: number, updates: Partial<UnitSpec>) => void;
   addUnit: () => void;
   removeUnit: (unitId: number) => void;
+  setDbUnitsCount: (count: number) => void;
 }
 
 // Initial project data
@@ -517,6 +519,7 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [generatedContracts, setGeneratedContracts] = useState<GeneratedContract[]>([]);
   const [generatedProjectId, setGeneratedProjectId] = useState<string | null>(null);
+  const [dbUnitsCount, setDbUnitsCount] = useState<number>(0);
 
   // Fetch next project number on mount
   const { data: nextNumberData, refetch: refetchNextNumber, isLoading: isLoadingNumber } = useQuery<{ projectNumber: string }>({
@@ -1183,24 +1186,10 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
         if (!data.siteCity.trim()) errors.siteCity = 'City is required';
         if (!data.siteState.trim()) errors.siteState = 'Site state is required';
         if (!data.siteZip.trim()) errors.siteZip = 'ZIP code is required';
-        const unitsToValidate = data.units.slice(0, data.totalUnits);
-        unitsToValidate.forEach((unit, index) => {
-          if (!unit.model.trim()) {
-            errors[`unit_${index}_model`] = 'Home model is required';
-          }
-          if (unit.squareFootage < 400 || unit.squareFootage > 10000) {
-            errors[`unit_${index}_sqft`] = 'Square footage must be between 400 and 10,000';
-          }
-          if (unit.bedrooms < 1 || unit.bedrooms > 10) {
-            errors[`unit_${index}_beds`] = 'Bedrooms must be between 1 and 10';
-          }
-          if (unit.bathrooms < 1 || unit.bathrooms > 10) {
-            errors[`unit_${index}_baths`] = 'Bathrooms must be between 1 and 10';
-          }
-          if (unit.price < 100000) {
-            errors[`unit_${index}_price`] = 'Unit price must be at least $100,000';
-          }
-        });
+        // Units are now stored in the database - use dbUnitsCount instead of legacy data.units
+        if (dbUnitsCount < 1) {
+          errors.units = 'At least one home model is required';
+        }
         break;
       case 5:
         // Child LLC validation (moved from step 4 to step 5)
@@ -1913,6 +1902,8 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
     updateUnit,
     addUnit,
     removeUnit,
+    dbUnitsCount,
+    setDbUnitsCount,
   };
   
   return (
