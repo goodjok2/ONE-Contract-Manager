@@ -75,7 +75,7 @@ async function fetchClausesForContract(
     console.log(`Received ${allClauses.length} total clauses from API`);
     
     const serviceModel = projectData.serviceModel || 'CRC';
-    console.log(`Filtering clauses for service model: ${serviceModel}`);
+    console.log('📝 Generating for Service Model:', serviceModel);
     
     const filteredClauses = allClauses.filter(clause => {
       if (!clause.conditions) return true;
@@ -90,9 +90,14 @@ async function fetchClausesForContract(
         }
       }
       
-      if (conditions.serviceModel && conditions.serviceModel !== serviceModel) {
-        console.log(`Excluding clause ${clause.clause_code} (requires ${conditions.serviceModel}, have ${serviceModel})`);
-        return false;
+      // Check for service_model (snake_case from database) or serviceModel (camelCase)
+      const clauseServiceModel = conditions.service_model || conditions.serviceModel;
+      if (clauseServiceModel) {
+        // If clause specifies a service model, it must match OR be 'BOTH'
+        if (clauseServiceModel !== serviceModel && clauseServiceModel !== 'BOTH') {
+          console.log(`Excluding clause ${clause.clause_code} (requires ${clauseServiceModel}, have ${serviceModel})`);
+          return false;
+        }
       }
       
       return true;

@@ -1,11 +1,12 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useWizard, FEDERAL_DISTRICTS, US_STATES } from '../WizardContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Shield, Scale, Calendar, Clock } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Shield, Scale, Calendar, Clock, Info } from 'lucide-react';
 
 export const Step8ScheduleWarranty: React.FC = () => {
   const { 
@@ -14,6 +15,7 @@ export const Step8ScheduleWarranty: React.FC = () => {
   } = useWizard();
   
   const { projectData, validationErrors } = wizardState;
+  const [overrideJurisdiction, setOverrideJurisdiction] = useState(false);
   
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('en-US', { 
@@ -108,21 +110,18 @@ export const Step8ScheduleWarranty: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="effectiveDate">
-                Effective Date <span className="text-red-500">*</span>
+                Effective Date
               </Label>
               <Input
                 id="effectiveDate"
                 type="date"
                 value={projectData.effectiveDate || ''}
-                onChange={(e) => updateProjectData({ effectiveDate: e.target.value })}
-                className={validationErrors.effectiveDate ? 'border-red-500' : ''}
+                readOnly={true}
+                className="bg-muted cursor-not-allowed"
                 data-testid="input-effective-date"
               />
-              {validationErrors.effectiveDate && (
-                <p className="text-sm text-red-500">{validationErrors.effectiveDate}</p>
-              )}
               <p className="text-xs text-muted-foreground">
-                The date when the contract becomes effective
+                Set in Step 6 (Dates & Schedule)
               </p>
             </div>
             <div className="flex items-end">
@@ -308,6 +307,18 @@ export const Step8ScheduleWarranty: React.FC = () => {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="flex items-center space-x-2 mb-4 p-3 bg-muted/50 rounded-lg">
+            <Checkbox
+              id="overrideJurisdiction"
+              checked={overrideJurisdiction}
+              onCheckedChange={(checked) => setOverrideJurisdiction(checked === true)}
+              data-testid="checkbox-override-jurisdiction"
+            />
+            <Label htmlFor="overrideJurisdiction" className="text-sm cursor-pointer">
+              Override Default Jurisdiction
+            </Label>
+          </div>
+          
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="projectState">
@@ -316,10 +327,11 @@ export const Step8ScheduleWarranty: React.FC = () => {
               <Select
                 value={projectData.projectState || projectData.siteState || ''}
                 onValueChange={(value) => updateProjectData({ projectState: value })}
+                disabled={!overrideJurisdiction}
               >
                 <SelectTrigger
                   id="projectState"
-                  className={validationErrors.projectState ? 'border-red-500' : ''}
+                  className={`${validationErrors.projectState ? 'border-red-500' : ''} ${!overrideJurisdiction ? 'bg-muted' : ''}`}
                   data-testid="select-project-state"
                 >
                   <SelectValue placeholder="Select state" />
@@ -344,7 +356,8 @@ export const Step8ScheduleWarranty: React.FC = () => {
                 value={projectData.projectCounty || ''}
                 onChange={(e) => updateProjectData({ projectCounty: e.target.value })}
                 placeholder="e.g., Los Angeles"
-                className={validationErrors.projectCounty ? 'border-red-500' : ''}
+                className={`${validationErrors.projectCounty ? 'border-red-500' : ''} ${!overrideJurisdiction ? 'bg-muted' : ''}`}
+                readOnly={!overrideJurisdiction}
                 data-testid="input-project-county"
               />
               {validationErrors.projectCounty && (
@@ -361,11 +374,11 @@ export const Step8ScheduleWarranty: React.FC = () => {
               <Select
                 value={projectData.projectFederalDistrict || ''}
                 onValueChange={(value) => updateProjectData({ projectFederalDistrict: value })}
-                disabled={availableDistricts.length === 0}
+                disabled={availableDistricts.length === 0 || !overrideJurisdiction}
               >
                 <SelectTrigger
                   id="projectFederalDistrict"
-                  className={validationErrors.projectFederalDistrict ? 'border-red-500' : ''}
+                  className={`${validationErrors.projectFederalDistrict ? 'border-red-500' : ''} ${!overrideJurisdiction ? 'bg-muted' : ''}`}
                   data-testid="select-federal-district"
                 >
                   <SelectValue placeholder={availableDistricts.length === 0 ? 'Select state first' : 'Select district'} />
@@ -379,6 +392,10 @@ export const Step8ScheduleWarranty: React.FC = () => {
               {validationErrors.projectFederalDistrict && (
                 <p className="text-sm text-red-500">{validationErrors.projectFederalDistrict}</p>
               )}
+              <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
+                <Info className="h-3 w-3" />
+                <span>Auto-selected based on Site State. Check to override.</span>
+              </div>
             </div>
             
             <div className="space-y-2">

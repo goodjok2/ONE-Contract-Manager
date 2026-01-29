@@ -34,6 +34,22 @@ export interface ChildLlc {
   annualReportDue?: string | null;
 }
 
+export interface ProjectUnit {
+  id: number;
+  projectId: number;
+  homeModelId: number;
+  unitLabel: string;
+  basePriceSnapshot: number;
+  onsiteEstimateSnapshot: number;
+  homeModel?: {
+    id: number;
+    modelName: string;
+    squareFootage?: number;
+    bedrooms?: number;
+    bathrooms?: number;
+  };
+}
+
 export interface ProjectWithRelations {
   project: Project;
   client: Client | null;
@@ -43,6 +59,7 @@ export interface ProjectWithRelations {
   milestones: Milestone[];
   warrantyTerms: WarrantyTerm | null; // Single row per project now
   contractors: Contractor[];
+  units?: ProjectUnit[]; // Added for unit model list
 }
 
 export interface ContractVariables {
@@ -423,11 +440,27 @@ export interface PricingSummaryForMapper {
  * @param data - Project data with all relations
  * @param pricingSummary - Optional pricing engine output for accurate financial variables
  */
+/**
+ * Build a formatted unit model list from project units
+ * Format: "1x Trinity (Unit A), 1x Salt Point (Unit B)"
+ */
+function buildUnitModelList(units?: ProjectUnit[]): string {
+  if (!units || units.length === 0) {
+    return "No units selected";
+  }
+  
+  return units.map(unit => {
+    const modelName = unit.homeModel?.modelName || 'Unknown Model';
+    const label = unit.unitLabel || '';
+    return `1x ${modelName}${label ? ` (${label})` : ''}`;
+  }).join(', ');
+}
+
 export function mapProjectToVariables(
   data: ProjectWithRelations, 
   pricingSummary?: PricingSummaryForMapper
 ): ContractVariables {
-  const { project, client, childLlc, projectDetails, financials, milestones, warrantyTerms, contractors } = data;
+  const { project, client, childLlc, projectDetails, financials, milestones, warrantyTerms, contractors, units } = data;
 
   // Find specific contractors by type
   const manufacturer = contractors.find(c => c.contractorType === "manufacturer");
@@ -517,9 +550,10 @@ export function mapProjectToVariables(
     // ===================
     // HOME
     // ===================
-    // Use pricing engine unitModelSummary if available, otherwise fall back to projectDetails
+    // HOME_MODEL: single model name from projectDetails (unchanged)
     HOME_MODEL: pricingSummary?.unitModelSummary || projectDetails?.homeModel || "",
-    UNIT_MODEL_LIST: pricingSummary?.unitModelSummary || projectDetails?.homeModel || "",
+    // UNIT_MODEL_LIST: formatted list from real project units
+    UNIT_MODEL_LIST: pricingSummary?.unitModelSummary || buildUnitModelList(units),
     HOME_SQ_FT: projectDetails?.homeSqFt ? formatNumber(projectDetails.homeSqFt) : "",
     HOME_SQ_FT_RAW: projectDetails?.homeSqFt || "",
     HOME_BEDROOMS: projectDetails?.homeBedrooms || "",
