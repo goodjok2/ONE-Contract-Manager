@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useWizard } from '../WizardContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -34,6 +35,18 @@ interface ExpandedSections {
   schedule: boolean;
 }
 
+interface PricingSummary {
+  breakdown: {
+    totalDesignFee: number;
+    totalOffsite: number;
+    totalOnsite: number;
+    totalCustomizations: number;
+  };
+  grandTotal: number;
+  paymentSchedule: { name: string; percentage: number; amount: number; phase: string }[];
+  unitCount: number;
+}
+
 export const Step9ReviewGenerate: React.FC = () => {
   const { 
     wizardState, 
@@ -60,6 +73,11 @@ export const Step9ReviewGenerate: React.FC = () => {
   
   const [clausePreviewOpen, setClausePreviewOpen] = useState(false);
   
+  const { data: pricingSummary } = useQuery<PricingSummary>({
+    queryKey: ['/api/projects', draftProjectId, 'pricing-summary'],
+    enabled: !!draftProjectId,
+  });
+  
   const toggleSection = (section: keyof ExpandedSections) => {
     setExpandedSections(prev => ({
       ...prev,
@@ -73,6 +91,14 @@ export const Step9ReviewGenerate: React.FC = () => {
       currency: 'USD',
       minimumFractionDigits: 0
     }).format(value);
+  };
+  
+  const formatCurrencyCents = (cents: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 0
+    }).format(cents / 100);
   };
   
   const formatDate = (dateString: string) => {
@@ -558,24 +584,43 @@ export const Step9ReviewGenerate: React.FC = () => {
         </CardHeader>
         {expandedSections.financial && (
           <CardContent className="border-t pt-4">
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <p className="text-muted-foreground">Design Fee</p>
-                <p className="font-medium">{formatCurrency(projectData.designFee || 0)}</p>
+            {pricingSummary && pricingSummary.unitCount > 0 ? (
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-muted-foreground">Total Design Fee</p>
+                  <p className="font-medium" data-testid="review-design-fee">
+                    {formatCurrencyCents(pricingSummary.breakdown.totalDesignFee)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Offsite Manufacturing</p>
+                  <p className="font-medium" data-testid="review-offsite">
+                    {formatCurrencyCents(pricingSummary.breakdown.totalOffsite)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Onsite Estimate</p>
+                  <p className="font-medium" data-testid="review-onsite">
+                    {formatCurrencyCents(pricingSummary.breakdown.totalOnsite)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Grand Total</p>
+                  <p className="font-medium text-primary" data-testid="review-grand-total">
+                    {formatCurrencyCents(pricingSummary.grandTotal)}
+                  </p>
+                </div>
+                <div className="col-span-2">
+                  <Badge variant="secondary" className="text-xs">
+                    {pricingSummary.unitCount} Unit{pricingSummary.unitCount !== 1 ? 's' : ''} Selected
+                  </Badge>
+                </div>
               </div>
-              <div>
-                <p className="text-muted-foreground">Manufacturing</p>
-                <p className="font-medium">{formatCurrency(projectData.preliminaryOffsiteCost || 0)}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Delivery & Install</p>
-                <p className="font-medium">{formatCurrency(projectData.deliveryInstallationPrice || 0)}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Total Contract</p>
-                <p className="font-medium">{formatCurrency(projectData.totalPreliminaryContractPrice || 0)}</p>
-              </div>
-            </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No pricing data available. Add units in Step 1 to calculate pricing.
+              </p>
+            )}
           </CardContent>
         )}
       </Card>

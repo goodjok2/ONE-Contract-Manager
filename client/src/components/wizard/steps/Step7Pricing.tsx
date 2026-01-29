@@ -1,200 +1,208 @@
-import { useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useWizard } from '../WizardContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { DollarSign, AlertTriangle, CheckCircle2, Plus, Minus, Percent } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { DollarSign, RefreshCw, AlertTriangle, Calculator, Loader2, Receipt } from 'lucide-react';
+import { apiRequest } from '@/lib/queryClient';
+
+interface PaymentScheduleItem {
+  name: string;
+  percentage: number;
+  amount: number;
+  phase: string;
+}
+
+interface PricingBreakdown {
+  totalDesignFee: number;
+  totalOffsite: number;
+  totalOnsite: number;
+  totalCustomizations: number;
+}
+
+interface PricingSummary {
+  breakdown: PricingBreakdown;
+  grandTotal: number;
+  paymentSchedule: PaymentScheduleItem[];
+  unitCount: number;
+}
 
 export const Step7Pricing: React.FC = () => {
   const { 
     wizardState, 
+    draftProjectId,
     updateProjectData
   } = useWizard();
   
-  const { projectData, validationErrors } = wizardState;
+  const { projectData } = wizardState;
+  const queryClient = useQueryClient();
   
-  // Calculate unit total price from units data
-  const unitsTotalPrice = useMemo(() => {
-    const totalUnits = projectData.totalUnits || 1;
-    return projectData.units.slice(0, totalUnits).reduce((sum, unit) => sum + (unit.price || 0), 0);
-  }, [projectData.totalUnits, projectData.units]);
+  const [additionalSiteWork, setAdditionalSiteWork] = useState<number>(projectData.prelimOnsite || 0);
+  const [isSaving, setIsSaving] = useState(false);
   
-  // Pre-populate pricing fields based on unit data - runs whenever data changes
-  // Only sets values when they are 0 (empty) to avoid overwriting user edits
-  useEffect(() => {
-    const updates: Record<string, number> = {};
-    const totalUnits = projectData.totalUnits || 1;
-    
-    // Set offsite cost from unit prices if not already set
-    if (unitsTotalPrice > 0 && projectData.preliminaryOffsiteCost <= 0) {
-      updates.preliminaryOffsiteCost = unitsTotalPrice;
-    }
-    
-    // Calculate delivery & installation: $25,000 base + $15,000 per additional unit
-    if (projectData.deliveryInstallationPrice <= 0) {
-      updates.deliveryInstallationPrice = 25000 + (Math.max(0, totalUnits - 1) * 15000);
-    }
-    
-    // For CMOS, calculate additional costs based on offsite cost
-    if (projectData.serviceModel === 'CMOS') {
-      const baseOffsiteCost = unitsTotalPrice > 0 ? unitsTotalPrice : (projectData.preliminaryOffsiteCost > 0 ? projectData.preliminaryOffsiteCost : 500000);
-      
-      // Site prep: 12% of offsite cost
-      if (projectData.sitePrepPrice <= 0) {
-        updates.sitePrepPrice = Math.round(baseOffsiteCost * 0.12);
-      }
-      
-      // Utilities: 6% of offsite cost  
-      if (projectData.utilitiesPrice <= 0) {
-        updates.utilitiesPrice = Math.round(baseOffsiteCost * 0.06);
-      }
-      
-      // Completion: 8% of offsite cost
-      if (projectData.completionPrice <= 0) {
-        updates.completionPrice = Math.round(baseOffsiteCost * 0.08);
-      }
-    }
-    
-    // Apply updates if any
-    if (Object.keys(updates).length > 0) {
-      updateProjectData(updates);
-    }
-  }, [unitsTotalPrice, projectData.totalUnits, projectData.serviceModel, 
-      projectData.preliminaryOffsiteCost, projectData.deliveryInstallationPrice,
-      projectData.sitePrepPrice, projectData.utilitiesPrice, projectData.completionPrice]);
-  
-  const formatCurrency = (value: number) => {
+  const formatCurrency = (cents: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0
-    }).format(value);
+    }).format(cents / 100);
   };
   
-  const milestoneSum = useMemo(() => {
-    return (projectData.milestone1Percent || 0) + 
-           (projectData.milestone2Percent || 0) + 
-           (projectData.milestone3Percent || 0) + 
-           (projectData.milestone4Percent || 0) + 
-           (projectData.milestone5Percent || 0);
-  }, [
-    projectData.milestone1Percent,
-    projectData.milestone2Percent,
-    projectData.milestone3Percent,
-    projectData.milestone4Percent,
-    projectData.milestone5Percent
-  ]);
+  const { data: pricingSummary, isLoading, isError, refetch } = useQuery<PricingSummary>({
+    queryKey: ['/api/projects', draftProjectId, 'pricing-summary'],
+    enabled: !!draftProjectId,
+  });
   
-  const isMilestoneValid = Math.abs(milestoneSum - 95) < 0.01;
-  
-  const totalContractPrice = useMemo(() => {
-    let total = (projectData.preliminaryOffsiteCost || 0) + 
-                (projectData.deliveryInstallationPrice || 0) + 
-                (projectData.designFee || 0);
-    
-    if (projectData.serviceModel === 'CMOS') {
-      total += (projectData.sitePrepPrice || 0);
-      total += (projectData.utilitiesPrice || 0);
-      total += (projectData.completionPrice || 0);
-    }
-    return total;
-  }, [
-    projectData.preliminaryOffsiteCost,
-    projectData.deliveryInstallationPrice,
-    projectData.designFee,
-    projectData.sitePrepPrice,
-    projectData.utilitiesPrice,
-    projectData.completionPrice,
-    projectData.serviceModel
-  ]);
+  const { data: financialsData } = useQuery<{ prelimOnsite?: number }>({
+    queryKey: ['/api/projects', draftProjectId, 'financials'],
+    enabled: !!draftProjectId,
+  });
   
   useEffect(() => {
-    if (totalContractPrice !== projectData.totalPreliminaryContractPrice) {
-      updateProjectData({ totalPreliminaryContractPrice: totalContractPrice });
+    if (financialsData?.prelimOnsite !== undefined) {
+      setAdditionalSiteWork(financialsData.prelimOnsite);
     }
-  }, [totalContractPrice, projectData.totalPreliminaryContractPrice, updateProjectData]);
+  }, [financialsData?.prelimOnsite]);
   
-  const adjustMilestone = (field: string, delta: number) => {
-    const current = (projectData as any)[field] || 0;
-    const newValue = Math.max(0, Math.min(100, current + delta));
-    updateProjectData({ [field]: newValue });
+  const hasUnits = pricingSummary && pricingSummary.unitCount > 0;
+  
+  const savePrelimOnsiteMutation = useMutation({
+    mutationFn: async (prelimOnsite: number) => {
+      if (!draftProjectId) throw new Error('Project not saved yet');
+      return apiRequest('PATCH', `/api/projects/${draftProjectId}/financials`, {
+        prelimOnsite
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/projects', draftProjectId, 'pricing-summary'] });
+      updateProjectData({ prelimOnsite: additionalSiteWork });
+    }
+  });
+  
+  const handleSaveAndRecalculate = async () => {
+    if (!draftProjectId) return;
+    setIsSaving(true);
+    try {
+      await savePrelimOnsiteMutation.mutateAsync(additionalSiteWork);
+      await refetch();
+    } finally {
+      setIsSaving(false);
+    }
   };
+  
+  if (!draftProjectId) {
+    return (
+      <div className="space-y-6">
+        <Card className="border-amber-500/50 bg-amber-50 dark:bg-amber-950/20">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              <div>
+                <p className="font-medium">Project Not Saved</p>
+                <p className="text-sm text-muted-foreground">
+                  Please complete Steps 1-6 and save the project to view dynamic pricing. 
+                  The pricing engine calculates costs based on your selected home model units.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
   
   return (
     <div className="space-y-6">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <DollarSign className="h-5 w-5" />
-            Design Phase
+            <Calculator className="h-5 w-5" />
+            Pricing Dashboard
           </CardTitle>
           <CardDescription>
-            Design fee and revision rounds for the project
+            Costs calculated from your selected home model units
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="designFee">
-                Design Fee <span className="text-red-500">*</span>
-              </Label>
-              <div className="relative">
-                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="designFee"
-                  type="number"
-                  value={projectData.designFee || ''}
-                  onChange={(e) => updateProjectData({ designFee: parseInt(e.target.value) || 0 })}
-                  placeholder="e.g., 25000"
-                  className={`pl-9 ${validationErrors.designFee ? 'border-red-500' : ''}`}
-                  min={1000}
-                  max={100000}
-                  data-testid="input-design-fee"
-                />
+        <CardContent className="space-y-6">
+          {isLoading ? (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="space-y-2">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-8 w-full" />
+                </div>
+              ))}
+            </div>
+          ) : isError ? (
+            <div className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <span>Failed to load pricing data</span>
+              <Button variant="outline" size="sm" onClick={() => refetch()}>
+                Retry
+              </Button>
+            </div>
+          ) : hasUnits ? (
+            <>
+              <div className="flex items-center justify-between">
+                <Badge variant="secondary">
+                  {pricingSummary.unitCount} Unit{pricingSummary.unitCount !== 1 ? 's' : ''} Selected
+                </Badge>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => refetch()}
+                  data-testid="button-refresh-pricing"
+                >
+                  <RefreshCw className="h-4 w-4 mr-1" />
+                  Refresh
+                </Button>
               </div>
-              {validationErrors.designFee && (
-                <p className="text-sm text-red-500">{validationErrors.designFee}</p>
+              
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="p-4 rounded-lg bg-muted/50">
+                  <p className="text-sm text-muted-foreground">Total Design Fee</p>
+                  <p className="text-xl font-bold" data-testid="text-total-design-fee">
+                    {formatCurrency(pricingSummary.breakdown.totalDesignFee)}
+                  </p>
+                </div>
+                <div className="p-4 rounded-lg bg-muted/50">
+                  <p className="text-sm text-muted-foreground">Offsite Manufacturing</p>
+                  <p className="text-xl font-bold" data-testid="text-total-offsite">
+                    {formatCurrency(pricingSummary.breakdown.totalOffsite)}
+                  </p>
+                </div>
+                <div className="p-4 rounded-lg bg-muted/50">
+                  <p className="text-sm text-muted-foreground">Onsite Estimate</p>
+                  <p className="text-xl font-bold" data-testid="text-total-onsite">
+                    {formatCurrency(pricingSummary.breakdown.totalOnsite)}
+                  </p>
+                </div>
+                <div className="p-4 rounded-lg bg-primary/10">
+                  <p className="text-sm text-muted-foreground">Grand Total</p>
+                  <p className="text-2xl font-bold text-primary" data-testid="text-grand-total">
+                    {formatCurrency(pricingSummary.grandTotal)}
+                  </p>
+                </div>
+              </div>
+              
+              {pricingSummary.breakdown.totalCustomizations > 0 && (
+                <div className="text-sm text-muted-foreground">
+                  Includes {formatCurrency(pricingSummary.breakdown.totalCustomizations)} in customizations
+                </div>
               )}
-              <p className="text-xs text-muted-foreground">Between $1,000 and $100,000</p>
+            </>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              <p>No units added to this project yet.</p>
+              <p className="text-sm">Go to Step 1 to add home model units.</p>
             </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="revisionRounds">Revision Rounds</Label>
-              <div className="flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  onClick={() => updateProjectData({ designRevisionRounds: Math.max(1, (projectData.designRevisionRounds || 3) - 1) })}
-                  data-testid="button-revisions-minus"
-                >
-                  <Minus className="h-4 w-4" />
-                </Button>
-                <Input
-                  id="revisionRounds"
-                  type="number"
-                  value={projectData.designRevisionRounds || 3}
-                  onChange={(e) => updateProjectData({ designRevisionRounds: parseInt(e.target.value) || 3 })}
-                  className="text-center w-20"
-                  min={1}
-                  max={10}
-                  data-testid="input-revision-rounds"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  onClick={() => updateProjectData({ designRevisionRounds: Math.min(10, (projectData.designRevisionRounds || 3) + 1) })}
-                  data-testid="button-revisions-plus"
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          </div>
+          )}
         </CardContent>
       </Card>
       
@@ -202,243 +210,51 @@ export const Step7Pricing: React.FC = () => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <DollarSign className="h-5 w-5" />
-            Preliminary Pricing
+            Additional Site Work / Buffer
           </CardTitle>
           <CardDescription>
-            Cost breakdown for manufacturing, delivery, and {projectData.serviceModel === 'CMOS' ? 'construction phases' : 'installation'}
+            Extra costs added to the standard model onsite estimates (foundation work, special permits, site access, etc.)
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
             <div className="space-y-2">
-              <Label htmlFor="preliminaryOffsiteCost">
-                Manufacturing (Offsite) <span className="text-red-500">*</span>
-              </Label>
+              <Label htmlFor="additionalSiteWork">Additional Amount (in dollars)</Label>
               <div className="relative">
                 <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  id="preliminaryOffsiteCost"
+                  id="additionalSiteWork"
                   type="number"
-                  value={projectData.preliminaryOffsiteCost || ''}
-                  onChange={(e) => updateProjectData({ preliminaryOffsiteCost: parseInt(e.target.value) || 0 })}
-                  placeholder="Auto-calculated from units"
-                  className={`pl-9 ${validationErrors.preliminaryOffsiteCost ? 'border-red-500' : ''}`}
-                  min={50000}
-                  data-testid="input-offsite-cost"
-                />
-              </div>
-              {validationErrors.preliminaryOffsiteCost && (
-                <p className="text-sm text-red-500">{validationErrors.preliminaryOffsiteCost}</p>
-              )}
-              <p className="text-xs text-muted-foreground">Typically auto-calculated from unit prices</p>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="deliveryInstallationPrice">
-                Delivery & Installation <span className="text-red-500">*</span>
-              </Label>
-              <div className="relative">
-                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="deliveryInstallationPrice"
-                  type="number"
-                  value={projectData.deliveryInstallationPrice || ''}
-                  onChange={(e) => updateProjectData({ deliveryInstallationPrice: parseInt(e.target.value) || 0 })}
-                  placeholder="e.g., 25000"
-                  className={`pl-9 ${validationErrors.deliveryInstallationPrice ? 'border-red-500' : ''}`}
-                  min={5000}
-                  data-testid="input-delivery-price"
-                />
-              </div>
-              {validationErrors.deliveryInstallationPrice && (
-                <p className="text-sm text-red-500">{validationErrors.deliveryInstallationPrice}</p>
-              )}
-            </div>
-          </div>
-          
-          {projectData.serviceModel === 'CMOS' && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t">
-              <div className="space-y-2">
-                <Label htmlFor="sitePrepPrice">
-                  Site Preparation <span className="text-red-500">*</span>
-                </Label>
-                <div className="relative">
-                  <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="sitePrepPrice"
-                    type="number"
-                    value={projectData.sitePrepPrice || ''}
-                    onChange={(e) => updateProjectData({ sitePrepPrice: parseInt(e.target.value) || 0 })}
-                    placeholder="e.g., 50000"
-                    className={`pl-9 ${validationErrors.sitePrepPrice ? 'border-red-500' : ''}`}
-                    min={10000}
-                    data-testid="input-site-prep-price"
-                  />
-                </div>
-                {validationErrors.sitePrepPrice && (
-                  <p className="text-sm text-red-500">{validationErrors.sitePrepPrice}</p>
-                )}
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="utilitiesPrice">
-                  Utilities Connection <span className="text-red-500">*</span>
-                </Label>
-                <div className="relative">
-                  <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="utilitiesPrice"
-                    type="number"
-                    value={projectData.utilitiesPrice || ''}
-                    onChange={(e) => updateProjectData({ utilitiesPrice: parseInt(e.target.value) || 0 })}
-                    placeholder="e.g., 25000"
-                    className={`pl-9 ${validationErrors.utilitiesPrice ? 'border-red-500' : ''}`}
-                    min={5000}
-                    data-testid="input-utilities-price"
-                  />
-                </div>
-                {validationErrors.utilitiesPrice && (
-                  <p className="text-sm text-red-500">{validationErrors.utilitiesPrice}</p>
-                )}
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="completionPrice">
-                  Site Completion <span className="text-red-500">*</span>
-                </Label>
-                <div className="relative">
-                  <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="completionPrice"
-                    type="number"
-                    value={projectData.completionPrice || ''}
-                    onChange={(e) => updateProjectData({ completionPrice: parseInt(e.target.value) || 0 })}
-                    placeholder="e.g., 30000"
-                    className={`pl-9 ${validationErrors.completionPrice ? 'border-red-500' : ''}`}
-                    min={10000}
-                    data-testid="input-completion-price"
-                  />
-                </div>
-                {validationErrors.completionPrice && (
-                  <p className="text-sm text-red-500">{validationErrors.completionPrice}</p>
-                )}
-              </div>
-            </div>
-          )}
-          
-          <div className="flex items-center justify-between p-4 bg-primary/10 rounded-lg">
-            <span className="font-medium">Total Preliminary Contract Price</span>
-            <span className="text-2xl font-bold">{formatCurrency(totalContractPrice)}</span>
-          </div>
-        </CardContent>
-      </Card>
-      
-      <Card>
-        <CardHeader>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Percent className="h-5 w-5" />
-                Payment Milestones
-              </CardTitle>
-              <CardDescription>
-                Five payment milestones must sum to exactly 95% (5% retainage)
-              </CardDescription>
-            </div>
-            <div className="flex items-center gap-2">
-              {isMilestoneValid ? (
-                <Badge variant="secondary" className="gap-1">
-                  <CheckCircle2 className="h-3 w-3 text-green-500" />
-                  {milestoneSum}% - Valid
-                </Badge>
-              ) : (
-                <Badge variant="destructive" className="gap-1">
-                  <AlertTriangle className="h-3 w-3" />
-                  {milestoneSum}% - Must be 95%
-                </Badge>
-              )}
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            {[1, 2, 3, 4, 5].map((num) => {
-              const field = `milestone${num}Percent` as keyof typeof projectData;
-              const value = (projectData as any)[field] || 0;
-              return (
-                <div key={num} className="space-y-2">
-                  <Label className="text-center block">Milestone {num}</Label>
-                  <div className="flex items-center gap-1">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      onClick={() => adjustMilestone(field, -5)}
-                      data-testid={`button-milestone-${num}-minus`}
-                    >
-                      <Minus className="h-4 w-4" />
-                    </Button>
-                    <div className="relative flex-1">
-                      <Input
-                        type="number"
-                        value={value}
-                        onChange={(e) => updateProjectData({ [field]: parseInt(e.target.value) || 0 })}
-                        className="text-center pr-6"
-                        min={0}
-                        max={100}
-                        data-testid={`input-milestone-${num}`}
-                      />
-                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground">%</span>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      onClick={() => adjustMilestone(field, 5)}
-                      data-testid={`button-milestone-${num}-plus`}
-                    >
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          {validationErrors.milestones && (
-            <p className="text-sm text-red-500 text-center">{validationErrors.milestones}</p>
-          )}
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
-            <div className="space-y-2">
-              <Label htmlFor="retainagePercent">Retainage Percent</Label>
-              <div className="relative">
-                <Input
-                  id="retainagePercent"
-                  type="number"
-                  value={projectData.retainagePercent || 5}
-                  onChange={(e) => updateProjectData({ retainagePercent: parseInt(e.target.value) || 5 })}
-                  className="pr-6"
+                  value={additionalSiteWork / 100 || ''}
+                  onChange={(e) => setAdditionalSiteWork(Math.round(parseFloat(e.target.value || '0') * 100))}
+                  placeholder="0"
+                  className="pl-9"
                   min={0}
-                  max={10}
-                  data-testid="input-retainage-percent"
+                  data-testid="input-additional-site-work"
                 />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">%</span>
               </div>
-              <p className="text-xs text-muted-foreground">Held until project completion</p>
+              <p className="text-xs text-muted-foreground">
+                This amount is added to the Total Onsite Estimate calculated from your units
+              </p>
             </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="retainageDays">Retainage Release Days</Label>
-              <Input
-                id="retainageDays"
-                type="number"
-                value={projectData.retainageDays || 30}
-                onChange={(e) => updateProjectData({ retainageDays: parseInt(e.target.value) || 30 })}
-                min={15}
-                max={90}
-                data-testid="input-retainage-days"
-              />
-              <p className="text-xs text-muted-foreground">Days after completion to release retainage</p>
+            <div>
+              <Button 
+                onClick={handleSaveAndRecalculate}
+                disabled={isSaving || !draftProjectId}
+                data-testid="button-save-recalculate"
+              >
+                {isSaving ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Save & Recalculate
+                  </>
+                )}
+              </Button>
             </div>
           </div>
         </CardContent>
@@ -447,83 +263,63 @@ export const Step7Pricing: React.FC = () => {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <DollarSign className="h-5 w-5" />
-            Manufacturing Payment Schedule
+            <Receipt className="h-5 w-5" />
+            Payment Schedule
           </CardTitle>
           <CardDescription>
-            Payment amounts for manufacturing subcontract
+            Milestone-based payment breakdown generated from pricing engine
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <CardContent>
+          {isLoading ? (
             <div className="space-y-2">
-              <Label htmlFor="manufacturingDesignPayment">Design Payment</Label>
-              <div className="relative">
-                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="manufacturingDesignPayment"
-                  type="number"
-                  value={projectData.manufacturingDesignPayment || projectData.designFee || ''}
-                  onChange={(e) => updateProjectData({ manufacturingDesignPayment: parseInt(e.target.value) || 0 })}
-                  placeholder="Auto-synced from design fee"
-                  className="pl-9"
-                  data-testid="input-mfg-design-payment"
-                />
-              </div>
-              <p className="text-xs text-muted-foreground">Due upon design approval</p>
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <Skeleton key={i} className="h-10 w-full" />
+              ))}
             </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="productionStartPayment">Production Start Payment</Label>
-              <div className="relative">
-                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="productionStartPayment"
-                  type="number"
-                  value={projectData.manufacturingProductionStart || ''}
-                  onChange={(e) => updateProjectData({ manufacturingProductionStart: parseInt(e.target.value) || 0 })}
-                  placeholder="e.g., 100000"
-                  className="pl-9"
-                  data-testid="input-production-start-payment"
-                />
-              </div>
-              <p className="text-xs text-muted-foreground">Due when manufacturing begins</p>
+          ) : pricingSummary && pricingSummary.paymentSchedule.length > 0 ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Phase Name</TableHead>
+                  <TableHead className="text-center">%</TableHead>
+                  <TableHead className="text-right">Amount</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {pricingSummary.paymentSchedule.map((item, index) => (
+                  <TableRow key={index} data-testid={`row-payment-schedule-${index}`}>
+                    <TableCell>
+                      <div>
+                        <span className="font-medium">{item.name}</span>
+                        <Badge variant="outline" className="ml-2 text-xs">
+                          {item.phase}
+                        </Badge>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-center">{item.percentage}%</TableCell>
+                    <TableCell className="text-right font-medium">
+                      {formatCurrency(item.amount)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+                <TableRow className="font-bold bg-muted/30">
+                  <TableCell>Total</TableCell>
+                  <TableCell className="text-center">
+                    {pricingSummary.paymentSchedule.reduce((sum, item) => sum + item.percentage, 0)}%
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {formatCurrency(pricingSummary.paymentSchedule.reduce((sum, item) => sum + item.amount, 0))}
+                  </TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              <p>No payment schedule available.</p>
+              <p className="text-sm">Add units in Step 1 to generate a payment schedule.</p>
             </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="productionCompletePayment">Production Complete Payment</Label>
-              <div className="relative">
-                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="productionCompletePayment"
-                  type="number"
-                  value={projectData.manufacturingProductionComplete || ''}
-                  onChange={(e) => updateProjectData({ manufacturingProductionComplete: parseInt(e.target.value) || 0 })}
-                  placeholder="e.g., 150000"
-                  className="pl-9"
-                  data-testid="input-production-complete-payment"
-                />
-              </div>
-              <p className="text-xs text-muted-foreground">Due when manufacturing is complete</p>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="deliveryReadyPayment">Delivery Ready Payment</Label>
-              <div className="relative">
-                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="deliveryReadyPayment"
-                  type="number"
-                  value={projectData.manufacturingDeliveryReady || ''}
-                  onChange={(e) => updateProjectData({ manufacturingDeliveryReady: parseInt(e.target.value) || 0 })}
-                  placeholder="e.g., 50000"
-                  className="pl-9"
-                  data-testid="input-delivery-ready-payment"
-                />
-              </div>
-              <p className="text-xs text-muted-foreground">Due when ready for delivery</p>
-            </div>
-          </div>
+          )}
         </CardContent>
       </Card>
       
@@ -533,11 +329,11 @@ export const Step7Pricing: React.FC = () => {
             <div>
               <p className="text-sm font-medium">Contract Variables</p>
               <p className="text-xs text-muted-foreground">
-                This step populates 15+ financial contract variables
+                Pricing data flows into contract generation automatically
               </p>
             </div>
             <Badge variant="secondary" className="text-xs">
-              DESIGN_FEE, TOTAL_CONTRACT_PRICE, MILESTONE_1-5, RETAINAGE
+              GRAND_TOTAL, DESIGN_FEE, OFFSITE_COST, ONSITE_ESTIMATE
             </Badge>
           </div>
         </CardContent>
