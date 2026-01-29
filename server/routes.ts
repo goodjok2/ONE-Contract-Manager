@@ -14,6 +14,8 @@ import {
   contracts,
   llcs,
   clauses,
+  homeModels,
+  projectUnits,
 } from "../shared/schema";
 import { eq, and, sql, desc, count } from "drizzle-orm";
 import Docxtemplater from "docxtemplater";
@@ -341,6 +343,79 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       console.error('Variable audit error:', error);
       res.status(500).json({ 
         error: 'Failed to audit variables', 
+        message: error.message 
+      });
+    }
+  });
+
+  // ---------------------------------------------------------------------------
+  // DEBUG - Seed Home Models (temporary)
+  // ---------------------------------------------------------------------------
+  
+  app.get('/api/debug/seed-models', async (req, res) => {
+    try {
+      // Check if home_models table already has data
+      const existingModels = await db.select().from(homeModels);
+      
+      if (existingModels.length > 0) {
+        return res.json({
+          message: 'Home models already seeded',
+          count: existingModels.length,
+          models: existingModels
+        });
+      }
+      
+      // Seed the three example models (prices stored in cents)
+      const seedData = [
+        {
+          name: 'Trinity',
+          modelCode: 'TRINITY-3000',
+          bedrooms: 4,
+          bathrooms: 3.5,
+          sqFt: 3000,
+          designFee: 5000000,      // $50,000 in cents
+          offsiteBasePrice: 85000000,  // $850,000 in cents
+          onsiteEstPrice: 45000000,    // $450,000 in cents
+          isActive: true
+        },
+        {
+          name: 'Salt Point',
+          modelCode: 'SALTPOINT-1800',
+          bedrooms: 3,
+          bathrooms: 2.0,
+          sqFt: 1800,
+          designFee: 3500000,      // $35,000 in cents
+          offsiteBasePrice: 55000000,  // $550,000 in cents
+          onsiteEstPrice: 30000000,    // $300,000 in cents
+          isActive: true
+        },
+        {
+          name: 'Mini-Mod',
+          modelCode: 'MINIMOD-600',
+          bedrooms: 1,
+          bathrooms: 1.0,
+          sqFt: 600,
+          designFee: 1000000,      // $10,000 in cents
+          offsiteBasePrice: 18000000,  // $180,000 in cents
+          onsiteEstPrice: 10000000,    // $100,000 in cents
+          isActive: true
+        }
+      ];
+      
+      const insertedModels = await db.insert(homeModels).values(seedData).returning();
+      
+      console.log(`Seeded ${insertedModels.length} home models`);
+      
+      res.json({
+        message: 'Home models seeded successfully',
+        count: insertedModels.length,
+        models: insertedModels
+      });
+      
+    } catch (error: any) {
+      console.error('Seed models error:', error);
+      res.status(500).json({ 
+        error: 'Failed to seed home models', 
         message: error.message 
       });
     }

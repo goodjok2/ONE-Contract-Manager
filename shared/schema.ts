@@ -7,6 +7,22 @@ import { z } from "zod";
 // CORE TABLES
 // =============================================================================
 
+// Home Models Catalog - The catalog of available home models
+export const homeModels = pgTable("home_models", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  modelCode: text("model_code").notNull(),
+  bedrooms: integer("bedrooms").notNull(),
+  bathrooms: real("bathrooms").notNull(),
+  sqFt: integer("sq_ft").notNull(),
+  designFee: integer("design_fee").notNull(), // Store in cents
+  offsiteBasePrice: integer("offsite_base_price").notNull(), // Store in cents
+  onsiteEstPrice: integer("onsite_est_price").notNull(), // Store in cents
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const projects = pgTable("projects", {
   id: serial("id").primaryKey(),
   projectNumber: text("project_number").unique().notNull(),
@@ -16,6 +32,22 @@ export const projects = pgTable("projects", {
   onSiteSelection: text("on_site_selection").default("CRC"), // CRC or CMOS
   llcId: integer("llc_id"), // Link to LLC - supports one-to-many (one LLC can serve multiple projects)
   odooProjectId: integer("odoo_project_id"), // Link to Odoo
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Project Units - Instances of home models assigned to projects
+export const projectUnits = pgTable("project_units", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id")
+    .references(() => projects.id, { onDelete: "cascade" })
+    .notNull(),
+  modelId: integer("model_id")
+    .references(() => homeModels.id)
+    .notNull(),
+  unitLabel: text("unit_label").notNull(), // e.g., "Unit A", "Unit B"
+  basePriceSnapshot: integer("base_price_snapshot").notNull(), // Snapshot of offsite price at time of assignment
+  customizationTotal: integer("customization_total").default(0), // Additional customization costs in cents
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -422,6 +454,22 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   milestones: many(milestones),
   contractors: many(contractors),
   contracts: many(contracts),
+  projectUnits: many(projectUnits),
+}));
+
+export const homeModelsRelations = relations(homeModels, ({ many }) => ({
+  projectUnits: many(projectUnits),
+}));
+
+export const projectUnitsRelations = relations(projectUnits, ({ one }) => ({
+  project: one(projects, {
+    fields: [projectUnits.projectId],
+    references: [projects.id],
+  }),
+  model: one(homeModels, {
+    fields: [projectUnits.modelId],
+    references: [homeModels.id],
+  }),
 }));
 
 export const clientsRelations = relations(clients, ({ one }) => ({
@@ -510,6 +558,12 @@ export type NewClause = typeof clauses.$inferInsert;
 export type ContractVariable = typeof contractVariables.$inferSelect;
 export type NewContractVariable = typeof contractVariables.$inferInsert;
 
+export type HomeModel = typeof homeModels.$inferSelect;
+export type NewHomeModel = typeof homeModels.$inferInsert;
+
+export type ProjectUnit = typeof projectUnits.$inferSelect;
+export type NewProjectUnit = typeof projectUnits.$inferInsert;
+
 // =============================================================================
 // ZOD SCHEMAS (for form validation)
 // =============================================================================
@@ -528,6 +582,11 @@ export const insertMilestoneSchema = createInsertSchema(milestones);
 export const insertContractorSchema = createInsertSchema(contractors);
 export const insertWarrantyTermSchema = createInsertSchema(warrantyTerms);
 export const insertProjectDetailsSchema = createInsertSchema(projectDetails);
+
+export const insertHomeModelSchema = createInsertSchema(homeModels);
+export const selectHomeModelSchema = createSelectSchema(homeModels);
+export const insertProjectUnitSchema = createInsertSchema(projectUnits);
+export const selectProjectUnitSchema = createSelectSchema(projectUnits);
 
 // =============================================================================
 // LEGACY COMPATIBILITY (for existing llc-admin page)
