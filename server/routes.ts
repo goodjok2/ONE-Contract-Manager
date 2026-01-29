@@ -2297,23 +2297,89 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       }
       
       // Map to flat variable structure
-      const { mapProjectToVariables } = await import('./lib/mapper');
+      const { mapProjectToVariables, formatCentsAsCurrency, centsToDollars } = await import('./lib/mapper');
       const projectData = mapProjectToVariables(fullProject);
       
       console.log(`\n=== Generating ALL contracts as ZIP for project ${projectId} ===`);
       console.log(`Project: ${projectData.PROJECT_NUMBER} - ${projectData.PROJECT_NAME}`);
-      console.log(`DEBUG Financials from DB:`, JSON.stringify({
-        designFee: fullProject.financials?.designFee,
-        prelimOffsite: fullProject.financials?.prelimOffsite,
-        prelimOnsite: fullProject.financials?.prelimOnsite,
-        prelimContractPrice: fullProject.financials?.prelimContractPrice
-      }));
-      console.log(`DEBUG Mapped Variables:`, JSON.stringify({
-        DESIGN_FEE: projectData.DESIGN_FEE,
-        PRELIMINARY_OFFSITE_PRICE: projectData.PRELIMINARY_OFFSITE_PRICE,
-        PRELIMINARY_ONSITE_PRICE: projectData.PRELIMINARY_ONSITE_PRICE,
-        PRELIMINARY_CONTRACT_PRICE: projectData.PRELIMINARY_CONTRACT_PRICE
-      }));
+      
+      // =====================================================================
+      // PHASE 4: Inject Pricing Engine Data
+      // =====================================================================
+      const { calculateProjectPricing } = await import('./services/pricingEngine');
+      
+      try {
+        const pricingSummary = await calculateProjectPricing(projectId);
+        
+        // Fetch project units for unit summary
+        const projectUnitsData = await db
+          .select({
+            unitLabel: projectUnits.unitLabel,
+            modelName: homeModels.name,
+          })
+          .from(projectUnits)
+          .innerJoin(homeModels, eq(projectUnits.modelId, homeModels.id))
+          .where(eq(projectUnits.projectId, projectId));
+        
+        if (pricingSummary.unitCount > 0) {
+          // Override financial variables with pricing engine data
+          projectData.DESIGN_FEE = centsToDollars(pricingSummary.breakdown.totalDesignFee);
+          projectData.DESIGN_FEE_WRITTEN = formatCentsAsCurrency(pricingSummary.breakdown.totalDesignFee);
+          projectData.PRELIM_OFFSITE = centsToDollars(pricingSummary.breakdown.totalOffsite);
+          projectData.PRELIM_OFFSITE_WRITTEN = formatCentsAsCurrency(pricingSummary.breakdown.totalOffsite);
+          projectData.PRELIMINARY_OFFSITE_PRICE = formatCentsAsCurrency(pricingSummary.breakdown.totalOffsite);
+          projectData.PRELIM_ONSITE = centsToDollars(pricingSummary.breakdown.totalOnsite);
+          projectData.PRELIM_ONSITE_WRITTEN = formatCentsAsCurrency(pricingSummary.breakdown.totalOnsite);
+          projectData.PRELIMINARY_ONSITE_PRICE = formatCentsAsCurrency(pricingSummary.breakdown.totalOnsite);
+          projectData.PRELIM_CONTRACT_PRICE = centsToDollars(pricingSummary.grandTotal);
+          projectData.PRELIM_CONTRACT_PRICE_WRITTEN = formatCentsAsCurrency(pricingSummary.grandTotal);
+          projectData.PRELIMINARY_CONTRACT_PRICE = formatCentsAsCurrency(pricingSummary.grandTotal);
+          projectData.PRELIMINARY_TOTAL_PRICE = formatCentsAsCurrency(pricingSummary.grandTotal);
+          projectData.FINAL_CONTRACT_PRICE = centsToDollars(pricingSummary.grandTotal);
+          projectData.FINAL_CONTRACT_PRICE_WRITTEN = formatCentsAsCurrency(pricingSummary.grandTotal);
+          projectData.CONTRACT_PRICE = formatCentsAsCurrency(pricingSummary.grandTotal);
+          
+          // Inject milestone data from payment schedule
+          pricingSummary.paymentSchedule.forEach((milestone, index) => {
+            const num = index + 1;
+            projectData[`MILESTONE_${num}_NAME`] = milestone.name;
+            projectData[`MILESTONE_${num}_PERCENT`] = `${milestone.percentage}%`;
+            projectData[`MILESTONE_${num}_AMOUNT`] = formatCentsAsCurrency(milestone.amount);
+            projectData[`MILESTONE_${num}_PHASE`] = milestone.phase;
+            projectData[`CLIENT_MILESTONE_${num}_NAME`] = milestone.name;
+            projectData[`CLIENT_MILESTONE_${num}_PERCENT`] = `${milestone.percentage}%`;
+            projectData[`CLIENT_MILESTONE_${num}_AMOUNT`] = formatCentsAsCurrency(milestone.amount);
+            
+            // Handle retainage specifically (last milestone)
+            if (milestone.name === 'Retainage' || milestone.name.toLowerCase().includes('retainage')) {
+              projectData.RETAINAGE_PERCENT = `${milestone.percentage}%`;
+              projectData.RETAINAGE_AMOUNT = formatCentsAsCurrency(milestone.amount);
+            }
+          });
+          
+          // Create unit summary string
+          const unitCounts: Record<string, { count: number; labels: string[] }> = {};
+          projectUnitsData.forEach(unit => {
+            if (!unitCounts[unit.modelName]) {
+              unitCounts[unit.modelName] = { count: 0, labels: [] };
+            }
+            unitCounts[unit.modelName].count++;
+            unitCounts[unit.modelName].labels.push(unit.unitLabel);
+          });
+          
+          const unitSummaryParts = Object.entries(unitCounts).map(([model, data]) => 
+            `${data.count}x ${model} (${data.labels.join(', ')})`
+          );
+          const unitSummary = `${pricingSummary.unitCount} Unit${pricingSummary.unitCount !== 1 ? 's' : ''}: ${unitSummaryParts.join(', ')}`;
+          
+          projectData.HOME_MODEL = unitSummary;
+          projectData.TOTAL_UNITS = pricingSummary.unitCount;
+          
+          console.log(`Pricing Engine injected: Grand Total = ${formatCentsAsCurrency(pricingSummary.grandTotal)}, Units = ${pricingSummary.unitCount}`);
+        }
+      } catch (pricingError) {
+        console.warn('Pricing engine calculation failed, using legacy values:', pricingError);
+      }
       
       const { generateContract, getContractFilename } = await import('./lib/contractGenerator');
       const archiver = (await import('archiver')).default;
@@ -2394,12 +2460,91 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         }
         
         // Map to flat variable structure using the mapper
-        const { mapProjectToVariables } = await import('./lib/mapper');
+        const { mapProjectToVariables, formatCentsAsCurrency, centsToDollars } = await import('./lib/mapper');
         projectData = mapProjectToVariables(fullProject);
         
         console.log(`\n=== Generating ${contractType} contract for project ${projectId} ===`);
         console.log(`Project: ${projectData.PROJECT_NUMBER} - ${projectData.PROJECT_NAME}`);
         console.log(`Service Model: ${projectData.ON_SITE_SELECTION}`);
+        
+        // =====================================================================
+        // PHASE 4: Inject Pricing Engine Data
+        // =====================================================================
+        const { calculateProjectPricing } = await import('./services/pricingEngine');
+        
+        try {
+          const pricingSummary = await calculateProjectPricing(projectId);
+          
+          // Fetch project units for unit summary
+          const projectUnitsData = await db
+            .select({
+              unitLabel: projectUnits.unitLabel,
+              modelName: homeModels.name,
+            })
+            .from(projectUnits)
+            .innerJoin(homeModels, eq(projectUnits.modelId, homeModels.id))
+            .where(eq(projectUnits.projectId, projectId));
+          
+          if (pricingSummary.unitCount > 0) {
+            // Override financial variables with pricing engine data
+            projectData.DESIGN_FEE = centsToDollars(pricingSummary.breakdown.totalDesignFee);
+            projectData.DESIGN_FEE_WRITTEN = formatCentsAsCurrency(pricingSummary.breakdown.totalDesignFee);
+            projectData.PRELIM_OFFSITE = centsToDollars(pricingSummary.breakdown.totalOffsite);
+            projectData.PRELIM_OFFSITE_WRITTEN = formatCentsAsCurrency(pricingSummary.breakdown.totalOffsite);
+            projectData.PRELIMINARY_OFFSITE_PRICE = formatCentsAsCurrency(pricingSummary.breakdown.totalOffsite);
+            projectData.PRELIM_ONSITE = centsToDollars(pricingSummary.breakdown.totalOnsite);
+            projectData.PRELIM_ONSITE_WRITTEN = formatCentsAsCurrency(pricingSummary.breakdown.totalOnsite);
+            projectData.PRELIMINARY_ONSITE_PRICE = formatCentsAsCurrency(pricingSummary.breakdown.totalOnsite);
+            projectData.PRELIM_CONTRACT_PRICE = centsToDollars(pricingSummary.grandTotal);
+            projectData.PRELIM_CONTRACT_PRICE_WRITTEN = formatCentsAsCurrency(pricingSummary.grandTotal);
+            projectData.PRELIMINARY_CONTRACT_PRICE = formatCentsAsCurrency(pricingSummary.grandTotal);
+            projectData.PRELIMINARY_TOTAL_PRICE = formatCentsAsCurrency(pricingSummary.grandTotal);
+            projectData.FINAL_CONTRACT_PRICE = centsToDollars(pricingSummary.grandTotal);
+            projectData.FINAL_CONTRACT_PRICE_WRITTEN = formatCentsAsCurrency(pricingSummary.grandTotal);
+            projectData.CONTRACT_PRICE = formatCentsAsCurrency(pricingSummary.grandTotal);
+            
+            // Inject milestone data from payment schedule
+            pricingSummary.paymentSchedule.forEach((milestone, index) => {
+              const num = index + 1;
+              projectData[`MILESTONE_${num}_NAME`] = milestone.name;
+              projectData[`MILESTONE_${num}_PERCENT`] = `${milestone.percentage}%`;
+              projectData[`MILESTONE_${num}_AMOUNT`] = formatCentsAsCurrency(milestone.amount);
+              projectData[`MILESTONE_${num}_PHASE`] = milestone.phase;
+              // Also set for CLIENT_ prefixed milestones
+              projectData[`CLIENT_MILESTONE_${num}_NAME`] = milestone.name;
+              projectData[`CLIENT_MILESTONE_${num}_PERCENT`] = `${milestone.percentage}%`;
+              projectData[`CLIENT_MILESTONE_${num}_AMOUNT`] = formatCentsAsCurrency(milestone.amount);
+              
+              // Handle retainage specifically (last milestone)
+              if (milestone.name === 'Retainage' || milestone.name.toLowerCase().includes('retainage')) {
+                projectData.RETAINAGE_PERCENT = `${milestone.percentage}%`;
+                projectData.RETAINAGE_AMOUNT = formatCentsAsCurrency(milestone.amount);
+              }
+            });
+            
+            // Create unit summary string
+            const unitCounts: Record<string, { count: number; labels: string[] }> = {};
+            projectUnitsData.forEach(unit => {
+              if (!unitCounts[unit.modelName]) {
+                unitCounts[unit.modelName] = { count: 0, labels: [] };
+              }
+              unitCounts[unit.modelName].count++;
+              unitCounts[unit.modelName].labels.push(unit.unitLabel);
+            });
+            
+            const unitSummaryParts = Object.entries(unitCounts).map(([model, data]) => 
+              `${data.count}x ${model} (${data.labels.join(', ')})`
+            );
+            const unitSummary = `${pricingSummary.unitCount} Unit${pricingSummary.unitCount !== 1 ? 's' : ''}: ${unitSummaryParts.join(', ')}`;
+            
+            projectData.HOME_MODEL = unitSummary;
+            projectData.TOTAL_UNITS = pricingSummary.unitCount;
+            
+            console.log(`Pricing Engine injected: Grand Total = ${formatCentsAsCurrency(pricingSummary.grandTotal)}, Units = ${pricingSummary.unitCount}`);
+          }
+        } catch (pricingError) {
+          console.warn('Pricing engine calculation failed, using legacy values:', pricingError);
+        }
       } else if (legacyProjectData) {
         // Legacy approach: use provided projectData directly
         projectData = legacyProjectData;

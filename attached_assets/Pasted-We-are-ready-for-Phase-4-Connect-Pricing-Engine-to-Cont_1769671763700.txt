@@ -1,0 +1,33 @@
+We are ready for **Phase 4: Connect Pricing Engine to Contract Generation**.
+
+We need to ensure the generated contracts use the exact same numbers as our new Pricing Engine/UI, rather than relying on legacy fields or internal recalculations.
+
+**Task: Update `server/routes.ts` to inject Pricing Data**
+
+Please modify the `POST /api/contracts/download-pdf` endpoint (and any other generation endpoints like `/generate/:contractType`) to include the following logic *before* calling `generateContract`:
+
+1.  **Fetch New Data:**
+    * Call `calculateProjectPricing(projectId)` to get the fresh `pricingSummary`.
+    * Fetch the `project_units` (joined with `home_models`) for this project.
+
+2.  **Override Variables:**
+    After getting the base `variables` from `mapProjectToVariables(projectData)`, explicitely **overwrite** the financial fields with the `pricingSummary` values:
+    * `DESIGN_FEE` = `pricingSummary.breakdown.totalDesignFee`
+    * `PRELIMINARY_OFFSITE_PRICE` = `pricingSummary.breakdown.totalOffsite`
+    * `PRELIMINARY_ONSITE_PRICE` = `pricingSummary.breakdown.totalOnsite`
+    * `TOTAL_PRELIMINARY_CONTRACT_PRICE` = `pricingSummary.grandTotal`
+    * `FINAL_CONTRACT_PRICE` = `pricingSummary.grandTotal`
+
+3.  **Inject Milestone Data:**
+    * Iterate through `pricingSummary.paymentSchedule`.
+    * Map each item to the contract variables: `MILESTONE_1_AMOUNT`, `MILESTONE_1_PERCENT`, `MILESTONE_2_AMOUNT`, etc.
+    * Ensure amounts are formatted as currency.
+
+4.  **Inject Unit Summary:**
+    * Create a summary string of the units (e.g., "3 Units: 1x Trinity (Unit A), 1x Salt Point (Unit B)").
+    * Map this string to the `HOME_MODEL` variable (so it replaces the single model name in the contract).
+    * Update `TOTAL_UNITS` to `projectUnits.length`.
+
+**Goal:** The `generateContract` function should receive a `projectData` object that already contains the final, correct numbers, forcing it to skip its own internal math (since the keys are uppercase).
+
+After completion, please confirm that generating a contract for a project with multiple units correctly displays the aggregated "Grand Total" and lists all units in the "Home Model" section.

@@ -37,7 +37,8 @@ interface ProjectUnit {
 export const Step1ProjectInfo: React.FC = () => {
   const { 
     wizardState, 
-    updateProjectData
+    updateProjectData,
+    draftProjectId
   } = useWizard();
   
   const queryClient = useQueryClient();
@@ -52,13 +53,13 @@ export const Step1ProjectInfo: React.FC = () => {
   });
 
   const { data: projectUnits = [], isLoading: unitsLoading, refetch: refetchUnits } = useQuery<ProjectUnit[]>({
-    queryKey: ['/api/projects', projectData.projectId, 'units'],
-    enabled: !!projectData.projectId,
+    queryKey: ['/api/projects', draftProjectId, 'units'],
+    enabled: !!draftProjectId,
   });
 
   const addUnitMutation = useMutation({
     mutationFn: async (modelId: number) => {
-      return apiRequest('POST', `/api/projects/${projectData.projectId}/units`, { modelId });
+      return apiRequest('POST', `/api/projects/${draftProjectId}/units`, { modelId });
     },
     onSuccess: () => {
       refetchUnits();
@@ -137,7 +138,7 @@ export const Step1ProjectInfo: React.FC = () => {
   };
 
   const handleAddUnit = () => {
-    if (selectedModelId && projectData.projectId) {
+    if (selectedModelId && draftProjectId) {
       addUnitMutation.mutate(parseInt(selectedModelId));
     }
   };
@@ -273,7 +274,7 @@ export const Step1ProjectInfo: React.FC = () => {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {projectData.projectId ? (
+          {draftProjectId ? (
             <>
               <div className="flex gap-2 items-end">
                 <div className="flex-1">
