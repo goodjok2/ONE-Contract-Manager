@@ -1,12 +1,38 @@
 import { useState, useEffect, useRef } from 'react';
 import { useWizard } from '../WizardContext';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { HelpCircle, RefreshCw, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { HelpCircle, RefreshCw, AlertTriangle, CheckCircle, Plus, Trash2, Home } from 'lucide-react';
+import { apiRequest } from '@/lib/queryClient';
+
+interface HomeModel {
+  id: number;
+  name: string;
+  modelCode: string;
+  bedrooms: number;
+  bathrooms: number;
+  sqFt: number;
+  designFee: number;
+  offsiteBasePrice: number;
+  onsiteEstPrice: number;
+}
+
+interface ProjectUnit {
+  id: number;
+  projectId: number;
+  modelId: number;
+  unitLabel: string;
+  basePriceSnapshot: number;
+  customizationTotal: number;
+  model: HomeModel;
+}
 
 export const Step1ProjectInfo: React.FC = () => {
   const { 
@@ -14,10 +40,46 @@ export const Step1ProjectInfo: React.FC = () => {
     updateProjectData
   } = useWizard();
   
+  const queryClient = useQueryClient();
   const [projectNumberStatus, setProjectNumberStatus] = useState<'idle' | 'checking' | 'exists' | 'available'>('idle');
+  const [selectedModelId, setSelectedModelId] = useState<string>('');
   const checkTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   const { projectData, validationErrors } = wizardState;
+
+  const { data: homeModels = [], isLoading: modelsLoading } = useQuery<HomeModel[]>({
+    queryKey: ['/api/home-models'],
+  });
+
+  const { data: projectUnits = [], isLoading: unitsLoading, refetch: refetchUnits } = useQuery<ProjectUnit[]>({
+    queryKey: ['/api/projects', projectData.projectId, 'units'],
+    enabled: !!projectData.projectId,
+  });
+
+  const addUnitMutation = useMutation({
+    mutationFn: async (modelId: number) => {
+      return apiRequest('POST', `/api/projects/${projectData.projectId}/units`, { modelId });
+    },
+    onSuccess: () => {
+      refetchUnits();
+      setSelectedModelId('');
+    },
+  });
+
+  const deleteUnitMutation = useMutation({
+    mutationFn: async (unitId: number) => {
+      return apiRequest('DELETE', `/api/project-units/${unitId}`);
+    },
+    onSuccess: () => {
+      refetchUnits();
+    },
+  });
+
+  useEffect(() => {
+    if (projectUnits.length !== projectData.totalUnits) {
+      updateProjectData({ totalUnits: projectUnits.length || 1 });
+    }
+  }, [projectUnits.length]);
   
   const generateProjectNumber = () => {
     const year = new Date().getFullYear();
@@ -25,16 +87,13 @@ export const Step1ProjectInfo: React.FC = () => {
     return `${year}-${random}`;
   };
   
-  // Check project number availability with debounce
   useEffect(() => {
     const projectNumber = projectData.projectNumber;
     
-    // Clear any pending check
     if (checkTimeoutRef.current) {
       clearTimeout(checkTimeoutRef.current);
     }
     
-    // Skip check for empty, draft numbers, or very short numbers
     if (!projectNumber || projectNumber.length < 4 || projectNumber.includes('DRAFT')) {
       setProjectNumberStatus('idle');
       return;
@@ -42,14 +101,12 @@ export const Step1ProjectInfo: React.FC = () => {
     
     setProjectNumberStatus('checking');
     
-    // Debounce the check by 500ms - capture projectNumber to guard against stale responses
     const numberToCheck = projectNumber;
     checkTimeoutRef.current = setTimeout(async () => {
       try {
         const response = await fetch(`/api/projects/check-number/${encodeURIComponent(numberToCheck)}`);
-        // Guard against stale responses - only update if still checking this number
         if (projectData.projectNumber !== numberToCheck) {
-          return; // Ignore stale response
+          return;
         }
         if (response.ok) {
           const data = await response.json();
@@ -69,8 +126,25 @@ export const Step1ProjectInfo: React.FC = () => {
       }
     };
   }, [projectData.projectNumber]);
-  
-  // Note: Project number auto-population is handled in WizardContext via the /api/projects/next-number API
+
+  const formatCurrency = (cents: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(cents / 100);
+  };
+
+  const handleAddUnit = () => {
+    if (selectedModelId && projectData.projectId) {
+      addUnitMutation.mutate(parseInt(selectedModelId));
+    }
+  };
+
+  const handleDeleteUnit = (unitId: number) => {
+    deleteUnitMutation.mutate(unitId);
+  };
   
   return (
     <div className="space-y-6">
@@ -167,65 +241,6 @@ export const Step1ProjectInfo: React.FC = () => {
           </div>
           
           <div className="space-y-2">
-            <Label htmlFor="totalUnits" className="flex items-center gap-2">
-              Total Units <span className="text-red-500">*</span>
-              <Tooltip>
-                <TooltipTrigger>
-                  <HelpCircle className="h-4 w-4 text-muted-foreground" />
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Number of dwelling units in this project (1-50)</p>
-                </TooltipContent>
-              </Tooltip>
-            </Label>
-            <div className="flex items-center gap-3">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => updateProjectData({ 
-                  totalUnits: Math.max(1, projectData.totalUnits - 1) 
-                })}
-                disabled={projectData.totalUnits <= 1}
-                data-testid="button-decrease-units"
-              >
-                -
-              </Button>
-              <Input
-                id="totalUnits"
-                type="number"
-                value={projectData.totalUnits}
-                onChange={(e) => updateProjectData({ 
-                  totalUnits: parseInt(e.target.value) || 1 
-                })}
-                min="1"
-                max="50"
-                className={`w-24 text-center ${validationErrors.totalUnits ? 'border-red-500' : ''}`}
-                data-testid="input-total-units"
-              />
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => updateProjectData({ 
-                  totalUnits: Math.min(50, projectData.totalUnits + 1) 
-                })}
-                disabled={projectData.totalUnits >= 50}
-                data-testid="button-increase-units"
-              >
-                +
-              </Button>
-            </div>
-            {projectData.totalUnits > 10 && (
-              <div className="flex items-center gap-2 text-sm text-orange-600">
-                <HelpCircle className="h-4 w-4" />
-                <span>Multi-unit project will use extended exhibits</span>
-              </div>
-            )}
-            {validationErrors.totalUnits && (
-              <p className="text-sm text-red-500">{validationErrors.totalUnits}</p>
-            )}
-          </div>
-          
-          <div className="space-y-2">
             <Label htmlFor="agreementDate" className="flex items-center gap-2">
               Agreement Execution Date <span className="text-red-500">*</span>
             </Label>
@@ -244,6 +259,122 @@ export const Step1ProjectInfo: React.FC = () => {
               Date when the contract will be signed
             </p>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Home className="h-5 w-5" />
+            Unit Builder
+          </CardTitle>
+          <CardDescription>
+            Select home models to add to this project. Each unit will be priced individually.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {projectData.projectId ? (
+            <>
+              <div className="flex gap-2 items-end">
+                <div className="flex-1">
+                  <Label htmlFor="modelSelect">Add Home Model</Label>
+                  <Select
+                    value={selectedModelId}
+                    onValueChange={setSelectedModelId}
+                    disabled={modelsLoading}
+                  >
+                    <SelectTrigger data-testid="select-home-model">
+                      <SelectValue placeholder="Select a home model..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {homeModels.map((model) => (
+                        <SelectItem key={model.id} value={model.id.toString()}>
+                          {model.name} - {model.bedrooms}BR/{model.bathrooms}BA, {model.sqFt.toLocaleString()} sqft ({formatCurrency(model.offsiteBasePrice)})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button
+                  onClick={handleAddUnit}
+                  disabled={!selectedModelId || addUnitMutation.isPending}
+                  data-testid="button-add-unit"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Unit
+                </Button>
+              </div>
+
+              {unitsLoading ? (
+                <div className="text-center py-4 text-muted-foreground">Loading units...</div>
+              ) : projectUnits.length > 0 ? (
+                <div className="border rounded-md">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Unit</TableHead>
+                        <TableHead>Model</TableHead>
+                        <TableHead>Specs</TableHead>
+                        <TableHead className="text-right">Base Price</TableHead>
+                        <TableHead className="w-[50px]"></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {projectUnits.map((unit) => (
+                        <TableRow key={unit.id} data-testid={`row-unit-${unit.id}`}>
+                          <TableCell className="font-medium">{unit.unitLabel}</TableCell>
+                          <TableCell>{unit.model.name}</TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {unit.model.bedrooms}BR / {unit.model.bathrooms}BA / {unit.model.sqFt.toLocaleString()} sqft
+                          </TableCell>
+                          <TableCell className="text-right font-mono">
+                            {formatCurrency(unit.basePriceSnapshot)}
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleDeleteUnit(unit.id)}
+                              disabled={deleteUnitMutation.isPending}
+                              data-testid={`button-delete-unit-${unit.id}`}
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <div className="text-center py-8 border rounded-md bg-muted/30">
+                  <Home className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                  <p className="text-muted-foreground">No units added yet</p>
+                  <p className="text-xs text-muted-foreground mt-1">Select a home model above to add units</p>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between pt-2 border-t">
+                <div className="flex items-center gap-2">
+                  <Label className="text-muted-foreground">Total Units:</Label>
+                  <Badge variant="secondary" data-testid="badge-total-units">
+                    {projectUnits.length}
+                  </Badge>
+                </div>
+                {projectUnits.length > 0 && (
+                  <div className="text-sm text-muted-foreground">
+                    Total Base: {formatCurrency(projectUnits.reduce((sum, u) => sum + u.basePriceSnapshot, 0))}
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="text-center py-8 border rounded-md bg-muted/30">
+              <AlertTriangle className="h-8 w-8 mx-auto text-orange-500 mb-2" />
+              <p className="text-muted-foreground">Save the project first to add units</p>
+              <p className="text-xs text-muted-foreground mt-1">Complete the project info and navigate forward to create the project</p>
+            </div>
+          )}
         </CardContent>
       </Card>
       

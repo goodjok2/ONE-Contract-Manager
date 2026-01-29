@@ -421,6 +421,126 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       });
     }
   });
+
+  // ---------------------------------------------------------------------------
+  // HOME MODELS - Catalog Management
+  // ---------------------------------------------------------------------------
+
+  app.get('/api/home-models', async (req, res) => {
+    try {
+      const models = await db
+        .select()
+        .from(homeModels)
+        .where(eq(homeModels.isActive, true));
+      res.json(models);
+    } catch (error: any) {
+      console.error('Failed to fetch home models:', error);
+      res.status(500).json({ error: 'Failed to fetch home models' });
+    }
+  });
+
+  // ---------------------------------------------------------------------------
+  // PROJECT UNITS - Multi-Unit Management
+  // ---------------------------------------------------------------------------
+
+  app.get('/api/projects/:projectId/units', async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.projectId);
+      
+      const units = await db
+        .select({
+          id: projectUnits.id,
+          projectId: projectUnits.projectId,
+          modelId: projectUnits.modelId,
+          unitLabel: projectUnits.unitLabel,
+          basePriceSnapshot: projectUnits.basePriceSnapshot,
+          customizationTotal: projectUnits.customizationTotal,
+          createdAt: projectUnits.createdAt,
+          model: {
+            id: homeModels.id,
+            name: homeModels.name,
+            modelCode: homeModels.modelCode,
+            bedrooms: homeModels.bedrooms,
+            bathrooms: homeModels.bathrooms,
+            sqFt: homeModels.sqFt,
+            designFee: homeModels.designFee,
+            offsiteBasePrice: homeModels.offsiteBasePrice,
+            onsiteEstPrice: homeModels.onsiteEstPrice,
+          }
+        })
+        .from(projectUnits)
+        .innerJoin(homeModels, eq(projectUnits.modelId, homeModels.id))
+        .where(eq(projectUnits.projectId, projectId));
+
+      res.json(units);
+    } catch (error: any) {
+      console.error('Failed to fetch project units:', error);
+      res.status(500).json({ error: 'Failed to fetch project units' });
+    }
+  });
+
+  app.post('/api/projects/:projectId/units', async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.projectId);
+      const { modelId, unitLabel } = req.body;
+
+      if (!modelId) {
+        return res.status(400).json({ error: 'modelId is required' });
+      }
+
+      const [model] = await db
+        .select()
+        .from(homeModels)
+        .where(eq(homeModels.id, modelId));
+
+      if (!model) {
+        return res.status(404).json({ error: 'Home model not found' });
+      }
+
+      const existingUnits = await db
+        .select()
+        .from(projectUnits)
+        .where(eq(projectUnits.projectId, projectId));
+
+      const label = unitLabel || `Unit ${existingUnits.length + 1}`;
+
+      const [newUnit] = await db
+        .insert(projectUnits)
+        .values({
+          projectId,
+          modelId,
+          unitLabel: label,
+          basePriceSnapshot: model.offsiteBasePrice,
+          customizationTotal: 0,
+        })
+        .returning();
+
+      res.json(newUnit);
+    } catch (error: any) {
+      console.error('Failed to create project unit:', error);
+      res.status(500).json({ error: 'Failed to create project unit' });
+    }
+  });
+
+  app.delete('/api/project-units/:id', async (req, res) => {
+    try {
+      const unitId = parseInt(req.params.id);
+      
+      const [deleted] = await db
+        .delete(projectUnits)
+        .where(eq(projectUnits.id, unitId))
+        .returning();
+
+      if (!deleted) {
+        return res.status(404).json({ error: 'Unit not found' });
+      }
+
+      res.json({ success: true, deleted });
+    } catch (error: any) {
+      console.error('Failed to delete project unit:', error);
+      res.status(500).json({ error: 'Failed to delete project unit' });
+    }
+  });
   
   // ---------------------------------------------------------------------------
   // DASHBOARD
