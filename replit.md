@@ -38,6 +38,14 @@ The application is built on a modern full-stack architecture.
 - **Framework**: Express.js
 - **Language**: TypeScript for type safety.
 - **API**: RESTful API endpoints for managing contracts, projects, LLCs, clauses, variables, and contractor entities.
+- **Modular Route Architecture (Jan 2026)**: Routes split into domain-focused modules for maintainability:
+    - `server/routes/index.ts` - Central router combining all modules
+    - `server/routes/projects.ts` - Projects, clients, units, details, home models, milestones, warranty, contractors
+    - `server/routes/financials.ts` - Pricing engine, financials, pricing summary
+    - `server/routes/contracts.ts` - Contract CRUD, generation, clauses, PDF/DOCX download
+    - `server/routes/llc.ts` - LLC entity management
+    - `server/routes/system.ts` - Dashboard stats, variables, variable mappings, admin endpoints
+    - `server/routes/helpers.ts` - Shared helper functions (getProjectWithRelations)
 
 **Database**:
 - **Primary Database**: PostgreSQL is used for all persistent data including `llcs`, `contracts`, `clauses`, `projects`, `clients`, `financials`, `projectDetails`, `milestones`, `warrantyTerms`, `contractors`, `contractor_entities`, and `contract_variables`.
