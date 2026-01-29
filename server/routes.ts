@@ -2380,9 +2380,26 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           const unitSummary = `${pricingSummary.unitCount} Unit${pricingSummary.unitCount !== 1 ? 's' : ''}: ${unitSummaryParts.join(', ')}`;
           
           projectData.HOME_MODEL = unitSummary;
+          projectData.UNIT_MODEL_LIST = pricingSummary.unitModelSummary || unitSummary;
           projectData.TOTAL_UNITS = pricingSummary.unitCount;
           
-          console.log(`Pricing Engine injected: Grand Total = ${formatCentsAsCurrency(pricingSummary.grandTotal)}, Units = ${pricingSummary.unitCount}`);
+          // Inject new pricing engine totals (Phase B: Financial Engine Calibration)
+          projectData.TOTAL_PROJECT_BUDGET = centsToDollars(pricingSummary.projectBudget);
+          projectData.TOTAL_PROJECT_BUDGET_WRITTEN = formatCentsAsCurrency(pricingSummary.projectBudget);
+          projectData.TOTAL_CONTRACT_PRICE = centsToDollars(pricingSummary.contractValue);
+          projectData.TOTAL_CONTRACT_PRICE_WRITTEN = formatCentsAsCurrency(pricingSummary.contractValue);
+          projectData.PRICING_SERVICE_MODEL = pricingSummary.serviceModel;
+          
+          // Update contract price to use contractValue (what Dvele actually charges)
+          projectData.CONTRACT_PRICE = formatCentsAsCurrency(pricingSummary.contractValue);
+          projectData.PRELIM_CONTRACT_PRICE = centsToDollars(pricingSummary.contractValue);
+          projectData.PRELIM_CONTRACT_PRICE_WRITTEN = formatCentsAsCurrency(pricingSummary.contractValue);
+          projectData.PRELIMINARY_CONTRACT_PRICE = formatCentsAsCurrency(pricingSummary.contractValue);
+          projectData.PRELIMINARY_TOTAL_PRICE = formatCentsAsCurrency(pricingSummary.contractValue);
+          projectData.FINAL_CONTRACT_PRICE = centsToDollars(pricingSummary.contractValue);
+          projectData.FINAL_CONTRACT_PRICE_WRITTEN = formatCentsAsCurrency(pricingSummary.contractValue);
+          
+          console.log(`Pricing Engine injected: Contract Value = ${formatCentsAsCurrency(pricingSummary.contractValue)}, Project Budget = ${formatCentsAsCurrency(pricingSummary.projectBudget)}, Service Model = ${pricingSummary.serviceModel}, Units = ${pricingSummary.unitCount}`);
         }
       } catch (pricingError) {
         console.warn('Pricing engine calculation failed, using legacy values:', pricingError);
@@ -2545,9 +2562,26 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             const unitSummary = `${pricingSummary.unitCount} Unit${pricingSummary.unitCount !== 1 ? 's' : ''}: ${unitSummaryParts.join(', ')}`;
             
             projectData.HOME_MODEL = unitSummary;
+            projectData.UNIT_MODEL_LIST = pricingSummary.unitModelSummary || unitSummary;
             projectData.TOTAL_UNITS = pricingSummary.unitCount;
             
-            console.log(`Pricing Engine injected: Grand Total = ${formatCentsAsCurrency(pricingSummary.grandTotal)}, Units = ${pricingSummary.unitCount}`);
+            // Inject new pricing engine totals (Phase B: Financial Engine Calibration)
+            projectData.TOTAL_PROJECT_BUDGET = centsToDollars(pricingSummary.projectBudget);
+            projectData.TOTAL_PROJECT_BUDGET_WRITTEN = formatCentsAsCurrency(pricingSummary.projectBudget);
+            projectData.TOTAL_CONTRACT_PRICE = centsToDollars(pricingSummary.contractValue);
+            projectData.TOTAL_CONTRACT_PRICE_WRITTEN = formatCentsAsCurrency(pricingSummary.contractValue);
+            projectData.PRICING_SERVICE_MODEL = pricingSummary.serviceModel;
+            
+            // Update contract price to use contractValue (what Dvele actually charges)
+            projectData.CONTRACT_PRICE = formatCentsAsCurrency(pricingSummary.contractValue);
+            projectData.PRELIM_CONTRACT_PRICE = centsToDollars(pricingSummary.contractValue);
+            projectData.PRELIM_CONTRACT_PRICE_WRITTEN = formatCentsAsCurrency(pricingSummary.contractValue);
+            projectData.PRELIMINARY_CONTRACT_PRICE = formatCentsAsCurrency(pricingSummary.contractValue);
+            projectData.PRELIMINARY_TOTAL_PRICE = formatCentsAsCurrency(pricingSummary.contractValue);
+            projectData.FINAL_CONTRACT_PRICE = centsToDollars(pricingSummary.contractValue);
+            projectData.FINAL_CONTRACT_PRICE_WRITTEN = formatCentsAsCurrency(pricingSummary.contractValue);
+            
+            console.log(`Pricing Engine injected: Contract Value = ${formatCentsAsCurrency(pricingSummary.contractValue)}, Project Budget = ${formatCentsAsCurrency(pricingSummary.projectBudget)}, Service Model = ${pricingSummary.serviceModel}, Units = ${pricingSummary.unitCount}`);
           }
         } catch (pricingError) {
           console.warn('Pricing engine calculation failed, using legacy values:', pricingError);

@@ -19,8 +19,12 @@ export interface PricingBreakdown {
 export interface PricingSummary {
   breakdown: PricingBreakdown;
   grandTotal: number;
+  projectBudget: number;      // Full cost: design + offsite + onsite (always)
+  contractValue: number;      // What Dvele charges: CRC excludes onsite, CMOS includes all
+  serviceModel: 'CRC' | 'CMOS';
   paymentSchedule: PaymentScheduleItem[];
   unitCount: number;
+  unitModelSummary: string;   // e.g., "1x Trinity, 2x Salt Point"
 }
 
 export async function calculateProjectPricing(projectId: number): Promise<PricingSummary> {
@@ -57,6 +61,9 @@ export async function calculateProjectPricing(projectId: number): Promise<Pricin
     .from(milestones)
     .where(eq(milestones.projectId, projectId));
 
+  // Determine service model (CRC or CMOS)
+  const serviceModel: 'CRC' | 'CMOS' = (project.onSiteSelection === 'CMOS') ? 'CMOS' : 'CRC';
+
   if (units.length === 0) {
     return {
       breakdown: {
@@ -66,8 +73,12 @@ export async function calculateProjectPricing(projectId: number): Promise<Pricin
         totalCustomizations: 0,
       },
       grandTotal: 0,
+      projectBudget: 0,
+      contractValue: 0,
+      serviceModel,
       paymentSchedule: [],
       unitCount: 0,
+      unitModelSummary: '',
     };
   }
 
@@ -76,40 +87,57 @@ export async function calculateProjectPricing(projectId: number): Promise<Pricin
   let totalOnsite = 0;
   let totalCustomizations = 0;
 
+  // Build unit model count summary (e.g., "1x Trinity, 2x Salt Point")
+  const modelCounts: Record<string, number> = {};
   for (const unit of units) {
     totalDesignFee += unit.designFee || 0;
     totalOffsite += (unit.offsiteBasePrice || 0) + (unit.customizationTotal || 0);
     totalOnsite += unit.onsiteEstPrice || 0;
     totalCustomizations += unit.customizationTotal || 0;
+    
+    const modelName = unit.modelName || 'Unknown Model';
+    modelCounts[modelName] = (modelCounts[modelName] || 0) + 1;
   }
+  
+  const unitModelSummary = Object.entries(modelCounts)
+    .map(([name, count]) => `${count}x ${name}`)
+    .join(', ');
 
   const globalSiteCosts = (financial?.prelimOnsite || 0);
   totalOnsite += globalSiteCosts;
 
-  const grandTotal = totalDesignFee + totalOffsite + totalOnsite;
+  // projectBudget = full cost of the project (design + offsite + onsite)
+  const projectBudget = totalDesignFee + totalOffsite + totalOnsite;
   
-  console.log(`[PricingEngine] Project ${projectId}: designFee=${totalDesignFee}, offsite=${totalOffsite}, onsite=${totalOnsite}, grandTotal=${grandTotal}`);
+  // contractValue = what Dvele charges the client
+  // CRC: excludes onsite (client handles their own GC)
+  // CMOS: includes everything (Dvele manages onsite)
+  const contractValue = serviceModel === 'CRC' 
+    ? totalDesignFee + totalOffsite
+    : totalDesignFee + totalOffsite + totalOnsite;
+  
+  // grandTotal kept for backwards compatibility
+  const grandTotal = projectBudget;
+  
+  console.log(`[PricingEngine] Project ${projectId} (${serviceModel}): designFee=${totalDesignFee}, offsite=${totalOffsite}, onsite=${totalOnsite}, projectBudget=${projectBudget}, contractValue=${contractValue}`);
 
   const paymentSchedule: PaymentScheduleItem[] = [];
 
+  // Payment schedule is calculated based on contractValue (what Dvele actually charges)
   if (projectMilestones.length > 0) {
     for (const milestone of projectMilestones) {
       const percentage = milestone.percentage || 0;
       const phase = milestone.milestoneType || 'Unknown';
-      
-      let baseAmount = grandTotal;
-      if (phase.toLowerCase().includes('manufacturing') || phase.toLowerCase().includes('production')) {
-        baseAmount = totalOffsite;
-      }
 
       paymentSchedule.push({
         name: milestone.name || `Milestone ${milestone.id}`,
         percentage,
-        amount: Math.round((baseAmount * percentage) / 100),
+        amount: Math.round((contractValue * percentage) / 100),
         phase,
       });
     }
   } else {
+    // Default 6-milestone schedule based on contractValue
     const defaultMilestones = [
       { name: 'Signing Deposit', percentage: 20, phase: 'Design' },
       { name: 'Green Light', percentage: 20, phase: 'Production' },
@@ -120,19 +148,26 @@ export async function calculateProjectPricing(projectId: number): Promise<Pricin
     ];
 
     for (const m of defaultMilestones) {
-      let baseAmount = grandTotal;
-      if (m.phase === 'Production') {
-        baseAmount = totalOffsite;
-      }
-
       paymentSchedule.push({
         name: m.name,
         percentage: m.percentage,
-        amount: Math.round((baseAmount * m.percentage) / 100),
+        amount: Math.round((contractValue * m.percentage) / 100),
         phase: m.phase,
       });
     }
   }
+
+  // Reconcile payment schedule to ensure sum equals contractValue exactly
+  const rawSum = paymentSchedule.reduce((sum, m) => sum + m.amount, 0);
+  const discrepancy = contractValue - rawSum;
+  
+  // Apply any rounding discrepancy to the last milestone (usually retainage)
+  if (discrepancy !== 0 && paymentSchedule.length > 0) {
+    paymentSchedule[paymentSchedule.length - 1].amount += discrepancy;
+  }
+  
+  const finalSum = paymentSchedule.reduce((sum, m) => sum + m.amount, 0);
+  console.log(`[PricingEngine] Payment schedule sum: ${finalSum} (contractValue: ${contractValue}, adjusted: ${discrepancy !== 0})`);
 
   return {
     breakdown: {
@@ -142,7 +177,11 @@ export async function calculateProjectPricing(projectId: number): Promise<Pricin
       totalCustomizations,
     },
     grandTotal,
+    projectBudget,
+    contractValue,
+    serviceModel,
     paymentSchedule,
     unitCount: units.length,
+    unitModelSummary,
   };
 }

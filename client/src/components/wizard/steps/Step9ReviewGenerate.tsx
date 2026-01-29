@@ -43,8 +43,12 @@ interface PricingSummary {
     totalCustomizations: number;
   };
   grandTotal: number;
+  projectBudget: number;      // Full cost: design + offsite + onsite (always)
+  contractValue: number;      // What Dvele charges: CRC excludes onsite, CMOS includes all
+  serviceModel: 'CRC' | 'CMOS';
   paymentSchedule: { name: string; percentage: number; amount: number; phase: string }[];
   unitCount: number;
+  unitModelSummary: string;   // e.g., "1x Trinity, 2x Salt Point"
 }
 
 export const Step9ReviewGenerate: React.FC = () => {
@@ -546,12 +550,17 @@ export const Step9ReviewGenerate: React.FC = () => {
               </div>
               <div>
                 <p className="text-muted-foreground">Total Units</p>
-                <p className="font-medium">{projectData.totalUnits}</p>
+                <p className="font-medium">{pricingSummary?.unitCount || projectData.totalUnits}</p>
               </div>
               <div>
                 <p className="text-muted-foreground">Unit Model(s)</p>
-                <p className="font-medium">
-                  {projectData.units.slice(0, projectData.totalUnits).map(u => u.model || 'Not specified').join(', ')}
+                <p className="font-medium" data-testid="review-unit-models">
+                  {pricingSummary?.unitModelSummary || 
+                    projectData.units.slice(0, projectData.totalUnits)
+                      .filter(u => u.model)
+                      .map(u => u.model)
+                      .join(', ') || 
+                    'No units added'}
                 </p>
               </div>
             </div>
@@ -602,11 +611,36 @@ export const Step9ReviewGenerate: React.FC = () => {
                   <p className="text-muted-foreground">Onsite Estimate</p>
                   <p className="font-medium" data-testid="review-onsite">
                     {formatCurrencyCents(pricingSummary.breakdown.totalOnsite)}
+                    {pricingSummary.serviceModel === 'CRC' && (
+                      <span className="text-xs text-muted-foreground ml-1">(Client-managed)</span>
+                    )}
                   </p>
                 </div>
                 <div>
-                  <p className="text-muted-foreground">Grand Total</p>
-                  <p className="font-medium text-primary" data-testid="review-grand-total">
+                  <p className="text-muted-foreground">Service Model</p>
+                  <Badge variant="outline" data-testid="review-service-model">
+                    {pricingSummary.serviceModel === 'CRC' ? 'Client-Retained Contractor' : 'Company-Managed On-Site'}
+                  </Badge>
+                </div>
+                <div className="col-span-2 pt-2 border-t">
+                  <p className="text-muted-foreground">Total Project Budget</p>
+                  <p className="font-medium" data-testid="review-project-budget">
+                    {formatCurrencyCents(pricingSummary.projectBudget)}
+                    <span className="text-xs text-muted-foreground ml-1">(Full project cost)</span>
+                  </p>
+                </div>
+                <div className="col-span-2">
+                  <p className="text-muted-foreground">Contract Value</p>
+                  <p className="font-medium text-primary text-lg" data-testid="review-contract-value">
+                    {formatCurrencyCents(pricingSummary.contractValue)}
+                    <span className="text-xs text-muted-foreground ml-1">
+                      (What Dvele charges{pricingSummary.serviceModel === 'CRC' ? ' - excludes onsite' : ''})
+                    </span>
+                  </p>
+                </div>
+                <div className="col-span-2">
+                  <p className="text-muted-foreground">Legacy Grand Total</p>
+                  <p className="font-medium" data-testid="review-grand-total">
                     {formatCurrencyCents(pricingSummary.grandTotal)}
                   </p>
                 </div>

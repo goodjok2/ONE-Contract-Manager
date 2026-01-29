@@ -309,6 +309,19 @@ export function formatNumber(num: number | null | undefined): string {
 }
 
 /**
+ * Format dollars (not cents) as currency: 1234.56 -> "$1,234.56"
+ */
+export function formatCurrency(dollars: number | null | undefined): string {
+  if (dollars == null) return "";
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(dollars);
+}
+
+/**
  * Convert months to years (for display): 24 -> 2, 120 -> 10
  */
 export function monthsToYears(months: number | null | undefined): number | null {
@@ -380,14 +393,40 @@ function getMilestoneVariables(
 }
 
 // =============================================================================
+// PRICING SUMMARY INTERFACE (for optional pricing engine integration)
+// =============================================================================
+
+export interface PricingSummaryForMapper {
+  breakdown: {
+    totalDesignFee: number;
+    totalOffsite: number;
+    totalOnsite: number;
+    totalCustomizations: number;
+  };
+  grandTotal: number;
+  projectBudget: number;
+  contractValue: number;
+  serviceModel: 'CRC' | 'CMOS';
+  paymentSchedule: { name: string; percentage: number; amount: number; phase: string }[];
+  unitCount: number;
+  unitModelSummary: string;
+}
+
+// =============================================================================
 // MAIN MAPPER FUNCTION
 // =============================================================================
 
 /**
  * Maps a project with all its relations to contract template variables.
  * Returns an object with all variables that can be used with docxtemplater.
+ * 
+ * @param data - Project data with all relations
+ * @param pricingSummary - Optional pricing engine output for accurate financial variables
  */
-export function mapProjectToVariables(data: ProjectWithRelations): ContractVariables {
+export function mapProjectToVariables(
+  data: ProjectWithRelations, 
+  pricingSummary?: PricingSummaryForMapper
+): ContractVariables {
   const { project, client, childLlc, projectDetails, financials, milestones, warrantyTerms, contractors } = data;
 
   // Find specific contractors by type
@@ -478,14 +517,16 @@ export function mapProjectToVariables(data: ProjectWithRelations): ContractVaria
     // ===================
     // HOME
     // ===================
-    HOME_MODEL: projectDetails?.homeModel || "",
+    // Use pricing engine unitModelSummary if available, otherwise fall back to projectDetails
+    HOME_MODEL: pricingSummary?.unitModelSummary || projectDetails?.homeModel || "",
+    UNIT_MODEL_LIST: pricingSummary?.unitModelSummary || projectDetails?.homeModel || "",
     HOME_SQ_FT: projectDetails?.homeSqFt ? formatNumber(projectDetails.homeSqFt) : "",
     HOME_SQ_FT_RAW: projectDetails?.homeSqFt || "",
     HOME_BEDROOMS: projectDetails?.homeBedrooms || "",
     HOME_BATHROOMS: projectDetails?.homeBathrooms || "",
     HOME_STORIES: projectDetails?.homeStories || "",
     HOME_GARAGE: projectDetails?.homeGarage || "",
-    TOTAL_UNITS: projectDetails?.totalUnits || 1,
+    TOTAL_UNITS: pricingSummary?.unitCount || projectDetails?.totalUnits || 1,
     MODULE_COUNT: projectDetails?.moduleCount || "",
 
     // ===================
@@ -555,6 +596,26 @@ export function mapProjectToVariables(data: ProjectWithRelations): ContractVaria
     PRICE_LOCKED_AT: financials?.lockedAt || "",
     PRICE_LOCKED_AT_WRITTEN: formatDateWritten(financials?.lockedAt),
     PRICE_LOCKED_BY: financials?.lockedBy || "",
+    
+    // ===================
+    // PRICING ENGINE TOTALS (computed from selected units)
+    // ===================
+    // Total Project Budget = Design + Offsite + Onsite (full cost of the project)
+    TOTAL_PROJECT_BUDGET: pricingSummary ? pricingSummary.projectBudget / 100 : centsToDollars(financials?.prelimContractPrice),
+    TOTAL_PROJECT_BUDGET_WRITTEN: pricingSummary 
+      ? formatCurrency(pricingSummary.projectBudget / 100)
+      : formatCentsAsCurrency(financials?.prelimContractPrice),
+    
+    // Total Contract Price = What Dvele charges the client
+    // CRC: Design + Offsite (excludes onsite - client handles their own GC)
+    // CMOS: Design + Offsite + Onsite (Dvele manages everything)
+    TOTAL_CONTRACT_PRICE: pricingSummary ? pricingSummary.contractValue / 100 : centsToDollars(financials?.prelimContractPrice),
+    TOTAL_CONTRACT_PRICE_WRITTEN: pricingSummary 
+      ? formatCurrency(pricingSummary.contractValue / 100)
+      : formatCentsAsCurrency(financials?.prelimContractPrice),
+    
+    // Service model used for pricing
+    PRICING_SERVICE_MODEL: pricingSummary?.serviceModel || project.onSiteSelection || "CRC",
 
     // ===================
     // MILESTONES (spread in the milestone objects)

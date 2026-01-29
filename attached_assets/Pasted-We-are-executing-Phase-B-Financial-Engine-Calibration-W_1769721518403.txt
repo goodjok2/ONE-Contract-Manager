@@ -1,0 +1,28 @@
+We are executing **Phase B: Financial Engine Calibration**. We need to fix the Payment Schedule math and ensure the Contract Variables accurately reflect the Service Model (CRC vs. CMOS).
+
+**Task 1: Upgrade Pricing Engine Logic (`server/services/pricingEngine.ts`)**
+The current `calculateProjectPricing` assumes `grandTotal` is always the Contract Price. This is incorrect for CRC projects.
+* **Fetch Service Model:** Ensure `projects.onSiteSelection` is fetched.
+* **Calculate Two Totals:**
+    * `projectBudget` = `totalDesignFee` + `totalOffsite` + `totalOnsite`. (The full cost of the project).
+    * `contractValue` (The amount Dvele charges):
+        * If `CRC`: `totalDesignFee` + `totalOffsite`. (Exclude Onsite).
+        * If `CMOS`: `totalDesignFee` + `totalOffsite` + `totalOnsite`. (Include everything).
+* **Update Payment Schedule:**
+    * Recalculate milestone amounts based on `contractValue` (not `projectBudget`).
+    * Ensure `sum(paymentSchedule)` equals `contractValue`.
+* **Return Both:** Return `projectBudget` and `contractValue` in the `PricingSummary` interface.
+
+**Task 2: Update Variable Mapper (`server/lib/mapper.ts`)**
+We need to ensure the contract gets the correct lists and totals.
+* **Update `mapProjectToVariables`:**
+    * Call `calculateProjectPricing` to get the new `contractValue` and `projectBudget`.
+    * Map `TOTAL_CONTRACT_PRICE` -> `contractValue`.
+    * Map `TOTAL_PROJECT_BUDGET` -> `projectBudget`.
+    * **Fix Unit Models:** Iterate through `project.units` (joined with home_models). Create a summary string (e.g., "1x Trinity, 1x Salt Point") and map it to `HOME_MODEL` and `UNIT_MODEL_LIST`.
+
+**Task 3: Update Step 9 UI (`client/src/components/wizard/steps/Step9ReviewGenerate.tsx`)**
+* **Show Unit Models:** Replace the "Not specified" placeholder with the actual list of selected models (fetched from the API/Mapper).
+* **Show Split Totals:** Display both "Total Project Budget" and "Contract Value" so the user sees the difference (especially for CRC projects).
+
+After these changes, the Payment Schedule in Step 7 should sum up exactly to the "Contract Value" (what Dvele is actually charging), resolving the math discrepancy.
