@@ -38,6 +38,8 @@ The application is built on a modern full-stack architecture.
 **Core Features & Design Patterns**:
 - **Autosave System**: Implemented with a 2-second debounced save mechanism for draft projects, saving on navigation and preserving user input.
 - **Contract Generation Wizard**: A structured, multi-step process for creating contract packages, including dynamic pricing calculation from selected home model units and integration with a pricing engine.
+- **Unit Builder**: Located in Step 4 (Site & Property). Allows adding home models from the database (`project_units` table). Step 1 shows a read-only Total Units count.
+- **Known Issue**: Wizard "Next" button may stay disabled after saving draft - step navigation gating logic needs investigation.
 - **Clause Library**: A comprehensive, searchable library of 276 contract clauses with filtering and editing capabilities.
 - **Variable Mappings**: System to configure and map contract variables, with preparation for Odoo ERP integration.
 - **LLC Administration**: CRUD operations for child LLC entities, including status tracking, member management, and compliance monitoring.
