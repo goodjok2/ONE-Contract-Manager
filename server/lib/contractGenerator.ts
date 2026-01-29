@@ -1426,10 +1426,13 @@ function buildVariableMap(projectData: Record<string, any>): Record<string, stri
   map['DP_X'] = llcName;
   map['DP_X_STATE'] = llcState;
   
-  // --- COMPANY/DVELE (static values) ---
-  map['COMPANY_NAME'] = 'Dvele, Inc.';
+  // --- COMPANY/DVELE (with aliases for subcontracts) ---
+  map['COMPANY_NAME'] = llcName || 'Dvele, Inc.';
+  map['ENTITY_TYPE'] = 'limited liability company';
+  map['COMPANY_ENTITY_TYPE'] = 'limited liability company';
   map['COMPANY_SIGNATORY_NAME'] = 'Authorized Representative';
-  map['COMPANY_SIGNATORY_TITLE'] = 'CEO';
+  map['COMPANY_SIGNATORY_TITLE'] = 'VP of Operations';
+  map['CLIENT_NAME'] = clientName; // Alias for CLIENT_LEGAL_NAME
   map['DVELE_LEGAL_NAME'] = 'Dvele, Inc.';
   map['DVELE_ADDRESS'] = '123 Main Street, San Diego, CA 92101';
   map['DVELE_STATE'] = 'Delaware';
@@ -1446,14 +1449,9 @@ function buildVariableMap(projectData: Record<string, any>): Record<string, stri
   map['SURVEY_DATE'] = agreementDate;
   map['GREEN_LIGHT_DATE'] = 'To Be Determined';
   map['DELIVERY_DATE'] = 'To Be Determined';
-  map['COO_DATE'] = 'To Be Determined';
-  map['DELIVERY_READY_DATE'] = 'To Be Determined';
-  map['PRODUCTION_START_DATE'] = 'To Be Determined';
-  map['PRODUCTION_MIDPOINT_DATE'] = 'To Be Determined';
-  map['PRODUCTION_COMPLETE_DATE'] = 'To Be Determined';
-  map['ONSITE_READY_DATE'] = 'To Be Determined';
-  map['ONSITE_FOUNDATION_DATE'] = 'To Be Determined';
-  map['ONSITE_MOBILIZATION_DATE'] = 'To Be Determined';
+  // Note: COO_DATE, DELIVERY_READY_DATE, PRODUCTION_START_DATE, PRODUCTION_MIDPOINT_DATE,
+  // PRODUCTION_COMPLETE_DATE, ONSITE_READY_DATE, ONSITE_FOUNDATION_DATE, and ONSITE_MOBILIZATION_DATE
+  // are now calculated dynamically in the Manufacturing and OnSite sections below
   
   // --- TIMELINE DURATIONS ---
   map['DESIGN_PHASE_DAYS'] = designDays.toString();
@@ -1586,6 +1584,22 @@ function buildVariableMap(projectData: Record<string, any>): Record<string, stri
   map['MFG_COMPLETE_AMOUNT'] = formatCurrency(offsitePrice * 0.25);
   map['MFG_DELIVERY_PERCENT'] = '10';
   map['MFG_DELIVERY_AMOUNT'] = formatCurrency(offsitePrice * 0.10);
+
+  // Manufacturing schedule dates (calculated from project timeline)
+  const startDate = new Date(projectData.effectiveDate || projectData.agreementDate || Date.now());
+  const productionStart = new Date(startDate);
+  productionStart.setDate(productionStart.getDate() + designDays);
+  const productionMid = new Date(productionStart);
+  productionMid.setDate(productionMid.getDate() + Math.floor(mfgDays / 2));
+  const productionComplete = new Date(productionStart);
+  productionComplete.setDate(productionComplete.getDate() + mfgDays);
+  const deliveryReady = new Date(productionComplete);
+  deliveryReady.setDate(deliveryReady.getDate() + 7);
+
+  map['PRODUCTION_START_DATE'] = formatDate(productionStart.toISOString());
+  map['PRODUCTION_MIDPOINT_DATE'] = formatDate(productionMid.toISOString());
+  map['PRODUCTION_COMPLETE_DATE'] = formatDate(productionComplete.toISOString());
+  map['DELIVERY_READY_DATE'] = formatDate(deliveryReady.toISOString());
   
   map['MFG_GL_LIMIT'] = '$2,000,000';
   map['MFG_GL_AGGREGATE'] = '$4,000,000';
@@ -1625,6 +1639,22 @@ function buildVariableMap(projectData: Record<string, any>): Record<string, stri
   map['ONSITE_UTILITIES_AMOUNT'] = formatCurrency(onsiteTotal * 0.20);
   map['ONSITE_COMPLETION_PERCENT'] = '20';
   map['ONSITE_COMPLETION_AMOUNT'] = formatCurrency(onsiteTotal * 0.20);
+
+  // OnSite schedule dates (calculated from delivery ready date)
+  const onsiteStart = new Date(deliveryReady); // Uses deliveryReady from manufacturing dates above
+  const foundationComplete = new Date(onsiteStart);
+  foundationComplete.setDate(foundationComplete.getDate() + Math.floor(onsiteDays * 0.3));
+  const siteReady = new Date(foundationComplete);
+  siteReady.setDate(siteReady.getDate() + 7);
+  const onsiteComplete = new Date(onsiteStart);
+  onsiteComplete.setDate(onsiteComplete.getDate() + onsiteDays);
+  const cooDate = new Date(onsiteComplete);
+  cooDate.setDate(cooDate.getDate() + 14);
+
+  map['ONSITE_MOBILIZATION_DATE'] = 'Upon Subcontract Execution';
+  map['ONSITE_FOUNDATION_DATE'] = formatDate(foundationComplete.toISOString());
+  map['ONSITE_READY_DATE'] = formatDate(siteReady.toISOString());
+  map['COO_DATE'] = formatDate(cooDate.toISOString());
   
   map['ONSITE_GL_LIMIT'] = '$2,000,000';
   map['ONSITE_GL_AGGREGATE'] = '$4,000,000';

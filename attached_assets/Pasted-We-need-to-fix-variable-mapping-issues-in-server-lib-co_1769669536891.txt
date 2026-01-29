@@ -1,0 +1,55 @@
+We need to fix variable mapping issues in `server/lib/contractGenerator.ts` to ensure subcontracts generate correctly. Please perform the following 5 specific updates within the `buildVariableMap` function:
+
+1. **Add Company/Common Aliases:**
+   Find the `// --- CLIENT ---` section. Immediately after the `CLIENT_TITLE` line, add:
+   ```typescript
+   // --- COMPANY ALIASES (for Manufacturing & OnSite subcontracts) ---
+   map['COMPANY_NAME'] = llcName || 'Dvele, Inc.';
+   map['ENTITY_TYPE'] = 'limited liability company';
+   map['COMPANY_ENTITY_TYPE'] = 'limited liability company';
+   map['COMPANY_SIGNATORY_NAME'] = 'Authorized Representative';
+   map['COMPANY_SIGNATORY_TITLE'] = 'VP of Operations';
+   map['CLIENT_NAME'] = clientName; // Alias for CLIENT_LEGAL_NAME
+Add Date Alias: Find the // --- DATES --- section. Immediately after the EFFECTIVE_DATE line, add:
+
+TypeScript
+map['MASTER_AGREEMENT_DATE'] = agreementDate; // Alias for subcontracts
+Add Manufacturing Schedule Dates: Find the line map['MFG_DELIVERY_AMOUNT'] = .... Immediately after it, insert this calculation logic (ensure it sits before the OnSite section so variables are available):
+
+TypeScript
+// Manufacturing schedule dates (calculated from project timeline)
+const startDate = new Date(projectData.effectiveDate || projectData.agreementDate || Date.now());
+const productionStart = new Date(startDate);
+productionStart.setDate(productionStart.getDate() + designDays);
+const productionMid = new Date(productionStart);
+productionMid.setDate(productionMid.getDate() + Math.floor(mfgDays / 2));
+const productionComplete = new Date(productionStart);
+productionComplete.setDate(productionComplete.getDate() + mfgDays);
+const deliveryReady = new Date(productionComplete);
+deliveryReady.setDate(deliveryReady.getDate() + 7);
+
+map['PRODUCTION_START_DATE'] = formatDate(productionStart.toISOString());
+map['PRODUCTION_MIDPOINT_DATE'] = formatDate(productionMid.toISOString());
+map['PRODUCTION_COMPLETE_DATE'] = formatDate(productionComplete.toISOString());
+map['DELIVERY_READY_DATE'] = formatDate(deliveryReady.toISOString());
+Add OnSite Schedule Dates: Find the line map['ONSITE_COMPLETION_AMOUNT'] = .... Immediately after it, add:
+
+TypeScript
+// OnSite schedule dates (calculated from delivery ready date)
+const onsiteStart = new Date(deliveryReady); // Uses deliveryReady from manufacturing dates above
+const foundationComplete = new Date(onsiteStart);
+foundationComplete.setDate(foundationComplete.getDate() + Math.floor(onsiteDays * 0.3));
+const siteReady = new Date(foundationComplete);
+siteReady.setDate(siteReady.getDate() + 7);
+const onsiteComplete = new Date(onsiteStart);
+onsiteComplete.setDate(onsiteComplete.getDate() + onsiteDays);
+const cooDate = new Date(onsiteComplete);
+cooDate.setDate(cooDate.getDate() + 14);
+
+map['ONSITE_MOBILIZATION_DATE'] = 'Upon Subcontract Execution';
+map['ONSITE_FOUNDATION_DATE'] = formatDate(foundationComplete.toISOString());
+map['ONSITE_READY_DATE'] = formatDate(siteReady.toISOString());
+map['COO_DATE'] = formatDate(cooDate.toISOString());
+Verify Delivery Percent: Ensure map['MFG_DELIVERY_PERCENT'] = '10'; exists in the Manufacturing variables section. If missing, add it.
+
+After applying these changes, please verify that deliveryReady is defined before it is used in the OnSite calculations.
