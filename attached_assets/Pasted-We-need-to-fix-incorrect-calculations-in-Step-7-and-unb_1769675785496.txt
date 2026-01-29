@@ -1,0 +1,29 @@
+We need to fix incorrect calculations in Step 7 and unblock the "Next" button.
+
+**Task 1: Fix `server/services/pricingEngine.ts`**
+The `calculateProjectPricing` function is returning incorrect totals.
+* **Review the logic:** Ensure you are fetching `project_units` joined with `home_models` and `financials`.
+* **Recalculate Components:**
+    * `totalDesignFee`: Sum of `home_models.design_fee` for all units.
+    * `totalOffsite`: Sum of `home_models.offsite_base_price` for all units.
+    * `totalOnsite`: Sum of (`home_models.onsite_est_price` for all units) PLUS `financials.prelim_onsite` (the additional site buffer).
+* **Fix Grand Total:** Explicitly set `grandTotal = totalDesignFee + totalOffsite + totalOnsite`.
+* **Console Log:** Add a `console.log` inside the function to print these 4 values so we can debug the math in the server logs.
+
+**Task 2: Fix Validation in `client/src/components/wizard/WizardContext.tsx`**
+The `validateStep` function (case 7) is blocking progress because it checks for legacy fields that may now be 0 or empty in the frontend state.
+* **Remove old checks:** Delete validation logic for `designFee`, `preliminaryOffsiteCost`, `deliveryInstallationPrice`, `sitePrepPrice`, `utilitiesPrice`, and `completionPrice`.
+* **Add new check:** Only validate that `data.contractPrice` (the Grand Total) is greater than 0.
+    * If `<= 0`, return error: *"Pricing data is missing. Please go back to Step 4 and add units."*
+* **Keep:** The milestone percentage check (must sum to 95%).
+
+**Task 3: Update `Step7Pricing.tsx` State Sync**
+* In the `Step7Pricing` component, locate where `pricingSummary` is fetched.
+* **Add Effect:** When `pricingSummary` loads, call `updateProjectData` to sync these values into the wizard state:
+    * `contractPrice`: `pricingSummary.grandTotal`
+    * `designFee`: `pricingSummary.breakdown.totalDesignFee`
+    * `preliminaryOffsiteCost`: `pricingSummary.breakdown.totalOffsite`
+    * `preliminaryOnsiteCost`: `pricingSummary.breakdown.totalOnsite`
+* This ensures the context has the correct values to pass the new validation check in Task 2.
+
+After these changes, Step 7 should show the correct Grand Total (sum of components) and the Next button should be enabled.

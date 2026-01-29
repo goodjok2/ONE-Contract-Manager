@@ -87,6 +87,8 @@ export async function calculateProjectPricing(projectId: number): Promise<Pricin
   totalOnsite += globalSiteCosts;
 
   const grandTotal = totalDesignFee + totalOffsite + totalOnsite;
+  
+  console.log(`[PricingEngine] Project ${projectId}: designFee=${totalDesignFee}, offsite=${totalOffsite}, onsite=${totalOnsite}, grandTotal=${grandTotal}`);
 
   const paymentSchedule: PaymentScheduleItem[] = [];
 

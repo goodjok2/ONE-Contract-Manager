@@ -42,7 +42,7 @@ export const Step7Pricing: React.FC = () => {
   const { projectData } = wizardState;
   const queryClient = useQueryClient();
   
-  const [additionalSiteWork, setAdditionalSiteWork] = useState<number>(projectData.prelimOnsite || 0);
+  const [additionalSiteWork, setAdditionalSiteWork] = useState<number>(projectData.preliminaryOnsiteCost || 0);
   const [isSaving, setIsSaving] = useState(false);
   
   const formatCurrency = (cents: number) => {
@@ -70,6 +70,18 @@ export const Step7Pricing: React.FC = () => {
     }
   }, [financialsData?.prelimOnsite]);
   
+  // Sync pricing data to wizard context when loaded
+  useEffect(() => {
+    if (pricingSummary && pricingSummary.grandTotal > 0) {
+      updateProjectData({
+        contractPrice: pricingSummary.grandTotal / 100,
+        designFee: pricingSummary.breakdown.totalDesignFee / 100,
+        preliminaryOffsiteCost: pricingSummary.breakdown.totalOffsite / 100,
+        preliminaryOnsiteCost: pricingSummary.breakdown.totalOnsite / 100,
+      });
+    }
+  }, [pricingSummary, updateProjectData]);
+  
   const hasUnits = pricingSummary && pricingSummary.unitCount > 0;
   
   const savePrelimOnsiteMutation = useMutation({
@@ -81,7 +93,7 @@ export const Step7Pricing: React.FC = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/projects', draftProjectId, 'pricing-summary'] });
-      updateProjectData({ prelimOnsite: additionalSiteWork });
+      updateProjectData({ preliminaryOnsiteCost: additionalSiteWork });
     }
   });
   

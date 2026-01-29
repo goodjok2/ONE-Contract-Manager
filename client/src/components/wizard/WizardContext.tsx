@@ -1204,45 +1204,15 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
         if (!data.effectiveDate) errors.effectiveDate = 'Effective date is required';
         break;
       case 7:
-        if (data.designFee < 1000 || data.designFee > 100000) {
-          errors.designFee = 'Design fee must be between $1,000 and $100,000';
+        // Validate that pricing has been loaded from the pricing engine
+        if (data.contractPrice <= 0) {
+          errors.contractPrice = 'Pricing data is missing. Please go back to Step 4 and add units.';
         }
-        if (data.designRevisionRounds < 1 || data.designRevisionRounds > 10) {
-          errors.designRevisionRounds = 'Revision rounds must be between 1 and 10';
-        }
-        if (data.preliminaryOffsiteCost <= 0) {
-          errors.preliminaryOffsiteCost = 'Manufacturing/Offsite price is required';
-        }
-        if (data.deliveryInstallationPrice <= 0) {
-          errors.deliveryInstallationPrice = 'Delivery & installation price is required';
-        }
-        if (data.serviceModel === 'CMOS') {
-          if (data.sitePrepPrice <= 0) errors.sitePrepPrice = 'Site preparation price is required for CMOS';
-          if (data.utilitiesPrice <= 0) errors.utilitiesPrice = 'Utilities price is required for CMOS';
-          if (data.completionPrice <= 0) errors.completionPrice = 'Completion price is required for CMOS';
-        }
+        // Validate milestone percentages sum to 95%
         const milestoneTotal = data.milestone1Percent + data.milestone2Percent + 
                               data.milestone3Percent + data.milestone4Percent + data.milestone5Percent;
         if (milestoneTotal !== 95) {
           errors.milestones = `Milestones must sum to 95% (currently ${milestoneTotal}%)`;
-        }
-        if (data.retainagePercent < 0 || data.retainagePercent > 10) {
-          errors.retainagePercent = 'Retainage must be between 0% and 10%';
-        }
-        if (data.retainageDays < 0 || data.retainageDays > 365) {
-          errors.retainageDays = 'Retainage days must be between 0 and 365';
-        }
-        if (data.manufacturingDesignPayment <= 0) {
-          errors.manufacturingDesignPayment = 'Design payment is required';
-        }
-        if (data.manufacturingProductionStart <= 0) {
-          errors.manufacturingProductionStart = 'Production start payment is required';
-        }
-        if (data.manufacturingProductionComplete <= 0) {
-          errors.manufacturingProductionComplete = 'Production completion payment is required';
-        }
-        if (data.manufacturingDeliveryReady <= 0) {
-          errors.manufacturingDeliveryReady = 'Delivery ready payment is required';
         }
         break;
       case 8:
