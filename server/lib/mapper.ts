@@ -651,6 +651,22 @@ export function mapProjectToVariables(
     // Service model used for pricing
     PRICING_SERVICE_MODEL: pricingSummary?.serviceModel || project.onSiteSelection || "CRC",
 
+    // Offsite Manufacturing Cost (from pricing engine or financials)
+    OFFSITE_MANUFACTURING_COST: pricingSummary 
+      ? pricingSummary.breakdown.totalOffsite / 100 
+      : centsToDollars(financials?.prelimOffsite),
+    OFFSITE_MANUFACTURING_COST_WRITTEN: pricingSummary 
+      ? formatCurrency(pricingSummary.breakdown.totalOffsite / 100)
+      : formatCentsAsCurrency(financials?.prelimOffsite),
+
+    // Onsite Construction Cost (for CMOS - from pricing engine or financials)
+    ONSITE_CONSTRUCTION_COST: pricingSummary 
+      ? pricingSummary.breakdown.totalOnsite / 100 
+      : centsToDollars(financials?.prelimOnsite),
+    ONSITE_CONSTRUCTION_COST_WRITTEN: pricingSummary 
+      ? formatCurrency(pricingSummary.breakdown.totalOnsite / 100)
+      : formatCentsAsCurrency(financials?.prelimOnsite),
+
     // ===================
     // MILESTONES (spread in the milestone objects)
     // ===================

@@ -77,15 +77,21 @@ async function fetchClausesForContract(
     const serviceModel = projectData.serviceModel || 'CRC';
     console.log('📝 Generating for Service Model:', serviceModel);
     
+    console.log(`\n🔍 Clause Filtering Debug (Project Service Model: ${serviceModel}):`);
+    console.log(`   Total clauses before filtering: ${allClauses.length}`);
+    
     const filteredClauses = allClauses.filter(clause => {
-      if (!clause.conditions) return true;
+      if (!clause.conditions) {
+        console.log(`   ✓ [${clause.id}] ${clause.clause_code}: No conditions -> KEEP`);
+        return true;
+      }
       
       let conditions = clause.conditions;
       if (typeof conditions === 'string') {
         try {
           conditions = JSON.parse(conditions);
         } catch (e) {
-          console.warn(`Failed to parse conditions for clause ${clause.clause_code}:`, conditions);
+          console.warn(`   ⚠️ [${clause.id}] ${clause.clause_code}: Failed to parse conditions -> KEEP (fallback)`);
           return true;
         }
       }
@@ -95,13 +101,18 @@ async function fetchClausesForContract(
       if (clauseServiceModel) {
         // If clause specifies a service model, it must match OR be 'BOTH'
         if (clauseServiceModel !== serviceModel && clauseServiceModel !== 'BOTH') {
-          console.log(`Excluding clause ${clause.clause_code} (requires ${clauseServiceModel}, have ${serviceModel})`);
+          console.log(`   ✗ [${clause.id}] ${clause.clause_code}: condition=${clauseServiceModel} vs project=${serviceModel} -> DROP`);
           return false;
         }
+        console.log(`   ✓ [${clause.id}] ${clause.clause_code}: condition=${clauseServiceModel} vs project=${serviceModel} -> KEEP`);
+      } else {
+        console.log(`   ✓ [${clause.id}] ${clause.clause_code}: No service_model condition -> KEEP`);
       }
       
       return true;
     });
+    
+    console.log(`   Total clauses after filtering: ${filteredClauses.length}\n`);
     
     console.log(`After filtering: ${filteredClauses.length} clauses will be included`);
     
