@@ -110,6 +110,7 @@ export interface UnitSpec {
   bedrooms: number;
   bathrooms: number;
   price: number;
+  onsiteEstimate?: number;
 }
 
 // Project data interface

@@ -306,19 +306,32 @@ export const Step5SiteAndHome: React.FC = () => {
                               {unit.model.bedrooms}BR / {unit.model.bathrooms}BA / {unit.model.sqFt.toLocaleString()} sqft
                             </Badge>
                           </div>
-                          <div className="flex items-center gap-3">
-                            <span className="font-mono font-semibold">
-                              {formatCurrency(unit.basePriceSnapshot)}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDeleteUnit(unit.id)}
+                            disabled={deleteUnitMutation.isPending}
+                            data-testid={`button-delete-unit-${unit.id}`}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
+                        <div className="flex items-center justify-between text-sm pt-2 border-t mt-2">
+                          <div className="space-y-1">
+                            <div className="flex justify-between gap-8">
+                              <span className="text-muted-foreground">Manufacturing:</span>
+                              <span className="font-mono">{formatCurrency(unit.basePriceSnapshot)}</span>
+                            </div>
+                            <div className="flex justify-between gap-8">
+                              <span className="text-muted-foreground">Est. Onsite Work:</span>
+                              <span className="font-mono text-muted-foreground">{formatCurrency(unit.model.onsiteEstPrice)}</span>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-xs text-muted-foreground block">Total Unit Value</span>
+                            <span className="font-mono font-semibold text-primary" data-testid={`text-unit-total-${unit.id}`}>
+                              {formatCurrency(unit.basePriceSnapshot + unit.model.onsiteEstPrice)}
                             </span>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleDeleteUnit(unit.id)}
-                              disabled={deleteUnitMutation.isPending}
-                              data-testid={`button-delete-unit-${unit.id}`}
-                            >
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
                           </div>
                         </div>
                       </CardHeader>
@@ -335,8 +348,16 @@ export const Step5SiteAndHome: React.FC = () => {
                   </Badge>
                 </div>
                 {projectUnits.length > 0 && (
-                  <div className="text-lg font-semibold">
-                    Total Manufacturing: {formatCurrency(projectUnits.reduce((sum, u) => sum + u.basePriceSnapshot, 0))}
+                  <div className="text-right space-y-1">
+                    <div className="text-sm text-muted-foreground">
+                      Manufacturing: {formatCurrency(projectUnits.reduce((sum, u) => sum + u.basePriceSnapshot, 0))}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      Est. Onsite: {formatCurrency(projectUnits.reduce((sum, u) => sum + u.model.onsiteEstPrice, 0))}
+                    </div>
+                    <div className="text-lg font-semibold text-primary" data-testid="text-grand-total">
+                      Grand Total: {formatCurrency(projectUnits.reduce((sum, u) => sum + u.basePriceSnapshot + u.model.onsiteEstPrice, 0))}
+                    </div>
                   </div>
                 )}
               </div>
