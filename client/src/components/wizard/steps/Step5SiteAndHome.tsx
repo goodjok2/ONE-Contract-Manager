@@ -1,40 +1,111 @@
-import { useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useWizard, US_STATES } from '../WizardContext';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { MapPin, Home, Plus, Minus, DollarSign, Trash2 } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { MapPin, Home, Plus, Trash2, AlertTriangle, Package } from 'lucide-react';
+import { apiRequest } from '@/lib/queryClient';
+
+interface HomeModel {
+  id: number;
+  name: string;
+  modelCode: string;
+  bedrooms: number;
+  bathrooms: number;
+  sqFt: number;
+  designFee: number;
+  offsiteBasePrice: number;
+  onsiteEstPrice: number;
+}
+
+interface ProjectUnit {
+  id: number;
+  projectId: number;
+  modelId: number;
+  unitLabel: string;
+  basePriceSnapshot: number;
+  customizationTotal: number;
+  model: HomeModel;
+}
 
 export const Step5SiteAndHome: React.FC = () => {
   const { 
     wizardState, 
     updateProjectData,
-    updateUnit,
-    addUnit,
-    removeUnit
+    draftProjectId
   } = useWizard();
   
-  const { projectData, validationErrors } = wizardState;
+  const queryClient = useQueryClient();
+  const [selectedModelId, setSelectedModelId] = useState<string>('');
   
-  const formatCurrency = (value: number) => {
+  const { projectData, validationErrors } = wizardState;
+
+  const { data: homeModels = [], isLoading: modelsLoading } = useQuery<HomeModel[]>({
+    queryKey: ['/api/home-models'],
+  });
+
+  const { data: projectUnits = [], isLoading: unitsLoading, refetch: refetchUnits } = useQuery<ProjectUnit[]>({
+    queryKey: ['/api/projects', draftProjectId, 'units'],
+    enabled: !!draftProjectId,
+  });
+
+  const addUnitMutation = useMutation({
+    mutationFn: async (modelId: number) => {
+      return apiRequest('POST', `/api/projects/${draftProjectId}/units`, { modelId });
+    },
+    onSuccess: () => {
+      refetchUnits();
+      queryClient.invalidateQueries({ queryKey: ['/api/projects', draftProjectId, 'pricing-summary'] });
+      setSelectedModelId('');
+    },
+  });
+
+  const deleteUnitMutation = useMutation({
+    mutationFn: async (unitId: number) => {
+      return apiRequest('DELETE', `/api/project-units/${unitId}`);
+    },
+    onSuccess: () => {
+      refetchUnits();
+      queryClient.invalidateQueries({ queryKey: ['/api/projects', draftProjectId, 'pricing-summary'] });
+    },
+  });
+
+  useEffect(() => {
+    if (projectUnits.length !== projectData.totalUnits) {
+      updateProjectData({ totalUnits: projectUnits.length || 1 });
+    }
+  }, [projectUnits.length]);
+
+  useEffect(() => {
+    const totalPrice = projectUnits.reduce((sum, unit) => sum + unit.basePriceSnapshot, 0);
+    if (totalPrice !== projectData.preliminaryOffsiteCost) {
+      updateProjectData({ preliminaryOffsiteCost: totalPrice / 100 });
+    }
+  }, [projectUnits]);
+  
+  const formatCurrency = (cents: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
-    }).format(value);
+    }).format(cents / 100);
   };
-  
-  const totalUnitPrice = projectData.units.slice(0, projectData.totalUnits).reduce((sum, unit) => sum + (unit.price || 0), 0);
-  
-  useEffect(() => {
-    if (totalUnitPrice !== projectData.preliminaryOffsiteCost) {
-      updateProjectData({ preliminaryOffsiteCost: totalUnitPrice });
+
+  const handleAddUnit = () => {
+    if (selectedModelId && draftProjectId) {
+      addUnitMutation.mutate(parseInt(selectedModelId));
     }
-  }, [totalUnitPrice, projectData.preliminaryOffsiteCost, updateProjectData]);
+  };
+
+  const handleDeleteUnit = (unitId: number) => {
+    deleteUnitMutation.mutate(unitId);
+  };
   
   return (
     <div className="space-y-6">
@@ -161,188 +232,114 @@ export const Step5SiteAndHome: React.FC = () => {
       
       <Card>
         <CardHeader>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Home className="h-5 w-5 text-primary" />
-                Unit Specifications
-              </CardTitle>
-              <CardDescription>
-                {projectData.totalUnits === 1 
-                  ? 'Configure the modular home unit'
-                  : `Configure ${projectData.totalUnits} modular home units`
-                }
-              </CardDescription>
-            </div>
-            <div className="flex items-center gap-2">
-              <Badge variant="outline">
-                {projectData.totalUnits} Unit{projectData.totalUnits > 1 ? 's' : ''}
-              </Badge>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={addUnit}
-                className="gap-1"
-                data-testid="button-add-unit"
-              >
-                <Plus className="h-4 w-4" />
-                Add Unit
-              </Button>
-            </div>
-          </div>
+          <CardTitle className="flex items-center gap-2">
+            <Home className="h-5 w-5 text-primary" />
+            Selected Home Models
+          </CardTitle>
+          <CardDescription>
+            Add home models to this project. Each unit will be priced individually.
+          </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
-          {projectData.units.slice(0, projectData.totalUnits).map((unit, index) => (
-            <div key={unit.id} className="space-y-4 p-4 border rounded-lg">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <h4 className="font-medium">
-                  {projectData.totalUnits > 1 ? `Unit ${index + 1}` : 'Home Details'}
-                </h4>
-                {projectData.totalUnits > 1 && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => removeUnit(unit.id)}
-                    data-testid={`button-remove-unit-${index}`}
+        <CardContent className="space-y-4">
+          {!draftProjectId ? (
+            <Alert>
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                Complete the previous steps and save the project to add home models.
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <>
+              <div className="flex gap-2 items-end">
+                <div className="flex-1">
+                  <Label htmlFor="modelSelect">Add Home Model</Label>
+                  <Select
+                    value={selectedModelId}
+                    onValueChange={setSelectedModelId}
+                    disabled={modelsLoading}
                   >
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
+                    <SelectTrigger data-testid="select-home-model">
+                      <SelectValue placeholder="Select a home model..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {homeModels.map((model) => (
+                        <SelectItem key={model.id} value={model.id.toString()}>
+                          {model.name} - {model.bedrooms}BR/{model.bathrooms}BA, {model.sqFt.toLocaleString()} sqft ({formatCurrency(model.offsiteBasePrice)})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button
+                  onClick={handleAddUnit}
+                  disabled={!selectedModelId || addUnitMutation.isPending}
+                  data-testid="button-add-unit"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Unit
+                </Button>
+              </div>
+
+              {unitsLoading ? (
+                <div className="text-center py-4 text-muted-foreground">Loading units...</div>
+              ) : projectUnits.length === 0 ? (
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>
+                    You must add at least one home model to proceed.
+                  </AlertDescription>
+                </Alert>
+              ) : (
+                <div className="space-y-4">
+                  {projectUnits.map((unit, index) => (
+                    <Card key={unit.id} className="border" data-testid={`card-unit-${unit.id}`}>
+                      <CardHeader className="py-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <Package className="h-4 w-4 text-primary" />
+                            <CardTitle className="text-base">
+                              {unit.unitLabel}: {unit.model.name}
+                            </CardTitle>
+                            <Badge variant="outline" className="text-xs">
+                              {unit.model.bedrooms}BR / {unit.model.bathrooms}BA / {unit.model.sqFt.toLocaleString()} sqft
+                            </Badge>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="font-mono font-semibold">
+                              {formatCurrency(unit.basePriceSnapshot)}
+                            </span>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleDeleteUnit(unit.id)}
+                              disabled={deleteUnitMutation.isPending}
+                              data-testid={`button-delete-unit-${unit.id}`}
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </div>
+                        </div>
+                      </CardHeader>
+                    </Card>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex items-center justify-between pt-4 border-t">
+                <div className="flex items-center gap-2">
+                  <Label className="text-muted-foreground">Total Units:</Label>
+                  <Badge variant="secondary" data-testid="badge-total-units">
+                    {projectUnits.length}
+                  </Badge>
+                </div>
+                {projectUnits.length > 0 && (
+                  <div className="text-lg font-semibold">
+                    Total Manufacturing: {formatCurrency(projectUnits.reduce((sum, u) => sum + u.basePriceSnapshot, 0))}
+                  </div>
                 )}
               </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Home Model <span className="text-red-500">*</span></Label>
-                  <Input
-                    value={unit.model}
-                    onChange={(e) => updateUnit(unit.id, { model: e.target.value })}
-                    placeholder="e.g., Dvele One"
-                    className={validationErrors[`unit_${index}_model`] ? 'border-red-500' : ''}
-                    data-testid={`input-unit-${index}-model`}
-                  />
-                  {validationErrors[`unit_${index}_model`] && (
-                    <p className="text-sm text-red-500">{validationErrors[`unit_${index}_model`]}</p>
-                  )}
-                </div>
-                
-                <div className="space-y-2">
-                  <Label>Square Footage <span className="text-red-500">*</span></Label>
-                  <Input
-                    type="number"
-                    value={unit.squareFootage || ''}
-                    onChange={(e) => updateUnit(unit.id, { squareFootage: parseInt(e.target.value) || 0 })}
-                    placeholder="e.g., 1200"
-                    min={400}
-                    max={10000}
-                    className={validationErrors[`unit_${index}_sqft`] ? 'border-red-500' : ''}
-                    data-testid={`input-unit-${index}-sqft`}
-                  />
-                  {validationErrors[`unit_${index}_sqft`] && (
-                    <p className="text-sm text-red-500">{validationErrors[`unit_${index}_sqft`]}</p>
-                  )}
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label>Bedrooms <span className="text-red-500">*</span></Label>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      onClick={() => updateUnit(unit.id, { bedrooms: Math.max(1, unit.bedrooms - 1) })}
-                      data-testid={`button-unit-${index}-beds-minus`}
-                    >
-                      <Minus className="h-4 w-4" />
-                    </Button>
-                    <Input
-                      type="number"
-                      value={unit.bedrooms}
-                      onChange={(e) => updateUnit(unit.id, { bedrooms: parseInt(e.target.value) || 1 })}
-                      className={`text-center ${validationErrors[`unit_${index}_beds`] ? 'border-red-500' : ''}`}
-                      min={1}
-                      max={10}
-                      data-testid={`input-unit-${index}-beds`}
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      onClick={() => updateUnit(unit.id, { bedrooms: Math.min(10, unit.bedrooms + 1) })}
-                      data-testid={`button-unit-${index}-beds-plus`}
-                    >
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  {validationErrors[`unit_${index}_beds`] && (
-                    <p className="text-sm text-red-500">{validationErrors[`unit_${index}_beds`]}</p>
-                  )}
-                </div>
-                
-                <div className="space-y-2">
-                  <Label>Bathrooms <span className="text-red-500">*</span></Label>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      onClick={() => updateUnit(unit.id, { bathrooms: Math.max(1, unit.bathrooms - 0.5) })}
-                      data-testid={`button-unit-${index}-baths-minus`}
-                    >
-                      <Minus className="h-4 w-4" />
-                    </Button>
-                    <Input
-                      type="number"
-                      step={0.5}
-                      value={unit.bathrooms}
-                      onChange={(e) => updateUnit(unit.id, { bathrooms: parseFloat(e.target.value) || 1 })}
-                      className={`text-center ${validationErrors[`unit_${index}_baths`] ? 'border-red-500' : ''}`}
-                      min={1}
-                      max={10}
-                      data-testid={`input-unit-${index}-baths`}
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      onClick={() => updateUnit(unit.id, { bathrooms: Math.min(10, unit.bathrooms + 0.5) })}
-                      data-testid={`button-unit-${index}-baths-plus`}
-                    >
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  {validationErrors[`unit_${index}_baths`] && (
-                    <p className="text-sm text-red-500">{validationErrors[`unit_${index}_baths`]}</p>
-                  )}
-                </div>
-                
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-1">
-                    <DollarSign className="h-3 w-3" />
-                    Unit Price <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    type="number"
-                    value={unit.price || ''}
-                    onChange={(e) => updateUnit(unit.id, { price: parseInt(e.target.value) || 0 })}
-                    placeholder="e.g., 350000"
-                    min={100000}
-                    className={validationErrors[`unit_${index}_price`] ? 'border-red-500' : ''}
-                    data-testid={`input-unit-${index}-price`}
-                  />
-                  {validationErrors[`unit_${index}_price`] && (
-                    <p className="text-sm text-red-500">{validationErrors[`unit_${index}_price`]}</p>
-                  )}
-                </div>
-              </div>
-            </div>
-          ))}
-          
-          <div className="flex items-center justify-between p-4 bg-muted/30 rounded-lg">
-            <span className="font-medium">Total Unit Value (Manufacturing/Offsite)</span>
-            <span className="text-xl font-bold">{formatCurrency(totalUnitPrice)}</span>
-          </div>
+            </>
+          )}
         </CardContent>
       </Card>
       
@@ -352,7 +349,7 @@ export const Step5SiteAndHome: React.FC = () => {
             <div>
               <p className="text-sm font-medium">Contract Variables</p>
               <p className="text-xs text-muted-foreground">
-                This step populates {5 + projectData.totalUnits * 5} contract variables
+                This step populates {5 + projectUnits.length * 5} contract variables
               </p>
             </div>
             <Badge variant="secondary" className="text-xs">
