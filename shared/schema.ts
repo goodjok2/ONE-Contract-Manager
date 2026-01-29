@@ -76,6 +76,7 @@ export const clients = pgTable("clients", {
   // For Trusts
   trustDate: text("trust_date"),
   trusteeName: text("trustee_name"),
+  trusteeTitle: text("trustee_title"),
   
   // Secondary Client (if applicable)
   client2LegalName: text("client2_legal_name"),

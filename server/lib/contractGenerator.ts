@@ -1352,7 +1352,9 @@ function buildVariableMap(projectData: Record<string, any>): Record<string, stri
   const sitePrepPrice = parseFloat(projectData.sitePrepPrice || '0');
   const utilitiesPrice = parseFloat(projectData.utilitiesPrice || '0');
   const completionPrice = parseFloat(projectData.completionPrice || '0');
-  const onsiteTotal = sitePrepPrice + utilitiesPrice + completionPrice;
+  // Use pricing engine totalOnsite if available, otherwise fall back to legacy calculation
+  const legacyOnsiteTotal = sitePrepPrice + utilitiesPrice + completionPrice;
+  const onsiteTotal = parseFloat(projectData.preliminaryOnsitePrice || '0') || legacyOnsiteTotal;
   
   // Milestones
   const m1Pct = parseFloat(projectData.milestone1Percent || '20');

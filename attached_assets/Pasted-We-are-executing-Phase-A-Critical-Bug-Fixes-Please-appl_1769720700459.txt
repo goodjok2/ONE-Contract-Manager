@@ -1,0 +1,28 @@
+We are executing **Phase A: Critical Bug Fixes**. Please apply the following 4 fixes to resolve data corruption and math errors.
+
+**Task 1: Fix Project Number "Self-Collision" Bug**
+* **Issue:** Resuming a draft falsely flags the Project Number as a duplicate.
+* **Update `server/routes.ts`:** In `GET /api/projects/check-number/:projectNumber`, ensure the SQL query correctly handles the `excludeId` parameter. It must cast `excludeId` to a number before comparing (e.g., `and(eq(projects.projectNumber, projectNumber), ne(projects.id, parseInt(excludeId)))`).
+* **Update `client/src/components/wizard/WizardContext.tsx`:** In `checkProjectNumberUniqueness`, ensure `draftProjectId` is passed as `excludeId` in the query string.
+
+**Task 2: Fix Step 3 Variable Saving (Data Loss)**
+* **Issue:** `Client Signer Name`, `Client Full Name`, and `Client Title` are not saving to the database.
+* **Update `server/routes.ts`:** In the `POST/PATCH /api/projects/:projectId/client` endpoints, ensure `trusteeName` (signer name), `trusteeTitle` (signer title), and `client2LegalName` (full name override) are included in the update payload.
+* **Update `WizardContext.tsx`:** In `performAutosave`, ensure these fields from `projectData` are mapped to the API payload.
+
+**Task 3: Consolidate Contractor Logic (Step 3)**
+* **Issue:** "Contractor Information" (manual fields) is redundant with "On-Site Contractor" (dropdown).
+* **Update `client/src/components/wizard/steps/Step3PartyInfo.tsx`:**
+    * Remove the manual "Contractor Information" section (Name, License, Address, Insurance).
+    * Keep ONLY the "On-Site Contractor" dropdown.
+    * Add a "Create New Contractor" button next to the dropdown that opens a modal to add a new contractor to the database (saving to `contractor_entities`).
+* **Goal:** Single source of truth for contractor data.
+
+**Task 4: Fix Contract Math Double-Counting**
+* **Issue:** Recital H in the contract shows double the Onsite amount (e.g., $2.9M instead of $1.45M).
+* **Update `server/lib/contractGenerator.ts`:**
+    * Locate where `PRELIMINARY_ONSITE_PRICE` is set.
+    * It is currently likely adding *both* the Pricing Engine total AND the manual variables.
+    * **Force Override:** Ensure that `map['PRELIMINARY_ONSITE_PRICE']` is strictly equal to the value passed from the Pricing Engine (`pricingSummary.breakdown.totalOnsite`), formatted as currency. **Do not add** any other variables to it.
+
+After applying these fixes, please restart the server and confirm that the Project Number validation no longer blocks saving.

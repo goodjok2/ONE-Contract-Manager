@@ -585,6 +585,7 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
           loadedData.clientState = client.state || '';
           loadedData.clientZip = client.zip || '';
           loadedData.clientSignerName = client.trusteeName || '';
+          loadedData.clientSignerTitle = client.trusteeTitle || '';
         }
         
         // Add site details if available
@@ -932,6 +933,8 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
             zip: pd.clientZip,
             email: pd.clientEmail,
             phone: pd.clientPhone,
+            trusteeName: pd.clientSignerName,
+            trusteeTitle: pd.clientSignerTitle,
           };
           await apiRequest('PATCH', `/api/projects/${projectId}/client`, clientPayload);
         }
