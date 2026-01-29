@@ -93,7 +93,7 @@ export async function calculateProjectPricing(projectId: number): Promise<Pricin
   if (projectMilestones.length > 0) {
     for (const milestone of projectMilestones) {
       const percentage = milestone.percentage || 0;
-      const phase = milestone.phase || 'Unknown';
+      const phase = milestone.milestoneType || 'Unknown';
       
       let baseAmount = grandTotal;
       if (phase.toLowerCase().includes('manufacturing') || phase.toLowerCase().includes('production')) {

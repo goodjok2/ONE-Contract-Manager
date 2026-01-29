@@ -19,18 +19,17 @@ This application helps Dvele manage construction projects through dedicated chil
 
 - **Dashboard**: Overview with 4 stat cards (Total Contracts, Drafts, Pending Review, Signed), Recent Contracts section, Quick Start Templates, and Contract Value Overview
 - **Generate Contracts Wizard**: 9-step wizard at /generate-contracts for creating complete contract packages:
-  - Step 1: Project Basics (name, type, total units)
+  - Step 1: Project Basics (name, type, total units) with Unit Builder for selecting home model units
   - Step 2: Service Model (CRC vs CMOS selection)
   - Step 3: Party Information (client details, contractor info for CRC, manufacturer/onsite contractor selection for subcontracts)
   - Step 4: Site & Property (address, multi-unit specifications with add/remove) - **moved before Child LLC**
   - Step 5: Child LLC (auto-generated name from site address) - **moved after Site & Property**
   - Step 6: Key Dates (effective, manufacturing start, completion)
-  - Step 7: Financial Terms (comprehensive pricing and payment configuration):
-    - Design Phase: Design fee ($1k-$100k), revision rounds
-    - Preliminary Pricing: Offsite cost (auto-calculated from unit prices), delivery costs
-    - CMOS-specific: Site prep (12%), Utilities (6%), Completion (8%) auto-calculated
-    - Payment Milestones: 5 milestones summing to 95%, retainage settings (defaults: 20/20/20/20/15)
-    - Manufacturing Payments: Design/production/delivery payment schedule
+  - Step 7: Financial Terms (dynamic pricing from selected units):
+    - **Pricing Dashboard**: Read-only summary showing Total Design Fee, Offsite Manufacturing, Onsite Estimate, and Grand Total calculated from selected home model units
+    - **Additional Site Work / Buffer**: Editable input for extra costs added to standard model onsite estimates
+    - **Save & Recalculate**: Button to persist additional site work and refresh pricing calculations
+    - **Payment Schedule**: Auto-generated milestone table showing Phase Name, Percentage, and Amount from pricing engine
   - Step 8: Schedule & Warranty:
     - Project Schedule: Effective date, completion timeframe, phase durations
     - Timeline Visualization: Visual progress bar with phase dates
@@ -148,6 +147,11 @@ All data now uses PostgreSQL tables:
 - `GET /api/contractor-entities/type/:type` - Get contractor entities by type (manufacturer/onsite)
 - `POST /api/contractor-entities` - Create new contractor entity
 - `PATCH /api/contractor-entities/:id` - Update contractor entity
+- `GET /api/home-models` - List all active home models with pricing
+- `GET /api/projects/:id/units` - Get project units with joined home model data
+- `POST /api/projects/:id/units` - Add a home model unit to project
+- `DELETE /api/project-units/:id` - Remove a unit from project
+- `GET /api/projects/:id/pricing-summary` - Get calculated pricing from pricing engine
 
 ## Navigation Structure
 
