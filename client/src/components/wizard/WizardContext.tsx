@@ -806,7 +806,9 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
     
     setIsCheckingNumber(true);
     try {
-      const response = await fetch(`/api/projects/check-number/${encodeURIComponent(projectNumber)}`);
+      // Exclude current project when editing to avoid self-collision
+      const excludeParam = draftProjectId ? `?excludeId=${draftProjectId}` : '';
+      const response = await fetch(`/api/projects/check-number/${encodeURIComponent(projectNumber)}${excludeParam}`);
       const data = await response.json();
       setNumberIsUnique(data.isUnique);
     } catch (error) {
@@ -815,7 +817,7 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
     } finally {
       setIsCheckingNumber(false);
     }
-  }, []);
+  }, [draftProjectId]);
 
   // Create draft project mutation
   const createDraftProjectMutation = useMutation({

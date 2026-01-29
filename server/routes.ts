@@ -17,7 +17,7 @@ import {
   homeModels,
   projectUnits,
 } from "../shared/schema";
-import { eq, and, sql, desc, count } from "drizzle-orm";
+import { eq, and, sql, desc, count, ne } from "drizzle-orm";
 import Docxtemplater from "docxtemplater";
 import PizZip from "pizzip";
 import * as fs from "fs";
@@ -685,10 +685,17 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.get("/api/projects/check-number/:projectNumber", async (req, res) => {
     try {
       const projectNumber = req.params.projectNumber;
+      const excludeId = req.query.excludeId ? parseInt(req.query.excludeId as string) : null;
+      
+      // Build query - exclude current project if editing
+      const conditions = excludeId 
+        ? and(eq(projects.projectNumber, projectNumber), ne(projects.id, excludeId))
+        : eq(projects.projectNumber, projectNumber);
+      
       const existingProjects = await db
         .select({ id: projects.id })
         .from(projects)
-        .where(eq(projects.projectNumber, projectNumber));
+        .where(conditions);
       
       res.json({ 
         isUnique: existingProjects.length === 0,
