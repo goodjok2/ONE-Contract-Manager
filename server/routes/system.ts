@@ -595,4 +595,160 @@ router.post("/debug/migrate-schedule-columns", async (req, res) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// DEBUG: Fix Contract Content (Ghost Headers, Renumbering, Redundant Tables)
+// ---------------------------------------------------------------------------
+
+router.post("/debug/fix-content", async (req, res) => {
+  try {
+    console.log('\n========================================');
+    console.log('  CONTRACT CONTENT FIX SCRIPT');
+    console.log('========================================\n');
+
+    const deleted: string[] = [];
+    const updated: string[] = [];
+    const errors: string[] = [];
+
+    // STEP 1: Delete Ghost Headers
+    console.log('STEP 1: Deleting ghost/duplicate section headers...\n');
+
+    const ghostHeaderPatterns = [
+      { pattern: 'Section 7. Intellectual Property', reason: 'Duplicate of Section 12' },
+      { pattern: 'Section 8. Limitation of Liability', reason: 'Duplicate of Section 9' },
+      { pattern: 'Section 9. No Obligation to Purchase', reason: 'Conflicting header' },
+      { pattern: 'Section 12. Default', reason: 'Conflicting header' },
+      { pattern: 'Section 13. Miscellaneous Provisions', reason: 'Duplicate of General Provisions' },
+    ];
+
+    for (const { pattern, reason } of ghostHeaderPatterns) {
+      try {
+        const result = await db.execute(sql`
+          DELETE FROM clauses 
+          WHERE name LIKE ${pattern + '%'} 
+          AND contract_type = 'ONE Agreement'
+          RETURNING id, clause_code, name
+        `);
+        
+        if (result.rows && result.rows.length > 0) {
+          for (const row of result.rows as any[]) {
+            const msg = `Deleted [${row.id}] ${row.clause_code}: "${row.name}" (${reason})`;
+            console.log(`  ✗ ${msg}`);
+            deleted.push(msg);
+          }
+        }
+      } catch (err: any) {
+        const errMsg = `Failed to delete "${pattern}": ${err.message}`;
+        console.error(`  ⚠️ ${errMsg}`);
+        errors.push(errMsg);
+      }
+    }
+
+    // STEP 2: Renumber Section 3.4 Financial Obligations to 3.5
+    console.log('\nSTEP 2: Renumbering Section 3.4 Financial Obligations to 3.5...\n');
+
+    try {
+      const result = await db.execute(sql`
+        UPDATE clauses 
+        SET 
+          clause_code = 'ONE-3.5-FIN',
+          name = '3.5. Financial Obligations',
+          sort_order = 355
+        WHERE id = 285 
+          AND contract_type = 'ONE Agreement'
+        RETURNING id, clause_code, name
+      `);
+      
+      if (result.rows && result.rows.length > 0) {
+        const row = (result.rows as any[])[0];
+        const msg = `Renumbered [${row.id}] to ${row.clause_code}: "${row.name}"`;
+        console.log(`  ✓ ${msg}`);
+        updated.push(msg);
+      }
+    } catch (err: any) {
+      errors.push(`Failed to renumber Section 3.4: ${err.message}`);
+    }
+
+    // STEP 3: Simplify Section 2.4
+    console.log('\nSTEP 3: Simplifying Section 2.4 (removing redundant table)...\n');
+
+    try {
+      const newContent24 = `2.4. TOTAL PRELIMINARY PROJECT COST
+
+TOTAL PRELIMINARY PROJECT COST (At Signing): {{PRELIMINARY_CONTRACT_PRICE}}
+
+The Total Preliminary Project Cost breakdown is set forth in **Recital H**.
+
+This preliminary estimate is subject to adjustment as provided in Section 2.6 (Pricing Adjustments and Final Contract Price).`;
+
+      const result = await db.execute(sql`
+        UPDATE clauses 
+        SET content = ${newContent24}
+        WHERE clause_code = 'ONE-2.4' 
+          AND contract_type = 'ONE Agreement'
+        RETURNING id, clause_code, name
+      `);
+      
+      if (result.rows && result.rows.length > 0) {
+        const row = (result.rows as any[])[0];
+        const msg = `Simplified [${row.id}] ${row.clause_code}: "${row.name}"`;
+        console.log(`  ✓ ${msg}`);
+        updated.push(msg);
+      }
+    } catch (err: any) {
+      errors.push(`Failed to simplify Section 2.4: ${err.message}`);
+    }
+
+    // STEP 4: Simplify Section 2.8
+    console.log('\nSTEP 4: Simplifying Section 2.8 (removing redundant table)...\n');
+
+    try {
+      const newContent28 = `2.8. PAYMENT SCHEDULE
+
+All payments under this Agreement shall be made according to the Payment Schedule set forth in **Exhibit C**.
+
+Payment terms, milestone triggers, and amounts are detailed in the Payment Schedule exhibit attached hereto.`;
+
+      const result = await db.execute(sql`
+        UPDATE clauses 
+        SET content = ${newContent28}
+        WHERE clause_code = 'ONE-2.8' 
+          AND contract_type = 'ONE Agreement'
+        RETURNING id, clause_code, name
+      `);
+      
+      if (result.rows && result.rows.length > 0) {
+        const row = (result.rows as any[])[0];
+        const msg = `Simplified [${row.id}] ${row.clause_code}: "${row.name}"`;
+        console.log(`  ✓ ${msg}`);
+        updated.push(msg);
+      }
+    } catch (err: any) {
+      errors.push(`Failed to simplify Section 2.8: ${err.message}`);
+    }
+
+    console.log('\n========================================');
+    console.log(`  SUMMARY: Deleted ${deleted.length}, Updated ${updated.length}, Errors ${errors.length}`);
+    console.log('========================================\n');
+
+    res.json({
+      success: errors.length === 0,
+      deleted,
+      updated,
+      errors,
+      summary: {
+        deletedCount: deleted.length,
+        updatedCount: updated.length,
+        errorCount: errors.length
+      }
+    });
+
+  } catch (error: any) {
+    console.error("Fix content script failed:", error);
+    res.status(500).json({ 
+      error: "Fix content script failed",
+      details: error?.message 
+    });
+  }
+});
+
 export default router;
