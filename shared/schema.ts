@@ -129,6 +129,13 @@ export const projectDetails = pgTable("project_details", {
   productionStartDate: text("production_start_date"),
   estimatedDeliveryDate: text("estimated_delivery_date"),
   actualDeliveryDate: text("actual_delivery_date"),
+  estimatedCompletionDate: text("estimated_completion_date"),
+  
+  // Schedule Durations (in days)
+  designPhaseDays: integer("design_phase_days"),
+  manufacturingDurationDays: integer("manufacturing_duration_days"),
+  onsiteDurationDays: integer("onsite_duration_days"),
+  permittingDurationDays: integer("permitting_duration_days"),
   
   // Legal
   governingLawState: text("governing_law_state"),
