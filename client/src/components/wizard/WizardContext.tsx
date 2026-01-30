@@ -993,6 +993,12 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
       warrantyStructuralMonths: pd.warrantyStructuralMonths,
       warrantyStartDate: pd.warrantyStartDate,
       arbitrationProvider: pd.arbitrationProvider,
+      // Schedule durations
+      designPhaseDays: pd.designPhaseDays,
+      manufacturingDurationDays: pd.manufacturingDurationDays,
+      onsiteDurationDays: pd.onsiteDurationDays,
+      permittingDurationDays: pd.permittingDurationDays,
+      estimatedCompletionDate: pd.estimatedCompletionDate,
     });
     
     if (currentDataHash === lastSavedDataRef.current) return;
@@ -1029,11 +1035,19 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
           setDraftProjectId(project.id);
         }
       } else {
-        // Update existing project
+        // Update existing project including schedule durations
         await apiRequest('PATCH', `/api/projects/${projectId}`, {
           name: pd.projectName,
           state: pd.siteState || null,
           onSiteSelection: pd.serviceModel || 'CRC',
+          // Schedule durations on project level
+          designDuration: pd.designPhaseDays || 0,
+          permittingDuration: pd.permittingDurationDays || 0,
+          productionDuration: pd.manufacturingDurationDays || 0,
+          deliveryDuration: pd.onsiteDurationDays || 0,
+          completionDuration: (pd.designPhaseDays || 0) + (pd.manufacturingDurationDays || 0) + (pd.onsiteDurationDays || 0),
+          estimatedDeliveryDate: pd.targetDeliveryDate || null,
+          estimatedCompletionDate: pd.estimatedCompletionDate || null,
         });
       }
       

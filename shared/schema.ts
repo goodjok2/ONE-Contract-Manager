@@ -34,6 +34,14 @@ export const projects = pgTable("projects", {
   odooProjectId: integer("odoo_project_id"), // Link to Odoo
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  // Schedule durations (in days)
+  designDuration: integer("design_duration").default(0),
+  permittingDuration: integer("permitting_duration").default(0),
+  productionDuration: integer("production_duration").default(0),
+  deliveryDuration: integer("delivery_duration").default(0),
+  completionDuration: integer("completion_duration").default(0),
+  estimatedDeliveryDate: timestamp("estimated_delivery_date"),
+  estimatedCompletionDate: timestamp("estimated_completion_date"),
 });
 
 // Project Units - Instances of home models assigned to projects
