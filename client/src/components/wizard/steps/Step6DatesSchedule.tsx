@@ -15,11 +15,22 @@ export const Step6DatesSchedule: React.FC = () => {
   
   const { projectData, validationErrors } = wizardState;
   
-  // Use project's existing start date (from Step 1)
+  // Use project's existing start date (from Step 1) or effectiveDate if set
   // agreementDate comes from Step 1, defaults to today if not set
   const projectStartDate = useMemo(() => {
+    if (projectData.effectiveDate) return new Date(projectData.effectiveDate);
     if (projectData.agreementDate) return new Date(projectData.agreementDate);
     return new Date(); // Default to today
+  }, [projectData.effectiveDate, projectData.agreementDate]);
+  
+  // Initialize effectiveDate from agreementDate if not already set
+  useEffect(() => {
+    if (!projectData.effectiveDate && projectData.agreementDate) {
+      updateProjectData({ effectiveDate: projectData.agreementDate });
+    } else if (!projectData.effectiveDate && !projectData.agreementDate) {
+      // Set to today if neither is set
+      updateProjectData({ effectiveDate: new Date().toISOString().split('T')[0] });
+    }
   }, [projectData.agreementDate]);
   
   useEffect(() => {
@@ -101,15 +112,27 @@ export const Step6DatesSchedule: React.FC = () => {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="p-4 bg-muted/30 rounded-lg border flex items-start gap-3">
-            <Info className="h-5 w-5 text-muted-foreground mt-0.5" />
-            <div>
-              <p className="text-sm font-medium">Project Start Date</p>
-              <p className="text-lg font-semibold">{formatDate(projectStartDate)}</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Based on the agreement date from Step 1 (or project creation date)
+          <div className="space-y-3">
+            <Label htmlFor="effectiveDate" className="flex items-center gap-2">
+              <Calendar className="h-4 w-4" />
+              Effective Date / Project Start Date
+            </Label>
+            <Input
+              id="effectiveDate"
+              type="date"
+              value={projectData.effectiveDate || ''}
+              onChange={(e) => updateProjectData({ effectiveDate: e.target.value })}
+              className="max-w-xs"
+              data-testid="input-effective-date"
+            />
+            <p className="text-xs text-muted-foreground">
+              The contract effective date. Defaults to the agreement date from Step 1.
+            </p>
+            {projectData.effectiveDate && (
+              <p className="text-sm font-medium text-primary">
+                {formatDate(new Date(projectData.effectiveDate))}
               </p>
-            </div>
+            )}
           </div>
         </CardContent>
       </Card>
