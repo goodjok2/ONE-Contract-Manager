@@ -15,7 +15,12 @@ export const Step8ScheduleWarranty: React.FC = () => {
   } = useWizard();
   
   const { projectData, validationErrors } = wizardState;
-  const [overrideJurisdiction, setOverrideJurisdiction] = useState(false);
+  
+  // Use projectData field to persist override preference
+  const overrideJurisdiction = projectData.overrideJurisdiction || false;
+  const setOverrideJurisdiction = (checked: boolean) => {
+    updateProjectData({ overrideJurisdiction: checked });
+  };
   
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('en-US', { 
@@ -75,22 +80,36 @@ export const Step8ScheduleWarranty: React.FC = () => {
   ]);
   
   const availableDistricts = useMemo(() => {
-    const state = projectData.siteState || projectData.projectState || '';
+    const state = projectData.projectState || projectData.siteState || '';
     return FEDERAL_DISTRICTS[state] || [];
   }, [projectData.siteState, projectData.projectState]);
   
+  // Auto-set jurisdiction defaults from site address on initial load
   useEffect(() => {
+    const updates: Partial<typeof projectData> = {};
+    
+    // Default projectState from siteState
     if (!projectData.projectState && projectData.siteState) {
-      updateProjectData({ projectState: projectData.siteState });
+      updates.projectState = projectData.siteState;
     }
+    
+    // Default projectCounty from siteCounty
     if (!projectData.projectCounty && projectData.siteCounty) {
-      updateProjectData({ projectCounty: projectData.siteCounty });
+      updates.projectCounty = projectData.siteCounty;
     }
-  }, [projectData.siteState, projectData.siteCounty]);
+    
+    if (Object.keys(updates).length > 0) {
+      updateProjectData(updates);
+    }
+  }, [projectData.siteState, projectData.siteCounty, projectData.projectState, projectData.projectCounty]);
   
+  // Auto-set federal district when state changes or when district is empty
   useEffect(() => {
-    if (projectData.projectFederalDistrict && !availableDistricts.includes(projectData.projectFederalDistrict)) {
-      updateProjectData({ projectFederalDistrict: '' });
+    // If current district is invalid for the state, or no district is set, auto-select first available
+    if (availableDistricts.length > 0) {
+      if (!projectData.projectFederalDistrict || !availableDistricts.includes(projectData.projectFederalDistrict)) {
+        updateProjectData({ projectFederalDistrict: availableDistricts[0] });
+      }
     }
   }, [availableDistricts, projectData.projectFederalDistrict]);
   

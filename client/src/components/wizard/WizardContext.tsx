@@ -200,6 +200,7 @@ export interface ProjectData {
   projectState: string;
   projectCounty: string;
   projectFederalDistrict: string;
+  overrideJurisdiction: boolean;
   arbitrationProvider: 'JAMS' | 'AAA';
   generalContractorName: string;
   generalContractorLicense: string;
@@ -409,6 +410,7 @@ export const initialProjectData: ProjectData = {
   projectState: '',
   projectCounty: '',
   projectFederalDistrict: '',
+  overrideJurisdiction: false,
   arbitrationProvider: 'JAMS',
   generalContractorName: '',
   generalContractorLicense: '',
@@ -479,6 +481,7 @@ export const testDraftData: Partial<ProjectData> = {
   projectState: 'CA',
   projectCounty: 'San Francisco',
   projectFederalDistrict: 'Northern District of California',
+  overrideJurisdiction: false,
   arbitrationProvider: 'JAMS',
 };
 
