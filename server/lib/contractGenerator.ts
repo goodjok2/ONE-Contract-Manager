@@ -112,11 +112,52 @@ async function fetchClausesForContract(
       return true;
     });
     
-    console.log(`   Total clauses after filtering: ${filteredClauses.length}\n`);
+    console.log(`   Clauses after condition filtering: ${filteredClauses.length}`);
     
-    console.log(`After filtering: ${filteredClauses.length} clauses will be included`);
+    // STEP 2: Symmetric name/key-based Service Model filtering
+    // This catches clauses with CRC/CMOS in their name or key even without explicit conditions
+    // Normalize serviceModel to uppercase for consistent comparisons
+    const normalizedServiceModel = (serviceModel || 'CRC').toUpperCase();
+    console.log(`\n🔍 Service Model Name/Key Filtering (Project: ${normalizedServiceModel}):`);
     
-    return filteredClauses.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+    const serviceModelFilteredClauses = filteredClauses.filter(clause => {
+      const title = (clause.name || "").toUpperCase();
+      const key = (clause.clause_code || "").toUpperCase();
+      const combined = title + " " + key;
+
+      // Identify what type of clause this is based on name/key
+      const isCrcClause = combined.includes("CRC") || combined.includes("CLIENT-RETAINED");
+      const isCmosClause = combined.includes("CMOS") || combined.includes("COMPANY-MANAGED");
+
+      // Edge case: If clause has BOTH keywords, treat as shared/dual-option clause - KEEP
+      if (isCrcClause && isCmosClause) {
+        console.log(`   ✓ KEPT (SHARED): [${clause.id}] ${clause.clause_code} "${clause.name}" - contains both CRC and CMOS keywords`);
+        return true;
+      }
+
+      // If this is a CRC project, HIDE CMOS-only clauses
+      if (normalizedServiceModel === "CRC" && isCmosClause) {
+        console.log(`   ✗ REMOVED: [${clause.id}] ${clause.clause_code} "${clause.name}" - CMOS clause in CRC project`);
+        return false;
+      }
+
+      // If this is a CMOS project, HIDE CRC-only clauses
+      if (normalizedServiceModel === "CMOS" && isCrcClause) {
+        console.log(`   ✗ REMOVED: [${clause.id}] ${clause.clause_code} "${clause.name}" - CRC clause in CMOS project`);
+        return false;
+      }
+
+      // Otherwise, keep it (shared clauses or correctly matched clauses)
+      return true;
+    });
+    
+    const removedCount = filteredClauses.length - serviceModelFilteredClauses.length;
+    console.log(`   Service model filtering removed ${removedCount} clauses`);
+    console.log(`   Total clauses after all filtering: ${serviceModelFilteredClauses.length}\n`);
+    
+    console.log(`After filtering: ${serviceModelFilteredClauses.length} clauses will be included`);
+    
+    return serviceModelFilteredClauses.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
     
   } catch (error) {
     console.error('Error fetching clauses:', error);
