@@ -335,6 +335,19 @@ export function centsToDollars(cents: number | null | undefined): number | null 
 }
 
 /**
+ * Format a date string to short form: "2025-01-15" -> "01/15/2025"
+ */
+export function formatDate(dateStr: string | Date | null | undefined): string {
+  if (!dateStr) return "";
+  const date = dateStr instanceof Date ? dateStr : new Date(dateStr);
+  return date.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+}
+
+/**
  * Format a date string to written form: "2025-01-15" -> "January 15, 2025"
  */
 export function formatDateWritten(dateStr: string | null | undefined): string {
@@ -853,8 +866,8 @@ export function mapProjectToVariables(
     COMPLETION_DATE: project.estimatedCompletionDate 
       ? formatDate(new Date(project.estimatedCompletionDate)) 
       : "",
-    PROJECT_START_DATE: financials?.contractDate 
-      ? formatDate(new Date(financials.contractDate)) 
+    PROJECT_START_DATE: projectDetails?.agreementExecutionDate 
+      ? formatDate(new Date(projectDetails.agreementExecutionDate)) 
       : "",
     PROJECT_END_DATE: project.estimatedCompletionDate 
       ? formatDate(new Date(project.estimatedCompletionDate)) 

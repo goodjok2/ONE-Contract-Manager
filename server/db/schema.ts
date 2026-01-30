@@ -15,6 +15,14 @@ export const projects = sqliteTable("projects", {
   odooProjectId: integer("odoo_project_id"), // Link to Odoo
   createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
   updatedAt: text("updated_at"),
+  // Schedule Durations (in days)
+  designDuration: integer("design_duration").default(0),
+  permittingDuration: integer("permitting_duration").default(0),
+  productionDuration: integer("production_duration").default(0),
+  deliveryDuration: integer("delivery_duration").default(0),
+  completionDuration: integer("completion_duration").default(0),
+  estimatedDeliveryDate: text("estimated_delivery_date"),
+  estimatedCompletionDate: text("estimated_completion_date"),
 });
 
 export const clients = sqliteTable("clients", {
