@@ -76,11 +76,11 @@ export async function getProjectWithRelations(projectId: number): Promise<Projec
   } : null;
 
   return {
-    project,
+    project: project as any, // Date fields handled by mapper formatDate functions
     client: client || null,
     childLlc: childLlc,
     projectDetails: projectDetail || null,
-    financials: financial || null,
+    financials: financial as any || null, // Date fields handled by mapper formatDate functions
     warrantyTerms: warranty || null,
     milestones: projectMilestones,
     contractors: projectContractors,

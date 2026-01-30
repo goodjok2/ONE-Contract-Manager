@@ -6,7 +6,7 @@ import type {
   Milestone,
   WarrantyTerm,
   Contractor,
-} from "../db/schema";
+} from "../../shared/schema";
 import { generatePricingTableHtml, generatePaymentScheduleHtml, generateUnitDetailsHtml, UnitDetail } from "./tableGenerators";
 
 // =============================================================================
@@ -307,6 +307,12 @@ export const VARIABLE_CATEGORIES = {
 };
 
 export const ALL_VARIABLES = Object.values(VARIABLE_CATEGORIES).flat();
+
+/**
+ * SUPPORTED_VARIABLES - Exported constant for UI Variable Library
+ * Lists all variable keys that mapProjectToVariables can populate
+ */
+export const SUPPORTED_VARIABLES = ALL_VARIABLES;
 
 // =============================================================================
 // FORMATTING HELPERS

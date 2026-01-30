@@ -745,10 +745,6 @@ router.post("/contracts/generate-package", async (req, res) => {
   }
 });
 
-router.post("/contracts/download-docx", async (req, res) => {
-  res.redirect(307, '/api/contracts/download-pdf');
-});
-
 router.post("/contracts/download-all-zip", async (req, res) => {
   try {
     const { projectId } = req.body;
