@@ -1456,9 +1456,22 @@ function buildVariableMap(projectData: Record<string, any>): Record<string, stri
     return map;
   }
   
-  // LEGACY FALLBACK: Only used if caller doesn't pre-map data
-  console.warn('⚠️ Using legacy variable mapping - consider using mapProjectToVariables() instead');
+  // LEGACY FALLBACK: DEPRECATED - This path should no longer be used
+  // All callers should use mapProjectToVariables() from mapper.ts
+  // Throwing error to enforce the unified mapping standard
+  const errorMessage = 
+    'LEGACY MAPPING ERROR: projectData is not pre-mapped. ' +
+    'All callers must use mapProjectToVariables() from mapper.ts. ' +
+    'Standard flow: getProjectWithRelations() → calculateProjectPricing() → mapProjectToVariables() → generateContract()';
   
+  console.error('❌ ' + errorMessage);
+  console.error('   Received keys:', Object.keys(projectData).slice(0, 10).join(', '), '...');
+  
+  // STRICT MODE: Throw error to enforce unified mapping
+  // If backward compatibility is needed, this can be changed to a warning
+  throw new Error(errorMessage);
+  
+  /* LEGACY CODE BELOW - Kept for reference but no longer executed
   // ============================================
   // CORE VALUES - Define once, alias automatically
   // ============================================
@@ -1817,6 +1830,7 @@ function buildVariableMap(projectData: Record<string, any>): Record<string, stri
   
   console.log(`Built variable map with ${Object.keys(map).length} variables`);
   return map;
+  // END OF LEGACY CODE */
 }
 
 function formatCurrency(value: string | number | undefined): string {

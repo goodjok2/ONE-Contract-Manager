@@ -1024,8 +1024,13 @@ router.post("/contracts/download-pdf", async (req, res) => {
         console.warn('Pricing engine calculation failed, using legacy values:', pricingError);
       }
     } else if (legacyProjectData) {
-      projectData = legacyProjectData;
-      console.log(`\n=== Generating ${contractType} contract (legacy mode) ===`);
+      // LEGACY MODE IS NO LONGER SUPPORTED - Reject with clear error
+      // All callers must use projectId to ensure proper variable mapping
+      return res.status(400).json({ 
+        error: "Legacy projectData input is no longer supported",
+        message: "Please use 'projectId' instead of 'projectData'. The standard flow requires: projectId → getProjectWithRelations() → mapProjectToVariables() → generateContract()",
+        action: "Update your API call to use { projectId: <number>, contractType: <string> }"
+      });
     } else {
       return res.status(400).json({ error: "Either projectId or projectData is required" });
     }

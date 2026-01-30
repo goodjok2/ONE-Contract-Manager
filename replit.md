@@ -61,6 +61,18 @@ The application is built on a modern full-stack architecture.
 - **Pricing Engine Integration**: Dynamic injection of pricing data into contract generation, including design fees, manufacturing costs, onsite costs, and payment milestones.
 - **Dynamic HTML Tables (Jan 2026)**: Contract variables `{{PRICING_BREAKDOWN_TABLE}}` and `{{PAYMENT_SCHEDULE_TABLE}}` render as styled HTML tables with inline CSS for PDF compatibility. Use the Clause Library UI to add these placeholders to clauses like ONE-EXHIBIT-C (Payment Schedule) and ONE-RECITAL-A (Pricing). Migration endpoint at POST `/api/debug/migrate-clauses` scans for candidate clauses.
 - **Schedule Duration Variables (Jan 2026)**: Project-level schedule fields (`design_duration`, `permitting_duration`, `production_duration`, `delivery_duration`, `completion_duration`, `estimated_delivery_date`, `estimated_completion_date`) are stored on the `projects` table. These populate contract variables like `{{DESIGN_DURATION}}`, `{{PRODUCTION_DURATION}}`, `{{DELIVERY_DATE}}`, `{{COMPLETION_DATE}}` for Exhibit D schedules. Migration endpoint: POST `/api/debug/migrate-schedule-columns`.
+- **Foundation Cleanup (Jan 2026)**:
+    - Deleted legacy .docx templates from `server/templates/`
+    - Removed `/api/contracts/download-docx` route (now 100% HTML-to-PDF engine)
+    - Unified variable mapping: `server/lib/mapper.ts` is now the single source of truth
+    - Standard generation flow: `getProjectWithRelations()` → `calculateProjectPricing()` → `mapProjectToVariables()` → `generateContract()`
+    - Exported `SUPPORTED_VARIABLES` and `VARIABLE_CATEGORIES` from mapper.ts for UI Variable Library
+    - Fixed type mismatches between PostgreSQL Date fields and mapper string types
+    - **Strict Enforcement (Jan 30, 2026)**:
+        - `buildVariableMap()` throws error when unmapped data is passed
+        - `/api/contracts/download-pdf` rejects legacy `projectData` with 400 error
+        - All callers must use `projectId` parameter for unified variable mapping
+        - Legacy code in buildVariableMap is commented out for reference only
 
 ## External Dependencies
 
