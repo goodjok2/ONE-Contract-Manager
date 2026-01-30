@@ -1,0 +1,40 @@
+The previous cleanup script caused numbering collisions and sorting errors. We need a "Strict Ordering" script to force-update specific clauses to the correct names and sort orders.
+
+**Task: Create and Run `scripts/force-contract-order.ts`**
+
+1.  **Define the "Golden Order" Map:**
+    Create a mapping of `key` -> `{ name, sortOrder }` and update these specific rows in the DB:
+
+    **Section 1 (Fixing the 1.6 collision):**
+    * `ONE-1.5-CRC`: Name="1.6. On-Site Work - CRC Client Acknowledgment", Order=160
+    * `ONE-1.6`: Name="1.7. Custom Design Services (Optional)", Order=170 (Was colliding as 1.6)
+
+    **Section 3 (Fixing the 3.4 -> 3.6 -> 3.5 scramble):**
+    * `ONE-3.4-CRC`: Order=340
+    * `ONE-3.5-FINANCIAL`: Name="3.5. Financial Obligations", Order=350
+    * `ONE-3.5` (Green Light): Name="3.6. Green Light Conditions", Order=360
+
+    **Section 5 (Fixing the double 5.3):**
+    * `ONE-5.3` (Base): Name="5.3.1 Site Readiness Overview", Order=530
+    * `ONE-5.3-CRC`: Name="5.3.2 Site Readiness - CRC", Order=531
+
+    **Section 7 (Restoring the Missing Section):**
+    * **Create/Update** Clause `ONE-SEC-7-HEADER`: Name="SECTION 7", Text="<h3>SECTION 7. RISK OF LOSS AND TITLE TRANSFER</h3>", Order=700
+    * `ONE-7.1`: Name="7.1. Risk of Loss", Order=710
+    * `ONE-7.2`: Name="7.2. Title Transfer", Order=720
+
+    **Section 8 & 9 (Restoring Headers):**
+    * **Create/Update** `ONE-SEC-8-HEADER`: Name="SECTION 8", Text="<h3>SECTION 8. INDEMNIFICATION</h3>", Order=800
+    * `ONE-8.1`: Name="8.1. Client Indemnification", Order=810
+    * `ONE-8.2`: Name="8.2. Company Indemnification", Order=820
+    * **Create/Update** `ONE-SEC-9-HEADER`: Name="SECTION 9", Text="<h3>SECTION 9. LIMITATION OF LIABILITY</h3>", Order=900
+    * `ONE-9.1`: Name="9.1. Cap on Liability", Order=910
+
+2.  **Restore Data Mapper (The Missing Tables):**
+    * While editing, please **re-apply the fix to `server/routes/contracts.ts`**:
+    * Ensure the `projects` query includes `with: { units: true }` so Exhibit A works.
+
+3.  **Execute:**
+    * Expose as `POST /api/debug/force-order` and run it.
+
+**Goal:** Force the database to respect this exact sequence, regardless of what text is currently inside.

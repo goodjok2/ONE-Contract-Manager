@@ -752,6 +752,33 @@ Payment terms, milestone triggers, and amounts are detailed in the Payment Sched
 });
 
 // ---------------------------------------------------------------------------
+// FORCE CONTRACT ORDER - Fix numbering collisions
+// ---------------------------------------------------------------------------
+router.post("/debug/force-order", async (req, res) => {
+  try {
+    const { runForceOrder } = await import('../scripts/force-contract-order');
+    const result = await runForceOrder();
+    
+    res.json({
+      success: true,
+      message: "Force order completed",
+      summary: {
+        updated: result.updated.length,
+        created: result.created.length,
+        errors: result.errors.length
+      },
+      details: result
+    });
+  } catch (error: any) {
+    console.error("Force order failed:", error);
+    res.status(500).json({ 
+      error: "Force order failed",
+      details: error?.message 
+    });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // GRANDMASTER CONTENT REPAIR - Comprehensive clause cleanup
 // ---------------------------------------------------------------------------
 router.post("/debug/fix-grandmaster", async (req, res) => {
