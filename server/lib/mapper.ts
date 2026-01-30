@@ -266,12 +266,14 @@ export const VARIABLE_CATEGORIES = {
   schedule: [
     "DESIGN_DURATION",
     "DESIGN_DURATION_WRITTEN",
-    "MANUFACTURING_DURATION",
-    "MANUFACTURING_DURATION_WRITTEN",
-    "ONSITE_DURATION",
-    "ONSITE_DURATION_WRITTEN",
     "PERMITTING_DURATION",
     "PERMITTING_DURATION_WRITTEN",
+    "PRODUCTION_DURATION",
+    "PRODUCTION_DURATION_WRITTEN",
+    "DELIVERY_DURATION",
+    "DELIVERY_DURATION_WRITTEN",
+    "COMPLETION_DURATION",
+    "COMPLETION_DURATION_WRITTEN",
     "DELIVERY_DATE",
     "COMPLETION_DATE",
     "PROJECT_START_DATE",
@@ -835,25 +837,27 @@ export function mapProjectToVariables(
     // ===================
     // SCHEDULE
     // ===================
-    DESIGN_DURATION: String(projectDetails?.designPhaseDays || 90),
-    DESIGN_DURATION_WRITTEN: `${projectDetails?.designPhaseDays || 90} days`,
-    MANUFACTURING_DURATION: String(projectDetails?.manufacturingDurationDays || 120),
-    MANUFACTURING_DURATION_WRITTEN: `${projectDetails?.manufacturingDurationDays || 120} days`,
-    ONSITE_DURATION: String(projectDetails?.onsiteDurationDays || 90),
-    ONSITE_DURATION_WRITTEN: `${projectDetails?.onsiteDurationDays || 90} days`,
-    PERMITTING_DURATION: String(projectDetails?.permittingDurationDays || 60),
-    PERMITTING_DURATION_WRITTEN: `${projectDetails?.permittingDurationDays || 60} days`,
-    DELIVERY_DATE: projectDetails?.estimatedDeliveryDate 
-      ? formatDate(new Date(projectDetails.estimatedDeliveryDate)) 
+    DESIGN_DURATION: String(project.designDuration || 0),
+    DESIGN_DURATION_WRITTEN: `${project.designDuration || 0} days`,
+    PERMITTING_DURATION: String(project.permittingDuration || 0),
+    PERMITTING_DURATION_WRITTEN: `${project.permittingDuration || 0} days`,
+    PRODUCTION_DURATION: String(project.productionDuration || 0),
+    PRODUCTION_DURATION_WRITTEN: `${project.productionDuration || 0} days`,
+    DELIVERY_DURATION: String(project.deliveryDuration || 0),
+    DELIVERY_DURATION_WRITTEN: `${project.deliveryDuration || 0} days`,
+    COMPLETION_DURATION: String(project.completionDuration || 0),
+    COMPLETION_DURATION_WRITTEN: `${project.completionDuration || 0} days`,
+    DELIVERY_DATE: project.estimatedDeliveryDate 
+      ? formatDate(new Date(project.estimatedDeliveryDate)) 
       : "",
-    COMPLETION_DATE: projectDetails?.estimatedCompletionDate 
-      ? formatDate(new Date(projectDetails.estimatedCompletionDate)) 
+    COMPLETION_DATE: project.estimatedCompletionDate 
+      ? formatDate(new Date(project.estimatedCompletionDate)) 
       : "",
     PROJECT_START_DATE: financials?.contractDate 
       ? formatDate(new Date(financials.contractDate)) 
       : "",
-    PROJECT_END_DATE: projectDetails?.estimatedCompletionDate 
-      ? formatDate(new Date(projectDetails.estimatedCompletionDate)) 
+    PROJECT_END_DATE: project.estimatedCompletionDate 
+      ? formatDate(new Date(project.estimatedCompletionDate)) 
       : "",
 
     // ===================

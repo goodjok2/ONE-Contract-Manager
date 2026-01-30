@@ -555,4 +555,44 @@ router.post("/debug/apply-table-variables", async (req, res) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// MIGRATION: Add schedule duration columns to projects table
+// ---------------------------------------------------------------------------
+router.post("/debug/migrate-schedule-columns", async (req, res) => {
+  try {
+    const migrationSql = `
+      ALTER TABLE projects 
+      ADD COLUMN IF NOT EXISTS design_duration INTEGER DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS permitting_duration INTEGER DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS production_duration INTEGER DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS delivery_duration INTEGER DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS completion_duration INTEGER DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS estimated_delivery_date TIMESTAMP,
+      ADD COLUMN IF NOT EXISTS estimated_completion_date TIMESTAMP;
+    `;
+    
+    await pool.query(migrationSql);
+    
+    res.json({
+      success: true,
+      message: 'Schedule duration columns added to projects table',
+      columnsAdded: [
+        'design_duration',
+        'permitting_duration', 
+        'production_duration',
+        'delivery_duration',
+        'completion_duration',
+        'estimated_delivery_date',
+        'estimated_completion_date'
+      ]
+    });
+  } catch (error: any) {
+    console.error("Migration failed:", error);
+    res.status(500).json({ 
+      error: "Migration failed",
+      details: error?.message 
+    });
+  }
+});
+
 export default router;
