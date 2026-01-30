@@ -752,6 +752,34 @@ Payment terms, milestone triggers, and amounts are detailed in the Payment Sched
 });
 
 // ---------------------------------------------------------------------------
+// DYNAMIC RESET - Symmetric CRC/CMOS slot ordering
+// ---------------------------------------------------------------------------
+router.post("/debug/reset-dynamic", async (req, res) => {
+  try {
+    const { runDynamicReset } = await import('../scripts/reset-contract-structure-dynamic');
+    const result = await runDynamicReset();
+    
+    res.json({
+      success: true,
+      message: "Dynamic reset completed",
+      summary: {
+        updated: result.updated.length,
+        created: result.created.length,
+        deleted: result.deleted.length,
+        errors: result.errors.length
+      },
+      details: result
+    });
+  } catch (error: any) {
+    console.error("Dynamic reset failed:", error);
+    res.status(500).json({ 
+      error: "Dynamic reset failed",
+      details: error?.message 
+    });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // FORCE CONTRACT ORDER - Fix numbering collisions
 // ---------------------------------------------------------------------------
 router.post("/debug/force-order", async (req, res) => {
