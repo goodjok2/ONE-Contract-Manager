@@ -570,9 +570,7 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
         ]);
         
         if (!projectRes.ok) throw new Error('Failed to load project');
-        const projectResponse = await projectRes.json();
-        // API returns { project: {...}, client: {...}, ... } - extract the project object
-        const project = projectResponse.project;
+        const project = await projectRes.json();
         const client = clientRes.ok ? await clientRes.json() : null;
         const financials = financialsRes.ok ? await financialsRes.json() : null;
         const details = detailsRes.ok ? await detailsRes.json() : null;
