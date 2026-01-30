@@ -73,12 +73,16 @@ The application is built on a modern full-stack architecture.
         - `/api/contracts/download-pdf` rejects legacy `projectData` with 400 error
         - All callers must use `projectId` parameter for unified variable mapping
         - Legacy code in buildVariableMap is commented out for reference only
-- **Intelligent Contract Ingestor (Jan 30, 2026)**:
+- **Intelligent Discovery-Based Contract Ingestor (Jan 30, 2026)**:
     - Ingestion script: `scripts/ingest_standard_contracts.ts` using mammoth library
-    - Parses .docx templates into recursive block structure: ONE (186 blocks), OFFSITE (40), ONSITE (48)
-    - Schema updates: Added `block_type` column ('section', 'clause', 'paragraph', 'table')
+    - Auto-discovers .docx files in `server/templates/` and derives contract type from filename
+    - Style-based extraction: Maps Word styles (Heading 1→section, Heading 2→clause, Normal→paragraph)
+    - Pattern detection fallback for uppercase headers, section numbers, and short titles
+    - Clean slate approach: DELETE FROM clauses before each ingestion ensures no duplicates
+    - Ingestion results: ONE_AGREEMENT (326 blocks), OFFSITE (100 blocks), ON_SITE (130 blocks) = 556 total
     - Tree structure: `parent_clause_id` references create proper hierarchy (clauses → sections)
     - Variable extraction: `{{VARIABLE_NAME}}` patterns auto-detected and stored in `variables_used` array
+    - Contract type mapping: contractTypeMap in routes handles user-facing types (ONE, OFFSITE, ONSITE) ↔ database types (ONE_AGREEMENT, OFFSITE, ON_SITE)
     - Run script: `npx tsx scripts/ingest_standard_contracts.ts`
 
 ## External Dependencies
