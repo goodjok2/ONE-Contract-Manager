@@ -1412,8 +1412,8 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
         if (data.warrantyFitFinishMonths < 12 || data.warrantyFitFinishMonths > 36) {
           errors.warrantyFitFinishMonths = 'Fit & finish warranty must be 12-36 months';
         }
-        if (data.warrantyBuildingEnvelopeMonths < 36 || data.warrantyBuildingEnvelopeMonths > 120) {
-          errors.warrantyBuildingEnvelopeMonths = 'Building envelope warranty must be 36-120 months';
+        if (data.warrantyBuildingEnvelopeMonths < 24 || data.warrantyBuildingEnvelopeMonths > 120) {
+          errors.warrantyBuildingEnvelopeMonths = 'Building envelope warranty must be 24-120 months';
         }
         if (data.warrantyStructuralMonths < 60 || data.warrantyStructuralMonths > 240) {
           errors.warrantyStructuralMonths = 'Structural warranty must be 60-240 months';

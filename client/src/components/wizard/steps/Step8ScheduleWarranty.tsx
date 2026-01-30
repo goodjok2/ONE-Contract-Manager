@@ -254,7 +254,7 @@ export const Step8ScheduleWarranty: React.FC = () => {
                   value={projectData.warrantyBuildingEnvelopeMonths || 60}
                   onChange={(e) => updateProjectData({ warrantyBuildingEnvelopeMonths: parseInt(e.target.value) || 60 })}
                   className={validationErrors.warrantyBuildingEnvelopeMonths ? 'border-red-500' : ''}
-                  min={36}
+                  min={24}
                   max={120}
                   data-testid="input-warranty-envelope"
                 />
