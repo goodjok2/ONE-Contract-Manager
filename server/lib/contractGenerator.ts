@@ -98,20 +98,23 @@ async function fetchClausesForContract(
       }
       
       // Check for ON_SITE_SERVICES_SELECTION condition (the actual field in database)
-      const onSiteSelection = conditions.ON_SITE_SERVICES_SELECTION;
-      if (onSiteSelection) {
+      const rawOnSiteSelection = conditions.ON_SITE_SERVICES_SELECTION;
+      if (rawOnSiteSelection) {
+        // Normalize to uppercase string (handle arrays, numbers, etc.)
+        const onSiteSelection = String(Array.isArray(rawOnSiteSelection) ? rawOnSiteSelection[0] : rawOnSiteSelection).toUpperCase();
+        
         // Map condition value to service model
         const isCrcCondition = onSiteSelection.includes('CLIENT-RETAINED') || onSiteSelection === 'CRC';
         const isCmosCondition = onSiteSelection.includes('COMPANY-MANAGED') || onSiteSelection === 'CMOS';
         
-        // If this is a CRC project, only keep CRC clauses (drop CMOS)
-        if (serviceModel === 'CRC' && isCmosCondition && !isCrcCondition) {
+        // STRICT: If this is a CRC project, drop ANY clause with CMOS condition
+        if (serviceModel === 'CRC' && isCmosCondition) {
           console.log(`   ✗ DROPPED: [${clause.id}] ${clause.clause_code} - CMOS condition in CRC project`);
           return false;
         }
         
-        // If this is a CMOS project, only keep CMOS clauses (drop CRC)
-        if (serviceModel === 'CMOS' && isCrcCondition && !isCmosCondition) {
+        // STRICT: If this is a CMOS project, drop ANY clause with CRC condition
+        if (serviceModel === 'CMOS' && isCrcCondition) {
           console.log(`   ✗ DROPPED: [${clause.id}] ${clause.clause_code} - CRC condition in CMOS project`);
           return false;
         }
@@ -147,35 +150,55 @@ async function fetchClausesForContract(
       const isCrcClause = combined.includes("CRC") || combined.includes("CLIENT-RETAINED");
       const isCmosClause = combined.includes("CMOS") || combined.includes("COMPANY-MANAGED");
 
-      // Edge case: If clause has BOTH keywords, treat as shared/dual-option clause - KEEP
-      if (isCrcClause && isCmosClause) {
-        console.log(`   ✓ KEPT (SHARED): [${clause.id}] ${clause.clause_code} - contains both keywords`);
-        return true;
-      }
-
-      // If this is a CRC project, HIDE CMOS-only clauses
+      // STRICT: If this is a CRC project, drop ANY clause with CMOS in name/key
       if (serviceModel === "CRC" && isCmosClause) {
-        console.log(`   ✗ DROPPED: [${clause.id}] ${clause.clause_code} - CMOS in name/key, CRC project`);
+        console.log(`   ✗ DROPPED: [${clause.id}] ${clause.clause_code} - CMOS in name/key`);
         return false;
       }
 
-      // If this is a CMOS project, HIDE CRC-only clauses
+      // STRICT: If this is a CMOS project, drop ANY clause with CRC in name/key
       if (serviceModel === "CMOS" && isCrcClause) {
-        console.log(`   ✗ DROPPED: [${clause.id}] ${clause.clause_code} - CRC in name/key, CMOS project`);
+        console.log(`   ✗ DROPPED: [${clause.id}] ${clause.clause_code} - CRC in name/key`);
         return false;
       }
 
-      // Otherwise, keep it (shared clauses or correctly matched clauses)
+      // Keep shared clauses (no CRC/CMOS keywords)
       return true;
     });
     
     const removedCount = filteredClauses.length - serviceModelFilteredClauses.length;
-    console.log(`   Service model filtering removed ${removedCount} clauses`);
-    console.log(`   Total clauses after all filtering: ${serviceModelFilteredClauses.length}\n`);
+    console.log(`   Name/key filtering removed ${removedCount} clauses`);
     
-    console.log(`After filtering: ${serviceModelFilteredClauses.length} clauses will be included`);
+    // STEP 3: Sort by sort_order ascending for proper document structure
+    // Validate and warn about missing sort_order, use clause_code as fallback for stable sorting
+    const clausesWithMissingSortOrder = serviceModelFilteredClauses.filter(c => c.sort_order === undefined || c.sort_order === null);
+    if (clausesWithMissingSortOrder.length > 0) {
+      console.warn(`   ⚠️ ${clausesWithMissingSortOrder.length} clauses missing sort_order:`, 
+        clausesWithMissingSortOrder.map(c => c.clause_code).join(', '));
+    }
     
-    return serviceModelFilteredClauses.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+    const sortedClauses = serviceModelFilteredClauses.sort((a, b) => {
+      const orderA = a.sort_order ?? 99999;
+      const orderB = b.sort_order ?? 99999;
+      if (orderA !== orderB) return orderA - orderB;
+      // Fallback to clause_code for stable sorting when sort_order is equal/missing
+      return (a.clause_code || '').localeCompare(b.clause_code || '');
+    });
+    
+    // Final summary
+    const totalDropped = allClauses.length - sortedClauses.length;
+    console.log(`\n========================================`);
+    console.log(`📋 FINAL CLAUSE SUMMARY (${serviceModel} Project)`);
+    console.log(`========================================`);
+    console.log(`   Total fetched: ${allClauses.length}`);
+    console.log(`   Total dropped: ${totalDropped}`);
+    console.log(`   Final count:   ${sortedClauses.length}`);
+    if (sortedClauses.length > 0) {
+      console.log(`   Sort range:    ${sortedClauses[0].sort_order ?? 'N/A'} to ${sortedClauses[sortedClauses.length - 1].sort_order ?? 'N/A'}`);
+    }
+    console.log(`========================================\n`);
+    
+    return sortedClauses;
     
   } catch (error) {
     console.error('Error fetching clauses:', error);
