@@ -190,6 +190,7 @@ export interface ProjectData {
   designPhaseDays: number;
   manufacturingDurationDays: number;
   onsiteDurationDays: number;
+  permittingDurationDays: number;
   estimatedCompletionDate: string;
   warrantyFitFinishMonths: number;
   warrantyBuildingEnvelopeMonths: number;
@@ -400,6 +401,7 @@ export const initialProjectData: ProjectData = {
   designPhaseDays: 90,
   manufacturingDurationDays: 120,
   onsiteDurationDays: 90,
+  permittingDurationDays: 60,
   estimatedCompletionDate: '',
   warrantyFitFinishMonths: 24,
   warrantyBuildingEnvelopeMonths: 60,
@@ -475,6 +477,7 @@ export const testDraftData: Partial<ProjectData> = {
   designPhaseDays: 60,
   manufacturingDurationDays: 120,
   onsiteDurationDays: 45,
+  permittingDurationDays: 45,
   warrantyFitFinishMonths: 24,
   warrantyBuildingEnvelopeMonths: 60,
   warrantyStructuralMonths: 120,
@@ -1082,6 +1085,12 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
           productionStartDate: pd.manufacturingStartDate || null,
           governingLawState: pd.projectState || pd.siteState || null,
           arbitrationLocation: pd.projectCounty ? `${pd.projectCounty}, ${pd.projectState}` : null,
+          // Schedule durations
+          designPhaseDays: pd.designPhaseDays || null,
+          manufacturingDurationDays: pd.manufacturingDurationDays || null,
+          onsiteDurationDays: pd.onsiteDurationDays || null,
+          permittingDurationDays: pd.permittingDurationDays || null,
+          estimatedCompletionDate: pd.estimatedCompletionDate || null,
         };
         // Add first unit details if available
         if (pd.units && pd.units.length > 0) {
