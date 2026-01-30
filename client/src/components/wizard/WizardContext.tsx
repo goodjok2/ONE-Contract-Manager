@@ -1193,20 +1193,8 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
         if (data.llcOption === 'existing' && !data.selectedExistingLlcId) {
           errors.selectedExistingLlcId = 'Please select an existing LLC';
         }
-        if (data.serviceModel === 'CRC') {
-          if (!data.contractorName.trim()) {
-            errors.contractorName = 'Contractor name is required for CRC service model';
-          }
-          if (!data.contractorLicense.trim()) {
-            errors.contractorLicense = 'Contractor license number is required for CRC service model';
-          }
-          if (!data.contractorAddress.trim()) {
-            errors.contractorAddress = 'Contractor address is required for CRC service model';
-          }
-          if (!data.contractorInsurance.trim()) {
-            errors.contractorInsurance = 'Contractor insurance policy is required for CRC service model';
-          }
-        }
+        // Note: On-site contractor selection is optional on Step 3
+        // Contractor details are captured when selecting from the entity list
         break;
       case 4:
         // Home Models validation (site address moved to Step 1)
