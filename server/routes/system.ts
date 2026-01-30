@@ -751,4 +751,32 @@ Payment terms, milestone triggers, and amounts are detailed in the Payment Sched
   }
 });
 
+// ---------------------------------------------------------------------------
+// GRANDMASTER CONTENT REPAIR - Comprehensive clause cleanup
+// ---------------------------------------------------------------------------
+router.post("/debug/fix-grandmaster", async (req, res) => {
+  try {
+    const { runGrandmasterRepair } = await import('../scripts/fix-content-master');
+    const result = await runGrandmasterRepair();
+    
+    res.json({
+      success: true,
+      message: "Grandmaster repair completed",
+      summary: {
+        renamed: result.renamed.length,
+        deleted: result.deleted.length,
+        created: result.created.length,
+        errors: result.errors.length
+      },
+      details: result
+    });
+  } catch (error: any) {
+    console.error("Grandmaster repair failed:", error);
+    res.status(500).json({ 
+      error: "Grandmaster repair failed",
+      details: error?.message 
+    });
+  }
+});
+
 export default router;
