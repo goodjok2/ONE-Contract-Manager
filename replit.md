@@ -59,6 +59,7 @@ The application is built on a modern full-stack architecture.
 - **Variable Mappings**: System to configure and map contract variables, with preparation for Odoo ERP integration.
 - **LLC Administration**: CRUD operations for child LLC entities, including status tracking, member management, and compliance monitoring.
 - **Pricing Engine Integration**: Dynamic injection of pricing data into contract generation, including design fees, manufacturing costs, onsite costs, and payment milestones.
+- **Dynamic HTML Tables (Jan 2026)**: Contract variables `{{PRICING_BREAKDOWN_TABLE}}` and `{{PAYMENT_SCHEDULE_TABLE}}` render as styled HTML tables with inline CSS for PDF compatibility. Use the Clause Library UI to add these placeholders to clauses like ONE-EXHIBIT-C (Payment Schedule) and ONE-RECITAL-A (Pricing). Migration endpoint at POST `/api/debug/migrate-clauses` scans for candidate clauses.
 
 ## External Dependencies
 
