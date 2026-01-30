@@ -1,0 +1,33 @@
+We need to fix the missing schedule variables in Exhibit D of the contract (`[MISSING: DESIGN_DURATION]`, etc.).
+
+**Task 1: Update Database Schema (`shared/schema.ts`)**
+* Add the following columns to the `projects` table to store the timeline data:
+    * `design_duration` (integer, default 0)
+    * `permitting_duration` (integer, default 0)
+    * `production_duration` (integer, default 0)
+    * `delivery_duration` (integer, default 0)
+    * `completion_duration` (integer, default 0)
+    * `estimated_delivery_date` (timestamp)
+    * `estimated_completion_date` (timestamp)
+* *Note:* Ensure you export the updated type `SelectProject`.
+
+**Task 2: Save Data in `Step6Dates.tsx`**
+* Locate the `handleNext` or `save` function in Step 6.
+* Ensure that when the user clicks "Next", we explicitly call `updateProjectData` (or the API endpoint) to save these new fields.
+* Map the wizard state (e.g., `designWeeks`) to the database fields (e.g., `design_duration`).
+
+**Task 3: Update Mapper (`server/lib/mapper.ts`)**
+* Update `mapProjectToVariables` to read these new fields from the `project` object.
+* Map them to the contract variables:
+    * `DESIGN_DURATION`: `project.designDuration`
+    * `PERMITTING_DURATION`: `project.permittingDuration`
+    * `PRODUCTION_DURATION`: `project.productionDuration`
+    * `DELIVERY_DURATION`: `project.deliveryDuration`
+    * `COMPLETION_DURATION`: `project.completionDuration`
+    * `DELIVERY_DATE`: Format `project.estimatedDeliveryDate` as "Month Day, Year" (e.g. "August 24, 2026").
+    * `COMPLETION_DATE`: Format `project.estimatedCompletionDate` as "Month Day, Year".
+
+**Task 4: Add Migration Route (Optional but recommended)**
+* Since we are adding columns, create a generic SQL migration snippet or a route I can run to ensure the database schema is updated without deleting existing data.
+
+After these changes, the "Dates & Schedule" step should properly persist the timeline data, and Exhibit D in the contract should display the correct dates and durations.

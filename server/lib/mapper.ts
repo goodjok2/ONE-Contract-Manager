@@ -263,6 +263,20 @@ export const VARIABLE_CATEGORIES = {
     "ONSITE_LIQUIDATED_DAMAGES_CAP",
     "ONSITE_LIQUIDATED_DAMAGES_CAP_WRITTEN",
   ],
+  schedule: [
+    "DESIGN_DURATION",
+    "DESIGN_DURATION_WRITTEN",
+    "MANUFACTURING_DURATION",
+    "MANUFACTURING_DURATION_WRITTEN",
+    "ONSITE_DURATION",
+    "ONSITE_DURATION_WRITTEN",
+    "PERMITTING_DURATION",
+    "PERMITTING_DURATION_WRITTEN",
+    "DELIVERY_DATE",
+    "COMPLETION_DATE",
+    "PROJECT_START_DATE",
+    "PROJECT_END_DATE",
+  ],
   legal: [
     "GOVERNING_LAW_STATE",
     "ARBITRATION_LOCATION",
@@ -817,6 +831,30 @@ export function mapProjectToVariables(
     // ===================
     GL_INSURANCE_LIMIT: "$1,000,000",
     GL_AGGREGATE_LIMIT: "$2,000,000",
+
+    // ===================
+    // SCHEDULE
+    // ===================
+    DESIGN_DURATION: String(projectDetails?.designPhaseDays || 90),
+    DESIGN_DURATION_WRITTEN: `${projectDetails?.designPhaseDays || 90} days`,
+    MANUFACTURING_DURATION: String(projectDetails?.manufacturingDurationDays || 120),
+    MANUFACTURING_DURATION_WRITTEN: `${projectDetails?.manufacturingDurationDays || 120} days`,
+    ONSITE_DURATION: String(projectDetails?.onsiteDurationDays || 90),
+    ONSITE_DURATION_WRITTEN: `${projectDetails?.onsiteDurationDays || 90} days`,
+    PERMITTING_DURATION: String(projectDetails?.permittingDurationDays || 60),
+    PERMITTING_DURATION_WRITTEN: `${projectDetails?.permittingDurationDays || 60} days`,
+    DELIVERY_DATE: projectDetails?.estimatedDeliveryDate 
+      ? formatDate(new Date(projectDetails.estimatedDeliveryDate)) 
+      : "",
+    COMPLETION_DATE: projectDetails?.estimatedCompletionDate 
+      ? formatDate(new Date(projectDetails.estimatedCompletionDate)) 
+      : "",
+    PROJECT_START_DATE: financials?.contractDate 
+      ? formatDate(new Date(financials.contractDate)) 
+      : "",
+    PROJECT_END_DATE: projectDetails?.estimatedCompletionDate 
+      ? formatDate(new Date(projectDetails.estimatedCompletionDate)) 
+      : "",
 
     // ===================
     // CONDITIONAL FLAGS (for template logic)
