@@ -326,7 +326,7 @@ export interface WizardContextType {
 export const initialProjectData: ProjectData = {
   projectNumber: '',
   projectName: '',
-  projectType: '',
+  projectType: 'Single Family Residence',
   totalUnits: 1,
   agreementDate: new Date().toISOString().split('T')[0],
   serviceModel: 'CRC',

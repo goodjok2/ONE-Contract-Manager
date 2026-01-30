@@ -190,6 +190,31 @@ export const Step1ProjectInfo: React.FC = () => {
               A descriptive name for the project
             </p>
           </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="projectType" className="flex items-center gap-2">
+              Project Type
+            </Label>
+            <Select 
+              value={projectData.projectType || 'Single Family Residence'} 
+              onValueChange={(value) => updateProjectData({ projectType: value })}
+            >
+              <SelectTrigger data-testid="select-project-type">
+                <SelectValue placeholder="Select project type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Single Family Residence">Single Family Residence</SelectItem>
+                <SelectItem value="Multi-Family Residence">Multi-Family Residence</SelectItem>
+                <SelectItem value="Accessory Dwelling Unit (ADU)">Accessory Dwelling Unit (ADU)</SelectItem>
+                <SelectItem value="Mixed Use">Mixed Use</SelectItem>
+                <SelectItem value="Commercial">Commercial</SelectItem>
+                <SelectItem value="Other">Other</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              The type of construction project
+            </p>
+          </div>
           
           <div className="space-y-2">
             <Label htmlFor="agreementDate" className="flex items-center gap-2">
