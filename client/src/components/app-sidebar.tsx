@@ -8,7 +8,8 @@ import {
   Settings,
   Eye,
   Wand2,
-  Variable
+  Variable,
+  Upload
 } from "lucide-react";
 import {
   Sidebar,
@@ -57,6 +58,11 @@ const configNavItems = [
     title: "Clause Library",
     url: "/clause-library",
     icon: Library,
+  },
+  {
+    title: "Import Templates",
+    url: "/templates-upload",
+    icon: Upload,
   },
   {
     title: "Variable Mappings",

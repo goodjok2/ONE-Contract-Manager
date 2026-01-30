@@ -20,6 +20,7 @@ import Templates from "@/pages/templates";
 import ContractPreview from "@/pages/contract-preview";
 import GenerateContracts from "@/pages/generate-contracts";
 import VariableMappings from "@/pages/variable-mappings";
+import TemplatesUpload from "@/pages/templates-upload";
 
 function Router() {
   return (
@@ -32,6 +33,7 @@ function Router() {
       <Route path="/contracts" component={Contracts} />
       <Route path="/contracts/:id" component={ContractDetail} />
       <Route path="/templates" component={Templates} />
+      <Route path="/templates-upload" component={TemplatesUpload} />
       <Route path="/llc-admin" component={LLCAdmin} />
       <Route path="/llc-admin/:id" component={LLCDetail} />
       <Route path="/variable-mappings" component={VariableMappings} />

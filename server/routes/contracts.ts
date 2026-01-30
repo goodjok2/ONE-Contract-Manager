@@ -2,14 +2,244 @@ import { Router } from "express";
 import { db } from "../db/index";
 import { pool } from "../db";
 import { contracts, projects, clauses, projectUnits, homeModels, financials } from "../../shared/schema";
-import { eq, count, desc, and } from "drizzle-orm";
+import { eq, count, desc, and, sql } from "drizzle-orm";
 import { getProjectWithRelations } from "./helpers";
 import { mapProjectToVariables } from "../lib/mapper";
 import { calculateProjectPricing } from "../services/pricingEngine";
 import path from "path";
 import fs from "fs";
+import multer from "multer";
+import { exec } from "child_process";
+import { promisify } from "util";
+
+const execAsync = promisify(exec);
 
 const router = Router();
+
+// Configure multer for template uploads
+const templateStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const templatesDir = path.join(process.cwd(), "server", "templates");
+    if (!fs.existsSync(templatesDir)) {
+      fs.mkdirSync(templatesDir, { recursive: true });
+    }
+    cb(null, templatesDir);
+  },
+  filename: (req, file, cb) => {
+    // Sanitize filename: remove special chars, keep only alphanumeric, underscores, hyphens
+    const safeName = file.originalname
+      .replace(/[^a-zA-Z0-9_\-\.]/g, "_")
+      .replace(/_+/g, "_");
+    cb(null, safeName);
+  },
+});
+
+const templateUpload = multer({
+  storage: templateStorage,
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+        file.originalname.endsWith(".docx")) {
+      cb(null, true);
+    } else {
+      cb(new Error("Only .docx files are allowed"));
+    }
+  },
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+});
+
+// ---------------------------------------------------------------------------
+// TEMPLATE UPLOAD & INGESTION
+// ---------------------------------------------------------------------------
+
+router.post("/contracts/upload-template", templateUpload.single("template"), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: "No file uploaded" });
+    }
+
+    const filePath = req.file.path;
+    const fileName = req.file.filename;
+    
+    console.log(`\n📤 Template uploaded: ${fileName}`);
+    console.log(`   Path: ${filePath}`);
+    
+    // Derive contract type from filename
+    const contractType = fileName
+      .replace(/\.docx$/i, "")
+      .replace(/^Template[_-]?/i, "")
+      .replace(/[_-]/g, "_")
+      .toUpperCase()
+      .replace(/_+/g, "_")
+      .replace(/^_|_$/g, "");
+    
+    console.log(`   Contract type: ${contractType}`);
+    
+    // Run the ingestion script in single-file mode
+    console.log(`\n🔄 Running ingestion script for: ${filePath}`);
+    
+    try {
+      const { stdout, stderr } = await execAsync(
+        `npx tsx scripts/ingest_standard_contracts.ts "${filePath}"`,
+        { cwd: process.cwd(), timeout: 120000 }
+      );
+      
+      console.log("Ingestion output:", stdout);
+      if (stderr) console.error("Ingestion stderr:", stderr);
+      
+      // Count the blocks created for this contract type
+      const countResult = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(clauses)
+        .where(eq(clauses.contractType, contractType));
+      
+      const blocksCreated = countResult[0]?.count || 0;
+      
+      res.json({
+        success: true,
+        message: `Template "${fileName}" processed successfully`,
+        contractType,
+        blocksCreated,
+        fileName,
+      });
+      
+    } catch (execError: any) {
+      console.error("Ingestion script failed:", execError);
+      
+      // Clean up the uploaded file on failure
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+      
+      return res.status(500).json({
+        error: "Ingestion failed",
+        message: execError.message || "Failed to process template",
+        stdout: execError.stdout,
+        stderr: execError.stderr,
+      });
+    }
+    
+  } catch (error: any) {
+    console.error("Template upload failed:", error);
+    res.status(500).json({ 
+      error: "Upload failed", 
+      message: error.message || "Failed to upload template" 
+    });
+  }
+});
+
+// Get list of existing templates
+router.get("/contracts/templates", async (req, res) => {
+  try {
+    const templatesDir = path.join(process.cwd(), "server", "templates");
+    
+    if (!fs.existsSync(templatesDir)) {
+      return res.json({ templates: [] });
+    }
+    
+    const files = fs.readdirSync(templatesDir)
+      .filter(f => f.endsWith(".docx") && !f.startsWith("~$"))
+      .map(f => {
+        const filePath = path.join(templatesDir, f);
+        const stats = fs.statSync(filePath);
+        const contractType = f
+          .replace(/\.docx$/i, "")
+          .replace(/^Template[_-]?/i, "")
+          .replace(/[_-]/g, "_")
+          .toUpperCase()
+          .replace(/_+/g, "_")
+          .replace(/^_|_$/g, "");
+        
+        return {
+          fileName: f,
+          contractType,
+          uploadedAt: stats.mtime.toISOString(),
+          size: stats.size,
+        };
+      });
+    
+    // Get clause counts for each contract type
+    const clauseCounts = await db
+      .select({ 
+        contractType: clauses.contractType, 
+        count: sql<number>`count(*)::int` 
+      })
+      .from(clauses)
+      .groupBy(clauses.contractType);
+    
+    const countMap = new Map(clauseCounts.map(c => [c.contractType, c.count]));
+    
+    const templates = files.map(f => ({
+      ...f,
+      clauseCount: countMap.get(f.contractType) || 0,
+    }));
+    
+    res.json({ templates });
+    
+  } catch (error: any) {
+    console.error("Failed to list templates:", error);
+    res.status(500).json({ error: "Failed to list templates" });
+  }
+});
+
+// Delete a template
+router.delete("/contracts/templates/:fileName", async (req, res) => {
+  try {
+    const rawFileName = req.params.fileName;
+    const templatesDir = path.join(process.cwd(), "server", "templates");
+    
+    // Security: Sanitize fileName to prevent path traversal attacks
+    // Only allow the base filename, reject any path components
+    const fileName = path.basename(rawFileName);
+    
+    // Validate it's a .docx file
+    if (!fileName.endsWith(".docx")) {
+      return res.status(400).json({ error: "Invalid file type. Only .docx files can be deleted." });
+    }
+    
+    // Validate against existing templates (allowlist approach)
+    const existingFiles = fs.existsSync(templatesDir) 
+      ? fs.readdirSync(templatesDir).filter(f => f.endsWith(".docx") && !f.startsWith("~$"))
+      : [];
+    
+    if (!existingFiles.includes(fileName)) {
+      return res.status(404).json({ error: "Template not found" });
+    }
+    
+    const filePath = path.join(templatesDir, fileName);
+    
+    // Double-check the resolved path is within templatesDir (defense in depth)
+    const resolvedPath = path.resolve(filePath);
+    const resolvedTemplatesDir = path.resolve(templatesDir);
+    if (!resolvedPath.startsWith(resolvedTemplatesDir)) {
+      return res.status(400).json({ error: "Invalid file path" });
+    }
+    
+    // Derive contract type
+    const contractType = fileName
+      .replace(/\.docx$/i, "")
+      .replace(/^Template[_-]?/i, "")
+      .replace(/[_-]/g, "_")
+      .toUpperCase()
+      .replace(/_+/g, "_")
+      .replace(/^_|_$/g, "");
+    
+    // Delete the file
+    fs.unlinkSync(filePath);
+    
+    // Delete associated clauses
+    await db.delete(clauses).where(eq(clauses.contractType, contractType));
+    
+    res.json({ 
+      success: true, 
+      message: `Template "${fileName}" and its clauses deleted`,
+      contractType 
+    });
+    
+  } catch (error: any) {
+    console.error("Failed to delete template:", error);
+    res.status(500).json({ error: "Failed to delete template" });
+  }
+});
 
 // ---------------------------------------------------------------------------
 // CONTRACT CRUD

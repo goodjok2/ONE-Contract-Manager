@@ -93,6 +93,15 @@ The application is built on a modern full-stack architecture.
     - Recursive filtering: child blocks are excluded when their parent is filtered out
     - Blocks without state conditions are always included (standard contract content)
     - Verified: CA project filters TX/AZ, TX project filters CA/AZ - numbering remains sequential
+- **Contract Template Upload & Auto-Ingest (Jan 30, 2026)**:
+    - Upload UI: `client/src/pages/templates-upload.tsx` with drag-drop file zone
+    - Backend API: `POST /api/contracts/upload-template` (multer-based .docx upload)
+    - Template listing: `GET /api/contracts/templates` returns existing templates with clause counts
+    - Template deletion: `DELETE /api/contracts/templates/:fileName` (path-traversal protected)
+    - Ingestion script updated: `scripts/ingest_standard_contracts.ts` now supports single-file mode via CLI argument
+    - Append-friendly: Single-file ingestion only deletes clauses for the specific contract_type
+    - Navigation: "Import Templates" link added to sidebar under Configuration
+    - Run single-file ingest: `npx tsx scripts/ingest_standard_contracts.ts <path-to-file.docx>`
 - **Variable Registry Sync (Jan 30, 2026)**:
     - Sync script: `scripts/sync_variables.ts` reads `VARIABLE_CATEGORIES` from mapper.ts
     - Clean slate approach: Uses DB transaction to DELETE + INSERT all 193 variables atomically

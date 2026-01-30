@@ -5,7 +5,7 @@ import * as path from 'path';
 import { fileURLToPath } from 'url';
 import { db } from '../server/db';
 import { clauses } from '../shared/schema';
-import { sql } from 'drizzle-orm';
+import { sql, eq } from 'drizzle-orm';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -576,7 +576,57 @@ function discoverTemplates(templatesDir: string): { file: string, type: string }
   return templates;
 }
 
+/**
+ * Ingest a single template file (append-friendly mode).
+ * Deletes only clauses for this contract_type, then inserts new ones.
+ */
+export async function ingestSingleTemplate(filePath: string): Promise<{ contractType: string; blocksCreated: number }> {
+  const contractType = deriveContractTypeFromFilename(path.basename(filePath));
+  
+  console.log(`\n📄 Single-file ingestion mode: ${path.basename(filePath)} → "${contractType}"`);
+  
+  // Delete only clauses for this specific contract type (append-friendly)
+  console.log(`🗑️  Deleting existing clauses for contract_type="${contractType}"...`);
+  await db.delete(clauses).where(eq(clauses.contractType, contractType));
+  console.log(`   ✓ Cleared clauses for ${contractType}`);
+  
+  // Parse and insert
+  const blocks = await parseDocxWithStyles(filePath, contractType);
+  console.log(`   Inserting ${blocks.length} blocks for ${contractType}...`);
+  await insertBlocks(blocks);
+  
+  console.log(`   ✓ ${contractType}: ${blocks.length} blocks inserted`);
+  
+  return { contractType, blocksCreated: blocks.length };
+}
+
 async function main() {
+  // Check for single-file mode via command line argument
+  const singleFileArg = process.argv[2];
+  
+  if (singleFileArg) {
+    // Single-file mode: ingest only the specified file
+    const filePath = path.resolve(singleFileArg);
+    
+    if (!fs.existsSync(filePath)) {
+      console.error(`❌ File not found: ${filePath}`);
+      process.exit(1);
+    }
+    
+    console.log('═'.repeat(60));
+    console.log('   CONTRACT INGESTOR - SINGLE FILE MODE');
+    console.log('═'.repeat(60));
+    
+    const result = await ingestSingleTemplate(filePath);
+    
+    console.log('\n' + '═'.repeat(60));
+    console.log(`   ✅ COMPLETE: Ingested ${result.blocksCreated} blocks for ${result.contractType}`);
+    console.log('═'.repeat(60));
+    
+    process.exit(0);
+  }
+  
+  // Full ingestion mode (original behavior)
   console.log('═'.repeat(60));
   console.log('   INTELLIGENT DISCOVERY-BASED CONTRACT INGESTOR');
   console.log('═'.repeat(60));
