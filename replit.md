@@ -93,6 +93,15 @@ The application is built on a modern full-stack architecture.
     - Recursive filtering: child blocks are excluded when their parent is filtered out
     - Blocks without state conditions are always included (standard contract content)
     - Verified: CA project filters TX/AZ, TX project filters CA/AZ - numbering remains sequential
+- **Variable Registry Sync (Jan 30, 2026)**:
+    - Sync script: `scripts/sync_variables.ts` reads `VARIABLE_CATEGORIES` from mapper.ts
+    - Clean slate approach: Uses DB transaction to DELETE + INSERT all 193 variables atomically
+    - Auto-assigns metadata: category, dataType, isRequired, displayName, description
+    - Data type inference: date, currency, number, boolean, text based on variable name patterns
+    - 9 core project identifiers marked as required
+    - Run script: `npx tsx scripts/sync_variables.ts`
+    - UI displays unregistered variables (used in clauses but not in registry) with warning icons
+    - "Register" button allows quick addition of unregistered variables to the registry
 - **4-Level Hierarchical Styling (Jan 30, 2026)**:
     - "Clean Look" CSS styling with 4 hierarchy levels in PDF contracts:
         - Level 1 (hierarchy_level 1): Section headers - Bold, blue (#1a73e8), uppercase, blue underline

@@ -193,17 +193,53 @@ router.get("/variable-mappings", async (req, res) => {
       erpSource: v.erp_source,
       usedInContracts: v.used_in_contracts,
       clauseUsage: variableToClausesMap[v.variable_name] || [],
-      clauseCount: (variableToClausesMap[v.variable_name] || []).length
+      clauseCount: (variableToClausesMap[v.variable_name] || []).length,
+      isRegistered: true
     }));
+    
+    // Find unregistered variables (used in clauses but not in registry)
+    const registeredVarNames = new Set(variables.map((v: any) => v.variable_name));
+    const unregisteredVariables: any[] = [];
+    
+    for (const [varName, clauses] of Object.entries(variableToClausesMap)) {
+      if (!registeredVarNames.has(varName)) {
+        unregisteredVariables.push({
+          id: null,
+          variableName: varName,
+          displayName: null,
+          category: null,
+          dataType: 'text',
+          defaultValue: null,
+          isRequired: false,
+          description: null,
+          erpSource: null,
+          usedInContracts: null,
+          clauseUsage: clauses,
+          clauseCount: clauses.length,
+          isRegistered: false
+        });
+      }
+    }
+    
+    // Filter unregistered variables by search if applicable
+    let filteredUnregistered = unregisteredVariables;
+    if (search && typeof search === 'string') {
+      const searchLower = search.toLowerCase();
+      filteredUnregistered = unregisteredVariables.filter((v: any) => 
+        v.variableName.toLowerCase().includes(searchLower)
+      );
+    }
     
     const stats = {
       totalFields: enrichedVariables.length,
       erpMapped: enrichedVariables.filter((v: any) => v.erpSource).length,
-      required: enrichedVariables.filter((v: any) => v.isRequired).length
+      required: enrichedVariables.filter((v: any) => v.isRequired).length,
+      unregistered: unregisteredVariables.length
     };
     
     res.json({
       variables: enrichedVariables,
+      unregisteredVariables: filteredUnregistered,
       stats
     });
   } catch (error) {

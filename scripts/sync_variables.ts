@@ -137,39 +137,46 @@ async function syncVariables(): Promise<void> {
   }
   console.log('');
   
-  console.log('Step 1: Deleting existing contract_variables...');
-  await db.delete(contractVariables);
-  console.log('  ✓ Cleared contract_variables table\n');
+  console.log('Step 1: Starting transaction (delete + insert)...');
   
-  console.log('Step 2: Inserting fresh variable registry...');
-  let inserted = 0;
-  
-  for (const variable of variables) {
-    try {
-      await db.insert(contractVariables).values({
-        variableName: variable.variableName,
-        displayName: variable.displayName,
-        category: variable.category,
-        dataType: variable.dataType,
-        isRequired: variable.isRequired,
-        description: variable.description,
-        usedInContracts: ['ONE', 'OFFSITE', 'ONSITE'],
-      });
-      inserted++;
-    } catch (error: any) {
-      console.error(`  ✗ Failed to insert ${variable.variableName}: ${error.message}`);
+  try {
+    await db.transaction(async (tx) => {
+      console.log('  Deleting existing contract_variables...');
+      await tx.delete(contractVariables);
+      console.log('  ✓ Cleared contract_variables table\n');
+      
+      console.log('Step 2: Inserting fresh variable registry...');
+      let inserted = 0;
+      
+      for (const variable of variables) {
+        await tx.insert(contractVariables).values({
+          variableName: variable.variableName,
+          displayName: variable.displayName,
+          category: variable.category,
+          dataType: variable.dataType,
+          isRequired: variable.isRequired,
+          description: variable.description,
+          usedInContracts: ['ONE', 'OFFSITE', 'ONSITE'],
+        });
+        inserted++;
+      }
+      
+      console.log(`  ✓ Inserted ${inserted} variables\n`);
+    });
+    
+    console.log('Step 3: Summary by category:');
+    for (const [cat, count] of Object.entries(categoryCount)) {
+      console.log(`  ${cat}: ${count} variables`);
     }
+    
+    console.log('\n=== Sync Complete ===');
+    console.log(`Total variables in registry: ${variables.length}`);
+    
+  } catch (error: any) {
+    console.error('\n✗ Transaction failed - database unchanged');
+    console.error(`  Error: ${error.message}`);
+    process.exit(1);
   }
-  
-  console.log(`  ✓ Inserted ${inserted} variables\n`);
-  
-  console.log('Step 3: Summary by category:');
-  for (const [cat, count] of Object.entries(categoryCount)) {
-    console.log(`  ${cat}: ${count} variables`);
-  }
-  
-  console.log('\n=== Sync Complete ===');
-  console.log(`Total variables in registry: ${inserted}`);
   
   process.exit(0);
 }
