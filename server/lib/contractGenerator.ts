@@ -74,15 +74,16 @@ async function fetchClausesForContract(
     
     console.log(`Received ${allClauses.length} total clauses from API`);
     
-    const serviceModel = projectData.serviceModel || 'CRC';
+    const serviceModel = (projectData.serviceModel || 'CRC').toUpperCase();
     console.log('📝 Generating for Service Model:', serviceModel);
     
-    console.log(`\n🔍 Clause Filtering Debug (Project Service Model: ${serviceModel}):`);
+    console.log(`\n🔍 STEP 1: Condition-Based Filtering (Project Service Model: ${serviceModel}):`);
     console.log(`   Total clauses before filtering: ${allClauses.length}`);
     
+    // STEP 1: Condition-based filtering using ON_SITE_SERVICES_SELECTION
     const filteredClauses = allClauses.filter(clause => {
       if (!clause.conditions) {
-        console.log(`   ✓ [${clause.id}] ${clause.clause_code}: No conditions -> KEEP`);
+        // No conditions = shared clause, keep it
         return true;
       }
       
@@ -96,29 +97,46 @@ async function fetchClausesForContract(
         }
       }
       
-      // Check for service_model (snake_case from database) or serviceModel (camelCase)
-      const clauseServiceModel = conditions.service_model || conditions.serviceModel;
-      if (clauseServiceModel) {
-        // If clause specifies a service model, it must match OR be 'BOTH'
-        if (clauseServiceModel !== serviceModel && clauseServiceModel !== 'BOTH') {
-          console.log(`   ✗ [${clause.id}] ${clause.clause_code}: condition=${clauseServiceModel} vs project=${serviceModel} -> DROP`);
+      // Check for ON_SITE_SERVICES_SELECTION condition (the actual field in database)
+      const onSiteSelection = conditions.ON_SITE_SERVICES_SELECTION;
+      if (onSiteSelection) {
+        // Map condition value to service model
+        const isCrcCondition = onSiteSelection.includes('CLIENT-RETAINED') || onSiteSelection === 'CRC';
+        const isCmosCondition = onSiteSelection.includes('COMPANY-MANAGED') || onSiteSelection === 'CMOS';
+        
+        // If this is a CRC project, only keep CRC clauses (drop CMOS)
+        if (serviceModel === 'CRC' && isCmosCondition && !isCrcCondition) {
+          console.log(`   ✗ DROPPED: [${clause.id}] ${clause.clause_code} - CMOS condition in CRC project`);
           return false;
         }
-        console.log(`   ✓ [${clause.id}] ${clause.clause_code}: condition=${clauseServiceModel} vs project=${serviceModel} -> KEEP`);
-      } else {
-        console.log(`   ✓ [${clause.id}] ${clause.clause_code}: No service_model condition -> KEEP`);
+        
+        // If this is a CMOS project, only keep CMOS clauses (drop CRC)
+        if (serviceModel === 'CMOS' && isCrcCondition && !isCmosCondition) {
+          console.log(`   ✗ DROPPED: [${clause.id}] ${clause.clause_code} - CRC condition in CMOS project`);
+          return false;
+        }
+        
+        console.log(`   ✓ KEPT: [${clause.id}] ${clause.clause_code} - condition matches project`);
+      }
+      
+      // Also check legacy service_model/serviceModel fields
+      const legacyServiceModel = conditions.service_model || conditions.serviceModel;
+      if (legacyServiceModel) {
+        const normalizedLegacy = legacyServiceModel.toUpperCase();
+        if (normalizedLegacy !== serviceModel && normalizedLegacy !== 'BOTH') {
+          console.log(`   ✗ DROPPED: [${clause.id}] ${clause.clause_code} - legacy condition=${normalizedLegacy} vs project=${serviceModel}`);
+          return false;
+        }
       }
       
       return true;
     });
     
-    console.log(`   Clauses after condition filtering: ${filteredClauses.length}`);
+    console.log(`   Clauses after condition filtering: ${filteredClauses.length} (dropped ${allClauses.length - filteredClauses.length})`);
     
     // STEP 2: Symmetric name/key-based Service Model filtering
     // This catches clauses with CRC/CMOS in their name or key even without explicit conditions
-    // Normalize serviceModel to uppercase for consistent comparisons
-    const normalizedServiceModel = (serviceModel || 'CRC').toUpperCase();
-    console.log(`\n🔍 Service Model Name/Key Filtering (Project: ${normalizedServiceModel}):`);
+    console.log(`\n🔍 STEP 2: Name/Key-Based Filtering (Project: ${serviceModel}):`);
     
     const serviceModelFilteredClauses = filteredClauses.filter(clause => {
       const title = (clause.name || "").toUpperCase();
@@ -131,19 +149,19 @@ async function fetchClausesForContract(
 
       // Edge case: If clause has BOTH keywords, treat as shared/dual-option clause - KEEP
       if (isCrcClause && isCmosClause) {
-        console.log(`   ✓ KEPT (SHARED): [${clause.id}] ${clause.clause_code} "${clause.name}" - contains both CRC and CMOS keywords`);
+        console.log(`   ✓ KEPT (SHARED): [${clause.id}] ${clause.clause_code} - contains both keywords`);
         return true;
       }
 
       // If this is a CRC project, HIDE CMOS-only clauses
-      if (normalizedServiceModel === "CRC" && isCmosClause) {
-        console.log(`   ✗ REMOVED: [${clause.id}] ${clause.clause_code} "${clause.name}" - CMOS clause in CRC project`);
+      if (serviceModel === "CRC" && isCmosClause) {
+        console.log(`   ✗ DROPPED: [${clause.id}] ${clause.clause_code} - CMOS in name/key, CRC project`);
         return false;
       }
 
       // If this is a CMOS project, HIDE CRC-only clauses
-      if (normalizedServiceModel === "CMOS" && isCrcClause) {
-        console.log(`   ✗ REMOVED: [${clause.id}] ${clause.clause_code} "${clause.name}" - CRC clause in CMOS project`);
+      if (serviceModel === "CMOS" && isCrcClause) {
+        console.log(`   ✗ DROPPED: [${clause.id}] ${clause.clause_code} - CRC in name/key, CMOS project`);
         return false;
       }
 
