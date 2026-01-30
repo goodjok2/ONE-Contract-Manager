@@ -1423,10 +1423,27 @@ function getContractTitle(contractType: string): string {
   return titles[contractType] || 'CONTRACT AGREEMENT';
 }
 
+/**
+ * Build variable map for contract clause replacement.
+ * 
+ * SINGLE SOURCE OF TRUTH: All contract generation endpoints should use
+ * mapProjectToVariables() from server/lib/mapper.ts BEFORE calling this function.
+ * This ensures consistent variable mapping and formatting.
+ * 
+ * Standard flow in routes:
+ * 1. getProjectWithRelations(projectId) - Fetch project data
+ * 2. calculateProjectPricing(projectId) - Calculate pricing
+ * 3. mapProjectToVariables(fullProject, pricingSummary) - Map to contract variables
+ * 4. generateContract({ projectData, ... }) - Generate PDF with pre-mapped data
+ * 
+ * The legacy fallback code below is retained for backward compatibility with
+ * any direct API calls that don't use the standard flow.
+ */
 function buildVariableMap(projectData: Record<string, any>): Record<string, string> {
   const map: Record<string, string> = {};
   
   // Check if data is already in UPPERCASE format (from mapper.ts)
+  // This is the PREFERRED path - data should be pre-mapped using mapProjectToVariables
   const isAlreadyMapped = 'PROJECT_NUMBER' in projectData || 'CLIENT_LEGAL_NAME' in projectData;
   
   if (isAlreadyMapped) {
@@ -1435,9 +1452,12 @@ function buildVariableMap(projectData: Record<string, any>): Record<string, stri
         map[key] = String(value);
       }
     }
-    console.log(`Using pre-mapped variables: ${Object.keys(map).length} variables`);
+    console.log(`✓ Using pre-mapped variables from mapper.ts: ${Object.keys(map).length} variables`);
     return map;
   }
+  
+  // LEGACY FALLBACK: Only used if caller doesn't pre-map data
+  console.warn('⚠️ Using legacy variable mapping - consider using mapProjectToVariables() instead');
   
   // ============================================
   // CORE VALUES - Define once, alias automatically
