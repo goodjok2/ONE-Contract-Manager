@@ -17,6 +17,16 @@ interface Clause {
   conditions?: any;
   variables_used?: string[];
   sort_order: number;
+  parent_clause_id?: number | null;
+  block_type?: 'section' | 'clause' | 'paragraph' | 'table';
+}
+
+// Tree node for recursive block structure
+interface BlockNode {
+  clause: Clause;
+  children: BlockNode[];
+  isHidden?: boolean;
+  dynamicNumber?: string; // Computed number (e.g., "1", "1.1", "1.1.1")
 }
 
 export async function generateContract(options: ContractGenerationOptions): Promise<Buffer> {
@@ -24,19 +34,28 @@ export async function generateContract(options: ContractGenerationOptions): Prom
   
   console.log(`\n=== Generating ${contractType} Contract (${format.toUpperCase()}) ===`);
   
+  // Step 1: Fetch and filter clauses
   const clauses = await fetchClausesForContract(contractType, projectData);
   console.log(`✓ Fetched ${clauses.length} clauses`);
   
+  // Step 2: Build recursive block tree
+  const blockTree = buildBlockTree(clauses);
+  console.log(`✓ Built block tree with ${blockTree.length} top-level nodes`);
+  
+  // Step 3: Apply dynamic numbering
+  applyDynamicNumbering(blockTree);
+  console.log(`✓ Applied dynamic numbering`);
+  
+  // Step 4: Build variable map and process
   const variableMap = buildVariableMap(projectData);
   console.log(`✓ Built variable map with ${Object.keys(variableMap).length} variables`);
   
-  const processedClauses = clauses.map(clause => ({
-    ...clause,
-    content: replaceVariables(clause.content, variableMap)
-  }));
-  console.log(`✓ Processed ${processedClauses.length} clauses with variable replacement`);
+  // Step 5: Process all clauses with variable replacement (recursive)
+  processBlockTreeVariables(blockTree, variableMap);
+  console.log(`✓ Processed block tree with variable replacement`);
   
-  const html = generateHTMLFromClauses(processedClauses, contractType, projectData);
+  // Step 6: Generate HTML from tree
+  const html = generateHTMLFromBlockTree(blockTree, contractType, projectData);
   
   if (format === 'html') {
     return Buffer.from(html, 'utf-8');
@@ -48,14 +67,136 @@ export async function generateContract(options: ContractGenerationOptions): Prom
   return pdfBuffer;
 }
 
+/**
+ * Build a recursive tree structure from flat clause array
+ * Organizes blocks by parent_clause_id into Parent → Children hierarchy
+ */
+function buildBlockTree(clauses: Clause[]): BlockNode[] {
+  // Create a map for quick lookup
+  const clauseMap = new Map<number, BlockNode>();
+  const rootNodes: BlockNode[] = [];
+  
+  // First pass: create BlockNode for each clause
+  for (const clause of clauses) {
+    clauseMap.set(clause.id, {
+      clause,
+      children: [],
+      isHidden: false
+    });
+  }
+  
+  // Second pass: build tree structure
+  for (const clause of clauses) {
+    const node = clauseMap.get(clause.id)!;
+    
+    if (clause.parent_clause_id && clauseMap.has(clause.parent_clause_id)) {
+      // This clause has a parent in the tree
+      const parentNode = clauseMap.get(clause.parent_clause_id)!;
+      parentNode.children.push(node);
+    } else {
+      // This is a root-level node (no parent or parent not in filtered set)
+      rootNodes.push(node);
+    }
+  }
+  
+  // Sort children by sort_order
+  function sortChildren(nodes: BlockNode[]) {
+    nodes.sort((a, b) => (a.clause.sort_order || 0) - (b.clause.sort_order || 0));
+    for (const node of nodes) {
+      sortChildren(node.children);
+    }
+  }
+  
+  sortChildren(rootNodes);
+  rootNodes.sort((a, b) => (a.clause.sort_order || 0) - (b.clause.sort_order || 0));
+  
+  return rootNodes;
+}
+
+/**
+ * Apply dynamic numbering to the block tree
+ * Level 1: Roman numerals (I, II, III) for roman sections, integers for regular sections
+ * Level 2: ParentIndex.ChildIndex (e.g., 1.1, 1.2)
+ * Level 3: Parent.Child.SubChild (e.g., 1.1.1)
+ * Auto-renumbers when blocks are hidden
+ */
+function applyDynamicNumbering(nodes: BlockNode[], parentNumber: string = '', level: number = 0): void {
+  let visibleIndex = 0;
+  
+  for (const node of nodes) {
+    if (node.isHidden) continue;
+    
+    visibleIndex++;
+    
+    // Determine the number format based on level and block type
+    let number: string;
+    
+    if (level === 0) {
+      // Top-level: Check if it's a Roman numeral section
+      const clauseName = node.clause.name || '';
+      const clauseCode = node.clause.clause_code || '';
+      const isRomanSection = /^[IVX]+\.?\s/.test(clauseCode) || /^[IVX]+\.?\s/.test(clauseName);
+      
+      if (isRomanSection) {
+        number = toRoman(visibleIndex);
+      } else {
+        number = String(visibleIndex);
+      }
+    } else {
+      // Child levels: Parent.Child format
+      number = parentNumber ? `${parentNumber}.${visibleIndex}` : String(visibleIndex);
+    }
+    
+    node.dynamicNumber = number;
+    
+    // Recursively number children
+    if (node.children.length > 0) {
+      applyDynamicNumbering(node.children, number, level + 1);
+    }
+  }
+}
+
+/**
+ * Convert integer to Roman numeral
+ */
+function toRoman(num: number): string {
+  const romanNumerals: [number, string][] = [
+    [1000, 'M'], [900, 'CM'], [500, 'D'], [400, 'CD'],
+    [100, 'C'], [90, 'XC'], [50, 'L'], [40, 'XL'],
+    [10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I']
+  ];
+  
+  let result = '';
+  for (const [value, numeral] of romanNumerals) {
+    while (num >= value) {
+      result += numeral;
+      num -= value;
+    }
+  }
+  return result;
+}
+
+/**
+ * Process variable replacement recursively through the block tree
+ */
+function processBlockTreeVariables(nodes: BlockNode[], variableMap: Record<string, string>): void {
+  for (const node of nodes) {
+    node.clause.content = replaceVariables(node.clause.content, variableMap);
+    processBlockTreeVariables(node.children, variableMap);
+  }
+}
+
 async function fetchClausesForContract(
   contractType: string, 
   projectData: Record<string, any>
 ): Promise<Clause[]> {
   try {
+    // Contract types in database match what's passed in (ONE, OFFSITE, ONSITE)
+    // from ingestion script: server/templates/Template_ONE_Agreement.docx → 'ONE'
     const contractTypeMap: Record<string, string> = {
-      'ONE': 'ONE Agreement',
-      'MANUFACTURING': 'MANUFACTURING',
+      'ONE': 'ONE',
+      'MANUFACTURING': 'OFFSITE',  // Legacy alias
+      'OFFSITE': 'OFFSITE',
       'ONSITE': 'ONSITE',
     };
     const mappedType = contractTypeMap[contractType] || contractType;
@@ -239,6 +380,538 @@ function convertVariableMarkersToHtml(html: string): string {
     .replace(new RegExp(PLACEHOLDER_END, 'g'), '</span>');
 }
 
+/**
+ * Generate HTML document from recursive block tree
+ * Uses block_type for styling: section, clause, paragraph
+ */
+function generateHTMLFromBlockTree(
+  blockTree: BlockNode[],
+  contractType: string,
+  projectData: Record<string, any>
+): string {
+  const title = getContractTitle(contractType);
+  
+  const rawHtml = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${title}</title>
+  <style>
+    ${getContractStyles()}
+  </style>
+</head>
+<body>
+  <div class="contract-container">
+    ${renderTitlePage(title, projectData)}
+    ${renderBlockTreeHTML(blockTree, projectData)}
+  </div>
+</body>
+</html>
+  `.trim();
+  
+  // Convert variable markers to styled HTML spans
+  return convertVariableMarkersToHtml(rawHtml);
+}
+
+/**
+ * Render block tree to HTML recursively
+ * Uses block_type and dynamic numbering for consistent formatting
+ */
+function renderBlockTreeHTML(nodes: BlockNode[], projectData: Record<string, any>): string {
+  let html = '<div class="contract-body">';
+  
+  for (const node of nodes) {
+    if (node.isHidden) continue;
+    html += renderBlockNode(node);
+  }
+  
+  // Add signature blocks at the end
+  html += renderSignatureBlocks(projectData);
+  html += '</div>';
+  
+  return html;
+}
+
+/**
+ * Render a single block node and its children recursively
+ */
+function renderBlockNode(node: BlockNode): string {
+  const { clause, children, dynamicNumber } = node;
+  const blockType = clause.block_type || 'clause';
+  const rawContent = clause.content || '';
+  const clauseName = clause.name || '';
+  const clauseCode = clause.clause_code || '';
+  
+  // Strip duplicate headers and format content
+  const strippedContent = stripDuplicateHeader(rawContent, clauseName, clauseCode);
+  const content = strippedContent ? formatContent(strippedContent) : '';
+  
+  let html = '';
+  
+  // Check for Roman numeral sections
+  const isRomanSection = /^[IVX]+\.?\s/.test(clauseCode) || /^[IVX]+\.?\s/.test(clauseName);
+  
+  // Check for Exhibit sections (add page break)
+  const exhibitMatch = clauseCode.match(/EXHIBIT-([A-G])$/);
+  if (exhibitMatch) {
+    html += `<div style="page-break-before: always;"></div>`;
+  }
+  
+  // Render based on block_type
+  if (blockType === 'section') {
+    if (isRomanSection) {
+      // Roman numeral section header (I. ATTACHMENTS, II. AGREEMENT)
+      html += `
+        <div class="roman-section">
+          ${dynamicNumber ? `${dynamicNumber}. ` : ''}${escapeHtml(clauseName.replace(/^[IVX]+\.?\s*/, '').toUpperCase())}
+        </div>
+        ${content ? `<p>${content}</p>` : ''}
+      `;
+    } else {
+      // Regular section header (Section 1. Scope of Services)
+      const displayName = clauseName.replace(/^Section\s*\d+\.?\s*/i, '');
+      html += `
+        <div class="section-header">
+          ${dynamicNumber ? `Section ${dynamicNumber}. ` : ''}${escapeHtml(displayName)}
+        </div>
+        ${content ? `<p>${content}</p>` : ''}
+      `;
+    }
+  } else if (blockType === 'clause') {
+    // Subsection/clause header (1.1. Overview)
+    const displayName = clauseName.replace(/^\d+\.\d+\.?\s*/i, '');
+    html += `
+      <div class="subsection-header">
+        ${dynamicNumber ? `${dynamicNumber}. ` : ''}${escapeHtml(displayName)}
+      </div>
+      ${content ? `<p>${content}</p>` : ''}
+    `;
+  } else if (blockType === 'paragraph') {
+    // Paragraph level
+    html += `<p class="indented">${content}</p>`;
+  } else if (blockType === 'table') {
+    // Table - content should already be HTML
+    html += content;
+  } else {
+    // Default: inline content
+    if (clauseName && clauseName.trim() && content) {
+      html += `
+        <div class="inline-clause">
+          <span style="font-weight: bold;">${dynamicNumber ? `${dynamicNumber}. ` : ''}${escapeHtml(clauseName)}.</span>
+          ${content}
+        </div>
+      `;
+    } else if (content) {
+      html += `<p class="indented">${content}</p>`;
+    }
+  }
+  
+  // Render children recursively
+  for (const child of children) {
+    if (!child.isHidden) {
+      html += renderBlockNode(child);
+    }
+  }
+  
+  return html;
+}
+
+/**
+ * Extract CSS styles for contracts (shared between old and new generators)
+ */
+function getContractStyles(): string {
+  return `
+    @page {
+      size: letter;
+      margin: 1in 1in 1in 1in;
+      @bottom-center {
+        content: counter(page);
+        font-family: 'Times New Roman', Times, serif;
+        font-size: 10pt;
+      }
+    }
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 11pt;
+      line-height: 1.15;
+      color: #000;
+      background: #fff;
+    }
+    
+    .contract-container {
+      max-width: 6.5in;
+      margin: 0 auto;
+    }
+    
+    /* Title Page Styles */
+    .title-page {
+      text-align: center;
+      padding-top: 1.5in;
+      page-break-after: always;
+      min-height: 8in;
+    }
+    
+    .contract-title {
+      font-size: 24pt;
+      font-weight: bold;
+      margin-bottom: 36pt;
+      color: #1a73e8;
+    }
+    
+    .project-info {
+      font-size: 16pt;
+      margin-bottom: 8pt;
+      line-height: 1.4;
+      color: #333;
+    }
+    
+    .date-line {
+      margin-top: 36pt;
+      font-size: 12pt;
+      color: #666;
+    }
+    
+    .parties-section {
+      margin-top: 48pt;
+      text-align: left;
+      padding: 0 20pt;
+    }
+    
+    .parties-section .party {
+      margin-bottom: 12pt;
+    }
+    
+    /* Contract Body Styles */
+    .contract-body {
+      text-align: left;
+    }
+    
+    /* Document Summary Box */
+    .document-summary {
+      background-color: #e8f0fe;
+      border: 1px solid #1a73e8;
+      border-radius: 4px;
+      padding: 16pt;
+      margin-bottom: 24pt;
+      page-break-inside: avoid;
+    }
+    
+    .document-summary h2 {
+      color: #1a73e8;
+      font-size: 14pt;
+      margin-bottom: 12pt;
+      border-bottom: none;
+    }
+    
+    .document-summary p {
+      text-indent: 0;
+      margin-bottom: 8pt;
+      font-size: 10pt;
+    }
+    
+    /* Roman numeral sections (I. ATTACHMENTS, II. AGREEMENT) */
+    .roman-section {
+      font-size: 14pt;
+      font-weight: bold;
+      color: #1a73e8;
+      margin-top: 24pt;
+      margin-bottom: 12pt;
+      padding-bottom: 4pt;
+      border-bottom: 2px solid #1a73e8;
+      page-break-after: avoid;
+    }
+    
+    /* Section Headers (Section 1. Scope of Services) */
+    .section-header {
+      font-size: 13pt;
+      font-weight: bold;
+      color: #1a73e8;
+      margin-top: 20pt;
+      margin-bottom: 10pt;
+      page-break-after: avoid;
+    }
+    
+    /* Subsection Headers (1.1. Overview) */
+    .subsection-header {
+      font-size: 11pt;
+      font-weight: bold;
+      margin-top: 14pt;
+      margin-bottom: 6pt;
+      page-break-after: avoid;
+    }
+    
+    /* Paragraph level (1.1.1) */
+    .paragraph-header {
+      font-size: 11pt;
+      font-weight: bold;
+      display: inline;
+    }
+    
+    /* Regular paragraphs */
+    p {
+      margin-bottom: 10pt;
+      text-align: left;
+      line-height: 1.15;
+      text-indent: 0;
+    }
+    
+    p.indented {
+      margin-left: 0.25in;
+    }
+    
+    /* Clause numbering */
+    .clause-number {
+      font-weight: bold;
+    }
+    
+    .inline-clause {
+      margin-bottom: 10pt;
+      line-height: 1.15;
+      margin-left: 0.25in;
+    }
+    
+    .inline-clause .clause-number {
+      margin-right: 4pt;
+    }
+    
+    /* Lists */
+    ol, ul {
+      margin: 8pt 0 8pt 0.5in;
+      padding-left: 0;
+    }
+    
+    ol {
+      list-style-type: lower-alpha;
+    }
+    
+    ol ol {
+      list-style-type: lower-roman;
+    }
+    
+    li {
+      margin-bottom: 6pt;
+      line-height: 1.15;
+    }
+    
+    /* Tables - Professional styling matching Google Docs */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12pt 0 16pt 0;
+      font-size: 10pt;
+      page-break-inside: avoid;
+    }
+    
+    table thead {
+      background-color: #1a73e8;
+    }
+    
+    table th {
+      background-color: #1a73e8;
+      color: #fff;
+      font-weight: bold;
+      padding: 8pt 10pt;
+      text-align: left;
+      vertical-align: middle;
+      border: 1px solid #1a73e8;
+    }
+    
+    table td {
+      border: 1px solid #dadce0;
+      padding: 8pt 10pt;
+      text-align: left;
+      vertical-align: top;
+    }
+    
+    table tr:nth-child(even) {
+      background-color: #f8f9fa;
+    }
+    
+    table tr:hover {
+      background-color: #e8f0fe;
+    }
+    
+    /* Financial tables */
+    table.financial td:last-child,
+    table.financial th:last-child {
+      text-align: right;
+    }
+    
+    table.financial td:first-child {
+      font-weight: 500;
+    }
+    
+    /* Compact tables for schedules */
+    table.compact {
+      font-size: 9pt;
+    }
+    
+    table.compact td,
+    table.compact th {
+      padding: 4pt 6pt;
+    }
+    
+    /* Totals row styling */
+    table tr.total-row {
+      background-color: #e8f0fe !important;
+      font-weight: bold;
+    }
+    
+    table tr.total-row td {
+      border-top: 2px solid #1a73e8;
+    }
+    
+    /* Signature Block */
+    .signature-section {
+      margin-top: 36pt;
+      page-break-inside: avoid;
+    }
+    
+    .signature-block {
+      margin-top: 24pt;
+      page-break-inside: avoid;
+    }
+    
+    .signature-line {
+      border-bottom: 1px solid #000;
+      width: 3in;
+      margin-top: 24pt;
+      margin-bottom: 4pt;
+    }
+    
+    .signature-name {
+      font-size: 10pt;
+      margin-top: 4pt;
+    }
+    
+    .signature-title {
+      font-size: 9pt;
+      color: #666;
+    }
+    
+    /* Exhibit/Schedule headers */
+    .exhibit-header {
+      font-size: 16pt;
+      font-weight: bold;
+      text-align: center;
+      color: #1a73e8;
+      margin-top: 24pt;
+      margin-bottom: 16pt;
+      page-break-before: always;
+    }
+    
+    /* Recitals / Whereas clauses */
+    .recitals {
+      margin-top: 16pt;
+      margin-bottom: 16pt;
+      background-color: #f8f9fa;
+      padding: 12pt;
+      border-left: 3px solid #1a73e8;
+    }
+    
+    .recitals-title {
+      font-weight: bold;
+      font-size: 12pt;
+      margin-bottom: 10pt;
+      color: #1a73e8;
+    }
+    
+    .recital {
+      margin-bottom: 8pt;
+      font-size: 10pt;
+    }
+    
+    .recital-label {
+      font-weight: bold;
+    }
+    
+    /* Agreement statement */
+    .agreement-statement {
+      margin-top: 16pt;
+      margin-bottom: 20pt;
+      font-size: 10pt;
+      font-style: italic;
+      text-align: center;
+    }
+    
+    /* Important notices */
+    .notice-box {
+      background-color: #fef7e0;
+      border: 1px solid #f9ab00;
+      border-radius: 4px;
+      padding: 12pt;
+      margin: 12pt 0;
+      font-size: 10pt;
+    }
+    
+    .notice-box strong {
+      color: #e37400;
+    }
+    
+    /* Variable substitutions - display in blue for easy visibility */
+    .variable-value {
+      color: #1a73e8;
+      font-weight: 500;
+    }
+    
+    /* Unsubstituted variables - display in blue with background */
+    .variable-placeholder {
+      color: #1a73e8;
+      background-color: #e8f0fe;
+      padding: 0 2pt;
+      border-radius: 2pt;
+      font-family: monospace;
+      font-size: 10pt;
+    }
+    
+    /* Indentation levels */
+    .indent-1 { margin-left: 0.25in; }
+    .indent-2 { margin-left: 0.5in; }
+    .indent-3 { margin-left: 0.75in; }
+    
+    /* Keep headers with following content */
+    h1, h2, h3, .roman-section, .section-header, .subsection-header {
+      page-break-after: avoid;
+      orphans: 3;
+      widows: 3;
+    }
+    
+    /* Prevent orphaned lines */
+    p {
+      orphans: 2;
+      widows: 2;
+    }
+    
+    /* Page footer */
+    .page-footer {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      text-align: center;
+      font-size: 9pt;
+      color: #666;
+      padding: 8pt;
+    }
+    
+    @media print {
+      .contract-container {
+        max-width: none;
+      }
+    }
+  `;
+}
+
+// Keep the old function for backward compatibility
 function generateHTMLFromClauses(
   clauses: Clause[],
   contractType: string,
