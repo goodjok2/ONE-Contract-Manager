@@ -1,0 +1,33 @@
+We are upgrading the Contract Generator to support **Dynamic HTML Tables**. Instead of simple text replacement, we will generate formatted HTML tables for the financials and inject them into the PDF.
+
+**Task 1: Create Table Generators (`server/lib/tableGenerators.ts`)**
+* Create a new file `server/lib/tableGenerators.ts`.
+* Export two functions that return HTML strings (styled with inline CSS for PDF compatibility):
+    1.  `generatePricingTableHtml(pricingSummary)`: A table showing:
+        * Header: "Item", "Cost"
+        * Rows: "Design Fee", "Offsite Manufacturing", "Onsite Services" (if applicable), and "Grand Total".
+        * Style: Simple borders, padding, bold total row.
+    2.  `generatePaymentScheduleHtml(paymentSchedule)`: A table showing:
+        * Header: "Phase", "%", "Amount"
+        * Rows: Iterate through the milestones.
+        * Style: Striped rows (optional), clear headers.
+
+**Task 2: Inject Tables into Variables (`server/lib/mapper.ts`)**
+* Import the generators.
+* Inside `mapProjectToVariables`, generate the tables using the project's pricing data.
+* Map them to two new variables:
+    * `PRICING_BREAKDOWN_TABLE`
+    * `PAYMENT_SCHEDULE_TABLE`
+
+**Task 3: Migration Route (`server/routes/system.ts`)**
+* We need to update the database clauses to use these new variables.
+* Create a temporary endpoint `POST /api/debug/migrate-clauses`.
+* **Logic:**
+    * Find the clause with `section_name` = "Payment Terms" (or similar). Update its `text` to simply be: `<p>The payment schedule is as follows:</p> {{PAYMENT_SCHEDULE_TABLE}}`.
+    * Find the clause for "Contract Price" or "Recital H". Update its `text` to include: `<p>The breakdown is:</p> {{PRICING_BREAKDOWN_TABLE}}`.
+    * *Note: If you can't find specific clauses by name, just log that "Manual update required" and we will update them via the UI later.*
+
+**Task 4: Update Generator (`server/routes/contracts.ts`)**
+* Ensure the variable replacement in `generateContractHtml` handles these HTML strings correctly (treats them as raw HTML, not escaped text).
+
+After this, generating a contract should render beautiful, data-driven tables for the financials.

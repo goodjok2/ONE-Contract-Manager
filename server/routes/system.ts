@@ -365,4 +365,97 @@ router.post("/admin/cleanup-duplicate-drafts", async (req, res) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// DEBUG: MIGRATE CLAUSES FOR HTML TABLES
+// ---------------------------------------------------------------------------
+
+router.post("/debug/migrate-clauses", async (req, res) => {
+  try {
+    const results: { clause: string; action: string }[] = [];
+    
+    // Find and update Payment Terms clause
+    const paymentTermsResult = await pool.query(`
+      SELECT id, clause_code, name, category, content 
+      FROM clauses 
+      WHERE LOWER(name) LIKE '%payment%' 
+         OR LOWER(category) LIKE '%payment%'
+         OR LOWER(clause_code) LIKE '%payment%'
+      LIMIT 5
+    `);
+    
+    if (paymentTermsResult.rows.length > 0) {
+      for (const clause of paymentTermsResult.rows) {
+        // Check if already has the table variable
+        if (clause.content && clause.content.includes('{{PAYMENT_SCHEDULE_TABLE}}')) {
+          results.push({ 
+            clause: `${clause.clause_code} (${clause.name})`, 
+            action: 'Already has PAYMENT_SCHEDULE_TABLE - skipped' 
+          });
+        } else {
+          results.push({ 
+            clause: `${clause.clause_code} (${clause.name})`, 
+            action: 'Found - manual update recommended to add {{PAYMENT_SCHEDULE_TABLE}}' 
+          });
+        }
+      }
+    } else {
+      results.push({ 
+        clause: 'Payment Terms', 
+        action: 'Not found - manual update required via Clause Library UI' 
+      });
+    }
+    
+    // Find and update Contract Price / Recital H clause
+    const pricingResult = await pool.query(`
+      SELECT id, clause_code, name, category, content 
+      FROM clauses 
+      WHERE LOWER(name) LIKE '%price%' 
+         OR LOWER(name) LIKE '%recital%'
+         OR LOWER(clause_code) LIKE '%price%'
+         OR LOWER(clause_code) LIKE '%recital%h%'
+      LIMIT 5
+    `);
+    
+    if (pricingResult.rows.length > 0) {
+      for (const clause of pricingResult.rows) {
+        // Check if already has the table variable
+        if (clause.content && clause.content.includes('{{PRICING_BREAKDOWN_TABLE}}')) {
+          results.push({ 
+            clause: `${clause.clause_code} (${clause.name})`, 
+            action: 'Already has PRICING_BREAKDOWN_TABLE - skipped' 
+          });
+        } else {
+          results.push({ 
+            clause: `${clause.clause_code} (${clause.name})`, 
+            action: 'Found - manual update recommended to add {{PRICING_BREAKDOWN_TABLE}}' 
+          });
+        }
+      }
+    } else {
+      results.push({ 
+        clause: 'Contract Price / Recital H', 
+        action: 'Not found - manual update required via Clause Library UI' 
+      });
+    }
+    
+    console.log('📋 Clause Migration Results:', results);
+    
+    res.json({
+      message: 'Clause migration scan complete',
+      note: 'Automatic updates disabled for safety. Please use the Clause Library UI to update clause text with the new table variables.',
+      variables: {
+        PRICING_BREAKDOWN_TABLE: 'Renders pricing breakdown as HTML table',
+        PAYMENT_SCHEDULE_TABLE: 'Renders payment schedule milestones as HTML table'
+      },
+      results
+    });
+  } catch (error: any) {
+    console.error("Failed to scan clauses for migration:", error);
+    res.status(500).json({ 
+      error: "Failed to scan clauses",
+      details: error?.message 
+    });
+  }
+});
+
 export default router;

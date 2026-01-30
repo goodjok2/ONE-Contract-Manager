@@ -137,10 +137,23 @@ function replaceVariables(content: string, variableMap: Record<string, string>):
   
   // Replace variables with their values using special markers
   // These markers will be converted to HTML spans after formatting
+  // EXCEPTION: HTML content (tables, etc.) is inserted raw without markers
   Object.entries(variableMap).forEach(([key, value]) => {
     const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
     const displayValue = value || '[NOT PROVIDED]';
-    result = result.replace(regex, `${VAR_START}${displayValue}${VAR_END}`);
+    
+    // Check if the value is raw HTML (starts with < and contains HTML tags)
+    const isRawHtml = typeof displayValue === 'string' && 
+      displayValue.trim().startsWith('<') && 
+      (displayValue.includes('<table') || displayValue.includes('<div') || displayValue.includes('<p>'));
+    
+    if (isRawHtml) {
+      // Insert HTML content directly without wrapping in markers
+      result = result.replace(regex, displayValue);
+    } else {
+      // Wrap regular values in markers for highlighting
+      result = result.replace(regex, `${VAR_START}${displayValue}${VAR_END}`);
+    }
   });
   
   // Find any remaining unreplaced variables and log them

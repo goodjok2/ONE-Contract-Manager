@@ -7,6 +7,7 @@ import type {
   WarrantyTerm,
   Contractor,
 } from "../db/schema";
+import { generatePricingTableHtml, generatePaymentScheduleHtml } from "./tableGenerators";
 
 // =============================================================================
 // TYPE DEFINITIONS
@@ -666,6 +667,12 @@ export function mapProjectToVariables(
     ONSITE_CONSTRUCTION_COST_WRITTEN: pricingSummary 
       ? formatCurrency(pricingSummary.breakdown.totalOnsite / 100)
       : formatCentsAsCurrency(financials?.prelimOnsite),
+
+    // ===================
+    // DYNAMIC HTML TABLES
+    // ===================
+    PRICING_BREAKDOWN_TABLE: generatePricingTableHtml(pricingSummary || null),
+    PAYMENT_SCHEDULE_TABLE: generatePaymentScheduleHtml(pricingSummary?.paymentSchedule || null),
 
     // ===================
     // MILESTONES (spread in the milestone objects)
