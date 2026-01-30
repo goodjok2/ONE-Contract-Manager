@@ -93,6 +93,16 @@ The application is built on a modern full-stack architecture.
     - Recursive filtering: child blocks are excluded when their parent is filtered out
     - Blocks without state conditions are always included (standard contract content)
     - Verified: CA project filters TX/AZ, TX project filters CA/AZ - numbering remains sequential
+- **4-Level Hierarchical Styling (Jan 30, 2026)**:
+    - "Clean Look" CSS styling with 4 hierarchy levels in PDF contracts:
+        - Level 1 (hierarchy_level 1): Section headers - Bold, blue (#1a73e8), uppercase, blue underline
+        - Level 2 (hierarchy_level 2): Subsection headers - Bold, black, left-justified
+        - Level 3 (hierarchy_level 3): Numbered paragraphs - Hanging indent (0.35in), dot notation (1.1.1)
+        - Level 4 (hierarchy_level 4): List items - Fully indented (0.5in), lowercase Roman numerals (i., ii., iii.)
+    - `applyDynamicNumbering()` uses `clause.hierarchy_level` (not tree depth) for numbering format
+    - `toLowerRoman()` helper converts integers to lowercase Roman numerals
+    - `renderBlockNode()` uses both `block_type` and `hierarchy_level` for rendering decisions
+    - CSS classes: `.section-header`, `.subsection-header`, `.paragraph-numbered`, `.list-item-roman`
 
 ## External Dependencies
 

@@ -149,10 +149,11 @@ function buildBlockTree(clauses: Clause[], projectState?: string): BlockNode[] {
 
 /**
  * Apply dynamic numbering to the block tree
- * Level 1 (hierarchy_level 1): Section X or Roman (I, II, III) for major sections
- * Level 2 (hierarchy_level 2): X.X (e.g., 1.1, 1.2) - subsections
- * Level 3 (hierarchy_level 3): X.X.X (e.g., 1.1.1) or simple numbered paragraphs
- * Level 4 (hierarchy_level 4): i., ii., iii. (lowercase Roman numerals for list items)
+ * Uses hierarchy_level from the clause data (not recursion depth) to determine format:
+ * - hierarchy_level 1: Section X or Roman (I, II, III) for major sections
+ * - hierarchy_level 2: X.X (e.g., 1.1, 1.2) - subsections
+ * - hierarchy_level 3: X.X.X (e.g., 1.1.1) or simple numbered paragraphs
+ * - hierarchy_level 4+: i., ii., iii. (lowercase Roman numerals for list items)
  * Auto-renumbers when blocks are hidden
  */
 function applyDynamicNumbering(nodes: BlockNode[], parentNumber: string = '', level: number = 0): void {
@@ -163,12 +164,15 @@ function applyDynamicNumbering(nodes: BlockNode[], parentNumber: string = '', le
     
     visibleIndex++;
     
-    // Determine the number format based on level and block type
-    let number: string;
+    // Use hierarchy_level from clause data if available, otherwise fall back to tree depth
+    const hierarchyLevel = node.clause.hierarchy_level ?? (level + 1);
     const blockType = node.clause.block_type || 'clause';
     
-    if (level === 0) {
-      // Top-level: Check if it's a Roman numeral section
+    // Determine the number format based on hierarchy_level (not tree depth)
+    let number: string;
+    
+    if (hierarchyLevel === 1) {
+      // Level 1: Check if it's a Roman numeral section
       const clauseName = node.clause.name || '';
       const clauseCode = node.clause.clause_code || '';
       const isRomanSection = /^[IVX]+\.?\s/.test(clauseCode) || /^[IVX]+\.?\s/.test(clauseName);
@@ -178,11 +182,11 @@ function applyDynamicNumbering(nodes: BlockNode[], parentNumber: string = '', le
       } else {
         number = String(visibleIndex);
       }
-    } else if (level >= 3 || blockType === 'list_item') {
+    } else if (hierarchyLevel >= 4 || blockType === 'list_item') {
       // Level 4+: Lowercase Roman numerals for list items
       number = toLowerRoman(visibleIndex);
     } else {
-      // Levels 1-3: Parent.Child format (e.g., 1.1, 1.1.1)
+      // Levels 2-3: Parent.Child format (e.g., 1.1, 1.1.1)
       number = parentNumber ? `${parentNumber}.${visibleIndex}` : String(visibleIndex);
     }
     
@@ -485,10 +489,12 @@ function renderBlockTreeHTML(nodes: BlockNode[], projectData: Record<string, any
 
 /**
  * Render a single block node and its children recursively
+ * Uses both block_type and hierarchy_level to determine rendering format
  */
 function renderBlockNode(node: BlockNode): string {
   const { clause, children, dynamicNumber } = node;
   const blockType = clause.block_type || 'clause';
+  const hierarchyLevel = clause.hierarchy_level ?? 1;
   const rawContent = clause.content || '';
   const clauseName = clause.name || '';
   const clauseCode = clause.clause_code || '';
@@ -559,8 +565,24 @@ function renderBlockNode(node: BlockNode): string {
     // Table - content should already be HTML
     html += content;
   } else {
-    // Default: inline content
-    if (clauseName && clauseName.trim() && content) {
+    // Default: Use hierarchy_level as fallback for rendering decision
+    // Level 3+ without explicit block_type should use paragraph-numbered style
+    if (hierarchyLevel >= 4) {
+      // Level 4+: Render as list item with Roman numeral
+      html += `
+        <div class="list-item-roman">
+          <span class="list-marker">${dynamicNumber}.</span>${content}
+        </div>
+      `;
+    } else if (hierarchyLevel === 3 && dynamicNumber) {
+      // Level 3: Render as numbered paragraph with hanging indent
+      html += `
+        <div class="paragraph-numbered">
+          <span class="clause-number">${dynamicNumber}.</span> ${content}
+        </div>
+      `;
+    } else if (clauseName && clauseName.trim() && content) {
+      // Default inline content with header
       html += `
         <div class="inline-clause">
           <span style="font-weight: bold;">${dynamicNumber ? `${dynamicNumber}. ` : ''}${escapeHtml(clauseName)}.</span>
