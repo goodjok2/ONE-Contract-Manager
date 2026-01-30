@@ -47,76 +47,8 @@ router.get("/projects/:projectId/contracts", async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// DEBUG ENDPOINT: Variable X-Ray
+// CONTRACT CRUD
 // ---------------------------------------------------------------------------
-
-router.get("/projects/:projectId/debug-variables", async (req, res) => {
-  try {
-    const projectId = parseInt(req.params.projectId);
-    
-    console.log(`\n========== DEBUG VARIABLES for Project ${projectId} ==========`);
-    
-    // 1. Fetch project with all relations
-    const projectData = await getProjectWithRelations(projectId);
-    
-    if (!projectData.project) {
-      return res.status(404).json({ error: "Project not found" });
-    }
-    
-    // 2. Run the pricing engine
-    let pricingSummary = null;
-    try {
-      pricingSummary = await calculateProjectPricing(projectId);
-      console.log(`✓ Pricing calculated: contractValue=${pricingSummary.contractValue}, projectBudget=${pricingSummary.projectBudget}`);
-    } catch (pricingError) {
-      console.warn(`⚠️ Pricing engine error (using fallback):`, pricingError);
-    }
-    
-    // 3. Call mapProjectToVariables to generate the variable map
-    const variableMap = mapProjectToVariables(projectData, pricingSummary || undefined);
-    
-    // Extract service model
-    const serviceModel = pricingSummary?.serviceModel || projectData.project.onSiteSelection || 'CRC';
-    
-    // Log key variables for debugging
-    console.log(`\n📋 Key Variables:`);
-    console.log(`  - UNIT_MODEL_LIST: ${variableMap.UNIT_MODEL_LIST}`);
-    console.log(`  - TOTAL_CONTRACT_PRICE: ${variableMap.TOTAL_CONTRACT_PRICE}`);
-    console.log(`  - TOTAL_PROJECT_BUDGET: ${variableMap.TOTAL_PROJECT_BUDGET}`);
-    console.log(`  - PRICING_SERVICE_MODEL: ${variableMap.PRICING_SERVICE_MODEL}`);
-    console.log(`  - OFFSITE_MANUFACTURING_COST: ${variableMap.OFFSITE_MANUFACTURING_COST}`);
-    console.log(`  - ON_SITE_SELECTION: ${variableMap.ON_SITE_SELECTION}`);
-    console.log(`==========================================================\n`);
-    
-    // 4. Return comprehensive debug info
-    res.json({
-      projectId,
-      projectName: projectData.project.name,
-      serviceModel,
-      variableMap,
-      pricing: pricingSummary ? {
-        breakdown: pricingSummary.breakdown,
-        grandTotal: pricingSummary.grandTotal,
-        projectBudget: pricingSummary.projectBudget,
-        contractValue: pricingSummary.contractValue,
-        unitCount: pricingSummary.unitCount,
-        unitModelSummary: pricingSummary.unitModelSummary,
-        paymentSchedule: pricingSummary.paymentSchedule,
-      } : null,
-      units: projectData.units || [],
-      _debug: {
-        hasFinancials: !!projectData.financials,
-        hasMilestones: (projectData.milestones || []).length,
-        hasChildLlc: !!projectData.childLlc,
-        hasClient: !!projectData.client,
-      }
-    });
-    
-  } catch (error) {
-    console.error("Failed to fetch debug variables:", error);
-    res.status(500).json({ error: "Failed to fetch debug variables", details: String(error) });
-  }
-});
 
 router.get("/contracts", async (req, res) => {
   try {
@@ -880,7 +812,7 @@ router.post("/contracts/download-all-zip", async (req, res) => {
           projectData[`MILESTONE_${num}_NAME`] = milestone.name;
           projectData[`MILESTONE_${num}_PERCENT`] = `${milestone.percentage}%`;
           projectData[`MILESTONE_${num}_AMOUNT`] = formatCentsAsCurrency(milestone.amount);
-          projectData[`MILESTONE_${num}_PHASE`] = milestone.phase;
+          projectData[`MILESTONE_${num}_PHASE`] = milestone.phase || null;
           projectData[`CLIENT_MILESTONE_${num}_NAME`] = milestone.name;
           projectData[`CLIENT_MILESTONE_${num}_PERCENT`] = `${milestone.percentage}%`;
           projectData[`CLIENT_MILESTONE_${num}_AMOUNT`] = formatCentsAsCurrency(milestone.amount);

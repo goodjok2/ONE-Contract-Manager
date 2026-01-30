@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Calendar, Clock } from 'lucide-react';
+import { Calendar, Clock, Info } from 'lucide-react';
 
 export const Step6DatesSchedule: React.FC = () => {
   const { 
@@ -15,10 +15,11 @@ export const Step6DatesSchedule: React.FC = () => {
   
   const { projectData, validationErrors } = wizardState;
   
-  useEffect(() => {
-    if (!projectData.effectiveDate && projectData.agreementDate) {
-      updateProjectData({ effectiveDate: projectData.agreementDate });
-    }
+  // Use project's existing start date (from Step 1)
+  // agreementDate comes from Step 1, defaults to today if not set
+  const projectStartDate = useMemo(() => {
+    if (projectData.agreementDate) return new Date(projectData.agreementDate);
+    return new Date(); // Default to today
   }, [projectData.agreementDate]);
   
   useEffect(() => {
@@ -35,24 +36,39 @@ export const Step6DatesSchedule: React.FC = () => {
     if (!projectData.manufacturingDurationDays) {
       updateProjectData({ manufacturingDurationDays: 120 });
     }
-    if (!projectData.estimatedCompletionMonths) {
-      updateProjectData({ estimatedCompletionMonths: 12 });
-    }
-    if (!projectData.estimatedCompletionUnit) {
-      updateProjectData({ estimatedCompletionUnit: 'months' });
-    }
   }, []);
   
-  const completionDate = useMemo(() => {
-    if (!projectData.effectiveDate) return null;
-    const startDate = new Date(projectData.effectiveDate);
-    const totalDays = (projectData.designPhaseDays || 0) + 
-                     (projectData.manufacturingDurationDays || 0) + 
-                     (projectData.onsiteDurationDays || 0);
-    const date = new Date(startDate);
-    date.setDate(date.getDate() + totalDays);
-    return date;
-  }, [projectData.effectiveDate, projectData.designPhaseDays, projectData.manufacturingDurationDays, projectData.onsiteDurationDays]);
+  // Calculate delivery and completion dates based on start date + durations
+  const { deliveryDate, completionDate } = useMemo(() => {
+    const startDate = new Date(projectStartDate);
+    
+    // Delivery = start + design + manufacturing
+    const deliveryDays = (projectData.designPhaseDays || 0) + 
+                         (projectData.manufacturingDurationDays || 0);
+    const delivery = new Date(startDate);
+    delivery.setDate(delivery.getDate() + deliveryDays);
+    
+    // Completion = start + design + manufacturing + onsite
+    const totalDays = deliveryDays + (projectData.onsiteDurationDays || 0);
+    const completion = new Date(startDate);
+    completion.setDate(completion.getDate() + totalDays);
+    
+    return { deliveryDate: delivery, completionDate: completion };
+  }, [projectStartDate, projectData.designPhaseDays, projectData.manufacturingDurationDays, projectData.onsiteDurationDays]);
+  
+  // Auto-save estimated dates to project data when they change
+  useEffect(() => {
+    const deliveryStr = deliveryDate.toISOString().split('T')[0];
+    const completionStr = completionDate.toISOString().split('T')[0];
+    
+    if (projectData.targetDeliveryDate !== deliveryStr || 
+        projectData.estimatedCompletionDate !== completionStr) {
+      updateProjectData({ 
+        targetDeliveryDate: deliveryStr,
+        estimatedCompletionDate: completionStr
+      });
+    }
+  }, [deliveryDate, completionDate]);
   
   const totalDays = (projectData.designPhaseDays || 0) + 
                     (projectData.manufacturingDurationDays || 0) + 
@@ -85,59 +101,14 @@ export const Step6DatesSchedule: React.FC = () => {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="effectiveDate">
-                Effective Date <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                id="effectiveDate"
-                type="date"
-                value={projectData.effectiveDate}
-                onChange={(e) => updateProjectData({ effectiveDate: e.target.value })}
-                className={validationErrors.effectiveDate ? 'border-red-500' : ''}
-                data-testid="input-effective-date"
-              />
-              {validationErrors.effectiveDate && (
-                <p className="text-sm text-red-500">{validationErrors.effectiveDate}</p>
-              )}
-              <p className="text-xs text-muted-foreground">
-                When the contract becomes effective
+          <div className="p-4 bg-muted/30 rounded-lg border flex items-start gap-3">
+            <Info className="h-5 w-5 text-muted-foreground mt-0.5" />
+            <div>
+              <p className="text-sm font-medium">Project Start Date</p>
+              <p className="text-lg font-semibold">{formatDate(projectStartDate)}</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Based on the agreement date from Step 1 (or project creation date)
               </p>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="estimatedCompletionMonths">
-                Estimated Completion Timeframe
-              </Label>
-              <div className="flex gap-2">
-                <Input
-                  id="estimatedCompletionMonths"
-                  type="number"
-                  value={projectData.estimatedCompletionMonths || ''}
-                  onChange={(e) => updateProjectData({ estimatedCompletionMonths: parseInt(e.target.value) || 0 })}
-                  placeholder="e.g., 12"
-                  min={1}
-                  max={projectData.estimatedCompletionUnit === 'weeks' ? 104 : 24}
-                  className={`flex-1 ${validationErrors.estimatedCompletionMonths ? 'border-red-500' : ''}`}
-                  data-testid="input-completion-months"
-                />
-                <Select
-                  value={projectData.estimatedCompletionUnit || 'months'}
-                  onValueChange={(value: 'months' | 'weeks') => updateProjectData({ estimatedCompletionUnit: value })}
-                >
-                  <SelectTrigger className="w-28" data-testid="select-completion-unit">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="months">Months</SelectItem>
-                    <SelectItem value="weeks">Weeks</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              {validationErrors.estimatedCompletionMonths && (
-                <p className="text-sm text-red-500">{validationErrors.estimatedCompletionMonths}</p>
-              )}
             </div>
           </div>
         </CardContent>
@@ -271,7 +242,20 @@ export const Step6DatesSchedule: React.FC = () => {
             </div>
           </div>
           
-          {completionDate && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
+            <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+              <div className="flex items-start gap-3">
+                <Calendar className="h-5 w-5 text-amber-600 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium">Estimated Delivery Date</p>
+                  <p className="text-lg font-semibold text-amber-600">{formatDate(deliveryDate)}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Start + Design + Manufacturing
+                  </p>
+                </div>
+              </div>
+            </div>
+            
             <div className="p-4 bg-primary/5 border border-primary/20 rounded-lg">
               <div className="flex items-start gap-3">
                 <Calendar className="h-5 w-5 text-primary mt-0.5" />
@@ -279,12 +263,12 @@ export const Step6DatesSchedule: React.FC = () => {
                   <p className="text-sm font-medium">Estimated Completion Date</p>
                   <p className="text-lg font-semibold text-primary">{formatDate(completionDate)}</p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Based on effective date + total phase durations
+                    Start + Design + Manufacturing + On-Site
                   </p>
                 </div>
               </div>
             </div>
-          )}
+          </div>
         </CardContent>
       </Card>
       

@@ -29,6 +29,7 @@ export async function getProjectWithRelations(projectId: number): Promise<Projec
   // Fetch units with their home model details
   // Transform from DB schema (modelId, name, sqFt) to mapper types (homeModelId, modelName, squareFootage)
   const unitsRaw = await db.select().from(projectUnits).where(eq(projectUnits.projectId, projectId));
+  
   const units = await Promise.all(
     unitsRaw.map(async (unit) => {
       const [model] = unit.modelId 
