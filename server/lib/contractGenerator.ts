@@ -874,6 +874,46 @@ function renderSignatureBlocks(projectData: Record<string, any>): string {
 function formatContent(content: string): string {
   if (!content) return '';
   
+  // Check if this content IS raw HTML (starts with < and looks like HTML)
+  // This handles cases where variable substitution inserted raw HTML
+  const trimmedContent = content.trim();
+  
+  // Detect raw HTML: content starting with HTML tag (not just text that happens to contain <)
+  // Matches: <table, <div, <tr, <th, <thead, <tbody, <p, <span, <br, etc.
+  const startsWithHtmlTag = /^<[a-zA-Z][^>]*>/.test(trimmedContent);
+  const containsHtmlStructure = /<(table|div|tr|th|thead|tbody|p|span|br|ul|ol|li)[^>]*>/i.test(trimmedContent);
+  
+  if (startsWithHtmlTag && containsHtmlStructure) {
+    // This is raw HTML from variable substitution - return as-is
+    return content;
+  }
+  
+  // Check if content CONTAINS raw HTML blocks - we need to extract and preserve them
+  // Extract table blocks (for pricing/schedule tables) - these are the primary concern
+  const htmlBlocks: string[] = [];
+  let contentWithPlaceholders = content;
+  let blockIndex = 0;
+  
+  // Extract <table>...</table> blocks
+  const tableRegex = /<table[\s\S]*?<\/table>/gi;
+  let match;
+  while ((match = tableRegex.exec(content)) !== null) {
+    const placeholder = `__HTML_BLOCK_${blockIndex}__`;
+    htmlBlocks.push(match[0]);
+    contentWithPlaceholders = contentWithPlaceholders.replace(match[0], placeholder);
+    blockIndex++;
+  }
+  
+  // If we found HTML blocks, process the non-HTML parts and restore the HTML
+  if (htmlBlocks.length > 0) {
+    let result = formatNonTableContent(contentWithPlaceholders);
+    // Restore HTML blocks
+    for (let i = 0; i < htmlBlocks.length; i++) {
+      result = result.replace(`__HTML_BLOCK_${i}__`, htmlBlocks[i]);
+    }
+    return result;
+  }
+  
   // Check if content contains table markers or tab-separated data
   if (content.includes('|') && content.split('\n').some(line => line.includes('|'))) {
     return formatTableContent(content);

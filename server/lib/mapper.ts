@@ -671,6 +671,15 @@ export function mapProjectToVariables(
     // ===================
     // DYNAMIC HTML TABLES
     // ===================
+    // Debug logging for payment schedule
+    ...((() => {
+      console.log('📊 Mapping Payment Schedule:', {
+        hasPricingSummary: !!pricingSummary,
+        paymentScheduleLength: pricingSummary?.paymentSchedule?.length || 0,
+        paymentSchedule: pricingSummary?.paymentSchedule || null
+      });
+      return {};
+    })()),
     PRICING_BREAKDOWN_TABLE: generatePricingTableHtml(pricingSummary || null),
     PAYMENT_SCHEDULE_TABLE: generatePaymentScheduleHtml(pricingSummary?.paymentSchedule || null),
 

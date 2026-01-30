@@ -338,7 +338,17 @@ router.get("/contracts/:id/clauses", async (req, res) => {
       const projectData = await getProjectWithRelations(contract.projectId);
       if (projectData) {
         const { mapProjectToVariables } = await import('../lib/mapper');
-        variables = mapProjectToVariables(projectData);
+        const { calculateProjectPricing } = await import('../services/pricingEngine');
+        
+        // Calculate pricing to populate table variables
+        let pricingSummary = null;
+        try {
+          pricingSummary = await calculateProjectPricing(contract.projectId);
+        } catch (e) {
+          console.warn('Pricing calculation failed for clause preview:', e);
+        }
+        
+        variables = mapProjectToVariables(projectData, pricingSummary || undefined);
       }
     }
     
@@ -727,16 +737,24 @@ router.post("/contracts/download-all-zip", async (req, res) => {
     }
     
     const { mapProjectToVariables, formatCentsAsCurrency, centsToDollars } = await import('../lib/mapper');
-    const projectData = mapProjectToVariables(fullProject);
+    const { calculateProjectPricing } = await import('../services/pricingEngine');
+    
+    // Calculate pricing FIRST so we can pass it to mapProjectToVariables
+    let pricingSummary: any = null;
+    try {
+      pricingSummary = await calculateProjectPricing(projectId);
+      console.log(`✓ Pricing calculated for ZIP: contractValue=${pricingSummary.contractValue}, paymentSchedule=${pricingSummary.paymentSchedule?.length || 0} items`);
+    } catch (pricingError) {
+      console.warn(`⚠️ Pricing engine error (using fallback):`, pricingError);
+    }
+    
+    // Now call mapProjectToVariables WITH the pricingSummary so tables are populated
+    const projectData = mapProjectToVariables(fullProject, pricingSummary || undefined);
     
     console.log(`\n=== Generating ALL contracts as ZIP for project ${projectId} ===`);
     console.log(`Project: ${projectData.PROJECT_NUMBER} - ${projectData.PROJECT_NAME}`);
     
-    const { calculateProjectPricing } = await import('../services/pricingEngine');
-    
     try {
-      const pricingSummary = await calculateProjectPricing(projectId);
-      
       const projectUnitsData = await db
         .select({
           unitLabel: projectUnits.unitLabel,
@@ -746,7 +764,7 @@ router.post("/contracts/download-all-zip", async (req, res) => {
         .innerJoin(homeModels, eq(projectUnits.modelId, homeModels.id))
         .where(eq(projectUnits.projectId, projectId));
       
-      if (pricingSummary.unitCount > 0) {
+      if (pricingSummary && pricingSummary.unitCount > 0) {
         projectData.DESIGN_FEE = centsToDollars(pricingSummary.breakdown.totalDesignFee);
         projectData.DESIGN_FEE_WRITTEN = formatCentsAsCurrency(pricingSummary.breakdown.totalDesignFee);
         projectData.PRELIM_OFFSITE = centsToDollars(pricingSummary.breakdown.totalOffsite);
@@ -763,7 +781,7 @@ router.post("/contracts/download-all-zip", async (req, res) => {
         projectData.FINAL_CONTRACT_PRICE_WRITTEN = formatCentsAsCurrency(pricingSummary.grandTotal);
         projectData.CONTRACT_PRICE = formatCentsAsCurrency(pricingSummary.grandTotal);
         
-        pricingSummary.paymentSchedule.forEach((milestone, index) => {
+        pricingSummary.paymentSchedule.forEach((milestone: { name: string; percentage: number; amount: number; phase?: string }, index: number) => {
           const num = index + 1;
           projectData[`MILESTONE_${num}_NAME`] = milestone.name;
           projectData[`MILESTONE_${num}_PERCENT`] = `${milestone.percentage}%`;
@@ -885,17 +903,25 @@ router.post("/contracts/download-pdf", async (req, res) => {
       }
       
       const { mapProjectToVariables, formatCentsAsCurrency, centsToDollars } = await import('../lib/mapper');
-      projectData = mapProjectToVariables(fullProject);
+      const { calculateProjectPricing } = await import('../services/pricingEngine');
+      
+      // Calculate pricing FIRST so we can pass it to mapProjectToVariables
+      let pricingSummary: any = null;
+      try {
+        pricingSummary = await calculateProjectPricing(projectId);
+        console.log(`✓ Pricing calculated for PDF: contractValue=${pricingSummary.contractValue}, paymentSchedule=${pricingSummary.paymentSchedule?.length || 0} items`);
+      } catch (pricingError) {
+        console.warn(`⚠️ Pricing engine error (using fallback):`, pricingError);
+      }
+      
+      // Now call mapProjectToVariables WITH the pricingSummary so tables are populated
+      projectData = mapProjectToVariables(fullProject, pricingSummary || undefined);
       
       console.log(`\n=== Generating ${contractType} contract for project ${projectId} ===`);
       console.log(`Project: ${projectData.PROJECT_NUMBER} - ${projectData.PROJECT_NAME}`);
       console.log(`Service Model: ${projectData.ON_SITE_SELECTION}`);
       
-      const { calculateProjectPricing } = await import('../services/pricingEngine');
-      
       try {
-        const pricingSummary = await calculateProjectPricing(projectId);
-        
         const projectUnitsData = await db
           .select({
             unitLabel: projectUnits.unitLabel,
@@ -905,7 +931,7 @@ router.post("/contracts/download-pdf", async (req, res) => {
           .innerJoin(homeModels, eq(projectUnits.modelId, homeModels.id))
           .where(eq(projectUnits.projectId, projectId));
         
-        if (pricingSummary.unitCount > 0) {
+        if (pricingSummary && pricingSummary.unitCount > 0) {
           projectData.DESIGN_FEE = centsToDollars(pricingSummary.breakdown.totalDesignFee);
           projectData.DESIGN_FEE_WRITTEN = formatCentsAsCurrency(pricingSummary.breakdown.totalDesignFee);
           projectData.PRELIM_OFFSITE = centsToDollars(pricingSummary.breakdown.totalOffsite);
@@ -922,7 +948,7 @@ router.post("/contracts/download-pdf", async (req, res) => {
           projectData.FINAL_CONTRACT_PRICE_WRITTEN = formatCentsAsCurrency(pricingSummary.grandTotal);
           projectData.CONTRACT_PRICE = formatCentsAsCurrency(pricingSummary.grandTotal);
           
-          pricingSummary.paymentSchedule.forEach((milestone, index) => {
+          pricingSummary.paymentSchedule.forEach((milestone: { name: string; percentage: number; amount: number; phase?: string }, index: number) => {
             const num = index + 1;
             projectData[`MILESTONE_${num}_NAME`] = milestone.name;
             projectData[`MILESTONE_${num}_PERCENT`] = `${milestone.percentage}%`;

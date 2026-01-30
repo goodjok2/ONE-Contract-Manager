@@ -41,7 +41,7 @@ function formatCurrency(cents: number): string {
  */
 export function generatePricingTableHtml(pricingSummary: PricingSummary | null): string {
   if (!pricingSummary) {
-    return '<p><em>Pricing data not available</em></p>';
+    return 'No pricing data found.';
   }
 
   const { breakdown, contractValue, serviceModel } = pricingSummary;
@@ -160,7 +160,7 @@ export function generatePricingTableHtml(pricingSummary: PricingSummary | null):
  */
 export function generatePaymentScheduleHtml(paymentSchedule: PaymentMilestone[] | null): string {
   if (!paymentSchedule || paymentSchedule.length === 0) {
-    return '<p><em>Payment schedule not available</em></p>';
+    return 'No payment schedule data found.';
   }
 
   const tableStyle = `
