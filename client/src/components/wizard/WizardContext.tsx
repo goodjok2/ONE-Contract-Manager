@@ -961,6 +961,21 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
           await apiRequest('POST', `/api/projects/${projectId}/financials`, financialsPayload);
         }
         
+        // Save project details (site address, etc.)
+        if (pd.siteAddress) {
+          const detailsPayload = {
+            projectId,
+            deliveryAddress: pd.siteAddress,
+            deliveryCity: pd.siteCity,
+            deliveryState: pd.siteState,
+            deliveryZip: pd.siteZip,
+            deliveryCounty: pd.siteCounty,
+            deliveryApn: pd.siteApn,
+            totalUnits: pd.totalUnits,
+          };
+          await apiRequest('PATCH', `/api/projects/${projectId}/details`, detailsPayload);
+        }
+        
         // Save LLC if creating new one
         const finalLlcName = pd.childLlcName || generateLLCName(pd.siteAddress || '', pd.projectName);
         if (pd.llcOption === 'new' && finalLlcName && pd.siteAddress) {
