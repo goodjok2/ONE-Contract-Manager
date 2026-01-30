@@ -506,6 +506,28 @@ router.post("/projects/:projectId/details", async (req, res) => {
   }
 });
 
+// PATCH endpoint for project details (same as POST - upsert behavior)
+router.patch("/projects/:projectId/details", async (req, res) => {
+  try {
+    const projectId = parseInt(req.params.projectId);
+    const [existing] = await db.select().from(projectDetails).where(eq(projectDetails.projectId, projectId));
+    if (existing) {
+      const [result] = await db
+        .update(projectDetails)
+        .set(req.body)
+        .where(eq(projectDetails.projectId, projectId))
+        .returning();
+      res.json(result);
+    } else {
+      const [result] = await db.insert(projectDetails).values({ ...req.body, projectId }).returning();
+      res.json(result);
+    }
+  } catch (error) {
+    console.error("Failed to update project details:", error);
+    res.status(500).json({ error: "Failed to update project details" });
+  }
+});
+
 // ---------------------------------------------------------------------------
 // MILESTONES
 // ---------------------------------------------------------------------------
