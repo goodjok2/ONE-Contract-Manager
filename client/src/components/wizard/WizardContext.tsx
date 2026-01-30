@@ -1742,24 +1742,45 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
     try {
       const pd = wizardState.projectData;
       
-      // Step 0: Create project record
+      // Step 0: Create or update project record
       setCurrentGenerationStep(0);
       setGenerationProgress(10);
       
-      const projectPayload = {
-        projectNumber: pd.projectNumber,
-        name: pd.projectName,
-        status: 'Draft',
-        state: pd.siteState,
-        onSiteSelection: pd.serviceModel || 'CRC',
-      };
+      let projectId: number;
       
-      const projectResponse = await apiRequest('POST', '/api/projects', projectPayload);
-      if (!projectResponse.ok) {
-        throw new Error('Failed to create project');
+      // Check if we already have a draft project (from autosave)
+      if (draftProjectId) {
+        // Use existing draft project - just update it
+        const projectPayload = {
+          projectNumber: pd.projectNumber,
+          name: pd.projectName,
+          status: 'Draft',
+          state: pd.siteState,
+          onSiteSelection: pd.serviceModel || 'CRC',
+        };
+        
+        const projectResponse = await apiRequest('PATCH', `/api/projects/${draftProjectId}`, projectPayload);
+        if (!projectResponse.ok) {
+          throw new Error('Failed to update project');
+        }
+        projectId = draftProjectId;
+      } else {
+        // Create new project
+        const projectPayload = {
+          projectNumber: pd.projectNumber,
+          name: pd.projectName,
+          status: 'Draft',
+          state: pd.siteState,
+          onSiteSelection: pd.serviceModel || 'CRC',
+        };
+        
+        const projectResponse = await apiRequest('POST', '/api/projects', projectPayload);
+        if (!projectResponse.ok) {
+          throw new Error('Failed to create project');
+        }
+        const project = await projectResponse.json();
+        projectId = project.id;
       }
-      const project = await projectResponse.json();
-      const projectId = project.id;
       
       setGenerationProgress(20);
       
