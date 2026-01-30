@@ -635,9 +635,14 @@ export function mapProjectToVariables(
 
     // ===================
     // PRICING (stored in cents, output as dollars)
+    // Priority: pricingSummary > financials for dynamic pricing
     // ===================
-    DESIGN_FEE: centsToDollars(financials?.designFee),
-    DESIGN_FEE_WRITTEN: formatCentsAsCurrency(financials?.designFee),
+    DESIGN_FEE: pricingSummary 
+      ? pricingSummary.breakdown.totalDesignFee / 100 
+      : centsToDollars(financials?.designFee),
+    DESIGN_FEE_WRITTEN: pricingSummary 
+      ? formatCurrency(pricingSummary.breakdown.totalDesignFee / 100)
+      : formatCentsAsCurrency(financials?.designFee),
     DESIGN_REVISION_ROUNDS: financials?.designRevisionRounds || 3,
     DESIGN_REVISION_COST_OVERAGE: centsToDollars(financials?.designRevisionCostOverage),
     DESIGN_REVISION_COST_OVERAGE_WRITTEN: formatCentsAsCurrency(financials?.designRevisionCostOverage),
@@ -661,7 +666,7 @@ export function mapProjectToVariables(
     FINAL_CONTRACT_PRICE_WRITTEN: formatCentsAsCurrency(financials?.finalContractPrice),
     
     // Reimbursable Expenses
-    ADMIN_FEE_PERCENT: (financials as any)?.adminFeePercent ? `${(financials as any).adminFeePercent}%` : "15%",
+    ADMIN_FEE_PERCENT: (financials as any)?.adminFeePercent ? `${(financials as any).adminFeePercent}` : "15",
     
     INFLATION_TRIGGER_DATE: financials?.inflationTriggerDate || "",
     INFLATION_TRIGGER_DATE_WRITTEN: formatDateWritten(financials?.inflationTriggerDate),
