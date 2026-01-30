@@ -415,9 +415,10 @@ export const contractTemplates = pgTable("contract_templates", {
 export const clauses = pgTable("clauses", {
   id: serial("id").primaryKey(),
   clauseCode: text("clause_code"), // e.g., "1.1", "2.3.4"
-  parentClauseId: integer("parent_clause_id"),
+  parentClauseId: integer("parent_clause_id"), // References clauses.id for recursive tree
   hierarchyLevel: integer("hierarchy_level"), // 0=section, 1=subsection, 2=paragraph
-  sortOrder: integer("sort_order"),
+  sortOrder: integer("sort_order").notNull().default(0), // Strictly enforced for drag-and-drop ordering
+  blockType: text("block_type"), // 'section', 'clause', 'paragraph', or 'table'
   name: text("name"), // Clause title
   category: text("category"), // 'scope', 'payment', 'warranty', 'termination', etc.
   contractType: text("contract_type"), // 'ONE', 'MANUFACTURING', 'ONSITE'
