@@ -73,6 +73,13 @@ The application is built on a modern full-stack architecture.
         - `/api/contracts/download-pdf` rejects legacy `projectData` with 400 error
         - All callers must use `projectId` parameter for unified variable mapping
         - Legacy code in buildVariableMap is commented out for reference only
+- **Intelligent Contract Ingestor (Jan 30, 2026)**:
+    - Ingestion script: `scripts/ingest_standard_contracts.ts` using mammoth library
+    - Parses .docx templates into recursive block structure: ONE (186 blocks), OFFSITE (40), ONSITE (48)
+    - Schema updates: Added `block_type` column ('section', 'clause', 'paragraph', 'table')
+    - Tree structure: `parent_clause_id` references create proper hierarchy (clauses → sections)
+    - Variable extraction: `{{VARIABLE_NAME}}` patterns auto-detected and stored in `variables_used` array
+    - Run script: `npx tsx scripts/ingest_standard_contracts.ts`
 
 ## External Dependencies
 

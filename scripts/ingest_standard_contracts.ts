@@ -5,19 +5,20 @@ import * as path from 'path';
 import { fileURLToPath } from 'url';
 import { db } from '../server/db';
 import { clauses } from '../shared/schema';
+import { sql } from 'drizzle-orm';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-import { sql } from 'drizzle-orm';
 
 interface ParsedBlock {
+  tempId: string;
   clauseCode: string;
   name: string;
   content: string;
   blockType: 'section' | 'clause' | 'paragraph' | 'table';
   hierarchyLevel: number;
   sortOrder: number;
-  parentClauseId: number | null;
+  parentTempId: string | null;
   variablesUsed: string[];
   contractType: string;
   category: string;
@@ -28,12 +29,12 @@ const VARIABLE_PATTERN = /\{\{([A-Z0-9_]+)\}\}/g;
 function extractVariables(text: string): string[] {
   const variables: string[] = [];
   let match;
-  while ((match = VARIABLE_PATTERN.exec(text)) !== null) {
+  const pattern = new RegExp(VARIABLE_PATTERN);
+  while ((match = pattern.exec(text)) !== null) {
     if (!variables.includes(match[1])) {
       variables.push(match[1]);
     }
   }
-  VARIABLE_PATTERN.lastIndex = 0;
   return variables;
 }
 
@@ -58,11 +59,42 @@ function categorizeClause(name: string, content: string): string {
   return 'general';
 }
 
-function determineBlockType(line: string, hierarchyLevel: number): 'section' | 'clause' | 'paragraph' | 'table' {
-  if (line.includes('<table') || line.includes('|---')) return 'table';
+function determineBlockType(content: string, hierarchyLevel: number): 'section' | 'clause' | 'paragraph' | 'table' {
+  if (content.includes('<table') || content.includes('|---|') || /\|[^|]+\|[^|]+\|/.test(content)) {
+    return 'table';
+  }
   if (hierarchyLevel === 0) return 'section';
   if (hierarchyLevel === 1) return 'clause';
   return 'paragraph';
+}
+
+function cleanText(html: string): string {
+  return html
+    .replace(/<[^>]+>/g, '')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function extractFullName(text: string, pattern: RegExp): string {
+  const match = text.match(pattern);
+  if (!match) return text.substring(0, 100);
+  
+  const afterMatch = text.substring(match.index! + match[0].length);
+  const colonIndex = afterMatch.indexOf(':');
+  const newlineIndex = afterMatch.indexOf('\n');
+  
+  let endIndex = Math.min(
+    colonIndex > 0 ? colonIndex : Infinity,
+    newlineIndex > 0 ? newlineIndex : Infinity,
+    100
+  );
+  
+  const name = afterMatch.substring(0, endIndex).trim();
+  return name || match[0].trim();
 }
 
 async function parseDocx(filePath: string, contractType: string): Promise<ParsedBlock[]> {
@@ -74,147 +106,188 @@ async function parseDocx(filePath: string, contractType: string): Promise<Parsed
   
   const blocks: ParsedBlock[] = [];
   let sortOrder = 0;
-  let blockCounter = 0;
   
   const paragraphs = html.split(/<\/p>|<\/h[1-6]>/).filter(p => p.trim());
   
-  let currentSection: { id: number | null; code: string; name: string } = { id: null, code: '', name: '' };
-  let currentClause: { id: number | null; code: string } = { id: null, code: '' };
+  let currentSectionId: string | null = null;
+  let currentClauseId: string | null = null;
+  let sectionCounter = 0;
   let contentBuffer = '';
   let pendingBlock: Partial<ParsedBlock> | null = null;
   
-  const SECTION_PATTERN = /^(?:<[^>]+>)*\s*(?:SECTION|ARTICLE|RECITAL|EXHIBIT)\s*([A-Z0-9]+)?(?:[:\.\s]|<)/i;
-  const CLAUSE_PATTERN = /^(?:<[^>]+>)*\s*(\d+(?:\.\d+)?)[:\.\s]/;
-  const SUBCLAUSE_PATTERN = /^(?:<[^>]+>)*\s*(\d+\.\d+\.\d+)[:\.\s]/;
-  const BOLD_HEADER_PATTERN = /<strong>([^<]+)(?::|<\/strong>:)/;
+  const SECTION_PATTERN = /^(?:<[^>]+>)*\s*(?:Section|SECTION|Article|ARTICLE|Recital|RECITAL|Exhibit|EXHIBIT)\s*([A-Z0-9]+)[\.\s:]/i;
+  const ROMAN_SECTION_PATTERN = /^(?:<[^>]+>)*\s*(I{1,3}|IV|VI{0,3}|IX|X{0,3})\.\s+[A-Z]/i;
+  const BOLD_SECTION_PATTERN = /<strong>([^<]+)<\/strong>(?:\s*:)?/;
+  const CLAUSE_PATTERN = /^(?:<[^>]+>)*\s*(\d+\.\d+(?:\.\d+)?)[.\s]/;
+  const SECTION_NUM_PATTERN = /^(?:<[^>]+>)*\s*(\d+)\.\s+(?![\d])/;
+  
+  function finalizePendingBlock() {
+    if (pendingBlock) {
+      pendingBlock.content = contentBuffer.trim() || pendingBlock.name || '';
+      pendingBlock.variablesUsed = extractVariables(pendingBlock.content);
+      pendingBlock.blockType = determineBlockType(pendingBlock.content, pendingBlock.hierarchyLevel || 0);
+      blocks.push(pendingBlock as ParsedBlock);
+      contentBuffer = '';
+      pendingBlock = null;
+    }
+  }
   
   for (const para of paragraphs) {
-    const cleanText = para.replace(/<[^>]+>/g, '').trim();
-    if (!cleanText) continue;
+    const text = cleanText(para);
+    if (!text || text.length < 3) continue;
     
     sortOrder += 10;
     
-    let sectionMatch = para.match(SECTION_PATTERN);
-    let boldHeaderMatch = para.match(BOLD_HEADER_PATTERN);
-    let clauseMatch = para.match(CLAUSE_PATTERN);
-    let subclauseMatch = para.match(SUBCLAUSE_PATTERN);
+    const sectionMatch = para.match(SECTION_PATTERN);
+    const romanMatch = para.match(ROMAN_SECTION_PATTERN);
+    const boldMatch = para.match(BOLD_SECTION_PATTERN);
+    const clauseMatch = para.match(CLAUSE_PATTERN);
+    const sectionNumMatch = para.match(SECTION_NUM_PATTERN);
     
-    if (sectionMatch || (boldHeaderMatch && !clauseMatch)) {
-      if (pendingBlock && contentBuffer) {
-        pendingBlock.content = contentBuffer.trim();
-        pendingBlock.variablesUsed = extractVariables(pendingBlock.content);
-        blocks.push(pendingBlock as ParsedBlock);
+    const isSectionHeader = sectionMatch || romanMatch ||
+      (boldMatch && !clauseMatch && text.length < 150 && (text.includes(':') || text.toUpperCase() === text.substring(0, 20).toUpperCase()));
+    
+    if (isSectionHeader || sectionNumMatch) {
+      finalizePendingBlock();
+      sectionCounter++;
+      
+      let sectionCode: string;
+      let sectionName: string;
+      
+      if (sectionMatch) {
+        sectionCode = sectionMatch[1] || `S${sectionCounter}`;
+        const periodIdx = text.indexOf('.');
+        const numEnd = text.search(/\d+$/);
+        sectionName = numEnd > periodIdx ? text.substring(0, numEnd).trim() : text.substring(0, 80).trim();
+      } else if (romanMatch) {
+        sectionCode = romanMatch[1];
+        sectionName = text.replace(/\d+$/, '').trim();
+      } else if (sectionNumMatch) {
+        sectionCode = sectionNumMatch[1];
+        sectionName = text.replace(/\d+$/, '').substring(0, 80).trim();
+      } else if (boldMatch) {
+        sectionCode = `H${sectionCounter}`;
+        sectionName = boldMatch[1].trim();
+      } else {
+        sectionCode = `S${sectionCounter}`;
+        sectionName = text.substring(0, 80).trim();
       }
       
-      const sectionName = sectionMatch 
-        ? cleanText.split(':')[0].trim()
-        : boldHeaderMatch![1].trim();
-      
-      const sectionCode = sectionMatch?.[1] || 
-        (sectionName.toUpperCase().replace(/[^A-Z0-9]/g, '-').substring(0, 20));
-      blockCounter++;
+      const tempId = `${contractType}-SEC-${sectionCode}-${sortOrder}`;
+      currentSectionId = tempId;
+      currentClauseId = null;
       
       pendingBlock = {
-        clauseCode: `${contractType}-${sectionCode}-${blockCounter}`,
+        tempId,
+        clauseCode: `${contractType}-${sectionCode}-${sortOrder}`,
         name: sectionName,
         content: '',
         blockType: 'section',
         hierarchyLevel: 0,
         sortOrder,
-        parentClauseId: null,
+        parentTempId: null,
         variablesUsed: [],
         contractType,
-        category: categorizeClause(sectionName, cleanText),
+        category: categorizeClause(sectionName, text),
       };
       
-      contentBuffer = cleanText.includes(':') 
-        ? cleanText.substring(cleanText.indexOf(':') + 1).trim()
-        : '';
-      
-      currentSection = { id: blocks.length, code: sectionCode, name: sectionName };
-      currentClause = { id: null, code: '' };
-      
-    } else if (subclauseMatch) {
-      if (pendingBlock && contentBuffer) {
-        pendingBlock.content = contentBuffer.trim();
-        pendingBlock.variablesUsed = extractVariables(pendingBlock.content);
-        blocks.push(pendingBlock as ParsedBlock);
-      }
-      
-      const subclauseCode = subclauseMatch[1];
-      const subclauseName = cleanText.substring(subclauseMatch[0].length).split('.')[0].trim() || 
-        `Subclause ${subclauseCode}`;
-      blockCounter++;
-      
-      pendingBlock = {
-        clauseCode: `${contractType}-${subclauseCode}-${blockCounter}`,
-        name: subclauseName,
-        content: '',
-        blockType: 'paragraph',
-        hierarchyLevel: 2,
-        sortOrder,
-        parentClauseId: currentClause.id,
-        variablesUsed: [],
-        contractType,
-        category: categorizeClause(subclauseName, cleanText),
-      };
-      
-      contentBuffer = cleanText;
+      const colonIdx = text.indexOf(':');
+      contentBuffer = colonIdx > 0 ? text.substring(colonIdx + 1).trim() : '';
       
     } else if (clauseMatch) {
-      if (pendingBlock && contentBuffer) {
-        pendingBlock.content = contentBuffer.trim();
-        pendingBlock.variablesUsed = extractVariables(pendingBlock.content);
-        blocks.push(pendingBlock as ParsedBlock);
+      finalizePendingBlock();
+      
+      const clauseNum = clauseMatch[1];
+      const isSubclause = clauseNum.split('.').length > 2;
+      const tempId = `${contractType}-CLS-${clauseNum}-${sortOrder}`;
+      
+      const colonIdx = text.indexOf(':');
+      const periodIdx = text.indexOf('.', clauseMatch[0].length);
+      const nameEndIdx = Math.min(
+        colonIdx > 0 ? colonIdx : Infinity,
+        periodIdx > clauseMatch[0].length ? periodIdx : Infinity,
+        clauseMatch[0].length + 80
+      );
+      
+      let clauseName = text.substring(clauseMatch[0].length, nameEndIdx).trim();
+      if (!clauseName) clauseName = `Clause ${clauseNum}`;
+      
+      if (isSubclause) {
+        pendingBlock = {
+          tempId,
+          clauseCode: `${contractType}-${clauseNum}-${sortOrder}`,
+          name: clauseName,
+          content: '',
+          blockType: 'paragraph',
+          hierarchyLevel: 2,
+          sortOrder,
+          parentTempId: currentClauseId,
+          variablesUsed: [],
+          contractType,
+          category: categorizeClause(clauseName, text),
+        };
+      } else {
+        currentClauseId = tempId;
+        pendingBlock = {
+          tempId,
+          clauseCode: `${contractType}-${clauseNum}-${sortOrder}`,
+          name: clauseName,
+          content: '',
+          blockType: 'clause',
+          hierarchyLevel: 1,
+          sortOrder,
+          parentTempId: currentSectionId,
+          variablesUsed: [],
+          contractType,
+          category: categorizeClause(clauseName, text),
+        };
       }
       
-      const clauseCode = clauseMatch[1];
-      const clauseName = cleanText.substring(clauseMatch[0].length).split('.')[0].trim() ||
-        `Clause ${clauseCode}`;
-      blockCounter++;
-      
-      pendingBlock = {
-        clauseCode: `${contractType}-${clauseCode}-${blockCounter}`,
-        name: clauseName,
-        content: '',
-        blockType: 'clause',
-        hierarchyLevel: 1,
-        sortOrder,
-        parentClauseId: currentSection.id,
-        variablesUsed: [],
-        contractType,
-        category: categorizeClause(clauseName, cleanText),
-      };
-      
-      contentBuffer = cleanText;
-      currentClause = { id: blocks.length, code: clauseCode };
+      contentBuffer = text;
       
     } else {
-      if (contentBuffer) {
-        contentBuffer += '\n\n' + cleanText;
-      } else if (pendingBlock) {
-        contentBuffer = cleanText;
+      if (pendingBlock) {
+        contentBuffer += (contentBuffer ? '\n\n' : '') + text;
       }
     }
   }
   
-  if (pendingBlock && contentBuffer) {
-    pendingBlock.content = contentBuffer.trim();
-    pendingBlock.variablesUsed = extractVariables(pendingBlock.content);
-    blocks.push(pendingBlock as ParsedBlock);
-  }
+  finalizePendingBlock();
   
   console.log(`  Found ${blocks.length} blocks`);
   return blocks;
 }
 
-async function insertBlocks(blocks: ParsedBlock[]): Promise<Map<string, number>> {
-  const idMap = new Map<string, number>();
+async function insertBlocks(blocks: ParsedBlock[]): Promise<void> {
+  const tempIdToDbId = new Map<string, number>();
   
-  for (const block of blocks) {
-    const resolvedParentId = block.parentClauseId !== null 
-      ? idMap.get(blocks[block.parentClauseId]?.clauseCode || '') || null
-      : null;
+  const sections = blocks.filter(b => b.hierarchyLevel === 0);
+  const nonSections = blocks.filter(b => b.hierarchyLevel !== 0);
+  
+  for (const block of sections) {
+    const [inserted] = await db.insert(clauses).values({
+      clauseCode: block.clauseCode,
+      name: block.name,
+      content: block.content,
+      blockType: block.blockType,
+      hierarchyLevel: block.hierarchyLevel,
+      sortOrder: block.sortOrder,
+      parentClauseId: null,
+      variablesUsed: block.variablesUsed.length > 0 ? block.variablesUsed : null,
+      contractType: block.contractType,
+      category: block.category,
+      riskLevel: 'MEDIUM',
+      negotiable: false,
+    }).returning({ id: clauses.id });
+    
+    tempIdToDbId.set(block.tempId, inserted.id);
+  }
+  
+  for (const block of nonSections) {
+    let parentId: number | null = null;
+    if (block.parentTempId) {
+      parentId = tempIdToDbId.get(block.parentTempId) || null;
+    }
     
     const [inserted] = await db.insert(clauses).values({
       clauseCode: block.clauseCode,
@@ -223,7 +296,7 @@ async function insertBlocks(blocks: ParsedBlock[]): Promise<Map<string, number>>
       blockType: block.blockType,
       hierarchyLevel: block.hierarchyLevel,
       sortOrder: block.sortOrder,
-      parentClauseId: resolvedParentId,
+      parentClauseId: parentId,
       variablesUsed: block.variablesUsed.length > 0 ? block.variablesUsed : null,
       contractType: block.contractType,
       category: block.category,
@@ -231,10 +304,8 @@ async function insertBlocks(blocks: ParsedBlock[]): Promise<Map<string, number>>
       negotiable: false,
     }).returning({ id: clauses.id });
     
-    idMap.set(block.clauseCode, inserted.id);
+    tempIdToDbId.set(block.tempId, inserted.id);
   }
-  
-  return idMap;
 }
 
 async function main() {
@@ -293,6 +364,23 @@ async function main() {
   
   console.log('\nBlock Distribution:');
   console.table(stats.rows);
+  
+  const treeSample = await db.execute(sql`
+    SELECT 
+      c.clause_code,
+      c.name,
+      c.block_type,
+      c.hierarchy_level,
+      p.clause_code as parent_code
+    FROM clauses c
+    LEFT JOIN clauses p ON c.parent_clause_id = p.id
+    WHERE c.contract_type = 'ONE'
+    ORDER BY c.sort_order
+    LIMIT 20
+  `);
+  
+  console.log('\nTree Structure Sample (ONE):');
+  console.table(treeSample.rows);
   
   process.exit(0);
 }
