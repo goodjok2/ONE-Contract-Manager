@@ -7,7 +7,7 @@ import type {
   WarrantyTerm,
   Contractor,
 } from "../db/schema";
-import { generatePricingTableHtml, generatePaymentScheduleHtml } from "./tableGenerators";
+import { generatePricingTableHtml, generatePaymentScheduleHtml, generateUnitDetailsHtml, UnitDetail } from "./tableGenerators";
 
 // =============================================================================
 // TYPE DEFINITIONS
@@ -266,6 +266,19 @@ export const VARIABLE_CATEGORIES = {
   legal: [
     "GOVERNING_LAW_STATE",
     "ARBITRATION_LOCATION",
+    "ARBITRATION_PROVIDER",
+    "STATE_OF_FORMATION",
+    "COUNTY",
+    "CANCELLATION_FEE_PERCENT",
+  ],
+  insurance: [
+    "GL_INSURANCE_LIMIT",
+    "GL_AGGREGATE_LIMIT",
+  ],
+  tables: [
+    "PRICING_BREAKDOWN_TABLE",
+    "PAYMENT_SCHEDULE_TABLE",
+    "UNIT_DETAILS_TABLE",
   ],
   conditional: [
     "IS_CRC",
@@ -682,6 +695,16 @@ export function mapProjectToVariables(
     })()),
     PRICING_BREAKDOWN_TABLE: generatePricingTableHtml(pricingSummary || null),
     PAYMENT_SCHEDULE_TABLE: generatePaymentScheduleHtml(pricingSummary?.paymentSchedule || null),
+    UNIT_DETAILS_TABLE: generateUnitDetailsHtml(
+      units?.map(u => ({
+        unitLabel: u.unitLabel || `Unit ${u.id}`,
+        modelName: u.homeModel?.modelName || 'Unknown Model',
+        bedrooms: u.homeModel?.bedrooms,
+        bathrooms: u.homeModel?.bathrooms,
+        squareFootage: u.homeModel?.squareFootage,
+        estimatedPrice: (u.basePriceSnapshot || 0) + (u.onsiteEstimateSnapshot || 0),
+      })) || null
+    ),
 
     // ===================
     // MILESTONES (spread in the milestone objects)
@@ -784,6 +807,16 @@ export function mapProjectToVariables(
     // ===================
     GOVERNING_LAW_STATE: projectDetails?.governingLawState || project.state || "California",
     ARBITRATION_LOCATION: projectDetails?.arbitrationLocation || "",
+    ARBITRATION_PROVIDER: "JAMS",
+    STATE_OF_FORMATION: projectDetails?.governingLawState || project.state || "California",
+    COUNTY: projectDetails?.deliveryCounty || "",
+    CANCELLATION_FEE_PERCENT: "15",
+
+    // ===================
+    // INSURANCE
+    // ===================
+    GL_INSURANCE_LIMIT: "$1,000,000",
+    GL_AGGREGATE_LIMIT: "$2,000,000",
 
     // ===================
     // CONDITIONAL FLAGS (for template logic)

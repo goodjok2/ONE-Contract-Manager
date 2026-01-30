@@ -509,6 +509,36 @@ router.post("/debug/apply-table-variables", async (req, res) => {
       }
     }
 
+    // 3. Update ONE-EXHIBIT-A with Unit Details Table
+    const exhibitAResult = await pool.query(`
+      UPDATE clauses 
+      SET content = $1
+      WHERE clause_code = 'ONE-EXHIBIT-A'
+      RETURNING clause_code, name
+    `, ['<p><strong>Unit Breakdown</strong></p>{{UNIT_DETAILS_TABLE}}']);
+
+    if (exhibitAResult.rowCount && exhibitAResult.rowCount > 0) {
+      updated.push(`ONE-EXHIBIT-A (${exhibitAResult.rows[0].name})`);
+      console.log('✓ Updated ONE-EXHIBIT-A with UNIT_DETAILS_TABLE');
+    } else {
+      // Fallback: search for clause containing "unit breakdown" or similar
+      const fallbackAResult = await pool.query(`
+        UPDATE clauses 
+        SET content = $1
+        WHERE LOWER(name) LIKE '%exhibit a%' OR LOWER(content) LIKE '%unit breakdown%'
+        RETURNING clause_code, name
+      `, ['<p><strong>Unit Breakdown</strong></p>{{UNIT_DETAILS_TABLE}}']);
+
+      if (fallbackAResult.rowCount && fallbackAResult.rowCount > 0) {
+        for (const row of fallbackAResult.rows) {
+          updated.push(`${row.clause_code} (${row.name}) [fallback match]`);
+          console.log(`✓ Updated ${row.clause_code} with UNIT_DETAILS_TABLE (fallback)`);
+        }
+      } else {
+        errors.push('ONE-EXHIBIT-A not found and no fallback clause for Unit Breakdown found');
+      }
+    }
+
     console.log('📋 Apply Table Variables Results:', { updated, errors });
 
     res.json({
