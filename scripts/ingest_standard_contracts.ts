@@ -22,6 +22,7 @@ interface ParsedBlock {
   variablesUsed: string[];
   contractType: string;
   category: string;
+  conditions: Record<string, string> | null;
 }
 
 interface StyledParagraph {
@@ -31,6 +32,59 @@ interface StyledParagraph {
 }
 
 const VARIABLE_PATTERN = /\{\{([A-Z0-9_]+)\}\}/g;
+
+// State abbreviation mapping for state-specific provisions
+const STATE_PATTERNS: { pattern: RegExp; code: string }[] = [
+  { pattern: /\bCalifornia\b/i, code: 'CA' },
+  { pattern: /\bTexas\b/i, code: 'TX' },
+  { pattern: /\bArizona\b/i, code: 'AZ' },
+  { pattern: /\bNevada\b/i, code: 'NV' },
+  { pattern: /\bOregon\b/i, code: 'OR' },
+  { pattern: /\bWashington\b/i, code: 'WA' },
+  { pattern: /\bColorado\b/i, code: 'CO' },
+  { pattern: /\bFlorida\b/i, code: 'FL' },
+  { pattern: /\bNew York\b/i, code: 'NY' },
+  { pattern: /\bIdaho\b/i, code: 'ID' },
+  { pattern: /\bUtah\b/i, code: 'UT' },
+  { pattern: /\bMontana\b/i, code: 'MT' },
+];
+
+/**
+ * Detect if text indicates a state-specific provision
+ * Returns the state code if detected, null otherwise
+ */
+function detectStateProvision(text: string): string | null {
+  // Look for patterns like "California Provisions", "Texas Specific", etc.
+  const stateProvisionPatterns = [
+    /(\w+)\s+Provisions?/i,
+    /(\w+)\s+Specific/i,
+    /(\w+)\s+State\s+Law/i,
+    /State\s+of\s+(\w+)/i,
+  ];
+  
+  for (const pattern of stateProvisionPatterns) {
+    const match = text.match(pattern);
+    if (match) {
+      const stateName = match[1];
+      for (const stateInfo of STATE_PATTERNS) {
+        if (stateInfo.pattern.test(stateName)) {
+          return stateInfo.code;
+        }
+      }
+    }
+  }
+  
+  // Also check for direct state name in short headers
+  if (text.length < 60) {
+    for (const stateInfo of STATE_PATTERNS) {
+      if (stateInfo.pattern.test(text)) {
+        return stateInfo.code;
+      }
+    }
+  }
+  
+  return null;
+}
 
 function extractVariables(text: string): string[] {
   const variables: string[] = [];
@@ -221,6 +275,10 @@ async function parseDocxWithStyles(filePath: string, contractType: string): Prom
   let contentBuffer = '';
   let pendingBlock: Partial<ParsedBlock> | null = null;
   
+  // State-specific provision tracking
+  let inExhibitG = false;  // Track if we're in Exhibit G (State-Specific Provisions)
+  let currentStateCondition: string | null = null;  // Current state code (CA, TX, etc.)
+  
   function finalizePendingBlock() {
     if (pendingBlock) {
       pendingBlock.content = contentBuffer.trim() || pendingBlock.name || '';
@@ -277,10 +335,36 @@ async function parseDocxWithStyles(filePath: string, contractType: string): Prom
       sectionName = para.text.substring(0, endIdx).replace(/^\d+\.\s*/, '').replace(/^[IVXLCDM]+\.\s*/i, '').trim();
       if (!sectionName) sectionName = para.text.substring(0, 60);
       
+      // Detect Exhibit G (State-Specific Provisions)
+      const isExhibitG = /Exhibit\s*G/i.test(para.text) || 
+                         /State[- ]Specific\s+Provisions?/i.test(para.text);
+      if (isExhibitG) {
+        inExhibitG = true;
+        currentStateCondition = null; // Reset state when entering Exhibit G
+        console.log(`   📍 Detected Exhibit G - State-Specific Provisions section`);
+      } else if (/Exhibit\s*[A-FH-Z]/i.test(para.text)) {
+        // Leaving Exhibit G when we enter a different exhibit
+        inExhibitG = false;
+        currentStateCondition = null;
+      }
+      
+      // Check for state-specific sub-section within Exhibit G
+      const detectedState = detectStateProvision(para.text);
+      if (inExhibitG && detectedState) {
+        currentStateCondition = detectedState;
+        console.log(`   🏛️  State-specific section detected: ${detectedState} from "${sectionName}"`);
+      }
+      
       const tempId = `${contractType}-SEC-${sectionCode}-${sortOrder}`;
       currentSectionId = tempId;
       currentClauseId = null;
       clauseCounter = 0;
+      
+      // Determine conditions for this block
+      let conditions: Record<string, string> | null = null;
+      if (currentStateCondition) {
+        conditions = { PROJECT_STATE: currentStateCondition };
+      }
       
       pendingBlock = {
         tempId,
@@ -294,6 +378,7 @@ async function parseDocxWithStyles(filePath: string, contractType: string): Prom
         variablesUsed: [],
         contractType,
         category: categorizeClause(sectionName, para.text),
+        conditions,
       };
       
       contentBuffer = para.text;
@@ -322,6 +407,19 @@ async function parseDocxWithStyles(filePath: string, contractType: string): Prom
       clauseName = clauseName.replace(/^\d+(\.\d+)*\.?\s*/, '').trim();
       if (!clauseName) clauseName = `Clause ${clauseNum}`;
       
+      // Check if this clause header introduces a new state section
+      const detectedState = detectStateProvision(para.text);
+      if (inExhibitG && detectedState) {
+        currentStateCondition = detectedState;
+        console.log(`   🏛️  State-specific clause detected: ${detectedState} from "${clauseName}"`);
+      }
+      
+      // Inherit state condition from parent context
+      let conditions: Record<string, string> | null = null;
+      if (currentStateCondition) {
+        conditions = { PROJECT_STATE: currentStateCondition };
+      }
+      
       if (isSubclause) {
         pendingBlock = {
           tempId,
@@ -335,6 +433,7 @@ async function parseDocxWithStyles(filePath: string, contractType: string): Prom
           variablesUsed: [],
           contractType,
           category: categorizeClause(clauseName, para.text),
+          conditions,
         };
       } else {
         currentClauseId = tempId;
@@ -350,6 +449,7 @@ async function parseDocxWithStyles(filePath: string, contractType: string): Prom
           variablesUsed: [],
           contractType,
           category: categorizeClause(clauseName, para.text),
+          conditions,
         };
       }
       
@@ -360,6 +460,12 @@ async function parseDocxWithStyles(filePath: string, contractType: string): Prom
         contentBuffer += '\n\n' + para.text;
       } else {
         finalizePendingBlock();
+        
+        // Inherit state condition from parent context
+        let conditions: Record<string, string> | null = null;
+        if (currentStateCondition) {
+          conditions = { PROJECT_STATE: currentStateCondition };
+        }
         
         const tempId = `${contractType}-PARA-${sortOrder}`;
         pendingBlock = {
@@ -374,6 +480,7 @@ async function parseDocxWithStyles(filePath: string, contractType: string): Prom
           variablesUsed: [],
           contractType,
           category: 'general',
+          conditions,
         };
         contentBuffer = para.text;
       }
@@ -413,6 +520,7 @@ async function insertBlocks(blocks: ParsedBlock[]): Promise<void> {
       variablesUsed: block.variablesUsed.length > 0 ? block.variablesUsed : null,
       contractType: block.contractType,
       category: block.category,
+      conditions: block.conditions,
       riskLevel: 'MEDIUM',
       negotiable: false,
     }).returning({ id: clauses.id });
