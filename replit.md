@@ -60,6 +60,7 @@ The application is built on a modern full-stack architecture.
 - **LLC Administration**: CRUD operations for child LLC entities, including status tracking, member management, and compliance monitoring.
 - **Pricing Engine Integration**: Dynamic injection of pricing data into contract generation, including design fees, manufacturing costs, onsite costs, and payment milestones.
 - **Dynamic HTML Tables (Jan 2026)**: Contract variables `{{PRICING_BREAKDOWN_TABLE}}` and `{{PAYMENT_SCHEDULE_TABLE}}` render as styled HTML tables with inline CSS for PDF compatibility. Use the Clause Library UI to add these placeholders to clauses like ONE-EXHIBIT-C (Payment Schedule) and ONE-RECITAL-A (Pricing). Migration endpoint at POST `/api/debug/migrate-clauses` scans for candidate clauses.
+- **Schedule Duration Variables (Jan 2026)**: Project-level schedule fields (`design_duration`, `permitting_duration`, `production_duration`, `delivery_duration`, `completion_duration`, `estimated_delivery_date`, `estimated_completion_date`) are stored on the `projects` table. These populate contract variables like `{{DESIGN_DURATION}}`, `{{PRODUCTION_DURATION}}`, `{{DELIVERY_DATE}}`, `{{COMPLETION_DATE}}` for Exhibit D schedules. Migration endpoint: POST `/api/debug/migrate-schedule-columns`.
 
 ## External Dependencies
 

@@ -1026,6 +1026,14 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
           status: 'Draft',
           state: pd.siteState || null,
           onSiteSelection: pd.serviceModel || 'CRC',
+          // Schedule durations (will be 0 initially, updated in Step 6)
+          designDuration: pd.designPhaseDays || 0,
+          permittingDuration: pd.permittingDurationDays || 0,
+          productionDuration: pd.manufacturingDurationDays || 0,
+          deliveryDuration: pd.onsiteDurationDays || 0,
+          completionDuration: (pd.designPhaseDays || 0) + (pd.manufacturingDurationDays || 0) + (pd.onsiteDurationDays || 0),
+          estimatedDeliveryDate: pd.targetDeliveryDate || null,
+          estimatedCompletionDate: pd.estimatedCompletionDate || null,
         };
         
         const projectResponse = await apiRequest('POST', '/api/projects', projectPayload);
