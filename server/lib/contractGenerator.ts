@@ -38,8 +38,12 @@ export async function generateContract(options: ContractGenerationOptions): Prom
   const clauses = await fetchClausesForContract(contractType, projectData);
   console.log(`✓ Fetched ${clauses.length} clauses`);
   
-  // Step 2: Build recursive block tree
-  const blockTree = buildBlockTree(clauses);
+  // Extract project state for state-specific filtering
+  const projectState = projectData.PROJECT_STATE || projectData.state || projectData.siteState || '';
+  console.log(`📍 Project state for filtering: ${projectState || '(none)'}`);
+  
+  // Step 2: Build recursive block tree with state filtering
+  const blockTree = buildBlockTree(clauses, projectState);
   console.log(`✓ Built block tree with ${blockTree.length} top-level nodes`);
   
   // Step 3: Apply dynamic numbering
@@ -70,24 +74,54 @@ export async function generateContract(options: ContractGenerationOptions): Prom
 /**
  * Build a recursive tree structure from flat clause array
  * Organizes blocks by parent_clause_id into Parent → Children hierarchy
+ * Filters out blocks based on PROJECT_STATE condition
  */
-function buildBlockTree(clauses: Clause[]): BlockNode[] {
+function buildBlockTree(clauses: Clause[], projectState?: string): BlockNode[] {
   // Create a map for quick lookup
   const clauseMap = new Map<number, BlockNode>();
   const rootNodes: BlockNode[] = [];
   
-  // First pass: create BlockNode for each clause
+  // First pass: create BlockNode for each clause, checking state conditions
   for (const clause of clauses) {
-    clauseMap.set(clause.id, {
-      clause,
-      children: [],
-      isHidden: false
-    });
+    // Check PROJECT_STATE condition
+    let shouldInclude = true;
+    if (clause.conditions) {
+      let conditions = clause.conditions;
+      if (typeof conditions === 'string') {
+        try {
+          conditions = JSON.parse(conditions);
+        } catch (e) {
+          // If parsing fails, include the clause
+        }
+      }
+      
+      // Check for PROJECT_STATE condition
+      const requiredState = conditions?.PROJECT_STATE;
+      if (requiredState && projectState) {
+        // Only include if state matches
+        shouldInclude = requiredState === projectState;
+        if (!shouldInclude) {
+          console.log(`   ✗ FILTERED: [${clause.id}] ${clause.clause_code} - state ${requiredState} != project ${projectState}`);
+        }
+      } else if (requiredState && !projectState) {
+        // No project state provided but clause requires one - include it
+        console.log(`   ⚠️  No project state, including state-specific clause: ${clause.clause_code}`);
+      }
+    }
+    
+    if (shouldInclude) {
+      clauseMap.set(clause.id, {
+        clause,
+        children: [],
+        isHidden: false
+      });
+    }
   }
   
   // Second pass: build tree structure
   for (const clause of clauses) {
-    const node = clauseMap.get(clause.id)!;
+    const node = clauseMap.get(clause.id);
+    if (!node) continue; // Skip filtered-out clauses
     
     if (clause.parent_clause_id && clauseMap.has(clause.parent_clause_id)) {
       // This clause has a parent in the tree

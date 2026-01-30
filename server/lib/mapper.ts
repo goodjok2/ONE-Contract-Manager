@@ -681,8 +681,8 @@ export function mapProjectToVariables(
     
     // Price Lock
     PRICE_IS_LOCKED: financials?.isLocked || false,
-    PRICE_LOCKED_AT: financials?.lockedAt || "",
-    PRICE_LOCKED_AT_WRITTEN: formatDateWritten(financials?.lockedAt),
+    PRICE_LOCKED_AT: financials?.lockedAt ? formatDate(financials.lockedAt) : "",
+    PRICE_LOCKED_AT_WRITTEN: financials?.lockedAt ? formatDateWritten(financials.lockedAt instanceof Date ? financials.lockedAt.toISOString() : financials.lockedAt) : "",
     PRICE_LOCKED_BY: financials?.lockedBy || "",
     
     // ===================

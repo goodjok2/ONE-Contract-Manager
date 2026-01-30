@@ -520,7 +520,7 @@ async function insertBlocks(blocks: ParsedBlock[]): Promise<void> {
       variablesUsed: block.variablesUsed.length > 0 ? block.variablesUsed : null,
       contractType: block.contractType,
       category: block.category,
-      conditions: block.conditions,
+      conditions: block.conditions ? JSON.stringify(block.conditions) : null,
       riskLevel: 'MEDIUM',
       negotiable: false,
     }).returning({ id: clauses.id });
