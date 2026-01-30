@@ -865,18 +865,64 @@ export function mapProjectToVariables(
     DELIVERY_DURATION_WRITTEN: `${project.deliveryDuration || 0} days`,
     COMPLETION_DURATION: String(project.completionDuration || 0),
     COMPLETION_DURATION_WRITTEN: `${project.completionDuration || 0} days`,
-    DELIVERY_DATE: project.estimatedDeliveryDate 
-      ? formatDate(new Date(project.estimatedDeliveryDate)) 
-      : "",
-    COMPLETION_DATE: project.estimatedCompletionDate 
-      ? formatDate(new Date(project.estimatedCompletionDate)) 
-      : "",
+    // Calculate dates on the fly if not explicitly provided
+    // Durations are stored in days (design, permitting, production, delivery, completion)
+    DELIVERY_DATE: (() => {
+      if (project.estimatedDeliveryDate) {
+        return formatDate(new Date(project.estimatedDeliveryDate));
+      }
+      // Calculate: start date + cumulative durations through delivery
+      const startDate = projectDetails?.agreementExecutionDate 
+        ? new Date(projectDetails.agreementExecutionDate) 
+        : new Date();
+      const totalDays = (project.designDuration || 0) + 
+                        (project.permittingDuration || 0) + 
+                        (project.productionDuration || 0) + 
+                        (project.deliveryDuration || 0);
+      if (totalDays === 0) return "";
+      const deliveryDate = new Date(startDate);
+      deliveryDate.setDate(deliveryDate.getDate() + totalDays);
+      return formatDate(deliveryDate);
+    })(),
+    COMPLETION_DATE: (() => {
+      if (project.estimatedCompletionDate) {
+        return formatDate(new Date(project.estimatedCompletionDate));
+      }
+      // Calculate: start date + all durations (through completion)
+      const startDate = projectDetails?.agreementExecutionDate 
+        ? new Date(projectDetails.agreementExecutionDate) 
+        : new Date();
+      const totalDays = (project.designDuration || 0) + 
+                        (project.permittingDuration || 0) + 
+                        (project.productionDuration || 0) + 
+                        (project.deliveryDuration || 0) + 
+                        (project.completionDuration || 0);
+      if (totalDays === 0) return "";
+      const completionDate = new Date(startDate);
+      completionDate.setDate(completionDate.getDate() + totalDays);
+      return formatDate(completionDate);
+    })(),
     PROJECT_START_DATE: projectDetails?.agreementExecutionDate 
       ? formatDate(new Date(projectDetails.agreementExecutionDate)) 
-      : "",
-    PROJECT_END_DATE: project.estimatedCompletionDate 
-      ? formatDate(new Date(project.estimatedCompletionDate)) 
-      : "",
+      : formatDate(new Date()),
+    PROJECT_END_DATE: (() => {
+      if (project.estimatedCompletionDate) {
+        return formatDate(new Date(project.estimatedCompletionDate));
+      }
+      // Same as COMPLETION_DATE
+      const startDate = projectDetails?.agreementExecutionDate 
+        ? new Date(projectDetails.agreementExecutionDate) 
+        : new Date();
+      const totalDays = (project.designDuration || 0) + 
+                        (project.permittingDuration || 0) + 
+                        (project.productionDuration || 0) + 
+                        (project.deliveryDuration || 0) + 
+                        (project.completionDuration || 0);
+      if (totalDays === 0) return "";
+      const endDate = new Date(startDate);
+      endDate.setDate(endDate.getDate() + totalDays);
+      return formatDate(endDate);
+    })(),
 
     // ===================
     // CONDITIONAL FLAGS (for template logic)

@@ -8,6 +8,8 @@ import {
   warrantyTerms,
   contractors,
   llcs,
+  projectUnits,
+  homeModels,
 } from "../../shared/schema";
 import { eq } from "drizzle-orm";
 import type { ProjectWithRelations } from "../lib/mapper";
@@ -23,6 +25,37 @@ export async function getProjectWithRelations(projectId: number): Promise<Projec
   const [warranty] = await db.select().from(warrantyTerms).where(eq(warrantyTerms.projectId, projectId));
   const projectMilestones = await db.select().from(milestones).where(eq(milestones.projectId, projectId));
   const projectContractors = await db.select().from(contractors).where(eq(contractors.projectId, projectId));
+  
+  // Fetch units with their home model details
+  // Transform from DB schema (modelId, name, sqFt) to mapper types (homeModelId, modelName, squareFootage)
+  const unitsRaw = await db.select().from(projectUnits).where(eq(projectUnits.projectId, projectId));
+  const units = await Promise.all(
+    unitsRaw.map(async (unit) => {
+      const [model] = unit.modelId 
+        ? await db.select().from(homeModels).where(eq(homeModels.id, unit.modelId))
+        : [null];
+      // For onsiteEstimateSnapshot: use model's onsiteEstPrice as a fallback since 
+      // project_units doesn't store a separate onsite snapshot
+      return {
+        id: unit.id,
+        projectId: unit.projectId,
+        homeModelId: unit.modelId,
+        unitLabel: unit.unitLabel,
+        basePriceSnapshot: unit.basePriceSnapshot,
+        // Onsite estimate: use home model's current onsite price (no unit-level snapshot exists)
+        onsiteEstimateSnapshot: model?.onsiteEstPrice || 0,
+        // Include customization for total pricing
+        customizationTotal: unit.customizationTotal || 0,
+        homeModel: model ? {
+          id: model.id,
+          modelName: model.name,
+          squareFootage: model.sqFt,
+          bedrooms: model.bedrooms,
+          bathrooms: model.bathrooms,
+        } : undefined,
+      };
+    })
+  );
 
   const childLlc = llcRecord ? {
     id: llcRecord.id,
@@ -50,5 +83,6 @@ export async function getProjectWithRelations(projectId: number): Promise<Projec
     warrantyTerms: warranty || null,
     milestones: projectMilestones,
     contractors: projectContractors,
+    units: units,
   };
 }
