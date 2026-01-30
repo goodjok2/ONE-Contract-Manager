@@ -191,13 +191,15 @@ async function fetchClausesForContract(
   projectData: Record<string, any>
 ): Promise<Clause[]> {
   try {
-    // Contract types in database match what's passed in (ONE, OFFSITE, ONSITE)
-    // from ingestion script: server/templates/Template_ONE_Agreement.docx → 'ONE'
+    // Contract types map from user-facing names to database values
+    // Database values are derived from template filenames (minus Template_ prefix)
     const contractTypeMap: Record<string, string> = {
-      'ONE': 'ONE',
-      'MANUFACTURING': 'OFFSITE',  // Legacy alias
+      'ONE': 'ONE_AGREEMENT',
+      'ONE_AGREEMENT': 'ONE_AGREEMENT',
+      'MANUFACTURING': 'OFFSITE',
       'OFFSITE': 'OFFSITE',
-      'ONSITE': 'ONSITE',
+      'ONSITE': 'ON_SITE',
+      'ON_SITE': 'ON_SITE',
     };
     const mappedType = contractTypeMap[contractType] || contractType;
     

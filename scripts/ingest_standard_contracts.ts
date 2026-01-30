@@ -24,6 +24,12 @@ interface ParsedBlock {
   category: string;
 }
 
+interface StyledParagraph {
+  style: string;
+  text: string;
+  html: string;
+}
+
 const VARIABLE_PATTERN = /\{\{([A-Z0-9_]+)\}\}/g;
 
 function extractVariables(text: string): string[] {
@@ -59,15 +65,6 @@ function categorizeClause(name: string, content: string): string {
   return 'general';
 }
 
-function determineBlockType(content: string, hierarchyLevel: number): 'section' | 'clause' | 'paragraph' | 'table' {
-  if (content.includes('<table') || content.includes('|---|') || /\|[^|]+\|[^|]+\|/.test(content)) {
-    return 'table';
-  }
-  if (hierarchyLevel === 0) return 'section';
-  if (hierarchyLevel === 1) return 'clause';
-  return 'paragraph';
-}
-
 function cleanText(html: string): string {
   return html
     .replace(/<[^>]+>/g, '')
@@ -79,53 +76,160 @@ function cleanText(html: string): string {
     .trim();
 }
 
-function extractFullName(text: string, pattern: RegExp): string {
-  const match = text.match(pattern);
-  if (!match) return text.substring(0, 100);
+function deriveContractTypeFromFilename(filename: string): string {
+  const baseName = path.basename(filename, '.docx');
   
-  const afterMatch = text.substring(match.index! + match[0].length);
-  const colonIndex = afterMatch.indexOf(':');
-  const newlineIndex = afterMatch.indexOf('\n');
+  const cleaned = baseName
+    .replace(/^Template[_-]?/i, '')
+    .replace(/[_-]/g, '_')
+    .toUpperCase()
+    .replace(/_+/g, '_')
+    .replace(/^_|_$/g, '');
   
-  let endIndex = Math.min(
-    colonIndex > 0 ? colonIndex : Infinity,
-    newlineIndex > 0 ? newlineIndex : Infinity,
-    100
-  );
-  
-  const name = afterMatch.substring(0, endIndex).trim();
-  return name || match[0].trim();
+  return cleaned || baseName.toUpperCase();
 }
 
-async function parseDocx(filePath: string, contractType: string): Promise<ParsedBlock[]> {
-  console.log(`\nParsing ${path.basename(filePath)} for ${contractType}...`);
+function determineBlockTypeFromStyle(styleName: string, text: string): { blockType: 'section' | 'clause' | 'paragraph' | 'table', level: number } {
+  const normalizedStyle = styleName.toLowerCase().trim();
+  
+  if (text.includes('_TABLE}}') || text.includes('{{PRICING_BREAKDOWN_TABLE}}') || text.includes('{{PAYMENT_SCHEDULE_TABLE}}')) {
+    return { blockType: 'table', level: 3 };
+  }
+  
+  if (normalizedStyle.includes('heading 1') || normalizedStyle === 'heading1' || normalizedStyle === 'title') {
+    return { blockType: 'section', level: 0 };
+  }
+  
+  if (normalizedStyle.includes('heading 2') || normalizedStyle === 'heading2') {
+    return { blockType: 'clause', level: 1 };
+  }
+  
+  if (normalizedStyle.includes('heading 3') || normalizedStyle === 'heading3') {
+    return { blockType: 'paragraph', level: 2 };
+  }
+  
+  if (normalizedStyle.includes('heading') || normalizedStyle.includes('title')) {
+    const headingMatch = normalizedStyle.match(/heading\s*(\d+)/i);
+    if (headingMatch) {
+      const num = parseInt(headingMatch[1]);
+      if (num === 1) return { blockType: 'section', level: 0 };
+      if (num === 2) return { blockType: 'clause', level: 1 };
+      return { blockType: 'paragraph', level: Math.min(num, 3) };
+    }
+    return { blockType: 'section', level: 0 };
+  }
+  
+  return { blockType: 'paragraph', level: 3 };
+}
+
+function detectHeaderPatterns(text: string): { isHeader: boolean, blockType: 'section' | 'clause' | 'paragraph', level: number } {
+  const SECTION_PATTERN = /^(?:Section|SECTION|Article|ARTICLE|Recital|RECITAL|Exhibit|EXHIBIT)\s*([A-Z0-9]+)[\.\s:]/i;
+  const ROMAN_SECTION_PATTERN = /^(I{1,3}|IV|VI{0,3}|IX|X{0,3})\.\s+[A-Z]/i;
+  const NUMBERED_SECTION_PATTERN = /^(\d+)\.\s+(?![\d])([A-Z])/;
+  const CLAUSE_PATTERN = /^(\d+\.\d+(?:\.\d+)?)[.\s]/;
+  const UPPERCASE_HEADER = /^[A-Z][A-Z\s&\-:]{5,50}$/;
+  const SHORT_TITLE = /^[A-Z][a-zA-Z\s&\-:]{3,40}:?\s*$/;
+  
+  if (SECTION_PATTERN.test(text) || ROMAN_SECTION_PATTERN.test(text)) {
+    return { isHeader: true, blockType: 'section', level: 0 };
+  }
+  
+  if (NUMBERED_SECTION_PATTERN.test(text)) {
+    return { isHeader: true, blockType: 'section', level: 0 };
+  }
+  
+  if (CLAUSE_PATTERN.test(text)) {
+    const match = text.match(CLAUSE_PATTERN);
+    if (match) {
+      const parts = match[1].split('.');
+      if (parts.length >= 3) {
+        return { isHeader: true, blockType: 'paragraph', level: 2 };
+      }
+      return { isHeader: true, blockType: 'clause', level: 1 };
+    }
+  }
+  
+  if (text.length < 60 && UPPERCASE_HEADER.test(text.trim())) {
+    return { isHeader: true, blockType: 'section', level: 0 };
+  }
+  
+  if (text.length < 50 && SHORT_TITLE.test(text.trim()) && !text.includes('.') || text.endsWith(':')) {
+    return { isHeader: true, blockType: 'clause', level: 1 };
+  }
+  
+  return { isHeader: false, blockType: 'paragraph', level: 3 };
+}
+
+async function parseDocxWithStyles(filePath: string, contractType: string): Promise<ParsedBlock[]> {
+  console.log(`\n📄 Parsing ${path.basename(filePath)} as "${contractType}"...`);
   
   const buffer = fs.readFileSync(filePath);
-  const result = await mammoth.convertToHtml({ buffer });
+  
+  const styleMap = [
+    "p[style-name='Heading 1'] => h1.heading1:fresh",
+    "p[style-name='Heading 2'] => h2.heading2:fresh",
+    "p[style-name='Heading 3'] => h3.heading3:fresh",
+    "p[style-name='Title'] => h1.title:fresh",
+    "p[style-name='Subtitle'] => h2.subtitle:fresh",
+    "b => strong",
+  ];
+  
+  const result = await mammoth.convertToHtml({ 
+    buffer,
+    styleMap: styleMap
+  } as any);
+  
   const html = result.value;
+  const messages = result.messages;
+  
+  if (messages.length > 0) {
+    console.log(`   ⚠️  ${messages.length} mammoth messages (styles/formatting)`);
+  }
   
   const blocks: ParsedBlock[] = [];
   let sortOrder = 0;
   
-  const paragraphs = html.split(/<\/p>|<\/h[1-6]>/).filter(p => p.trim());
+  const segments = html.split(/(<\/h[1-6]>|<\/p>)/).filter(s => s.trim());
+  
+  const paragraphs: StyledParagraph[] = [];
+  
+  for (let i = 0; i < segments.length; i++) {
+    const segment = segments[i];
+    if (segment.match(/^<\/h[1-6]>$/) || segment === '</p>') continue;
+    
+    let style = 'Normal';
+    if (segment.includes('<h1')) {
+      style = 'Heading 1';
+    } else if (segment.includes('<h2')) {
+      style = 'Heading 2';
+    } else if (segment.includes('<h3')) {
+      style = 'Heading 3';
+    }
+    
+    const text = cleanText(segment);
+    if (text && text.length >= 2) {
+      paragraphs.push({ style, text, html: segment });
+    }
+  }
+  
+  console.log(`   Found ${paragraphs.length} paragraphs`);
   
   let currentSectionId: string | null = null;
   let currentClauseId: string | null = null;
   let sectionCounter = 0;
+  let clauseCounter = 0;
   let contentBuffer = '';
   let pendingBlock: Partial<ParsedBlock> | null = null;
-  
-  const SECTION_PATTERN = /^(?:<[^>]+>)*\s*(?:Section|SECTION|Article|ARTICLE|Recital|RECITAL|Exhibit|EXHIBIT)\s*([A-Z0-9]+)[\.\s:]/i;
-  const ROMAN_SECTION_PATTERN = /^(?:<[^>]+>)*\s*(I{1,3}|IV|VI{0,3}|IX|X{0,3})\.\s+[A-Z]/i;
-  const BOLD_SECTION_PATTERN = /<strong>([^<]+)<\/strong>(?:\s*:)?/;
-  const CLAUSE_PATTERN = /^(?:<[^>]+>)*\s*(\d+\.\d+(?:\.\d+)?)[.\s]/;
-  const SECTION_NUM_PATTERN = /^(?:<[^>]+>)*\s*(\d+)\.\s+(?![\d])/;
   
   function finalizePendingBlock() {
     if (pendingBlock) {
       pendingBlock.content = contentBuffer.trim() || pendingBlock.name || '';
       pendingBlock.variablesUsed = extractVariables(pendingBlock.content);
-      pendingBlock.blockType = determineBlockType(pendingBlock.content, pendingBlock.hierarchyLevel || 0);
+      
+      if (pendingBlock.content.includes('_TABLE}}')) {
+        pendingBlock.blockType = 'table';
+      }
+      
       blocks.push(pendingBlock as ParsedBlock);
       contentBuffer = '';
       pendingBlock = null;
@@ -133,49 +237,50 @@ async function parseDocx(filePath: string, contractType: string): Promise<Parsed
   }
   
   for (const para of paragraphs) {
-    const text = cleanText(para);
-    if (!text || text.length < 3) continue;
-    
     sortOrder += 10;
     
-    const sectionMatch = para.match(SECTION_PATTERN);
-    const romanMatch = para.match(ROMAN_SECTION_PATTERN);
-    const boldMatch = para.match(BOLD_SECTION_PATTERN);
-    const clauseMatch = para.match(CLAUSE_PATTERN);
-    const sectionNumMatch = para.match(SECTION_NUM_PATTERN);
+    let styleInfo = determineBlockTypeFromStyle(para.style, para.text);
     
-    const isSectionHeader = sectionMatch || romanMatch ||
-      (boldMatch && !clauseMatch && text.length < 150 && (text.includes(':') || text.toUpperCase() === text.substring(0, 20).toUpperCase()));
+    const patternInfo = detectHeaderPatterns(para.text);
+    if (patternInfo.isHeader && styleInfo.blockType === 'paragraph') {
+      styleInfo = { blockType: patternInfo.blockType, level: patternInfo.level };
+    }
     
-    if (isSectionHeader || sectionNumMatch) {
+    const { blockType, level } = styleInfo;
+    
+    if (blockType === 'section') {
       finalizePendingBlock();
       sectionCounter++;
       
-      let sectionCode: string;
-      let sectionName: string;
+      let sectionCode = `S${sectionCounter}`;
+      let sectionName = para.text.substring(0, 100);
+      
+      const sectionMatch = para.text.match(/^(?:Section|SECTION|Article|ARTICLE|Recital|RECITAL|Exhibit|EXHIBIT)\s*([A-Z0-9]+)/i);
+      const romanMatch = para.text.match(/^(I{1,3}|IV|VI{0,3}|IX|X{0,3})\./i);
+      const numMatch = para.text.match(/^(\d+)\.\s/);
       
       if (sectionMatch) {
-        sectionCode = sectionMatch[1] || `S${sectionCounter}`;
-        const periodIdx = text.indexOf('.');
-        const numEnd = text.search(/\d+$/);
-        sectionName = numEnd > periodIdx ? text.substring(0, numEnd).trim() : text.substring(0, 80).trim();
+        sectionCode = sectionMatch[1];
       } else if (romanMatch) {
         sectionCode = romanMatch[1];
-        sectionName = text.replace(/\d+$/, '').trim();
-      } else if (sectionNumMatch) {
-        sectionCode = sectionNumMatch[1];
-        sectionName = text.replace(/\d+$/, '').substring(0, 80).trim();
-      } else if (boldMatch) {
-        sectionCode = `H${sectionCounter}`;
-        sectionName = boldMatch[1].trim();
-      } else {
-        sectionCode = `S${sectionCounter}`;
-        sectionName = text.substring(0, 80).trim();
+      } else if (numMatch) {
+        sectionCode = numMatch[1];
       }
+      
+      const colonIdx = para.text.indexOf(':');
+      const periodIdx = para.text.indexOf('.', 3);
+      const endIdx = Math.min(
+        colonIdx > 0 ? colonIdx : 100,
+        periodIdx > 3 ? periodIdx : 100,
+        100
+      );
+      sectionName = para.text.substring(0, endIdx).replace(/^\d+\.\s*/, '').replace(/^[IVXLCDM]+\.\s*/i, '').trim();
+      if (!sectionName) sectionName = para.text.substring(0, 60);
       
       const tempId = `${contractType}-SEC-${sectionCode}-${sortOrder}`;
       currentSectionId = tempId;
       currentClauseId = null;
+      clauseCounter = 0;
       
       pendingBlock = {
         tempId,
@@ -188,28 +293,33 @@ async function parseDocx(filePath: string, contractType: string): Promise<Parsed
         parentTempId: null,
         variablesUsed: [],
         contractType,
-        category: categorizeClause(sectionName, text),
+        category: categorizeClause(sectionName, para.text),
       };
       
-      const colonIdx = text.indexOf(':');
-      contentBuffer = colonIdx > 0 ? text.substring(colonIdx + 1).trim() : '';
+      contentBuffer = para.text;
       
-    } else if (clauseMatch) {
+    } else if (blockType === 'clause' || (blockType === 'paragraph' && level <= 2 && patternInfo.isHeader)) {
       finalizePendingBlock();
+      clauseCounter++;
       
-      const clauseNum = clauseMatch[1];
+      let clauseNum = `${clauseCounter}`;
+      const clauseMatch = para.text.match(/^(\d+\.\d+(?:\.\d+)?)/);
+      if (clauseMatch) {
+        clauseNum = clauseMatch[1];
+      }
+      
       const isSubclause = clauseNum.split('.').length > 2;
       const tempId = `${contractType}-CLS-${clauseNum}-${sortOrder}`;
       
-      const colonIdx = text.indexOf(':');
-      const periodIdx = text.indexOf('.', clauseMatch[0].length);
-      const nameEndIdx = Math.min(
-        colonIdx > 0 ? colonIdx : Infinity,
-        periodIdx > clauseMatch[0].length ? periodIdx : Infinity,
-        clauseMatch[0].length + 80
-      );
-      
-      let clauseName = text.substring(clauseMatch[0].length, nameEndIdx).trim();
+      let clauseName = para.text.substring(0, 80);
+      const colonIdx = para.text.indexOf(':');
+      const periodIdx = para.text.indexOf('.', clauseMatch ? clauseMatch[0].length : 0);
+      if (colonIdx > 0 && colonIdx < 80) {
+        clauseName = para.text.substring(0, colonIdx);
+      } else if (periodIdx > 0 && periodIdx < 80) {
+        clauseName = para.text.substring(0, periodIdx);
+      }
+      clauseName = clauseName.replace(/^\d+(\.\d+)*\.?\s*/, '').trim();
       if (!clauseName) clauseName = `Clause ${clauseNum}`;
       
       if (isSubclause) {
@@ -224,7 +334,7 @@ async function parseDocx(filePath: string, contractType: string): Promise<Parsed
           parentTempId: currentClauseId,
           variablesUsed: [],
           contractType,
-          category: categorizeClause(clauseName, text),
+          category: categorizeClause(clauseName, para.text),
         };
       } else {
         currentClauseId = tempId;
@@ -239,51 +349,54 @@ async function parseDocx(filePath: string, contractType: string): Promise<Parsed
           parentTempId: currentSectionId,
           variablesUsed: [],
           contractType,
-          category: categorizeClause(clauseName, text),
+          category: categorizeClause(clauseName, para.text),
         };
       }
       
-      contentBuffer = text;
+      contentBuffer = para.text;
       
     } else {
       if (pendingBlock) {
-        contentBuffer += (contentBuffer ? '\n\n' : '') + text;
+        contentBuffer += '\n\n' + para.text;
+      } else {
+        finalizePendingBlock();
+        
+        const tempId = `${contractType}-PARA-${sortOrder}`;
+        pendingBlock = {
+          tempId,
+          clauseCode: `${contractType}-P-${sortOrder}`,
+          name: para.text.substring(0, 60),
+          content: '',
+          blockType: blockType === 'table' ? 'table' : 'paragraph',
+          hierarchyLevel: 3,
+          sortOrder,
+          parentTempId: currentClauseId || currentSectionId,
+          variablesUsed: [],
+          contractType,
+          category: 'general',
+        };
+        contentBuffer = para.text;
       }
     }
   }
   
   finalizePendingBlock();
   
-  console.log(`  Found ${blocks.length} blocks`);
+  console.log(`   ✓ Created ${blocks.length} blocks`);
   return blocks;
 }
 
 async function insertBlocks(blocks: ParsedBlock[]): Promise<void> {
   const tempIdToDbId = new Map<string, number>();
   
-  const sections = blocks.filter(b => b.hierarchyLevel === 0);
-  const nonSections = blocks.filter(b => b.hierarchyLevel !== 0);
+  const sortedBlocks = [...blocks].sort((a, b) => {
+    if (a.hierarchyLevel !== b.hierarchyLevel) {
+      return a.hierarchyLevel - b.hierarchyLevel;
+    }
+    return a.sortOrder - b.sortOrder;
+  });
   
-  for (const block of sections) {
-    const [inserted] = await db.insert(clauses).values({
-      clauseCode: block.clauseCode,
-      name: block.name,
-      content: block.content,
-      blockType: block.blockType,
-      hierarchyLevel: block.hierarchyLevel,
-      sortOrder: block.sortOrder,
-      parentClauseId: null,
-      variablesUsed: block.variablesUsed.length > 0 ? block.variablesUsed : null,
-      contractType: block.contractType,
-      category: block.category,
-      riskLevel: 'MEDIUM',
-      negotiable: false,
-    }).returning({ id: clauses.id });
-    
-    tempIdToDbId.set(block.tempId, inserted.id);
-  }
-  
-  for (const block of nonSections) {
+  for (const block of sortedBlocks) {
     let parentId: number | null = null;
     if (block.parentTempId) {
       parentId = tempIdToDbId.get(block.parentTempId) || null;
@@ -308,49 +421,72 @@ async function insertBlocks(blocks: ParsedBlock[]): Promise<void> {
   }
 }
 
-async function main() {
-  console.log('='.repeat(60));
-  console.log('INTELLIGENT CONTRACT INGESTOR');
-  console.log('='.repeat(60));
+function discoverTemplates(templatesDir: string): { file: string, type: string }[] {
+  const templates: { file: string, type: string }[] = [];
   
-  const templatesDir = path.join(__dirname, '..', 'server', 'templates');
+  if (!fs.existsSync(templatesDir)) {
+    console.error(`Templates directory not found: ${templatesDir}`);
+    return templates;
+  }
   
-  const templates = [
-    { file: 'Template_ONE_Agreement.docx', type: 'ONE' },
-    { file: 'Template_Offsite.docx', type: 'OFFSITE' },
-    { file: 'Template_On-Site.docx', type: 'ONSITE' },
-  ];
+  const files = fs.readdirSync(templatesDir);
   
-  for (const t of templates) {
-    const filePath = path.join(templatesDir, t.file);
-    if (!fs.existsSync(filePath)) {
-      console.error(`Template not found: ${filePath}`);
-      process.exit(1);
+  for (const file of files) {
+    if (file.endsWith('.docx') && !file.startsWith('~$')) {
+      const contractType = deriveContractTypeFromFilename(file);
+      templates.push({ file, type: contractType });
+      console.log(`   📁 Discovered: ${file} → type: "${contractType}"`);
     }
   }
   
-  console.log('\n1. Clearing existing clauses table...');
-  await db.delete(clauses);
-  console.log('   Clauses table cleared.');
+  return templates;
+}
+
+async function main() {
+  console.log('═'.repeat(60));
+  console.log('   INTELLIGENT DISCOVERY-BASED CONTRACT INGESTOR');
+  console.log('═'.repeat(60));
   
-  console.log('\n2. Parsing and ingesting templates...');
+  const templatesDir = path.join(__dirname, '..', 'server', 'templates');
+  
+  console.log('\n📂 Step 1: Discovering .docx templates...');
+  const templates = discoverTemplates(templatesDir);
+  
+  if (templates.length === 0) {
+    console.error('No .docx templates found in', templatesDir);
+    process.exit(1);
+  }
+  
+  console.log(`\n   Found ${templates.length} template(s)`);
+  
+  console.log('\n🗑️  Step 2: Clean slate - clearing clauses table...');
+  await db.delete(clauses);
+  console.log('   ✓ Clauses table cleared');
+  
+  console.log('\n📝 Step 3: Parsing and ingesting templates...');
   
   let totalBlocks = 0;
   
   for (const template of templates) {
     const filePath = path.join(templatesDir, template.file);
-    const blocks = await parseDocx(filePath, template.type);
     
-    console.log(`\n   Inserting ${blocks.length} blocks for ${template.type}...`);
+    if (!fs.existsSync(filePath)) {
+      console.error(`   ❌ Template not found: ${filePath}`);
+      continue;
+    }
+    
+    const blocks = await parseDocxWithStyles(filePath, template.type);
+    
+    console.log(`   Inserting ${blocks.length} blocks for ${template.type}...`);
     await insertBlocks(blocks);
     totalBlocks += blocks.length;
     
     console.log(`   ✓ ${template.type}: ${blocks.length} blocks inserted`);
   }
   
-  console.log('\n' + '='.repeat(60));
-  console.log(`COMPLETE: Ingested ${totalBlocks} total blocks`);
-  console.log('='.repeat(60));
+  console.log('\n' + '═'.repeat(60));
+  console.log(`   ✅ COMPLETE: Ingested ${totalBlocks} total blocks`);
+  console.log('═'.repeat(60));
   
   const stats = await db.execute(sql`
     SELECT 
@@ -362,30 +498,46 @@ async function main() {
     ORDER BY contract_type, block_type
   `);
   
-  console.log('\nBlock Distribution:');
+  console.log('\n📊 Block Distribution:');
   console.table(stats.rows);
   
-  const treeSample = await db.execute(sql`
+  const parentStats = await db.execute(sql`
     SELECT 
-      c.clause_code,
-      c.name,
-      c.block_type,
-      c.hierarchy_level,
-      p.clause_code as parent_code
-    FROM clauses c
-    LEFT JOIN clauses p ON c.parent_clause_id = p.id
-    WHERE c.contract_type = 'ONE'
-    ORDER BY c.sort_order
-    LIMIT 20
+      contract_type,
+      COUNT(*) FILTER (WHERE parent_clause_id IS NULL) as root_nodes,
+      COUNT(*) FILTER (WHERE parent_clause_id IS NOT NULL) as child_nodes,
+      COUNT(*) as total
+    FROM clauses
+    GROUP BY contract_type
+    ORDER BY contract_type
   `);
   
-  console.log('\nTree Structure Sample (ONE):');
-  console.table(treeSample.rows);
+  console.log('\n🌳 Tree Structure Summary:');
+  console.table(parentStats.rows);
+  
+  for (const template of templates) {
+    const treeSample = await db.execute(sql`
+      SELECT 
+        c.clause_code,
+        LEFT(c.name, 50) as name,
+        c.block_type,
+        c.hierarchy_level as level,
+        p.clause_code as parent_code
+      FROM clauses c
+      LEFT JOIN clauses p ON c.parent_clause_id = p.id
+      WHERE c.contract_type = ${template.type}
+      ORDER BY c.sort_order
+      LIMIT 15
+    `);
+    
+    console.log(`\n📋 Tree Structure Sample (${template.type} - first 15):`);
+    console.table(treeSample.rows);
+  }
   
   process.exit(0);
 }
 
 main().catch((err) => {
-  console.error('Ingestion failed:', err);
+  console.error('❌ Ingestion failed:', err);
   process.exit(1);
 });

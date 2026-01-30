@@ -339,16 +339,19 @@ router.get("/contracts/:id/clauses", async (req, res) => {
     }
 
     const contractTypeMap: Record<string, string> = {
-      'one_agreement': 'ONE Agreement',
-      'ONE': 'ONE Agreement',
-      'ONE Agreement': 'ONE Agreement',
-      'manufacturing_sub': 'MANUFACTURING',
-      'MANUFACTURING': 'MANUFACTURING',
-      'onsite_sub': 'ONSITE',
-      'ONSITE': 'ONSITE',
+      'one_agreement': 'ONE_AGREEMENT',
+      'ONE': 'ONE_AGREEMENT',
+      'ONE Agreement': 'ONE_AGREEMENT',
+      'ONE_AGREEMENT': 'ONE_AGREEMENT',
+      'manufacturing_sub': 'OFFSITE',
+      'MANUFACTURING': 'OFFSITE',
+      'OFFSITE': 'OFFSITE',
+      'onsite_sub': 'ON_SITE',
+      'ONSITE': 'ON_SITE',
+      'ON_SITE': 'ON_SITE',
     };
     
-    const templateType = contractTypeMap[contract.contractType] || 'ONE Agreement';
+    const templateType = contractTypeMap[contract.contractType] || 'ONE_AGREEMENT';
     
     const clauseQuery = `
       SELECT c.id, c.name, c.content, c.hierarchy_level, c.risk_level, c.clause_code as section_number
@@ -1073,7 +1076,7 @@ router.post("/contracts/compare-service-models", async (req, res) => {
       
       const templateQuery = `
         SELECT id, base_clause_ids, conditional_rules, display_name FROM contract_templates
-        WHERE contract_type = 'ONE'
+        WHERE contract_type IN ('ONE', 'ONE_AGREEMENT')
       `;
       const templateResult = await pool.query(templateQuery);
       
