@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db } from "../db/index";
 import { pool } from "../db";
 import { contracts, projects, clauses, projectUnits, homeModels, financials } from "../../shared/schema";
-import { eq, count, desc } from "drizzle-orm";
+import { eq, count, desc, and } from "drizzle-orm";
 import { getProjectWithRelations } from "./helpers";
 import { mapProjectToVariables } from "../lib/mapper";
 import { calculateProjectPricing } from "../services/pricingEngine";
@@ -263,11 +263,105 @@ router.get("/contracts", async (req, res) => {
 
 router.post("/contracts", async (req, res) => {
   try {
-    const [result] = await db.insert(contracts).values(req.body).returning();
-    res.json(result);
+    const { projectId, contractType, status } = req.body;
+    
+    // Normalize status to ensure consistency
+    const normalizedStatus = status === "draft" ? "Draft" : status;
+    const contractData = { ...req.body, status: normalizedStatus };
+    
+    // Version control: If creating a new Draft, use a transaction to atomically
+    // delete existing Drafts for the same project/type and insert the new one
+    if (projectId && contractType && normalizedStatus === "Draft") {
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        
+        // Delete existing drafts for same project/type
+        const deleteResult = await client.query(
+          `DELETE FROM contracts 
+           WHERE project_id = $1 AND contract_type = $2 AND status = 'Draft'
+           RETURNING id`,
+          [projectId, contractType]
+        );
+        
+        if (deleteResult.rowCount && deleteResult.rowCount > 0) {
+          console.log(`🔄 Version control: Replacing ${deleteResult.rowCount} existing draft(s) for project ${projectId}, type ${contractType}`);
+        }
+        
+        // Insert new contract
+        const insertResult = await client.query(
+          `INSERT INTO contracts (project_id, contract_type, version, status, generated_at, generated_by, template_version, file_path, file_name, notes)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+           RETURNING *`,
+          [
+            contractData.projectId,
+            contractData.contractType,
+            contractData.version || 1,
+            contractData.status || 'Draft',
+            contractData.generatedAt || new Date(),
+            contractData.generatedBy || null,
+            contractData.templateVersion || null,
+            contractData.filePath || null,
+            contractData.fileName || null,
+            contractData.notes || null
+          ]
+        );
+        
+        await client.query('COMMIT');
+        res.json(insertResult.rows[0]);
+      } catch (txError) {
+        await client.query('ROLLBACK');
+        throw txError;
+      } finally {
+        client.release();
+      }
+    } else {
+      // Non-draft contracts: simple insert
+      const [result] = await db.insert(contracts).values(contractData).returning();
+      res.json(result);
+    }
   } catch (error) {
     console.error("Failed to create contract:", error);
     res.status(500).json({ error: "Failed to create contract" });
+  }
+});
+
+// Cleanup endpoint - remove duplicate draft contracts, keeping only the latest
+router.post("/contracts/cleanup-duplicates", async (req, res) => {
+  try {
+    // Find all projects with duplicate drafts
+    const duplicatesQuery = `
+      WITH ranked AS (
+        SELECT id, project_id, contract_type, status, generated_at,
+               ROW_NUMBER() OVER (PARTITION BY project_id, contract_type, status ORDER BY generated_at DESC) as rn
+        FROM contracts
+        WHERE status = 'Draft'
+      )
+      SELECT id FROM ranked WHERE rn > 1
+    `;
+    
+    const result = await pool.query(duplicatesQuery);
+    const duplicateIds = result.rows.map(r => r.id);
+    
+    if (duplicateIds.length === 0) {
+      return res.json({ success: true, message: "No duplicates found", deletedCount: 0 });
+    }
+    
+    // Delete the duplicates
+    const deleteQuery = `DELETE FROM contracts WHERE id = ANY($1)`;
+    await pool.query(deleteQuery, [duplicateIds]);
+    
+    console.log(`🧹 Cleaned up ${duplicateIds.length} duplicate draft contracts`);
+    
+    res.json({ 
+      success: true, 
+      message: `Deleted ${duplicateIds.length} duplicate draft contracts`,
+      deletedCount: duplicateIds.length,
+      deletedIds: duplicateIds
+    });
+  } catch (error) {
+    console.error("Failed to cleanup duplicates:", error);
+    res.status(500).json({ error: "Failed to cleanup duplicates" });
   }
 });
 
