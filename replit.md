@@ -84,6 +84,15 @@ The application is built on a modern full-stack architecture.
     - Variable extraction: `{{VARIABLE_NAME}}` patterns auto-detected and stored in `variables_used` array
     - Contract type mapping: contractTypeMap in routes handles user-facing types (ONE, OFFSITE, ONSITE) ↔ database types (ONE_AGREEMENT, OFFSITE, ON_SITE)
     - Run script: `npx tsx scripts/ingest_standard_contracts.ts`
+- **State-Specific Provision Filtering (Jan 30, 2026)**:
+    - Ingestor detects state-specific sections (e.g., "CALIFORNIA PROVISIONS", "TEXAS PROVISIONS") and tags with `conditions: {"PROJECT_STATE": "CA"}`
+    - `STATE_PATTERNS` array supports 12 states: CA, TX, AZ, CO, FL, GA, NV, NC, OR, TN, UT, WA
+    - `detectStateProvision()` function scans section headers for state names/abbreviations
+    - Contract generator `buildBlockTree()` filters blocks based on `PROJECT_STATE` condition
+    - Mapper provides `PROJECT_STATE` and `PROJECT_STATE_CODE` variables from `project.state` field
+    - Recursive filtering: child blocks are excluded when their parent is filtered out
+    - Blocks without state conditions are always included (standard contract content)
+    - Verified: CA project filters TX/AZ, TX project filters CA/AZ - numbering remains sequential
 
 ## External Dependencies
 
