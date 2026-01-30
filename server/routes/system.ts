@@ -458,4 +458,71 @@ router.post("/debug/migrate-clauses", async (req, res) => {
   }
 });
 
+// POST /api/debug/apply-table-variables - Apply dynamic table variables to specific clauses
+router.post("/debug/apply-table-variables", async (req, res) => {
+  try {
+    const updated: string[] = [];
+    const errors: string[] = [];
+
+    // 1. Update ONE-EXHIBIT-C with Payment Schedule Table
+    const exhibitCResult = await pool.query(`
+      UPDATE clauses 
+      SET content = $1
+      WHERE clause_code = 'ONE-EXHIBIT-C'
+      RETURNING clause_code, name
+    `, ['{{PAYMENT_SCHEDULE_TABLE}}']);
+
+    if (exhibitCResult.rowCount && exhibitCResult.rowCount > 0) {
+      updated.push(`ONE-EXHIBIT-C (${exhibitCResult.rows[0].name})`);
+      console.log('✓ Updated ONE-EXHIBIT-C with PAYMENT_SCHEDULE_TABLE');
+    } else {
+      errors.push('ONE-EXHIBIT-C not found');
+    }
+
+    // 2. Update ONE-RECITAL-H with Pricing Breakdown Table (or search for "total preliminary project cost")
+    const recitalHResult = await pool.query(`
+      UPDATE clauses 
+      SET content = $1
+      WHERE clause_code = 'ONE-RECITAL-H'
+      RETURNING clause_code, name
+    `, ['<p>The total preliminary project cost breakdown is as follows:</p>{{PRICING_BREAKDOWN_TABLE}}']);
+
+    if (recitalHResult.rowCount && recitalHResult.rowCount > 0) {
+      updated.push(`ONE-RECITAL-H (${recitalHResult.rows[0].name})`);
+      console.log('✓ Updated ONE-RECITAL-H with PRICING_BREAKDOWN_TABLE');
+    } else {
+      // Fallback: search for clause containing "total preliminary project cost"
+      const fallbackResult = await pool.query(`
+        UPDATE clauses 
+        SET content = $1
+        WHERE LOWER(content) LIKE '%total preliminary project cost%'
+        RETURNING clause_code, name
+      `, ['<p>The total preliminary project cost breakdown is as follows:</p>{{PRICING_BREAKDOWN_TABLE}}']);
+
+      if (fallbackResult.rowCount && fallbackResult.rowCount > 0) {
+        for (const row of fallbackResult.rows) {
+          updated.push(`${row.clause_code} (${row.name}) [fallback match]`);
+          console.log(`✓ Updated ${row.clause_code} with PRICING_BREAKDOWN_TABLE (fallback)`);
+        }
+      } else {
+        errors.push('ONE-RECITAL-H not found and no fallback clause with "total preliminary project cost" found');
+      }
+    }
+
+    console.log('📋 Apply Table Variables Results:', { updated, errors });
+
+    res.json({
+      message: 'Table variables applied',
+      updated,
+      errors: errors.length > 0 ? errors : undefined
+    });
+  } catch (error: any) {
+    console.error("Failed to apply table variables:", error);
+    res.status(500).json({ 
+      error: "Failed to apply table variables",
+      details: error?.message 
+    });
+  }
+});
+
 export default router;
