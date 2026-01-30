@@ -15,7 +15,7 @@ interface ParsedBlock {
   clauseCode: string;
   name: string;
   content: string;
-  blockType: 'section' | 'clause' | 'paragraph' | 'table';
+  blockType: 'section' | 'clause' | 'paragraph' | 'table' | 'list_item';
   hierarchyLevel: number;
   sortOrder: number;
   parentTempId: string | null;
@@ -143,11 +143,17 @@ function deriveContractTypeFromFilename(filename: string): string {
   return cleaned || baseName.toUpperCase();
 }
 
-function determineBlockTypeFromStyle(styleName: string, text: string): { blockType: 'section' | 'clause' | 'paragraph' | 'table', level: number } {
+function determineBlockTypeFromStyle(styleName: string, text: string): { blockType: 'section' | 'clause' | 'paragraph' | 'table' | 'list_item', level: number } {
   const normalizedStyle = styleName.toLowerCase().trim();
   
   if (text.includes('_TABLE}}') || text.includes('{{PRICING_BREAKDOWN_TABLE}}') || text.includes('{{PAYMENT_SCHEDULE_TABLE}}')) {
     return { blockType: 'table', level: 3 };
+  }
+  
+  // Check for Roman numeral list items (i., ii., iii.)
+  const romanList = detectRomanListItem(text);
+  if (romanList.isRomanList) {
+    return { blockType: 'list_item', level: 4 };
   }
   
   if (normalizedStyle.includes('heading 1') || normalizedStyle === 'heading1' || normalizedStyle === 'title') {
@@ -176,7 +182,27 @@ function determineBlockTypeFromStyle(styleName: string, text: string): { blockTy
   return { blockType: 'paragraph', level: 3 };
 }
 
-function detectHeaderPatterns(text: string): { isHeader: boolean, blockType: 'section' | 'clause' | 'paragraph', level: number } {
+/**
+ * Detect lowercase Roman numeral list items (i., ii., iii., iv., etc.)
+ * Returns the Roman numeral if detected, null otherwise
+ */
+function detectRomanListItem(text: string): { isRomanList: boolean, numeral: string | null } {
+  // Pattern for lowercase Roman numerals at start of line: i., ii., iii., iv., v., vi., vii., viii., ix., x.
+  const ROMAN_LIST_PATTERN = /^(i{1,3}|iv|vi{0,3}|ix|x{0,3})\.?\s+/i;
+  const match = text.match(ROMAN_LIST_PATTERN);
+  if (match) {
+    return { isRomanList: true, numeral: match[1].toLowerCase() };
+  }
+  return { isRomanList: false, numeral: null };
+}
+
+function detectHeaderPatterns(text: string): { isHeader: boolean, blockType: 'section' | 'clause' | 'paragraph' | 'list_item', level: number } {
+  // First check for Roman numeral list items (i., ii., iii.)
+  const romanList = detectRomanListItem(text);
+  if (romanList.isRomanList) {
+    return { isHeader: false, blockType: 'list_item', level: 4 };
+  }
+  
   const SECTION_PATTERN = /^(?:Section|SECTION|Article|ARTICLE|Recital|RECITAL|Exhibit|EXHIBIT)\s*([A-Z0-9]+)[\.\s:]/i;
   const ROMAN_SECTION_PATTERN = /^(I{1,3}|IV|VI{0,3}|IX|X{0,3})\.\s+[A-Z]/i;
   const NUMBERED_SECTION_PATTERN = /^(\d+)\.\s+(?![\d])([A-Z])/;

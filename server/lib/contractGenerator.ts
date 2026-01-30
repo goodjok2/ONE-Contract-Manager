@@ -18,7 +18,7 @@ interface Clause {
   variables_used?: string[];
   sort_order: number;
   parent_clause_id?: number | null;
-  block_type?: 'section' | 'clause' | 'paragraph' | 'table';
+  block_type?: 'section' | 'clause' | 'paragraph' | 'table' | 'list_item';
 }
 
 // Tree node for recursive block structure
@@ -149,9 +149,10 @@ function buildBlockTree(clauses: Clause[], projectState?: string): BlockNode[] {
 
 /**
  * Apply dynamic numbering to the block tree
- * Level 1: Roman numerals (I, II, III) for roman sections, integers for regular sections
- * Level 2: ParentIndex.ChildIndex (e.g., 1.1, 1.2)
- * Level 3: Parent.Child.SubChild (e.g., 1.1.1)
+ * Level 1 (hierarchy_level 1): Section X or Roman (I, II, III) for major sections
+ * Level 2 (hierarchy_level 2): X.X (e.g., 1.1, 1.2) - subsections
+ * Level 3 (hierarchy_level 3): X.X.X (e.g., 1.1.1) or simple numbered paragraphs
+ * Level 4 (hierarchy_level 4): i., ii., iii. (lowercase Roman numerals for list items)
  * Auto-renumbers when blocks are hidden
  */
 function applyDynamicNumbering(nodes: BlockNode[], parentNumber: string = '', level: number = 0): void {
@@ -164,6 +165,7 @@ function applyDynamicNumbering(nodes: BlockNode[], parentNumber: string = '', le
     
     // Determine the number format based on level and block type
     let number: string;
+    const blockType = node.clause.block_type || 'clause';
     
     if (level === 0) {
       // Top-level: Check if it's a Roman numeral section
@@ -176,8 +178,11 @@ function applyDynamicNumbering(nodes: BlockNode[], parentNumber: string = '', le
       } else {
         number = String(visibleIndex);
       }
+    } else if (level >= 3 || blockType === 'list_item') {
+      // Level 4+: Lowercase Roman numerals for list items
+      number = toLowerRoman(visibleIndex);
     } else {
-      // Child levels: Parent.Child format
+      // Levels 1-3: Parent.Child format (e.g., 1.1, 1.1.1)
       number = parentNumber ? `${parentNumber}.${visibleIndex}` : String(visibleIndex);
     }
     
@@ -191,7 +196,7 @@ function applyDynamicNumbering(nodes: BlockNode[], parentNumber: string = '', le
 }
 
 /**
- * Convert integer to Roman numeral
+ * Convert integer to uppercase Roman numeral (I, II, III, IV, V...)
  */
 function toRoman(num: number): string {
   const romanNumerals: [number, string][] = [
@@ -208,6 +213,14 @@ function toRoman(num: number): string {
     }
   }
   return result;
+}
+
+/**
+ * Convert integer to lowercase Roman numeral (i, ii, iii, iv, v...)
+ * Used for Level 4 list items
+ */
+function toLowerRoman(num: number): string {
+  return toRoman(num).toLowerCase();
 }
 
 /**
@@ -525,8 +538,23 @@ function renderBlockNode(node: BlockNode): string {
       ${content ? `<p>${content}</p>` : ''}
     `;
   } else if (blockType === 'paragraph') {
-    // Paragraph level
-    html += `<p class="indented">${content}</p>`;
+    // Level 3: Paragraph level with hanging indent for numbered items
+    if (dynamicNumber) {
+      html += `
+        <div class="paragraph-numbered">
+          <span class="clause-number">${dynamicNumber}.</span> ${content}
+        </div>
+      `;
+    } else {
+      html += `<p class="indented">${content}</p>`;
+    }
+  } else if (blockType === 'list_item') {
+    // Level 4: Roman numeral list items - fully indented
+    html += `
+      <div class="list-item-roman">
+        <span class="list-marker">${dynamicNumber}.</span>${content}
+      </div>
+    `;
   } else if (blockType === 'table') {
     // Table - content should already be HTML
     html += content;
@@ -654,54 +682,82 @@ function getContractStyles(): string {
       font-size: 10pt;
     }
     
-    /* Roman numeral sections (I. ATTACHMENTS, II. AGREEMENT) */
-    .roman-section {
-      font-size: 14pt;
+    /* === CLEAN LOOK HIERARCHICAL STYLING === */
+    
+    /* Level 1: Section Headers - Bold, Blue, Uppercase, Left-justified */
+    .roman-section,
+    .section-header {
+      font-size: 13pt;
       font-weight: bold;
       color: #1a73e8;
+      text-transform: uppercase;
       margin-top: 24pt;
       margin-bottom: 12pt;
       padding-bottom: 4pt;
       border-bottom: 2px solid #1a73e8;
       page-break-after: avoid;
+      text-indent: 0;
+      margin-left: 0;
     }
     
-    /* Section Headers (Section 1. Scope of Services) */
-    .section-header {
-      font-size: 13pt;
-      font-weight: bold;
-      color: #1a73e8;
-      margin-top: 20pt;
-      margin-bottom: 10pt;
-      page-break-after: avoid;
-    }
-    
-    /* Subsection Headers (1.1. Overview) */
+    /* Level 2: Subsection Headers - Bold, Black, Left-justified */
     .subsection-header {
       font-size: 11pt;
       font-weight: bold;
+      color: #000;
       margin-top: 14pt;
       margin-bottom: 6pt;
       page-break-after: avoid;
+      text-indent: 0;
+      margin-left: 0;
     }
     
-    /* Paragraph level (1.1.1) */
+    /* Level 3: Body Text/Paragraphs - Normal weight, Hanging indent for numbered items */
+    .paragraph-numbered {
+      font-size: 11pt;
+      font-weight: normal;
+      margin-bottom: 10pt;
+      line-height: 1.15;
+      margin-left: 0;
+      padding-left: 0.35in;
+      text-indent: -0.35in;
+    }
+    
     .paragraph-header {
       font-size: 11pt;
       font-weight: bold;
       display: inline;
     }
     
-    /* Regular paragraphs */
+    /* Regular paragraphs - Left-justified, no indent */
     p {
       margin-bottom: 10pt;
       text-align: left;
       line-height: 1.15;
       text-indent: 0;
+      margin-left: 0;
     }
     
     p.indented {
       margin-left: 0.25in;
+    }
+    
+    /* Level 4: Roman Sub-lists - Fully indented, lowercase roman numerals */
+    .list-item-roman {
+      font-size: 11pt;
+      font-weight: normal;
+      margin-bottom: 8pt;
+      line-height: 1.15;
+      margin-left: 0.5in;
+      padding-left: 0.35in;
+      text-indent: -0.35in;
+      list-style-type: none;
+    }
+    
+    .list-item-roman .list-marker {
+      display: inline-block;
+      width: 0.35in;
+      text-align: left;
     }
     
     /* Clause numbering */
@@ -712,7 +768,9 @@ function getContractStyles(): string {
     .inline-clause {
       margin-bottom: 10pt;
       line-height: 1.15;
-      margin-left: 0.25in;
+      margin-left: 0;
+      padding-left: 0.35in;
+      text-indent: -0.35in;
     }
     
     .inline-clause .clause-number {
@@ -1058,54 +1116,82 @@ function generateHTMLFromClauses(
       font-size: 10pt;
     }
     
-    /* Roman numeral sections (I. ATTACHMENTS, II. AGREEMENT) */
-    .roman-section {
-      font-size: 14pt;
+    /* === CLEAN LOOK HIERARCHICAL STYLING === */
+    
+    /* Level 1: Section Headers - Bold, Blue, Uppercase, Left-justified */
+    .roman-section,
+    .section-header {
+      font-size: 13pt;
       font-weight: bold;
       color: #1a73e8;
+      text-transform: uppercase;
       margin-top: 24pt;
       margin-bottom: 12pt;
       padding-bottom: 4pt;
       border-bottom: 2px solid #1a73e8;
       page-break-after: avoid;
+      text-indent: 0;
+      margin-left: 0;
     }
     
-    /* Section Headers (Section 1. Scope of Services) */
-    .section-header {
-      font-size: 13pt;
-      font-weight: bold;
-      color: #1a73e8;
-      margin-top: 20pt;
-      margin-bottom: 10pt;
-      page-break-after: avoid;
-    }
-    
-    /* Subsection Headers (1.1. Overview) */
+    /* Level 2: Subsection Headers - Bold, Black, Left-justified */
     .subsection-header {
       font-size: 11pt;
       font-weight: bold;
+      color: #000;
       margin-top: 14pt;
       margin-bottom: 6pt;
       page-break-after: avoid;
+      text-indent: 0;
+      margin-left: 0;
     }
     
-    /* Paragraph level (1.1.1) */
+    /* Level 3: Body Text/Paragraphs - Normal weight, Hanging indent for numbered items */
+    .paragraph-numbered {
+      font-size: 11pt;
+      font-weight: normal;
+      margin-bottom: 10pt;
+      line-height: 1.15;
+      margin-left: 0;
+      padding-left: 0.35in;
+      text-indent: -0.35in;
+    }
+    
     .paragraph-header {
       font-size: 11pt;
       font-weight: bold;
       display: inline;
     }
     
-    /* Regular paragraphs */
+    /* Regular paragraphs - Left-justified, no indent */
     p {
       margin-bottom: 10pt;
       text-align: left;
       line-height: 1.15;
       text-indent: 0;
+      margin-left: 0;
     }
     
     p.indented {
       margin-left: 0.25in;
+    }
+    
+    /* Level 4: Roman Sub-lists - Fully indented, lowercase roman numerals */
+    .list-item-roman {
+      font-size: 11pt;
+      font-weight: normal;
+      margin-bottom: 8pt;
+      line-height: 1.15;
+      margin-left: 0.5in;
+      padding-left: 0.35in;
+      text-indent: -0.35in;
+      list-style-type: none;
+    }
+    
+    .list-item-roman .list-marker {
+      display: inline-block;
+      width: 0.35in;
+      text-align: left;
     }
     
     /* Clause numbering */
@@ -1116,7 +1202,9 @@ function generateHTMLFromClauses(
     .inline-clause {
       margin-bottom: 10pt;
       line-height: 1.15;
-      margin-left: 0.25in;
+      margin-left: 0;
+      padding-left: 0.35in;
+      text-indent: -0.35in;
     }
     
     .inline-clause .clause-number {
