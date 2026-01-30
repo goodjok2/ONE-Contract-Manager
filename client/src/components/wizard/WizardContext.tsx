@@ -562,11 +562,14 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
         const projectId = parseInt(loadProjectId);
         
         // Fetch all data in parallel for efficiency
-        const [projectRes, clientRes, financialsRes, detailsRes] = await Promise.all([
+        const [projectRes, clientRes, financialsRes, detailsRes, warrantyRes, contractorsRes, unitsRes] = await Promise.all([
           fetch(`/api/projects/${projectId}`),
           fetch(`/api/projects/${projectId}/client`),
           fetch(`/api/projects/${projectId}/financials`),
           fetch(`/api/projects/${projectId}/details`),
+          fetch(`/api/projects/${projectId}/warranty-terms`),
+          fetch(`/api/projects/${projectId}/contractors`),
+          fetch(`/api/projects/${projectId}/units`),
         ]);
         
         if (!projectRes.ok) throw new Error('Failed to load project');
@@ -574,6 +577,9 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
         const client = clientRes.ok ? await clientRes.json() : null;
         const financials = financialsRes.ok ? await financialsRes.json() : null;
         const details = detailsRes.ok ? await detailsRes.json() : null;
+        const warranty = warrantyRes.ok ? await warrantyRes.json() : null;
+        const contractors = contractorsRes.ok ? await contractorsRes.json() : [];
+        const unitsData = unitsRes.ok ? await unitsRes.json() : [];
         
         // Build the project data from fetched data
         const loadedData: Partial<ProjectData> = {
@@ -606,21 +612,6 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
           loadedData.siteApn = details.deliveryApn || '';
           loadedData.totalUnits = details.totalUnits || 1;
           
-          // Build units array from details if home specs are available
-          if (details.homeModel || details.homeSqFt) {
-            const units = [];
-            for (let i = 0; i < (details.totalUnits || 1); i++) {
-              units.push({
-                id: i + 1,
-                model: details.homeModel || '',
-                squareFootage: details.homeSqFt || 1500,
-                bedrooms: details.homeBedrooms || 3,
-                bathrooms: details.homeBathrooms || 2,
-                price: 0, // Price not stored in details - user will need to re-enter
-              });
-            }
-            loadedData.units = units;
-          }
         }
         
         // Add financials if available - convert cents to dollars
@@ -662,10 +653,79 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
           }
         }
         
-        // Update wizard state with loaded data
+        // Load units from database, or build from details as fallback
+        if (unitsData && Array.isArray(unitsData) && unitsData.length > 0) {
+          loadedData.units = unitsData.map((u: any, index: number) => ({
+            id: index + 1,
+            model: u.modelName || u.model || '',
+            squareFootage: u.squareFootage || 1500,
+            bedrooms: u.bedrooms || 3,
+            bathrooms: u.bathrooms || 2,
+            price: u.basePrice ? u.basePrice / 100 : 0,
+          }));
+          loadedData.totalUnits = unitsData.length;
+        } else if (details && (details.homeModel || details.homeSqFt)) {
+          // Fallback: build units from project details if no units in DB
+          const totalUnits = details.totalUnits || 1;
+          const units = [];
+          for (let i = 0; i < totalUnits; i++) {
+            units.push({
+              id: i + 1,
+              model: details.homeModel || '',
+              squareFootage: details.homeSqFt || 1500,
+              bedrooms: details.homeBedrooms || 3,
+              bathrooms: details.homeBathrooms || 2,
+              price: 0,
+            });
+          }
+          loadedData.units = units;
+          loadedData.totalUnits = totalUnits;
+        }
+        
+        // Load warranty terms
+        if (warranty) {
+          loadedData.warrantyFitFinishMonths = warranty.warrantyFitFinishMonths || 12;
+          loadedData.warrantyBuildingEnvelopeMonths = warranty.warrantyBuildingEnvelopeMonths || 24;
+          loadedData.warrantyStructuralMonths = warranty.warrantyStructuralMonths || 120;
+          loadedData.warrantyStartDate = warranty.warrantyStartDate || '';
+          loadedData.arbitrationProvider = warranty.arbitrationProvider || 'JAMS';
+        }
+        
+        // Load contractor info
+        if (contractors && Array.isArray(contractors)) {
+          const manufacturer = contractors.find((c: any) => c.contractorType === 'manufacturer');
+          const onsiteContractor = contractors.find((c: any) => c.contractorType === 'onsite_general');
+          
+          if (manufacturer) {
+            loadedData.manufacturerName = manufacturer.legalName || '';
+            loadedData.manufacturerAddress = manufacturer.address || '';
+            loadedData.manufacturerEntityId = manufacturer.contractorEntityId || null;
+          }
+          
+          if (onsiteContractor) {
+            loadedData.onsiteContractorName = onsiteContractor.legalName || '';
+            loadedData.onsiteContractorAddress = onsiteContractor.address || '';
+            loadedData.onsiteContractorEntityId = onsiteContractor.contractorEntityId || null;
+          }
+        }
+        
+        // Load dates from details
+        if (details) {
+          loadedData.effectiveDate = details.agreementExecutionDate || '';
+          loadedData.targetDeliveryDate = details.estimatedDeliveryDate || '';
+          loadedData.manufacturingStartDate = details.productionStartDate || '';
+          loadedData.projectState = details.governingLawState || '';
+        }
+        
+        // For any resumed draft, mark all steps 1-8 as accessible
+        // This allows users to click on any step when resuming/editing
+        const stepsWithData = new Set<number>([1, 2, 3, 4, 5, 6, 7, 8]);
+        
+        // Update wizard state with loaded data AND completed steps
         setWizardState(prev => ({
           ...prev,
           projectData: { ...prev.projectData, ...loadedData },
+          completedSteps: stepsWithData,
         }));
         
         // Set draftProjectId so autosave updates this project instead of creating new one
@@ -871,19 +931,62 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
     // Need at least a project name to save
     if (!pd.projectName?.trim()) return;
     
-    // Check if data has actually changed
+    // Check if data has actually changed - include fields that are being saved
     const currentDataHash = JSON.stringify({
+      // Project basics
       projectName: pd.projectName,
       projectNumber: pd.projectNumber,
       serviceModel: pd.serviceModel,
-      clientLegalName: pd.clientLegalName,
-      clientEmail: pd.clientEmail,
+      // Site info (saved to project details)
       siteAddress: pd.siteAddress,
       siteCity: pd.siteCity,
       siteState: pd.siteState,
+      siteZip: pd.siteZip,
+      siteCounty: pd.siteCounty,
+      siteApn: pd.siteApn,
+      // Client info
+      clientLegalName: pd.clientLegalName,
+      clientEntityType: pd.clientEntityType,
+      clientAddress: pd.clientAddress,
+      clientCity: pd.clientCity,
+      clientState: pd.clientState,
+      clientZip: pd.clientZip,
+      clientEmail: pd.clientEmail,
+      clientPhone: pd.clientPhone,
+      clientSignerName: pd.clientSignerName,
+      clientSignerTitle: pd.clientSignerTitle,
+      // Contractors
+      manufacturerName: pd.manufacturerName,
+      manufacturerAddress: pd.manufacturerAddress,
+      manufacturerEntityId: pd.manufacturerEntityId,
+      onsiteContractorName: pd.onsiteContractorName,
+      onsiteContractorAddress: pd.onsiteContractorAddress,
+      onsiteContractorEntityId: pd.onsiteContractorEntityId,
+      // Financials
       designFee: pd.designFee,
+      designRevisionRounds: pd.designRevisionRounds,
       preliminaryOffsiteCost: pd.preliminaryOffsiteCost,
+      deliveryInstallationPrice: pd.deliveryInstallationPrice,
+      totalPreliminaryContractPrice: pd.totalPreliminaryContractPrice,
+      // Project details/dates
+      units: pd.units,
+      totalUnits: pd.totalUnits,
       effectiveDate: pd.effectiveDate,
+      targetDeliveryDate: pd.targetDeliveryDate,
+      manufacturingStartDate: pd.manufacturingStartDate,
+      projectState: pd.projectState,
+      projectCounty: pd.projectCounty,
+      // LLC
+      llcOption: pd.llcOption,
+      childLlcName: pd.childLlcName,
+      childLlcState: pd.childLlcState,
+      childLlcEin: pd.childLlcEin,
+      // Warranty
+      warrantyFitFinishMonths: pd.warrantyFitFinishMonths,
+      warrantyBuildingEnvelopeMonths: pd.warrantyBuildingEnvelopeMonths,
+      warrantyStructuralMonths: pd.warrantyStructuralMonths,
+      warrantyStartDate: pd.warrantyStartDate,
+      arbitrationProvider: pd.arbitrationProvider,
     });
     
     if (currentDataHash === lastSavedDataRef.current) return;
@@ -961,19 +1064,63 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
           await apiRequest('POST', `/api/projects/${projectId}/financials`, financialsPayload);
         }
         
-        // Save project details (site address, etc.)
-        if (pd.siteAddress) {
-          const detailsPayload = {
+        // Save project details (site address, dates, etc.)
+        const detailsPayload: Record<string, any> = {
+          projectId,
+          deliveryAddress: pd.siteAddress || null,
+          deliveryCity: pd.siteCity || null,
+          deliveryState: pd.siteState || null,
+          deliveryZip: pd.siteZip || null,
+          deliveryCounty: pd.siteCounty || null,
+          deliveryApn: pd.siteApn || null,
+          totalUnits: pd.totalUnits || 1,
+          agreementExecutionDate: pd.effectiveDate || null,
+          estimatedDeliveryDate: pd.targetDeliveryDate || null,
+          productionStartDate: pd.manufacturingStartDate || null,
+          governingLawState: pd.projectState || pd.siteState || null,
+          arbitrationLocation: pd.projectCounty ? `${pd.projectCounty}, ${pd.projectState}` : null,
+        };
+        // Add first unit details if available
+        if (pd.units && pd.units.length > 0) {
+          detailsPayload.homeModel = pd.units[0].model || null;
+          detailsPayload.homeSqFt = pd.units[0].squareFootage || null;
+          detailsPayload.homeBedrooms = pd.units[0].bedrooms || null;
+          detailsPayload.homeBathrooms = pd.units[0].bathrooms || null;
+        }
+        await apiRequest('PATCH', `/api/projects/${projectId}/details`, detailsPayload);
+        
+        
+        // Save manufacturer contractor (uses upsert on backend)
+        if (pd.manufacturerName) {
+          await apiRequest('POST', `/api/projects/${projectId}/contractors`, {
             projectId,
-            deliveryAddress: pd.siteAddress,
-            deliveryCity: pd.siteCity,
-            deliveryState: pd.siteState,
-            deliveryZip: pd.siteZip,
-            deliveryCounty: pd.siteCounty,
-            deliveryApn: pd.siteApn,
-            totalUnits: pd.totalUnits,
-          };
-          await apiRequest('PATCH', `/api/projects/${projectId}/details`, detailsPayload);
+            contractorType: 'manufacturer',
+            legalName: pd.manufacturerName,
+            address: pd.manufacturerAddress || '',
+            contractorEntityId: pd.manufacturerEntityId || null,
+          });
+        }
+        
+        // Save onsite contractor (uses upsert on backend)
+        if (pd.onsiteContractorName) {
+          await apiRequest('POST', `/api/projects/${projectId}/contractors`, {
+            projectId,
+            contractorType: 'onsite_general',
+            legalName: pd.onsiteContractorName,
+            address: pd.onsiteContractorAddress || '',
+            contractorEntityId: pd.onsiteContractorEntityId || null,
+          });
+        }
+        
+        // Save warranty terms (uses upsert on backend)
+        if (pd.warrantyFitFinishMonths || pd.warrantyBuildingEnvelopeMonths || pd.warrantyStructuralMonths) {
+          await apiRequest('PATCH', `/api/projects/${projectId}/warranty-terms`, {
+            warrantyFitFinishMonths: pd.warrantyFitFinishMonths || 12,
+            warrantyBuildingEnvelopeMonths: pd.warrantyBuildingEnvelopeMonths || 24,
+            warrantyStructuralMonths: pd.warrantyStructuralMonths || 120,
+            warrantyStartDate: pd.warrantyStartDate || null,
+            arbitrationProvider: pd.arbitrationProvider || 'JAMS',
+          });
         }
         
         // Save LLC if creating new one
