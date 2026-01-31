@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "../db/index";
 import { pool } from "../db";
-import { contracts, projects, clauses, projectUnits, homeModels, financials } from "../../shared/schema";
+import { contracts, projects, clauses, projectUnits, homeModels, financials, exhibits, stateDisclosures } from "../../shared/schema";
 import { eq, count, desc, and, sql } from "drizzle-orm";
 import { getProjectWithRelations } from "./helpers";
 import { mapProjectToVariables } from "../lib/mapper";
@@ -11,6 +11,8 @@ import fs from "fs";
 import multer from "multer";
 import { exec } from "child_process";
 import { promisify } from "util";
+// @ts-ignore - mammoth doesn't have type declarations
+import mammoth from "mammoth";
 
 const execAsync = promisify(exec);
 
@@ -59,51 +61,81 @@ router.post("/contracts/upload-template", templateUpload.single("template"), asy
 
     const filePath = req.file.path;
     const fileName = req.file.filename;
+    const objectType = req.body.objectType || "contract";
     
     console.log(`\n📤 Template uploaded: ${fileName}`);
     console.log(`   Path: ${filePath}`);
-    
-    // Derive contract type from filename
-    const contractType = fileName
-      .replace(/\.docx$/i, "")
-      .replace(/^Template[_-]?/i, "")
-      .replace(/[_-]/g, "_")
-      .toUpperCase()
-      .replace(/_+/g, "_")
-      .replace(/^_|_$/g, "");
-    
-    console.log(`   Contract type: ${contractType}`);
-    
-    // Run the ingestion script in single-file mode
-    console.log(`\n🔄 Running ingestion script for: ${filePath}`);
+    console.log(`   Object type: ${objectType}`);
     
     try {
-      const { stdout, stderr } = await execAsync(
-        `npx tsx scripts/ingest_standard_contracts.ts "${filePath}"`,
-        { cwd: process.cwd(), timeout: 120000 }
-      );
+      let itemsCreated = 0;
       
-      console.log("Ingestion output:", stdout);
-      if (stderr) console.error("Ingestion stderr:", stderr);
-      
-      // Count the blocks created for this contract type
-      const countResult = await db
-        .select({ count: sql<number>`count(*)::int` })
-        .from(clauses)
-        .where(eq(clauses.contractType, contractType));
-      
-      const blocksCreated = countResult[0]?.count || 0;
-      
-      res.json({
-        success: true,
-        message: `Template "${fileName}" processed successfully`,
-        contractType,
-        blocksCreated,
-        fileName,
-      });
+      if (objectType === "exhibit") {
+        // Process as Exhibit Library
+        itemsCreated = await ingestExhibitsFromDocument(filePath);
+        
+        res.json({
+          success: true,
+          message: `Successfully ingested ${itemsCreated} exhibits`,
+          objectType: "exhibit",
+          itemsCreated,
+          fileName,
+        });
+        
+      } else if (objectType === "state_disclosure") {
+        // Process as State Disclosure Library
+        itemsCreated = await ingestStateDisclosuresFromDocument(filePath);
+        
+        res.json({
+          success: true,
+          message: `Successfully ingested ${itemsCreated} state disclosures`,
+          objectType: "state_disclosure",
+          itemsCreated,
+          fileName,
+        });
+        
+      } else {
+        // Default: Process as Contract Agreement (clauses)
+        const contractType = fileName
+          .replace(/\.docx$/i, "")
+          .replace(/^Template[_-]?/i, "")
+          .replace(/[_-]/g, "_")
+          .toUpperCase()
+          .replace(/_+/g, "_")
+          .replace(/^_|_$/g, "");
+        
+        console.log(`   Contract type: ${contractType}`);
+        console.log(`\n🔄 Running ingestion script for: ${filePath}`);
+        
+        const { stdout, stderr } = await execAsync(
+          `npx tsx scripts/ingest_standard_contracts.ts "${filePath}"`,
+          { cwd: process.cwd(), timeout: 120000 }
+        );
+        
+        console.log("Ingestion output:", stdout);
+        if (stderr) console.error("Ingestion stderr:", stderr);
+        
+        // Count the blocks created for this contract type
+        const countResult = await db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(clauses)
+          .where(eq(clauses.contractType, contractType));
+        
+        itemsCreated = countResult[0]?.count || 0;
+        
+        res.json({
+          success: true,
+          message: `Successfully ingested ${itemsCreated} clauses`,
+          objectType: "contract",
+          contractType,
+          itemsCreated,
+          blocksCreated: itemsCreated, // Backwards compatibility
+          fileName,
+        });
+      }
       
     } catch (execError: any) {
-      console.error("Ingestion script failed:", execError);
+      console.error("Ingestion failed:", execError);
       
       // Clean up the uploaded file on failure
       if (fs.existsSync(filePath)) {
@@ -126,6 +158,355 @@ router.post("/contracts/upload-template", templateUpload.single("template"), asy
     });
   }
 });
+
+// ---------------------------------------------------------------------------
+// INLINE INGESTION FUNCTIONS
+// ---------------------------------------------------------------------------
+
+// Pattern for prefix stripping (removes manual numbers like "1.1.", "a.", "i.", etc.)
+const PREFIX_STRIP_PATTERN = /^(\d+(\.\d+)*|[a-z]\.|[ivx]+\.)\s+/i;
+// Pattern to detect notes to ignore (paragraphs starting with !!!!)
+const IGNORE_NOTES_PATTERN = /^!!!!.*/;
+// Pattern for exhibit headers
+const EXHIBIT_HEADER_PATTERN = /^EXHIBIT\s+([A-Z])[\s:.\-]+(.+)?$/i;
+// State patterns for disclosure parsing
+const STATE_HEADER_PATTERNS = [
+  { pattern: /^CALIFORNIA\b/i, code: "CA" },
+  { pattern: /^TEXAS\b/i, code: "TX" },
+  { pattern: /^ARIZONA\b/i, code: "AZ" },
+  { pattern: /^NEVADA\b/i, code: "NV" },
+  { pattern: /^OREGON\b/i, code: "OR" },
+  { pattern: /^WASHINGTON\b/i, code: "WA" },
+  { pattern: /^COLORADO\b/i, code: "CO" },
+  { pattern: /^FLORIDA\b/i, code: "FL" },
+  { pattern: /^NEW\s+YORK\b/i, code: "NY" },
+  { pattern: /^IDAHO\b/i, code: "ID" },
+  { pattern: /^UTAH\b/i, code: "UT" },
+  { pattern: /^MONTANA\b/i, code: "MT" },
+  { pattern: /^NORTH\s+CAROLINA\b/i, code: "NC" },
+  { pattern: /^SOUTH\s+CAROLINA\b/i, code: "SC" },
+  { pattern: /^GEORGIA\b/i, code: "GA" },
+  { pattern: /^TENNESSEE\b/i, code: "TN" },
+];
+
+function stripPrefix(text: string): string {
+  return text.replace(PREFIX_STRIP_PATTERN, "").trim();
+}
+
+function shouldIgnoreParagraph(text: string): boolean {
+  return IGNORE_NOTES_PATTERN.test(text.trim());
+}
+
+function extractTextFromElement(element: any): string {
+  if (element.type === "text") {
+    return element.value || "";
+  }
+  if (element.children) {
+    return element.children.map((child: any) => extractTextFromElement(child)).join("");
+  }
+  return "";
+}
+
+function getHtmlTagForLevel(level: number): { open: string; close: string } {
+  switch (level) {
+    case 1: return { open: '<h2 class="exhibit-section-1">', close: "</h2>" };
+    case 2: return { open: '<h3 class="exhibit-section-2">', close: "</h3>" };
+    case 3: return { open: '<h4 class="exhibit-clause">', close: "</h4>" };
+    case 4: return { open: '<h5 class="exhibit-subheader">', close: "</h5>" };
+    case 5: return { open: '<p class="exhibit-body">', close: "</p>" };
+    case 6: return { open: '<p class="exhibit-conspicuous"><strong>', close: "</strong></p>" };
+    case 7: return { open: '<li class="exhibit-list-item">', close: "</li>" };
+    default: return { open: "<p>", close: "</p>" };
+  }
+}
+
+function determineLevel(styleName: string, text: string): number {
+  const normalized = styleName.toLowerCase().trim();
+  
+  // Roman numeral list items
+  if (/^(i{1,3}|iv|vi{0,3}|ix|x{0,3})\.?\s+/i.test(text)) {
+    return 7;
+  }
+  
+  if (normalized.includes("heading 1") || normalized === "heading1" || normalized === "title") return 1;
+  if (normalized.includes("heading 2") || normalized === "heading2") return 2;
+  if (normalized.includes("heading 3") || normalized === "heading3") return 3;
+  if (normalized.includes("heading 4") || normalized === "heading4") return 4;
+  if (normalized.includes("heading 5") || normalized === "heading5") return 7;
+  if (normalized.includes("heading 6") || normalized === "heading6") return 6;
+  
+  return 5;
+}
+
+async function ingestExhibitsFromDocument(filePath: string): Promise<number> {
+  console.log(`\n📑 Ingesting Exhibits from: ${filePath}`);
+  
+  interface StyledParagraph {
+    style: string;
+    text: string;
+  }
+  
+  const styledParagraphs: StyledParagraph[] = [];
+  
+  await mammoth.convertToHtml(
+    { path: filePath },
+    {
+      transformDocument: (document: any) => {
+        const stack: any[] = [document];
+        while (stack.length > 0) {
+          const node = stack.pop();
+          if (node.type === "paragraph") {
+            const styleName = node.styleName || "Normal";
+            const textContent = extractTextFromElement(node);
+            if (textContent.trim() && !shouldIgnoreParagraph(textContent)) {
+              styledParagraphs.push({
+                style: styleName,
+                text: stripPrefix(textContent.trim()),
+              });
+            }
+          }
+          if (node.children) {
+            stack.push(...node.children);
+          }
+        }
+        return document;
+      },
+    }
+  );
+  
+  console.log(`   Found ${styledParagraphs.length} paragraphs`);
+  
+  // Parse exhibits
+  interface ParsedExhibit {
+    letter: string;
+    title: string;
+    content: string;
+    isDynamic: boolean;
+    disclosureCode: string | null;
+    contractTypes: string[];
+    sortOrder: number;
+  }
+  
+  const exhibitsList: ParsedExhibit[] = [];
+  let currentExhibit: ParsedExhibit | null = null;
+  let contentBuilder: string[] = [];
+  let inListContext = false;
+  let sortOrder = 1;
+  
+  for (const para of styledParagraphs) {
+    const headerMatch = para.text.match(EXHIBIT_HEADER_PATTERN);
+    
+    if (headerMatch) {
+      // Save previous exhibit
+      if (currentExhibit) {
+        if (inListContext) {
+          contentBuilder.push("</ul>");
+          inListContext = false;
+        }
+        currentExhibit.content = contentBuilder.join("\n");
+        currentExhibit.isDynamic = currentExhibit.letter === "G" || currentExhibit.letter === "H" ||
+          currentExhibit.title.toLowerCase().includes("state") ||
+          currentExhibit.content.includes("[STATE_DISCLOSURE:");
+        if (currentExhibit.content.includes("[STATE_DISCLOSURE:")) {
+          const codeMatch = currentExhibit.content.match(/\[STATE_DISCLOSURE:([A-Z0-9_]+)\]/);
+          currentExhibit.disclosureCode = codeMatch ? codeMatch[1] : null;
+        }
+        exhibitsList.push(currentExhibit);
+      }
+      
+      const letter = headerMatch[1].toUpperCase();
+      const title = (headerMatch[2] || "").trim().replace(/^[:.\-\s]+/, "").trim();
+      
+      currentExhibit = {
+        letter,
+        title: title || `Exhibit ${letter}`,
+        content: "",
+        isDynamic: false,
+        disclosureCode: null,
+        contractTypes: ["ONE", "MANUFACTURING", "ONSITE"],
+        sortOrder: sortOrder++,
+      };
+      contentBuilder = [];
+      inListContext = false;
+      
+      console.log(`   Found Exhibit ${letter}: ${title}`);
+      continue;
+    }
+    
+    if (currentExhibit) {
+      const level = determineLevel(para.style, para.text);
+      const tags = getHtmlTagForLevel(level);
+      
+      if (level === 7) {
+        if (!inListContext) {
+          contentBuilder.push('<ul class="exhibit-roman-list">');
+          inListContext = true;
+        }
+        contentBuilder.push(`${tags.open}${para.text}${tags.close}`);
+      } else {
+        if (inListContext) {
+          contentBuilder.push("</ul>");
+          inListContext = false;
+        }
+        contentBuilder.push(`${tags.open}${para.text}${tags.close}`);
+      }
+    }
+  }
+  
+  // Don't forget the last exhibit
+  if (currentExhibit) {
+    if (inListContext) {
+      contentBuilder.push("</ul>");
+    }
+    currentExhibit.content = contentBuilder.join("\n");
+    currentExhibit.isDynamic = currentExhibit.letter === "G" || currentExhibit.letter === "H" ||
+      currentExhibit.title.toLowerCase().includes("state") ||
+      currentExhibit.content.includes("[STATE_DISCLOSURE:");
+    exhibitsList.push(currentExhibit);
+  }
+  
+  if (exhibitsList.length === 0) {
+    console.log("   No exhibits found in document");
+    return 0;
+  }
+  
+  // Clear existing exhibits and insert new ones
+  console.log(`\n   Clearing existing exhibits...`);
+  await db.execute(sql`DELETE FROM exhibits`);
+  
+  console.log(`   Inserting ${exhibitsList.length} exhibits...`);
+  for (const exhibit of exhibitsList) {
+    await db.insert(exhibits).values({
+      letter: exhibit.letter,
+      title: exhibit.title,
+      content: exhibit.content,
+      isDynamic: exhibit.isDynamic,
+      disclosureCode: exhibit.disclosureCode,
+      contractTypes: exhibit.contractTypes,
+      sortOrder: exhibit.sortOrder,
+      isActive: true,
+    });
+  }
+  
+  console.log(`   ✓ Successfully ingested ${exhibitsList.length} exhibits`);
+  return exhibitsList.length;
+}
+
+async function ingestStateDisclosuresFromDocument(filePath: string): Promise<number> {
+  console.log(`\n📑 Ingesting State Disclosures from: ${filePath}`);
+  
+  interface StyledParagraph {
+    style: string;
+    text: string;
+  }
+  
+  const styledParagraphs: StyledParagraph[] = [];
+  
+  await mammoth.convertToHtml(
+    { path: filePath },
+    {
+      transformDocument: (document: any) => {
+        const stack: any[] = [document];
+        while (stack.length > 0) {
+          const node = stack.pop();
+          if (node.type === "paragraph") {
+            const styleName = node.styleName || "Normal";
+            const textContent = extractTextFromElement(node);
+            if (textContent.trim() && !shouldIgnoreParagraph(textContent)) {
+              styledParagraphs.push({
+                style: styleName,
+                text: stripPrefix(textContent.trim()),
+              });
+            }
+          }
+          if (node.children) {
+            stack.push(...node.children);
+          }
+        }
+        return document;
+      },
+    }
+  );
+  
+  console.log(`   Found ${styledParagraphs.length} paragraphs`);
+  
+  // Parse state disclosures - split on state headers
+  interface ParsedDisclosure {
+    code: string;
+    state: string;
+    content: string;
+  }
+  
+  const disclosuresList: ParsedDisclosure[] = [];
+  let currentState: string | null = null;
+  let contentBuilder: string[] = [];
+  const defaultCode = "EXHIBIT_G_CONTENT";
+  
+  function detectStateFromText(text: string): string | null {
+    for (const { pattern, code } of STATE_HEADER_PATTERNS) {
+      if (pattern.test(text)) {
+        return code;
+      }
+    }
+    return null;
+  }
+  
+  for (const para of styledParagraphs) {
+    const detectedState = detectStateFromText(para.text);
+    
+    if (detectedState) {
+      // Save previous state disclosure
+      if (currentState && contentBuilder.length > 0) {
+        disclosuresList.push({
+          code: defaultCode,
+          state: currentState,
+          content: contentBuilder.join("\n"),
+        });
+      }
+      
+      currentState = detectedState;
+      contentBuilder = [];
+      console.log(`   Found state section: ${detectedState}`);
+      continue;
+    }
+    
+    if (currentState) {
+      const level = determineLevel(para.style, para.text);
+      const tags = getHtmlTagForLevel(level);
+      contentBuilder.push(`${tags.open}${para.text}${tags.close}`);
+    }
+  }
+  
+  // Don't forget the last state
+  if (currentState && contentBuilder.length > 0) {
+    disclosuresList.push({
+      code: defaultCode,
+      state: currentState,
+      content: contentBuilder.join("\n"),
+    });
+  }
+  
+  if (disclosuresList.length === 0) {
+    console.log("   No state disclosures found in document");
+    return 0;
+  }
+  
+  // Clear existing disclosures with this code and insert new ones
+  console.log(`\n   Clearing existing disclosures with code '${defaultCode}'...`);
+  await db.execute(sql`DELETE FROM state_disclosures WHERE code = ${defaultCode}`);
+  
+  console.log(`   Inserting ${disclosuresList.length} state disclosures...`);
+  for (const disclosure of disclosuresList) {
+    await db.insert(stateDisclosures).values({
+      code: disclosure.code,
+      state: disclosure.state,
+      content: disclosure.content,
+    });
+  }
+  
+  console.log(`   ✓ Successfully ingested ${disclosuresList.length} state disclosures`);
+  return disclosuresList.length;
+}
 
 // Get list of existing templates
 router.get("/contracts/templates", async (req, res) => {

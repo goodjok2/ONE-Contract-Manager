@@ -4,6 +4,14 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
 import { Upload, FileText, Trash2, CheckCircle, Loader2, AlertCircle, ExternalLink } from "lucide-react";
@@ -36,8 +44,17 @@ interface Template {
   clauseCount: number;
 }
 
+type ObjectType = "contract" | "exhibit" | "state_disclosure";
+
+const OBJECT_TYPES = [
+  { value: "contract", label: "Contract Agreement", description: "Populates the Clause Library" },
+  { value: "exhibit", label: "Exhibit Library", description: "Populates the Exhibits table" },
+  { value: "state_disclosure", label: "State Disclosure Library", description: "Populates state-specific disclosures" },
+];
+
 export default function TemplatesUpload() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [objectType, setObjectType] = useState<ObjectType>("contract");
   const [isDragging, setIsDragging] = useState(false);
   const { toast } = useToast();
 
@@ -46,9 +63,10 @@ export default function TemplatesUpload() {
   });
 
   const uploadMutation = useMutation({
-    mutationFn: async (file: File) => {
+    mutationFn: async ({ file, objectType }: { file: File; objectType: ObjectType }) => {
       const formData = new FormData();
       formData.append("template", file);
+      formData.append("objectType", objectType);
       
       const response = await fetch("/api/contracts/upload-template", {
         method: "POST",
@@ -63,13 +81,16 @@ export default function TemplatesUpload() {
       return response.json();
     },
     onSuccess: (data) => {
+      const typeLabel = data.objectType === "exhibit" ? "exhibits" : 
+                        data.objectType === "state_disclosure" ? "state disclosures" : "clauses";
       toast({
-        title: "Template Processed",
-        description: `${data.contractType}: ${data.blocksCreated} clauses imported`,
+        title: "Import Successful",
+        description: `Successfully ingested ${data.itemsCreated} ${typeLabel}`,
       });
       setSelectedFile(null);
       queryClient.invalidateQueries({ queryKey: ["/api/contracts/templates"] });
       queryClient.invalidateQueries({ queryKey: ["/api/clauses"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/exhibits"] });
     },
     onError: (error: Error) => {
       toast({
@@ -146,7 +167,7 @@ export default function TemplatesUpload() {
 
   const handleUpload = () => {
     if (selectedFile) {
-      uploadMutation.mutate(selectedFile);
+      uploadMutation.mutate({ file: selectedFile, objectType });
     }
   };
 
@@ -167,14 +188,15 @@ export default function TemplatesUpload() {
   };
 
   const templates = templatesData?.templates || [];
+  const selectedTypeInfo = OBJECT_TYPES.find(t => t.value === objectType);
 
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold" data-testid="text-page-title">Import Contract Templates</h1>
+          <h1 className="text-2xl font-bold" data-testid="text-page-title">Import Templates</h1>
           <p className="text-muted-foreground">
-            Upload .docx contract templates to auto-ingest into the Clause Library
+            Upload .docx files to populate Clauses, Exhibits, or State Disclosures
           </p>
         </div>
         <Link href="/clause-library">
@@ -189,10 +211,34 @@ export default function TemplatesUpload() {
         <CardHeader>
           <CardTitle>Upload New Template</CardTitle>
           <CardDescription>
-            Drag and drop a .docx file or click to browse. The system will automatically parse the document structure and create clause entries.
+            Select the object type and upload a .docx file. The system will parse and route content to the appropriate database table.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="objectType">Object Type</Label>
+            <Select
+              value={objectType}
+              onValueChange={(value) => setObjectType(value as ObjectType)}
+            >
+              <SelectTrigger data-testid="select-object-type" className="w-full max-w-md">
+                <SelectValue placeholder="Select object type" />
+              </SelectTrigger>
+              <SelectContent>
+                {OBJECT_TYPES.map((type) => (
+                  <SelectItem key={type.value} value={type.value}>
+                    <div className="flex flex-col">
+                      <span>{type.label}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {selectedTypeInfo && (
+              <p className="text-sm text-muted-foreground">{selectedTypeInfo.description}</p>
+            )}
+          </div>
+
           <div
             className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
               isDragging
@@ -211,6 +257,9 @@ export default function TemplatesUpload() {
                   <p className="font-medium">{selectedFile.name}</p>
                   <p className="text-sm text-muted-foreground">{formatFileSize(selectedFile.size)}</p>
                 </div>
+                <Badge variant="secondary" className="text-sm">
+                  {selectedTypeInfo?.label}
+                </Badge>
                 <div className="flex gap-2">
                   <Button
                     onClick={handleUpload}
@@ -225,7 +274,7 @@ export default function TemplatesUpload() {
                     ) : (
                       <>
                         <Upload className="w-4 h-4 mr-2" />
-                        Process Contract
+                        Import {selectedTypeInfo?.label}
                       </>
                     )}
                   </Button>
@@ -261,9 +310,9 @@ export default function TemplatesUpload() {
             <div className="flex items-center gap-2 p-4 bg-muted rounded-lg">
               <Loader2 className="w-5 h-5 animate-spin text-primary" />
               <div>
-                <p className="font-medium">Processing template...</p>
+                <p className="font-medium">Processing {selectedTypeInfo?.label}...</p>
                 <p className="text-sm text-muted-foreground">
-                  Parsing document structure and creating clause entries. This may take a moment.
+                  Parsing document structure and creating entries. This may take a moment.
                 </p>
               </div>
             </div>
@@ -274,11 +323,20 @@ export default function TemplatesUpload() {
               <CheckCircle className="w-5 h-5 text-green-600" />
               <div>
                 <p className="font-medium text-green-800 dark:text-green-200">
-                  Successfully imported {uploadMutation.data.blocksCreated} clauses
+                  Successfully ingested {uploadMutation.data.itemsCreated}{" "}
+                  {uploadMutation.data.objectType === "exhibit" ? "exhibits" : 
+                   uploadMutation.data.objectType === "state_disclosure" ? "state disclosures" : "clauses"}
                 </p>
-                <Link href="/clause-library" className="text-green-700 dark:text-green-300 hover:underline text-sm font-medium">
-                  View in Clause Library
-                </Link>
+                {uploadMutation.data.objectType === "contract" && (
+                  <Link href="/clause-library" className="text-green-700 dark:text-green-300 hover:underline text-sm font-medium">
+                    View in Clause Library
+                  </Link>
+                )}
+                {uploadMutation.data.objectType === "exhibit" && (
+                  <Link href="/exhibits" className="text-green-700 dark:text-green-300 hover:underline text-sm font-medium">
+                    View in Exhibit Library
+                  </Link>
+                )}
               </div>
             </div>
           )}
@@ -287,7 +345,7 @@ export default function TemplatesUpload() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Existing Templates</CardTitle>
+          <CardTitle>Existing Contract Templates</CardTitle>
           <CardDescription>
             Templates currently in the system. Uploading a file with the same name will replace the existing template.
           </CardDescription>
