@@ -473,15 +473,16 @@ async function fetchClausesForContract(
   projectData: Record<string, any>
 ): Promise<Clause[]> {
   try {
-    // Contract types map from user-facing names to database values
-    // Database values are derived from template filenames (minus Template_ prefix)
+    // Contract types map from user-facing/internal names to database values
+    // Database stores human-readable names: 'ONE Agreement', 'Manufacturing Subcontract', 'OnSite Subcontract'
     const contractTypeMap: Record<string, string> = {
-      'ONE': 'ONE_AGREEMENT',
-      'ONE_AGREEMENT': 'ONE_AGREEMENT',
-      'MANUFACTURING': 'OFFSITE',
-      'OFFSITE': 'OFFSITE',
-      'ONSITE': 'ON_SITE',
-      'ON_SITE': 'ON_SITE',
+      'ONE': 'ONE Agreement',
+      'ONE_AGREEMENT': 'ONE Agreement',
+      'one_agreement': 'ONE Agreement',
+      'MANUFACTURING': 'Manufacturing Subcontract',
+      'manufacturing_sub': 'Manufacturing Subcontract',
+      'ONSITE': 'OnSite Subcontract',
+      'onsite_sub': 'OnSite Subcontract',
     };
     const mappedType = contractTypeMap[contractType] || contractType;
     
