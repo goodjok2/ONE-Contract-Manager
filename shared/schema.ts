@@ -434,6 +434,15 @@ export const clauses = pgTable("clauses", {
   updatedAt: timestamp("updated_at"),
 });
 
+export const stateDisclosures = pgTable("state_disclosures", {
+  id: serial("id").primaryKey(),
+  code: text("code").notNull(), // e.g., "WARRANTY_EXCLUSIVITY", "MECHANIC_LIEN"
+  state: text("state").notNull(), // e.g., "CA", "TX", "AZ"
+  content: text("content").notNull(), // The actual disclosure text
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at"),
+});
+
 export const contractVariables = pgTable("contract_variables", {
   id: serial("id").primaryKey(),
   variableName: text("variable_name").notNull().unique(), // e.g., "CLIENT_LEGAL_NAME"
