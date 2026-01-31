@@ -1293,6 +1293,152 @@ router.post("/contracts/download-pdf", async (req, res) => {
   }
 });
 
+// Draft Preview - Generate HTML preview of contract without PDF conversion
+// Uses the same data enrichment as the PDF route to ensure parity
+router.post("/contracts/draft-preview", async (req, res) => {
+  try {
+    const { contractType, projectId } = req.body;
+    
+    if (!contractType) {
+      return res.status(400).json({ error: "contractType is required" });
+    }
+    
+    if (!projectId) {
+      return res.status(400).json({ error: "projectId is required for draft preview" });
+    }
+    
+    // Get full project data
+    const fullProject = await getProjectWithRelations(projectId);
+    if (!fullProject) {
+      return res.status(404).json({ error: "Project not found" });
+    }
+    
+    const { mapProjectToVariables, formatCentsAsCurrency, centsToDollars } = await import('../lib/mapper');
+    const { calculateProjectPricing } = await import('../services/pricingEngine');
+    
+    // Calculate pricing FIRST (same as PDF route)
+    let pricingSummary: any = null;
+    try {
+      pricingSummary = await calculateProjectPricing(projectId);
+      console.log(`✓ Pricing calculated for preview: contractValue=${pricingSummary.contractValue}, paymentSchedule=${pricingSummary.paymentSchedule?.length || 0} items`);
+    } catch (pricingError) {
+      console.warn(`⚠️ Pricing engine error (using fallback):`, pricingError);
+    }
+    
+    // Map project to variables WITH pricingSummary (same as PDF route)
+    const projectData = mapProjectToVariables(fullProject, pricingSummary || undefined);
+    
+    console.log(`\n=== Generating ${contractType} DRAFT PREVIEW for project ${projectId} ===`);
+    console.log(`Project: ${projectData.PROJECT_NUMBER} - ${projectData.PROJECT_NAME}`);
+    console.log(`Service Model: ${projectData.ON_SITE_SELECTION}`);
+    
+    // Apply the same pricing/milestone/unit enrichment as PDF route
+    try {
+      const projectUnitsData = await db
+        .select({
+          unitLabel: projectUnits.unitLabel,
+          modelName: homeModels.name,
+        })
+        .from(projectUnits)
+        .innerJoin(homeModels, eq(projectUnits.modelId, homeModels.id))
+        .where(eq(projectUnits.projectId, projectId));
+      
+      if (pricingSummary && pricingSummary.unitCount > 0) {
+        projectData.DESIGN_FEE = centsToDollars(pricingSummary.breakdown.totalDesignFee);
+        projectData.DESIGN_FEE_WRITTEN = formatCentsAsCurrency(pricingSummary.breakdown.totalDesignFee);
+        projectData.PRELIM_OFFSITE = centsToDollars(pricingSummary.breakdown.totalOffsite);
+        projectData.PRELIM_OFFSITE_WRITTEN = formatCentsAsCurrency(pricingSummary.breakdown.totalOffsite);
+        projectData.PRELIMINARY_OFFSITE_PRICE = formatCentsAsCurrency(pricingSummary.breakdown.totalOffsite);
+        projectData.PRELIM_ONSITE = centsToDollars(pricingSummary.breakdown.totalOnsite);
+        projectData.PRELIM_ONSITE_WRITTEN = formatCentsAsCurrency(pricingSummary.breakdown.totalOnsite);
+        projectData.PRELIMINARY_ONSITE_PRICE = formatCentsAsCurrency(pricingSummary.breakdown.totalOnsite);
+        projectData.PRELIM_CONTRACT_PRICE = centsToDollars(pricingSummary.grandTotal);
+        projectData.PRELIM_CONTRACT_PRICE_WRITTEN = formatCentsAsCurrency(pricingSummary.grandTotal);
+        projectData.PRELIMINARY_CONTRACT_PRICE = formatCentsAsCurrency(pricingSummary.grandTotal);
+        projectData.PRELIMINARY_TOTAL_PRICE = formatCentsAsCurrency(pricingSummary.grandTotal);
+        projectData.FINAL_CONTRACT_PRICE = centsToDollars(pricingSummary.grandTotal);
+        projectData.FINAL_CONTRACT_PRICE_WRITTEN = formatCentsAsCurrency(pricingSummary.grandTotal);
+        projectData.CONTRACT_PRICE = formatCentsAsCurrency(pricingSummary.grandTotal);
+        
+        pricingSummary.paymentSchedule.forEach((milestone: { name: string; percentage: number; amount: number; phase?: string }, index: number) => {
+          const num = index + 1;
+          projectData[`MILESTONE_${num}_NAME`] = milestone.name;
+          projectData[`MILESTONE_${num}_PERCENT`] = `${milestone.percentage}%`;
+          projectData[`MILESTONE_${num}_AMOUNT`] = formatCentsAsCurrency(milestone.amount);
+          projectData[`MILESTONE_${num}_PHASE`] = milestone.phase || '';
+          projectData[`CLIENT_MILESTONE_${num}_NAME`] = milestone.name;
+          projectData[`CLIENT_MILESTONE_${num}_PERCENT`] = `${milestone.percentage}%`;
+          projectData[`CLIENT_MILESTONE_${num}_AMOUNT`] = formatCentsAsCurrency(milestone.amount);
+          
+          if (milestone.name === 'Retainage' || milestone.name.toLowerCase().includes('retainage')) {
+            projectData.RETAINAGE_PERCENT = `${milestone.percentage}%`;
+            projectData.RETAINAGE_AMOUNT = formatCentsAsCurrency(milestone.amount);
+          }
+        });
+        
+        const unitCounts: Record<string, { count: number; labels: string[] }> = {};
+        projectUnitsData.forEach((unit: { unitLabel: string; modelName: string }) => {
+          if (!unitCounts[unit.modelName]) {
+            unitCounts[unit.modelName] = { count: 0, labels: [] };
+          }
+          unitCounts[unit.modelName].count++;
+          unitCounts[unit.modelName].labels.push(unit.unitLabel);
+        });
+        
+        const unitSummaryParts = Object.entries(unitCounts).map(([model, data]) => 
+          `${data.count}x ${model} (${data.labels.join(', ')})`
+        );
+        const unitSummary = `${pricingSummary.unitCount} Unit${pricingSummary.unitCount !== 1 ? 's' : ''}: ${unitSummaryParts.join(', ')}`;
+        
+        projectData.HOME_MODEL = unitSummary;
+        projectData.UNIT_MODEL_LIST = pricingSummary.unitModelSummary || unitSummary;
+        projectData.TOTAL_UNITS = pricingSummary.unitCount;
+        
+        projectData.TOTAL_PROJECT_BUDGET = centsToDollars(pricingSummary.projectBudget);
+        projectData.TOTAL_PROJECT_BUDGET_WRITTEN = formatCentsAsCurrency(pricingSummary.projectBudget);
+        projectData.TOTAL_CONTRACT_PRICE = centsToDollars(pricingSummary.contractValue);
+        projectData.TOTAL_CONTRACT_PRICE_WRITTEN = formatCentsAsCurrency(pricingSummary.contractValue);
+        projectData.PRICING_SERVICE_MODEL = pricingSummary.serviceModel;
+        
+        projectData.CONTRACT_PRICE = formatCentsAsCurrency(pricingSummary.contractValue);
+        projectData.PRELIM_CONTRACT_PRICE = centsToDollars(pricingSummary.contractValue);
+        projectData.PRELIM_CONTRACT_PRICE_WRITTEN = formatCentsAsCurrency(pricingSummary.contractValue);
+        projectData.PRELIMINARY_CONTRACT_PRICE = formatCentsAsCurrency(pricingSummary.contractValue);
+        projectData.PRELIMINARY_TOTAL_PRICE = formatCentsAsCurrency(pricingSummary.contractValue);
+        projectData.FINAL_CONTRACT_PRICE = centsToDollars(pricingSummary.contractValue);
+        projectData.FINAL_CONTRACT_PRICE_WRITTEN = formatCentsAsCurrency(pricingSummary.contractValue);
+        
+        console.log(`Preview Pricing: Contract Value = ${formatCentsAsCurrency(pricingSummary.contractValue)}, Units = ${pricingSummary.unitCount}`);
+      }
+    } catch (pricingError) {
+      console.warn('Pricing enrichment failed for preview, using base values:', pricingError);
+    }
+    
+    // Generate HTML (not PDF)
+    const { generateContract } = await import('../lib/contractGenerator');
+    
+    const buffer = await generateContract({
+      contractType: contractType as 'ONE' | 'MANUFACTURING' | 'ONSITE',
+      projectData,
+      format: 'html'
+    });
+    
+    const html = buffer.toString('utf-8');
+    
+    console.log(`Generated ${contractType} draft preview: ${html.length} chars`);
+    
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
+    
+  } catch (error) {
+    console.error("Error generating draft preview:", error);
+    res.status(500).json({ 
+      error: "Failed to generate preview",
+      message: error instanceof Error ? error.message : "Unknown error"
+    });
+  }
+});
+
 router.post("/contracts/compare-service-models", async (req, res) => {
   try {
     const { projectData } = req.body;

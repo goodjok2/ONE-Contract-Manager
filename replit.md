@@ -120,6 +120,12 @@ The application is built on a modern full-stack architecture.
     - Schema: Added `disclosure_code` and `service_model_condition` columns to clauses table
     - Detection functions: `detectStateDisclosure()`, `detectServiceModel()`, `stripPrefix()`, `shouldIgnoreParagraph()`
     - Run: `npx tsx scripts/ingest_standard_contracts.ts <path-to-file.docx>`
+- **State Disclosure Double-Lookup System (Jan 31, 2026)**:
+    - Table `state_disclosures` with columns: `id`, `code`, `state`, `content`
+    - Dynamic lookup: When renderer hits `block_type='dynamic_disclosure'`, looks up `disclosure_code` + `PROJECT_STATE` in table
+    - Missing disclosure warning: Red text "[MISSING LEGAL DISCLOSURE: {code} for {state}]" if not found
+    - Seeded: `WARRANTY_EXCLUSIVITY` for CA (Song-Beverly Consumer Warranty Act)
+    - API endpoint: `POST /api/contracts/draft-preview` returns HTML preview without PDF conversion
 - **4-Level Hierarchical Styling (Jan 30, 2026)**:
     - "Clean Look" CSS styling with 4 hierarchy levels in PDF contracts:
         - Level 1 (hierarchy_level 1): Section headers - Bold, blue (#1a73e8), uppercase, blue underline

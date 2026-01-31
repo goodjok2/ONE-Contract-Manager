@@ -18,7 +18,66 @@ interface Clause {
   variables_used?: string[];
   sort_order: number;
   parent_clause_id?: number | null;
-  block_type?: 'section' | 'clause' | 'paragraph' | 'table' | 'list_item';
+  block_type?: 'section' | 'clause' | 'paragraph' | 'table' | 'list_item' | 'dynamic_disclosure' | 'conspicuous';
+  disclosure_code?: string;
+  service_model_condition?: string;
+}
+
+// State disclosure cache for performance
+let stateDisclosureCache: Map<string, string> = new Map();
+
+// Current project state for disclosure lookups (set during generation)
+let currentProjectState: string = '';
+
+/**
+ * Look up state disclosure from the database
+ * Returns content if found, or a missing disclosure warning
+ */
+async function lookupStateDisclosure(disclosureCode: string, state: string): Promise<string> {
+  const cacheKey = `${disclosureCode}:${state}`;
+  
+  // Check cache first
+  if (stateDisclosureCache.has(cacheKey)) {
+    return stateDisclosureCache.get(cacheKey)!;
+  }
+  
+  try {
+    const { db } = await import('../db');
+    const { stateDisclosures } = await import('@shared/schema');
+    const { eq, and } = await import('drizzle-orm');
+    
+    const result = await db.select()
+      .from(stateDisclosures)
+      .where(and(
+        eq(stateDisclosures.code, disclosureCode),
+        eq(stateDisclosures.state, state)
+      ))
+      .limit(1);
+    
+    if (result.length > 0 && result[0].content) {
+      stateDisclosureCache.set(cacheKey, result[0].content);
+      return result[0].content;
+    } else {
+      // Return missing disclosure warning
+      const missing = `<div class="missing-disclosure">[MISSING LEGAL DISCLOSURE: ${disclosureCode} for ${state}]</div>`;
+      stateDisclosureCache.set(cacheKey, missing);
+      return missing;
+    }
+  } catch (error) {
+    console.error(`Error looking up state disclosure ${disclosureCode} for ${state}:`, error);
+    return `<div class="missing-disclosure">[ERROR LOADING DISCLOSURE: ${disclosureCode} for ${state}]</div>`;
+  }
+}
+
+/**
+ * Synchronous version for use in rendering (uses pre-loaded cache)
+ */
+function getStateDisclosureSync(disclosureCode: string, state: string): string {
+  const cacheKey = `${disclosureCode}:${state}`;
+  if (stateDisclosureCache.has(cacheKey)) {
+    return stateDisclosureCache.get(cacheKey)!;
+  }
+  return `<div class="missing-disclosure">[MISSING LEGAL DISCLOSURE: ${disclosureCode} for ${state}]</div>`;
 }
 
 // Tree node for recursive block structure
@@ -41,6 +100,22 @@ export async function generateContract(options: ContractGenerationOptions): Prom
   // Extract project state for state-specific filtering
   const projectState = projectData.PROJECT_STATE || projectData.state || projectData.siteState || '';
   console.log(`📍 Project state for filtering: ${projectState || '(none)'}`);
+  
+  // Set current project state for disclosure lookups
+  currentProjectState = projectState;
+  
+  // Step 1.5: Preload state disclosures for dynamic_disclosure blocks
+  const disclosureCodes = clauses
+    .filter(c => c.block_type === 'dynamic_disclosure' && c.disclosure_code)
+    .map(c => c.disclosure_code as string);
+  
+  if (disclosureCodes.length > 0 && projectState) {
+    console.log(`📋 Preloading ${disclosureCodes.length} state disclosures for ${projectState}...`);
+    for (const code of disclosureCodes) {
+      await lookupStateDisclosure(code, projectState);
+    }
+    console.log(`✓ Preloaded state disclosures`);
+  }
   
   // Step 2: Build recursive block tree with state filtering
   const blockTree = buildBlockTree(clauses, projectState);
@@ -150,10 +225,12 @@ function buildBlockTree(clauses: Clause[], projectState?: string): BlockNode[] {
 /**
  * Apply dynamic numbering to the block tree
  * Uses hierarchy_level from the clause data (not recursion depth) to determine format:
- * - hierarchy_level 1: Section X or Roman (I, II, III) for major sections
- * - hierarchy_level 2: X.X (e.g., 1.1, 1.2) - subsections
- * - hierarchy_level 3: X.X.X (e.g., 1.1.1) or simple numbered paragraphs
- * - hierarchy_level 4+: i., ii., iii. (lowercase Roman numerals for list items)
+ * - hierarchy_level 1: Upper Roman (I, II, III) for Agreement Parts
+ * - hierarchy_level 2: Section X (e.g., Section 1, Section 2) for Major Sections
+ * - hierarchy_level 3: X.X (e.g., 1.1, 2.3) for Clauses - dot-notation
+ * - hierarchy_level 4: X.X.X (e.g., 1.1.1) for Sub-headers - dot-notation
+ * - hierarchy_level 5-6: No numbering (body text and conspicuous)
+ * - hierarchy_level 7: i., ii., iii. (lowercase Roman numerals for list items)
  * Auto-renumbers when blocks are hidden
  */
 function applyDynamicNumbering(nodes: BlockNode[], parentNumber: string = '', level: number = 0): void {
@@ -172,7 +249,7 @@ function applyDynamicNumbering(nodes: BlockNode[], parentNumber: string = '', le
     let number: string;
     
     if (hierarchyLevel === 1) {
-      // Level 1: Check if it's a Roman numeral section
+      // Level 1: Upper Roman for Agreement Parts (I, II, III)
       const clauseName = node.clause.name || '';
       const clauseCode = node.clause.clause_code || '';
       const isRomanSection = /^[IVX]+\.?\s/.test(clauseCode) || /^[IVX]+\.?\s/.test(clauseName);
@@ -182,15 +259,18 @@ function applyDynamicNumbering(nodes: BlockNode[], parentNumber: string = '', le
       } else {
         number = String(visibleIndex);
       }
-    } else if (hierarchyLevel >= 4 || blockType === 'list_item') {
-      // Level 4+: Lowercase Roman numerals for list items
+    } else if (hierarchyLevel === 5 || hierarchyLevel === 6) {
+      // Levels 5-6: No numbering (body text and conspicuous)
+      number = '';
+    } else if (hierarchyLevel === 7 || blockType === 'list_item') {
+      // Level 7 ONLY: Lowercase Roman numerals for Roman Lists (i., ii., iii.)
       number = toLowerRoman(visibleIndex);
     } else {
-      // Levels 2-3: Parent.Child format (e.g., 1.1, 1.1.1)
+      // Levels 2-4: Parent.Child format (e.g., 1, 1.1, 1.1.1)
       number = parentNumber ? `${parentNumber}.${visibleIndex}` : String(visibleIndex);
     }
     
-    node.dynamicNumber = number;
+    node.dynamicNumber = number || undefined;
     
     // Recursively number children
     if (node.children.length > 0) {
@@ -490,6 +570,7 @@ function renderBlockTreeHTML(nodes: BlockNode[], projectData: Record<string, any
 /**
  * Render a single block node and its children recursively
  * Uses both block_type and hierarchy_level to determine rendering format
+ * Supports 8-level hierarchy: Agreement Parts, Major Sections, Clauses, Sub-headers, Body, Conspicuous, Roman Lists
  */
 function renderBlockNode(node: BlockNode): string {
   const { clause, children, dynamicNumber } = node;
@@ -498,6 +579,7 @@ function renderBlockNode(node: BlockNode): string {
   const rawContent = clause.content || '';
   const clauseName = clause.name || '';
   const clauseCode = clause.clause_code || '';
+  const disclosureCode = clause.disclosure_code || '';
   
   // Strip duplicate headers and format content
   const strippedContent = stripDuplicateHeader(rawContent, clauseName, clauseCode);
@@ -514,50 +596,66 @@ function renderBlockNode(node: BlockNode): string {
     html += `<div style="page-break-before: always;"></div>`;
   }
   
-  // Render based on block_type
-  if (blockType === 'section') {
-    if (isRomanSection) {
-      // Roman numeral section header (I. ATTACHMENTS, II. AGREEMENT)
+  // Handle dynamic_disclosure blocks - look up content from state_disclosures table
+  if (blockType === 'dynamic_disclosure') {
+    if (disclosureCode && currentProjectState) {
+      const disclosureContent = getStateDisclosureSync(disclosureCode, currentProjectState);
+      html += `<div class="level-${hierarchyLevel}">${disclosureContent}</div>`;
+    } else if (disclosureCode) {
+      html += `<div class="missing-disclosure">[MISSING STATE: Cannot look up disclosure ${disclosureCode} without PROJECT_STATE]</div>`;
+    }
+    // Fall through to render children
+  }
+  // Handle conspicuous blocks - entirely bold legal disclaimers
+  else if (blockType === 'conspicuous') {
+    html += `<div class="level-6 conspicuous">${content}</div>`;
+  }
+  // Render based on block_type and hierarchy_level
+  else if (blockType === 'section') {
+    if (hierarchyLevel === 1 || isRomanSection) {
+      // Level 1: Agreement Parts - Center-aligned, Upper Roman (I, II, III)
       html += `
-        <div class="roman-section">
+        <div class="level-1 roman-section">
           ${dynamicNumber ? `${dynamicNumber}. ` : ''}${escapeHtml(clauseName.replace(/^[IVX]+\.?\s*/, '').toUpperCase())}
         </div>
         ${content ? `<p>${content}</p>` : ''}
       `;
     } else {
-      // Regular section header (Section 1. Scope of Services)
+      // Level 2: Major Sections - Blue, Bold, "Section X. "
       const displayName = clauseName.replace(/^Section\s*\d+\.?\s*/i, '');
       html += `
-        <div class="section-header">
+        <div class="level-2 subsection-header">
           ${dynamicNumber ? `Section ${dynamicNumber}. ` : ''}${escapeHtml(displayName)}
         </div>
         ${content ? `<p>${content}</p>` : ''}
       `;
     }
   } else if (blockType === 'clause') {
-    // Subsection/clause header (1.1. Overview)
+    // Level 3: Clauses - Black, Bold, Dot-notation (1.1, 2.3)
     const displayName = clauseName.replace(/^\d+\.\d+\.?\s*/i, '');
     html += `
-      <div class="subsection-header">
+      <div class="level-3 clause-header">
         ${dynamicNumber ? `${dynamicNumber}. ` : ''}${escapeHtml(displayName)}
       </div>
       ${content ? `<p>${content}</p>` : ''}
     `;
   } else if (blockType === 'paragraph') {
-    // Level 3: Paragraph level with hanging indent for numbered items
-    if (dynamicNumber) {
+    // Level 4 or 5 depending on hierarchy
+    if (hierarchyLevel <= 4 && dynamicNumber) {
+      // Level 4: Sub-headers with dot-notation (1.1.1)
       html += `
-        <div class="paragraph-numbered">
+        <div class="level-4 paragraph-numbered">
           <span class="clause-number">${dynamicNumber}.</span> ${content}
         </div>
       `;
     } else {
-      html += `<p class="indented">${content}</p>`;
+      // Level 5: Body text with hanging indent
+      html += `<div class="level-5">${content}</div>`;
     }
   } else if (blockType === 'list_item') {
-    // Level 4: Roman numeral list items - fully indented
+    // Level 7: Roman numeral list items - Margin-Left: 60pt
     html += `
-      <div class="list-item-roman">
+      <div class="level-7 list-item-roman">
         <span class="list-marker">${dynamicNumber}.</span>${content}
       </div>
     `;
@@ -566,23 +664,24 @@ function renderBlockNode(node: BlockNode): string {
     html += content;
   } else {
     // Default: Use hierarchy_level as fallback for rendering decision
-    // Level 3+ without explicit block_type should use paragraph-numbered style
-    if (hierarchyLevel >= 4) {
-      // Level 4+: Render as list item with Roman numeral
-      html += `
-        <div class="list-item-roman">
-          <span class="list-marker">${dynamicNumber}.</span>${content}
-        </div>
-      `;
-    } else if (hierarchyLevel === 3 && dynamicNumber) {
-      // Level 3: Render as numbered paragraph with hanging indent
-      html += `
-        <div class="paragraph-numbered">
-          <span class="clause-number">${dynamicNumber}.</span> ${content}
-        </div>
-      `;
+    if (hierarchyLevel === 1) {
+      html += `<div class="level-1">${dynamicNumber ? `${dynamicNumber}. ` : ''}${escapeHtml(clauseName.toUpperCase())}</div>`;
+      if (content) html += `<p>${content}</p>`;
+    } else if (hierarchyLevel === 2) {
+      html += `<div class="level-2">${dynamicNumber ? `Section ${dynamicNumber}. ` : ''}${escapeHtml(clauseName)}</div>`;
+      if (content) html += `<p>${content}</p>`;
+    } else if (hierarchyLevel === 3) {
+      html += `<div class="level-3">${dynamicNumber ? `${dynamicNumber}. ` : ''}${escapeHtml(clauseName)}</div>`;
+      if (content) html += `<p>${content}</p>`;
+    } else if (hierarchyLevel === 4) {
+      html += `<div class="level-4 paragraph-numbered"><span class="clause-number">${dynamicNumber}.</span> ${content}</div>`;
+    } else if (hierarchyLevel === 5) {
+      html += `<div class="level-5">${content}</div>`;
+    } else if (hierarchyLevel === 6) {
+      html += `<div class="level-6 conspicuous">${content}</div>`;
+    } else if (hierarchyLevel === 7) {
+      html += `<div class="level-7 list-item-roman"><span class="list-marker">${dynamicNumber}.</span>${content}</div>`;
     } else if (clauseName && clauseName.trim() && content) {
-      // Default inline content with header
       html += `
         <div class="inline-clause">
           <span style="font-weight: bold;">${dynamicNumber ? `${dynamicNumber}. ` : ''}${escapeHtml(clauseName)}.</span>
@@ -704,40 +803,58 @@ function getContractStyles(): string {
       font-size: 10pt;
     }
     
-    /* === CLEAN LOOK HIERARCHICAL STYLING === */
+    /* === 8-LEVEL HIERARCHICAL STYLING === */
     
-    /* Level 1: Section Headers - Bold, Blue, Uppercase, Left-justified */
+    /* Level 1 (H1): Agreement Parts - Blue, Bold, Center-align, Upper Roman (I, II, III) */
+    .level-1,
     .roman-section,
     .section-header {
-      font-size: 13pt;
+      font-size: 14pt;
       font-weight: bold;
       color: #1a73e8;
       text-transform: uppercase;
-      margin-top: 24pt;
-      margin-bottom: 12pt;
-      padding-bottom: 4pt;
+      text-align: center;
+      margin-top: 28pt;
+      margin-bottom: 14pt;
+      padding-bottom: 6pt;
       border-bottom: 2px solid #1a73e8;
       page-break-after: avoid;
       text-indent: 0;
       margin-left: 0;
     }
     
-    /* Level 2: Subsection Headers - Bold, Black, Left-justified */
+    /* Level 2 (H2): Major Sections - Blue, Bold, Prefix "Section X. " */
+    .level-2,
     .subsection-header {
-      font-size: 11pt;
+      font-size: 12pt;
       font-weight: bold;
-      color: #000;
-      margin-top: 14pt;
-      margin-bottom: 6pt;
+      color: #1a73e8;
+      margin-top: 20pt;
+      margin-bottom: 10pt;
       page-break-after: avoid;
       text-indent: 0;
       margin-left: 0;
     }
     
-    /* Level 3: Body Text/Paragraphs - Normal weight, Hanging indent for numbered items */
+    /* Level 3: Clauses - Black, Bold, Dot-notation (1.1, 2.3) */
+    .level-3,
+    .clause-header {
+      font-size: 11pt;
+      font-weight: bold;
+      color: #000;
+      margin-top: 14pt;
+      margin-bottom: 8pt;
+      page-break-after: avoid;
+      text-indent: 0;
+      margin-left: 0;
+    }
+    
+    /* Level 4: Sub-headers - Black, Bold, Dot-notation (1.1.1) */
+    .level-4,
     .paragraph-numbered {
       font-size: 11pt;
-      font-weight: normal;
+      font-weight: bold;
+      color: #000;
       margin-bottom: 10pt;
       line-height: 1.15;
       margin-left: 0;
@@ -749,6 +866,18 @@ function getContractStyles(): string {
       font-size: 11pt;
       font-weight: bold;
       display: inline;
+    }
+    
+    /* Level 5: Body Text - Left-flush, Hanging indent */
+    .level-5 {
+      font-size: 11pt;
+      font-weight: normal;
+      margin-bottom: 10pt;
+      text-align: left;
+      line-height: 1.15;
+      text-indent: 0;
+      margin-left: 0;
+      padding-left: 0.35in;
     }
     
     /* Regular paragraphs - Left-justified, no indent */
@@ -764,13 +893,28 @@ function getContractStyles(): string {
       margin-left: 0.25in;
     }
     
-    /* Level 4: Roman Sub-lists - Fully indented, lowercase roman numerals */
+    /* Level 6: Conspicuous/Legal Disclaimers - Left-flush, Hanging indent, ENTIRELY BOLD */
+    .level-6,
+    .conspicuous {
+      font-size: 11pt;
+      font-weight: bold;
+      margin-bottom: 10pt;
+      text-align: left;
+      line-height: 1.15;
+      text-indent: 0;
+      margin-left: 0;
+      padding-left: 0.35in;
+      text-transform: none;
+    }
+    
+    /* Level 7 (H5): Roman Lists - Margin-Left: 60pt, Lower Roman (i., ii., iii.) */
+    .level-7,
     .list-item-roman {
       font-size: 11pt;
       font-weight: normal;
       margin-bottom: 8pt;
       line-height: 1.15;
-      margin-left: 0.5in;
+      margin-left: 60pt;
       padding-left: 0.35in;
       text-indent: -0.35in;
       list-style-type: none;
@@ -780,6 +924,16 @@ function getContractStyles(): string {
       display: inline-block;
       width: 0.35in;
       text-align: left;
+    }
+    
+    /* Dynamic Disclosure - Missing disclosure warning */
+    .missing-disclosure {
+      color: #cc0000;
+      font-weight: bold;
+      background-color: #fff0f0;
+      padding: 8pt;
+      border: 1px dashed #cc0000;
+      margin: 10pt 0;
     }
     
     /* Clause numbering */
@@ -1138,40 +1292,58 @@ function generateHTMLFromClauses(
       font-size: 10pt;
     }
     
-    /* === CLEAN LOOK HIERARCHICAL STYLING === */
+    /* === 8-LEVEL HIERARCHICAL STYLING === */
     
-    /* Level 1: Section Headers - Bold, Blue, Uppercase, Left-justified */
+    /* Level 1 (H1): Agreement Parts - Blue, Bold, Center-align, Upper Roman (I, II, III) */
+    .level-1,
     .roman-section,
     .section-header {
-      font-size: 13pt;
+      font-size: 14pt;
       font-weight: bold;
       color: #1a73e8;
       text-transform: uppercase;
-      margin-top: 24pt;
-      margin-bottom: 12pt;
-      padding-bottom: 4pt;
+      text-align: center;
+      margin-top: 28pt;
+      margin-bottom: 14pt;
+      padding-bottom: 6pt;
       border-bottom: 2px solid #1a73e8;
       page-break-after: avoid;
       text-indent: 0;
       margin-left: 0;
     }
     
-    /* Level 2: Subsection Headers - Bold, Black, Left-justified */
+    /* Level 2 (H2): Major Sections - Blue, Bold, Prefix "Section X. " */
+    .level-2,
     .subsection-header {
-      font-size: 11pt;
+      font-size: 12pt;
       font-weight: bold;
-      color: #000;
-      margin-top: 14pt;
-      margin-bottom: 6pt;
+      color: #1a73e8;
+      margin-top: 20pt;
+      margin-bottom: 10pt;
       page-break-after: avoid;
       text-indent: 0;
       margin-left: 0;
     }
     
-    /* Level 3: Body Text/Paragraphs - Normal weight, Hanging indent for numbered items */
+    /* Level 3: Clauses - Black, Bold, Dot-notation (1.1, 2.3) */
+    .level-3,
+    .clause-header {
+      font-size: 11pt;
+      font-weight: bold;
+      color: #000;
+      margin-top: 14pt;
+      margin-bottom: 8pt;
+      page-break-after: avoid;
+      text-indent: 0;
+      margin-left: 0;
+    }
+    
+    /* Level 4: Sub-headers - Black, Bold, Dot-notation (1.1.1) */
+    .level-4,
     .paragraph-numbered {
       font-size: 11pt;
-      font-weight: normal;
+      font-weight: bold;
+      color: #000;
       margin-bottom: 10pt;
       line-height: 1.15;
       margin-left: 0;
@@ -1183,6 +1355,18 @@ function generateHTMLFromClauses(
       font-size: 11pt;
       font-weight: bold;
       display: inline;
+    }
+    
+    /* Level 5: Body Text - Left-flush, Hanging indent */
+    .level-5 {
+      font-size: 11pt;
+      font-weight: normal;
+      margin-bottom: 10pt;
+      text-align: left;
+      line-height: 1.15;
+      text-indent: 0;
+      margin-left: 0;
+      padding-left: 0.35in;
     }
     
     /* Regular paragraphs - Left-justified, no indent */
@@ -1198,13 +1382,28 @@ function generateHTMLFromClauses(
       margin-left: 0.25in;
     }
     
-    /* Level 4: Roman Sub-lists - Fully indented, lowercase roman numerals */
+    /* Level 6: Conspicuous/Legal Disclaimers - Left-flush, Hanging indent, ENTIRELY BOLD */
+    .level-6,
+    .conspicuous {
+      font-size: 11pt;
+      font-weight: bold;
+      margin-bottom: 10pt;
+      text-align: left;
+      line-height: 1.15;
+      text-indent: 0;
+      margin-left: 0;
+      padding-left: 0.35in;
+      text-transform: none;
+    }
+    
+    /* Level 7 (H5): Roman Lists - Margin-Left: 60pt, Lower Roman (i., ii., iii.) */
+    .level-7,
     .list-item-roman {
       font-size: 11pt;
       font-weight: normal;
       margin-bottom: 8pt;
       line-height: 1.15;
-      margin-left: 0.5in;
+      margin-left: 60pt;
       padding-left: 0.35in;
       text-indent: -0.35in;
       list-style-type: none;
@@ -1214,6 +1413,16 @@ function generateHTMLFromClauses(
       display: inline-block;
       width: 0.35in;
       text-align: left;
+    }
+    
+    /* Dynamic Disclosure - Missing disclosure warning */
+    .missing-disclosure {
+      color: #cc0000;
+      font-weight: bold;
+      background-color: #fff0f0;
+      padding: 8pt;
+      border: 1px dashed #cc0000;
+      margin: 10pt 0;
     }
     
     /* Clause numbering */
