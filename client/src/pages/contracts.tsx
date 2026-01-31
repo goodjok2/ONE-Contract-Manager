@@ -46,8 +46,14 @@ export default function Contracts() {
       'one_agreement': 'ONE',
       'manufacturing_sub': 'MANUFACTURING',
       'onsite_sub': 'ONSITE',
+      'ONE Agreement': 'ONE',
+      'Manufacturing Subcontract': 'MANUFACTURING',
+      'OnSite Subcontract': 'ONSITE',
+      'ONE': 'ONE',
+      'MANUFACTURING': 'MANUFACTURING',
+      'ONSITE': 'ONSITE',
     };
-    return typeMap[type] || type;
+    return typeMap[type] || 'ONE';
   };
 
   const handleHtmlPreview = async (projectId: number, contractType: string, contractId: number) => {

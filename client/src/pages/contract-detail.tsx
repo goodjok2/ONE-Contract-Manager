@@ -280,6 +280,9 @@ export default function ContractDetail() {
       'MANUFACTURING': 'MANUFACTURING',
       'onsite_sub': 'ONSITE',
       'ONSITE': 'ONSITE',
+      'ONE Agreement': 'ONE',
+      'Manufacturing Subcontract': 'MANUFACTURING',
+      'OnSite Subcontract': 'ONSITE',
     };
     return typeMap[contractType] || 'ONE';
   };
