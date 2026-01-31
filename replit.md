@@ -111,6 +111,15 @@ The application is built on a modern full-stack architecture.
     - Run script: `npx tsx scripts/sync_variables.ts`
     - UI displays unregistered variables (used in clauses but not in registry) with warning icons
     - "Register" button allows quick addition of unregistered variables to the registry
+- **8-Level Smart Logic Ingestor (Jan 31, 2026)**:
+    - Style-to-Level Mapping: Heading 1→Level 1 (Agreement Parts), Heading 2→Level 2 (Major Sections), Heading 3→Level 3 (Clauses), Heading 4→Level 4 (Sub-headers), Normal→Level 5 (Body), Heading 6→Level 6 (Conspicuous), Heading 5→Level 7 (Roman Lists)
+    - Smart Tag Detection:
+        - `[STATE_DISCLOSURE:XXXX]` pattern sets block_type='dynamic_disclosure', stores code in disclosure_code column
+        - CRC/CMOS keywords in Heading 2/3 trigger service_model_condition inheritance to all child blocks
+    - Cleanup/Sanitization: Prefix stripping with regex `^(\d+(\.\d+)*|[a-z]\.|[ivx]+\.)\s+`, paragraphs starting with `!!!!` are skipped
+    - Schema: Added `disclosure_code` and `service_model_condition` columns to clauses table
+    - Detection functions: `detectStateDisclosure()`, `detectServiceModel()`, `stripPrefix()`, `shouldIgnoreParagraph()`
+    - Run: `npx tsx scripts/ingest_standard_contracts.ts <path-to-file.docx>`
 - **4-Level Hierarchical Styling (Jan 30, 2026)**:
     - "Clean Look" CSS styling with 4 hierarchy levels in PDF contracts:
         - Level 1 (hierarchy_level 1): Section headers - Bold, blue (#1a73e8), uppercase, blue underline

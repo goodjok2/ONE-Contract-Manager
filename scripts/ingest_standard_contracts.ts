@@ -15,14 +15,16 @@ interface ParsedBlock {
   clauseCode: string;
   name: string;
   content: string;
-  blockType: 'section' | 'clause' | 'paragraph' | 'table' | 'list_item';
-  hierarchyLevel: number;
+  blockType: 'section' | 'clause' | 'paragraph' | 'table' | 'list_item' | 'dynamic_disclosure' | 'conspicuous';
+  hierarchyLevel: number; // 1-7: Agreement Parts, Major Sections, Clauses, Sub-headers, Body, Conspicuous, Roman Lists
   sortOrder: number;
   parentTempId: string | null;
   variablesUsed: string[];
   contractType: string;
   category: string;
   conditions: Record<string, string> | null;
+  disclosureCode: string | null; // For [STATE_DISCLOSURE:XXXX] patterns
+  serviceModelCondition: string | null; // 'CRC' or 'CMOS' for service model branching
 }
 
 interface StyledParagraph {
@@ -32,6 +34,15 @@ interface StyledParagraph {
 }
 
 const VARIABLE_PATTERN = /\{\{([A-Z0-9_]+)\}\}/g;
+
+// Pattern for [STATE_DISCLOSURE:XXXX] smart tags
+const STATE_DISCLOSURE_PATTERN = /\[STATE_DISCLOSURE:([A-Z0-9_]+)\]/g;
+
+// Pattern for prefix stripping (removes manual numbers like "1.1.", "a.", "i.", etc.)
+const PREFIX_STRIP_PATTERN = /^(\d+(\.\d+)*|[a-z]\.|[ivx]+\.)\s+/i;
+
+// Pattern to detect notes to ignore (paragraphs starting with !!!!)
+const IGNORE_NOTES_PATTERN = /^!!!!.*/;
 
 // State abbreviation mapping for state-specific provisions
 const STATE_PATTERNS: { pattern: RegExp; code: string }[] = [
@@ -143,43 +154,79 @@ function deriveContractTypeFromFilename(filename: string): string {
   return cleaned || baseName.toUpperCase();
 }
 
-function determineBlockTypeFromStyle(styleName: string, text: string): { blockType: 'section' | 'clause' | 'paragraph' | 'table' | 'list_item', level: number } {
+/**
+ * 8-Level Hierarchy Mapping:
+ * Level 1 (Heading 1) - Agreement Parts (e.g., "II. AGREEMENT")
+ * Level 2 (Heading 2) - Major Sections (e.g., "Section 1. Scope")
+ * Level 3 (Heading 3) - Clauses (e.g., "2.1. Design Fee")
+ * Level 4 (Heading 4) - Sub-headers/Lead-ins
+ * Level 5 (Normal Text) - Body Paragraphs & simple a/b/c lists
+ * Level 6 (Heading 6) - Conspicuous Bold / Legal Disclaimers
+ * Level 7 (Heading 5) - Deep Sub-lists / Roman Numerals (i, ii, iii)
+ */
+function determineBlockTypeFromStyle(styleName: string, text: string): { blockType: 'section' | 'clause' | 'paragraph' | 'table' | 'list_item' | 'conspicuous', level: number } {
   const normalizedStyle = styleName.toLowerCase().trim();
   
-  if (text.includes('_TABLE}}') || text.includes('{{PRICING_BREAKDOWN_TABLE}}') || text.includes('{{PAYMENT_SCHEDULE_TABLE}}')) {
-    return { blockType: 'table', level: 3 };
+  // Check for table placeholders
+  if (text.includes('_TABLE}}') || text.includes('{{PRICING_BREAKDOWN_TABLE}}') || text.includes('{{PAYMENT_SCHEDULE_TABLE}}') || text.includes('{{WHAT_HAPPENS_NEXT_TABLE}}')) {
+    return { blockType: 'table', level: 5 };
   }
   
-  // Check for Roman numeral list items (i., ii., iii.)
+  // Check for Roman numeral list items (i., ii., iii.) - Level 7
   const romanList = detectRomanListItem(text);
   if (romanList.isRomanList) {
-    return { blockType: 'list_item', level: 4 };
+    return { blockType: 'list_item', level: 7 };
   }
   
+  // 8-Level Style Mapping (per spec)
+  // Heading 1 -> Level 1 (Agreement Parts) - blockType: 'section'
   if (normalizedStyle.includes('heading 1') || normalizedStyle === 'heading1' || normalizedStyle === 'title') {
-    return { blockType: 'section', level: 0 };
+    return { blockType: 'section', level: 1 };
   }
   
+  // Heading 2 -> Level 2 (Major Sections) - blockType: 'section'
   if (normalizedStyle.includes('heading 2') || normalizedStyle === 'heading2') {
-    return { blockType: 'clause', level: 1 };
+    return { blockType: 'section', level: 2 };
   }
   
+  // Heading 3 -> Level 3 (Clauses) - blockType: 'clause'
   if (normalizedStyle.includes('heading 3') || normalizedStyle === 'heading3') {
-    return { blockType: 'paragraph', level: 2 };
+    return { blockType: 'clause', level: 3 };
   }
   
+  // Heading 4 -> Level 4 (Sub-headers) - blockType: 'paragraph'
+  if (normalizedStyle.includes('heading 4') || normalizedStyle === 'heading4') {
+    return { blockType: 'paragraph', level: 4 };
+  }
+  
+  // Heading 5 -> Level 7 (Deep Sub-lists / Roman Numerals) - blockType: 'list_item'
+  if (normalizedStyle.includes('heading 5') || normalizedStyle === 'heading5') {
+    return { blockType: 'list_item', level: 7 };
+  }
+  
+  // Heading 6 -> Level 6 (Conspicuous Bold / Legal Disclaimers) - blockType: 'conspicuous'
+  if (normalizedStyle.includes('heading 6') || normalizedStyle === 'heading6') {
+    return { blockType: 'conspicuous', level: 6 };
+  }
+  
+  // Generic heading detection
   if (normalizedStyle.includes('heading') || normalizedStyle.includes('title')) {
     const headingMatch = normalizedStyle.match(/heading\s*(\d+)/i);
     if (headingMatch) {
       const num = parseInt(headingMatch[1]);
-      if (num === 1) return { blockType: 'section', level: 0 };
-      if (num === 2) return { blockType: 'clause', level: 1 };
-      return { blockType: 'paragraph', level: Math.min(num, 3) };
+      if (num === 1) return { blockType: 'section', level: 1 };
+      if (num === 2) return { blockType: 'section', level: 2 };
+      if (num === 3) return { blockType: 'clause', level: 3 };
+      if (num === 4) return { blockType: 'paragraph', level: 4 };
+      if (num === 5) return { blockType: 'list_item', level: 7 };
+      if (num === 6) return { blockType: 'conspicuous', level: 6 };
+      return { blockType: 'paragraph', level: Math.min(num, 5) };
     }
-    return { blockType: 'section', level: 0 };
+    return { blockType: 'section', level: 1 };
   }
   
-  return { blockType: 'paragraph', level: 3 };
+  // Normal Text -> Level 5 (Body Paragraphs)
+  return { blockType: 'paragraph', level: 5 };
 }
 
 /**
@@ -197,10 +244,10 @@ function detectRomanListItem(text: string): { isRomanList: boolean, numeral: str
 }
 
 function detectHeaderPatterns(text: string): { isHeader: boolean, blockType: 'section' | 'clause' | 'paragraph' | 'list_item', level: number } {
-  // First check for Roman numeral list items (i., ii., iii.)
+  // First check for Roman numeral list items (i., ii., iii.) - Level 7
   const romanList = detectRomanListItem(text);
   if (romanList.isRomanList) {
-    return { isHeader: false, blockType: 'list_item', level: 4 };
+    return { isHeader: false, blockType: 'list_item', level: 7 };
   }
   
   const SECTION_PATTERN = /^(?:Section|SECTION|Article|ARTICLE|Recital|RECITAL|Exhibit|EXHIBIT)\s*([A-Z0-9]+)[\.\s:]/i;
@@ -210,34 +257,83 @@ function detectHeaderPatterns(text: string): { isHeader: boolean, blockType: 'se
   const UPPERCASE_HEADER = /^[A-Z][A-Z\s&\-:]{5,50}$/;
   const SHORT_TITLE = /^[A-Z][a-zA-Z\s&\-:]{3,40}:?\s*$/;
   
+  // Level 1 or 2 - Agreement Parts / Major Sections
   if (SECTION_PATTERN.test(text) || ROMAN_SECTION_PATTERN.test(text)) {
-    return { isHeader: true, blockType: 'section', level: 0 };
+    // "Section X" patterns are major sections (level 2)
+    if (/^Section\s+\d+/i.test(text)) {
+      return { isHeader: true, blockType: 'section', level: 2 };
+    }
+    // Roman numerals and other section patterns are agreement parts (level 1)
+    return { isHeader: true, blockType: 'section', level: 1 };
   }
   
   if (NUMBERED_SECTION_PATTERN.test(text)) {
-    return { isHeader: true, blockType: 'section', level: 0 };
+    return { isHeader: true, blockType: 'section', level: 2 };
   }
   
+  // Level 3 - Clauses (numbered like 1.1, 2.3, etc.)
   if (CLAUSE_PATTERN.test(text)) {
     const match = text.match(CLAUSE_PATTERN);
     if (match) {
       const parts = match[1].split('.');
       if (parts.length >= 3) {
-        return { isHeader: true, blockType: 'paragraph', level: 2 };
+        // Sub-sub-clauses like 1.1.1 -> level 4
+        return { isHeader: true, blockType: 'paragraph', level: 4 };
       }
-      return { isHeader: true, blockType: 'clause', level: 1 };
+      // Regular clauses like 1.1, 2.3 -> level 3
+      return { isHeader: true, blockType: 'clause', level: 3 };
     }
   }
   
   if (text.length < 60 && UPPERCASE_HEADER.test(text.trim())) {
-    return { isHeader: true, blockType: 'section', level: 0 };
+    return { isHeader: true, blockType: 'section', level: 1 };
   }
   
   if (text.length < 50 && SHORT_TITLE.test(text.trim()) && !text.includes('.') || text.endsWith(':')) {
-    return { isHeader: true, blockType: 'clause', level: 1 };
+    return { isHeader: true, blockType: 'clause', level: 3 };
   }
   
-  return { isHeader: false, blockType: 'paragraph', level: 3 };
+  // Default - Level 5 Body Paragraph
+  return { isHeader: false, blockType: 'paragraph', level: 5 };
+}
+
+/**
+ * Detect [STATE_DISCLOSURE:XXXX] patterns in text
+ * Returns the disclosure code if found, null otherwise
+ */
+function detectStateDisclosure(text: string): string | null {
+  const match = text.match(/\[STATE_DISCLOSURE:([A-Z0-9_]+)\]/);
+  return match ? match[1] : null;
+}
+
+/**
+ * Detect CRC or CMOS service model keywords in text
+ * Returns 'CRC', 'CMOS', or null
+ */
+function detectServiceModel(text: string): 'CRC' | 'CMOS' | null {
+  const upperText = text.toUpperCase();
+  if (upperText.includes('CRC') && !upperText.includes('CMOS')) {
+    return 'CRC';
+  }
+  if (upperText.includes('CMOS') && !upperText.includes('CRC')) {
+    return 'CMOS';
+  }
+  return null;
+}
+
+/**
+ * Strip manual numbering prefixes from text (e.g., "1.1.", "a.", "i.")
+ * The generator will re-add these dynamically
+ */
+function stripPrefix(text: string): string {
+  return text.replace(PREFIX_STRIP_PATTERN, '').trim();
+}
+
+/**
+ * Check if a paragraph should be ignored (notes starting with !!!!)
+ */
+function shouldIgnoreParagraph(text: string): boolean {
+  return IGNORE_NOTES_PATTERN.test(text.trim());
 }
 
 async function parseDocxWithStyles(filePath: string, contractType: string): Promise<ParsedBlock[]> {
@@ -249,6 +345,9 @@ async function parseDocxWithStyles(filePath: string, contractType: string): Prom
     "p[style-name='Heading 1'] => h1.heading1:fresh",
     "p[style-name='Heading 2'] => h2.heading2:fresh",
     "p[style-name='Heading 3'] => h3.heading3:fresh",
+    "p[style-name='Heading 4'] => h4.heading4:fresh",
+    "p[style-name='Heading 5'] => h5.heading5:fresh",
+    "p[style-name='Heading 6'] => h6.heading6:fresh",
     "p[style-name='Title'] => h1.title:fresh",
     "p[style-name='Subtitle'] => h2.subtitle:fresh",
     "b => strong",
@@ -284,9 +383,22 @@ async function parseDocxWithStyles(filePath: string, contractType: string): Prom
       style = 'Heading 2';
     } else if (segment.includes('<h3')) {
       style = 'Heading 3';
+    } else if (segment.includes('<h4')) {
+      style = 'Heading 4';
+    } else if (segment.includes('<h5')) {
+      style = 'Heading 5';
+    } else if (segment.includes('<h6')) {
+      style = 'Heading 6';
     }
     
     const text = cleanText(segment);
+    
+    // Skip paragraphs starting with !!!! (notes to ignore)
+    if (shouldIgnoreParagraph(text)) {
+      console.log(`   🗑️  Skipping note: "${text.substring(0, 40)}..."`);
+      continue;
+    }
+    
     if (text && text.length >= 2) {
       paragraphs.push({ style, text, html: segment });
     }
@@ -304,6 +416,9 @@ async function parseDocxWithStyles(filePath: string, contractType: string): Prom
   // State-specific provision tracking
   let inExhibitG = false;  // Track if we're in Exhibit G (State-Specific Provisions)
   let currentStateCondition: string | null = null;  // Current state code (CA, TX, etc.)
+  
+  // Service model condition tracking (CRC or CMOS)
+  let currentServiceModel: 'CRC' | 'CMOS' | null = null;
   
   function finalizePendingBlock() {
     if (pendingBlock) {
@@ -361,6 +476,9 @@ async function parseDocxWithStyles(filePath: string, contractType: string): Prom
       sectionName = para.text.substring(0, endIdx).replace(/^\d+\.\s*/, '').replace(/^[IVXLCDM]+\.\s*/i, '').trim();
       if (!sectionName) sectionName = para.text.substring(0, 60);
       
+      // Strip manual numbering prefix from section name
+      sectionName = stripPrefix(sectionName);
+      
       // Detect Exhibit G (State-Specific Provisions)
       const isExhibitG = /Exhibit\s*G/i.test(para.text) || 
                          /State[- ]Specific\s+Provisions?/i.test(para.text);
@@ -381,6 +499,22 @@ async function parseDocxWithStyles(filePath: string, contractType: string): Prom
         console.log(`   🏛️  State-specific section detected: ${detectedState} from "${sectionName}"`);
       }
       
+      // Detect CRC/CMOS service model from Heading 2/3 (sections)
+      const serviceModelDetected = detectServiceModel(para.text);
+      if (serviceModelDetected) {
+        currentServiceModel = serviceModelDetected;
+        console.log(`   ⚙️  Service model detected: ${serviceModelDetected} from "${sectionName}"`);
+      } else if (level === 1) {
+        // Reset service model at top-level sections
+        currentServiceModel = null;
+      }
+      
+      // Detect state disclosure pattern [STATE_DISCLOSURE:XXXX]
+      const disclosureCode = detectStateDisclosure(para.text);
+      if (disclosureCode) {
+        console.log(`   📋 State disclosure detected: ${disclosureCode}`);
+      }
+      
       const tempId = `${contractType}-SEC-${sectionCode}-${sortOrder}`;
       currentSectionId = tempId;
       currentClauseId = null;
@@ -397,19 +531,21 @@ async function parseDocxWithStyles(filePath: string, contractType: string): Prom
         clauseCode: `${contractType}-${sectionCode}-${sortOrder}`,
         name: sectionName,
         content: '',
-        blockType: 'section',
-        hierarchyLevel: 0,
+        blockType: disclosureCode ? 'dynamic_disclosure' : 'section',
+        hierarchyLevel: level, // Use the detected level (1 for sections)
         sortOrder,
         parentTempId: null,
         variablesUsed: [],
         contractType,
         category: categorizeClause(sectionName, para.text),
         conditions,
+        disclosureCode,
+        serviceModelCondition: currentServiceModel,
       };
       
       contentBuffer = para.text;
       
-    } else if (blockType === 'clause' || (blockType === 'paragraph' && level <= 2 && patternInfo.isHeader)) {
+    } else if (blockType === 'clause' || (blockType === 'paragraph' && level <= 4 && patternInfo.isHeader)) {
       finalizePendingBlock();
       clauseCounter++;
       
@@ -433,11 +569,27 @@ async function parseDocxWithStyles(filePath: string, contractType: string): Prom
       clauseName = clauseName.replace(/^\d+(\.\d+)*\.?\s*/, '').trim();
       if (!clauseName) clauseName = `Clause ${clauseNum}`;
       
+      // Strip manual numbering prefix from clause name
+      clauseName = stripPrefix(clauseName);
+      
       // Check if this clause header introduces a new state section
       const detectedState = detectStateProvision(para.text);
       if (inExhibitG && detectedState) {
         currentStateCondition = detectedState;
         console.log(`   🏛️  State-specific clause detected: ${detectedState} from "${clauseName}"`);
+      }
+      
+      // Detect CRC/CMOS service model from Heading 2/3 (clauses)
+      const serviceModelDetected = detectServiceModel(para.text);
+      if (serviceModelDetected) {
+        currentServiceModel = serviceModelDetected;
+        console.log(`   ⚙️  Service model detected: ${serviceModelDetected} from "${clauseName}"`);
+      }
+      
+      // Detect state disclosure pattern [STATE_DISCLOSURE:XXXX]
+      const disclosureCode = detectStateDisclosure(para.text);
+      if (disclosureCode) {
+        console.log(`   📋 State disclosure detected: ${disclosureCode}`);
       }
       
       // Inherit state condition from parent context
@@ -452,14 +604,16 @@ async function parseDocxWithStyles(filePath: string, contractType: string): Prom
           clauseCode: `${contractType}-${clauseNum}-${sortOrder}`,
           name: clauseName,
           content: '',
-          blockType: 'paragraph',
-          hierarchyLevel: 2,
+          blockType: disclosureCode ? 'dynamic_disclosure' : 'paragraph',
+          hierarchyLevel: level, // Use detected level (3 for sub-clauses)
           sortOrder,
           parentTempId: currentClauseId,
           variablesUsed: [],
           contractType,
           category: categorizeClause(clauseName, para.text),
           conditions,
+          disclosureCode,
+          serviceModelCondition: currentServiceModel,
         };
       } else {
         currentClauseId = tempId;
@@ -468,14 +622,16 @@ async function parseDocxWithStyles(filePath: string, contractType: string): Prom
           clauseCode: `${contractType}-${clauseNum}-${sortOrder}`,
           name: clauseName,
           content: '',
-          blockType: 'clause',
-          hierarchyLevel: 1,
+          blockType: disclosureCode ? 'dynamic_disclosure' : 'clause',
+          hierarchyLevel: level, // Use detected level (2 for major clauses)
           sortOrder,
           parentTempId: currentSectionId,
           variablesUsed: [],
           contractType,
           category: categorizeClause(clauseName, para.text),
           conditions,
+          disclosureCode,
+          serviceModelCondition: currentServiceModel,
         };
       }
       
@@ -493,20 +649,45 @@ async function parseDocxWithStyles(filePath: string, contractType: string): Prom
           conditions = { PROJECT_STATE: currentStateCondition };
         }
         
+        // Detect state disclosure pattern [STATE_DISCLOSURE:XXXX]
+        const disclosureCode = detectStateDisclosure(para.text);
+        if (disclosureCode) {
+          console.log(`   📋 State disclosure detected in paragraph: ${disclosureCode}`);
+        }
+        
+        // Strip manual numbering prefix from paragraph text for name
+        const paraName = stripPrefix(para.text.substring(0, 60));
+        
+        // Determine block type based on detection
+        let finalBlockType: ParsedBlock['blockType'] = blockType;
+        if (disclosureCode) {
+          finalBlockType = 'dynamic_disclosure';
+        } else if (blockType === 'table') {
+          finalBlockType = 'table';
+        } else if (blockType === 'list_item') {
+          finalBlockType = 'list_item';
+        } else if (blockType === 'conspicuous') {
+          finalBlockType = 'conspicuous';
+        } else {
+          finalBlockType = 'paragraph';
+        }
+        
         const tempId = `${contractType}-PARA-${sortOrder}`;
         pendingBlock = {
           tempId,
           clauseCode: `${contractType}-P-${sortOrder}`,
-          name: para.text.substring(0, 60),
+          name: paraName,
           content: '',
-          blockType: blockType === 'table' ? 'table' : 'paragraph',
-          hierarchyLevel: 3,
+          blockType: finalBlockType,
+          hierarchyLevel: level, // Use detected level (5 for body, 6 for conspicuous, 7 for lists)
           sortOrder,
           parentTempId: currentClauseId || currentSectionId,
           variablesUsed: [],
           contractType,
           category: 'general',
           conditions,
+          disclosureCode,
+          serviceModelCondition: currentServiceModel,
         };
         contentBuffer = para.text;
       }
@@ -547,6 +728,8 @@ async function insertBlocks(blocks: ParsedBlock[]): Promise<void> {
       contractType: block.contractType,
       category: block.category,
       conditions: block.conditions ? JSON.stringify(block.conditions) : null,
+      disclosureCode: block.disclosureCode,
+      serviceModelCondition: block.serviceModelCondition,
       riskLevel: 'MEDIUM',
       negotiable: false,
     }).returning({ id: clauses.id });
