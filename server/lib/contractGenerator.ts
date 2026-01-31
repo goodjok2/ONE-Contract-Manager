@@ -80,6 +80,89 @@ function getStateDisclosureSync(disclosureCode: string, state: string): string {
   return `<div class="missing-disclosure">[MISSING LEGAL DISCLOSURE: ${disclosureCode} for ${state}]</div>`;
 }
 
+/**
+ * Fetch exhibits from database for a given contract type
+ * Returns array of exhibit records ordered by sortOrder and letter
+ */
+async function fetchExhibitsForContract(contractType: string): Promise<any[]> {
+  try {
+    const { db } = await import('../db');
+    const { exhibits } = await import('@shared/schema');
+    const { asc } = await import('drizzle-orm');
+    
+    const allExhibits = await db.select()
+      .from(exhibits)
+      .orderBy(asc(exhibits.sortOrder), asc(exhibits.letter));
+    
+    // Filter by contract type and active status
+    const filteredExhibits = allExhibits.filter(exhibit => 
+      exhibit.isActive && 
+      exhibit.contractTypes?.includes(contractType.toUpperCase())
+    );
+    
+    console.log(`📎 Found ${filteredExhibits.length} exhibits for ${contractType}`);
+    return filteredExhibits;
+  } catch (error) {
+    console.error('Error fetching exhibits:', error);
+    return [];
+  }
+}
+
+/**
+ * Render exhibits to HTML with page breaks and variable substitution
+ * For dynamic exhibits, looks up state-specific disclosures
+ */
+async function renderExhibitsHTML(
+  exhibits: any[], 
+  variableMap: Record<string, string>,
+  projectState: string
+): Promise<string> {
+  if (exhibits.length === 0) return '';
+  
+  let html = '';
+  
+  for (const exhibit of exhibits) {
+    // Page break before each exhibit
+    html += '<div style="page-break-before: always;"></div>';
+    
+    // Exhibit header
+    html += `
+      <div class="exhibit-header">
+        <div class="level-1 roman-section" style="text-align: center; font-size: 14pt; font-weight: bold; color: #1a73e8;">
+          EXHIBIT ${exhibit.letter}
+        </div>
+        <div class="exhibit-title" style="text-align: center; font-size: 12pt; font-weight: bold; margin-bottom: 20px;">
+          ${exhibit.title}
+        </div>
+      </div>
+    `;
+    
+    // Exhibit content
+    let content = exhibit.content || '';
+    
+    // For dynamic exhibits, look up state-specific content
+    if (exhibit.isDynamic && exhibit.disclosureCode && projectState) {
+      const disclosureContent = await lookupStateDisclosure(exhibit.disclosureCode, projectState);
+      // If disclosure found, append it to content
+      if (!disclosureContent.includes('MISSING LEGAL DISCLOSURE')) {
+        content += disclosureContent;
+      } else {
+        content += disclosureContent; // Shows the warning
+      }
+    }
+    
+    // Replace variables in exhibit content
+    for (const [key, value] of Object.entries(variableMap)) {
+      const pattern = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
+      content = content.replace(pattern, String(value || ''));
+    }
+    
+    html += `<div class="exhibit-content">${content}</div>`;
+  }
+  
+  return html;
+}
+
 // Tree node for recursive block structure
 interface BlockNode {
   clause: Clause;
@@ -133,8 +216,16 @@ export async function generateContract(options: ContractGenerationOptions): Prom
   processBlockTreeVariables(blockTree, variableMap);
   console.log(`✓ Processed block tree with variable replacement`);
   
-  // Step 6: Generate HTML from tree
-  const html = generateHTMLFromBlockTree(blockTree, contractType, projectData);
+  // Step 5.5: Fetch and render exhibits for this contract type
+  const exhibitRecords = await fetchExhibitsForContract(contractType);
+  let exhibitsHtml = '';
+  if (exhibitRecords.length > 0) {
+    exhibitsHtml = await renderExhibitsHTML(exhibitRecords, variableMap, projectState);
+    console.log(`✓ Rendered ${exhibitRecords.length} exhibits`);
+  }
+  
+  // Step 6: Generate HTML from tree (including exhibits)
+  const html = generateHTMLFromBlockTree(blockTree, contractType, projectData, exhibitsHtml);
   
   if (format === 'html') {
     return Buffer.from(html, 'utf-8');
@@ -516,11 +607,13 @@ function convertVariableMarkersToHtml(html: string): string {
 /**
  * Generate HTML document from recursive block tree
  * Uses block_type for styling: section, clause, paragraph
+ * Appends exhibits after signature blocks
  */
 function generateHTMLFromBlockTree(
   blockTree: BlockNode[],
   contractType: string,
-  projectData: Record<string, any>
+  projectData: Record<string, any>,
+  exhibitsHtml?: string
 ): string {
   const title = getContractTitle(contractType);
   
@@ -538,7 +631,7 @@ function generateHTMLFromBlockTree(
 <body>
   <div class="contract-container">
     ${renderTitlePage(title, projectData)}
-    ${renderBlockTreeHTML(blockTree, projectData)}
+    ${renderBlockTreeHTML(blockTree, projectData, exhibitsHtml)}
   </div>
 </body>
 </html>
@@ -552,7 +645,7 @@ function generateHTMLFromBlockTree(
  * Render block tree to HTML recursively
  * Uses block_type and dynamic numbering for consistent formatting
  */
-function renderBlockTreeHTML(nodes: BlockNode[], projectData: Record<string, any>): string {
+function renderBlockTreeHTML(nodes: BlockNode[], projectData: Record<string, any>, exhibitsHtml?: string): string {
   let html = '<div class="contract-body">';
   
   for (const node of nodes) {
@@ -562,6 +655,12 @@ function renderBlockTreeHTML(nodes: BlockNode[], projectData: Record<string, any
   
   // Add signature blocks at the end
   html += renderSignatureBlocks(projectData);
+  
+  // Add exhibits after signature blocks
+  if (exhibitsHtml) {
+    html += exhibitsHtml;
+  }
+  
   html += '</div>';
   
   return html;
