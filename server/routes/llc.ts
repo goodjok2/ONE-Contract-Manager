@@ -46,9 +46,31 @@ router.get("/projects/:projectId/llc", async (req, res) => {
 
 router.post("/llcs", async (req, res) => {
   try {
+    // Check if LLC with same name already exists
+    if (req.body.name) {
+      const [existing] = await db.select().from(llcs).where(eq(llcs.name, req.body.name));
+      if (existing) {
+        // Return existing LLC instead of failing on duplicate
+        console.log(`LLC "${req.body.name}" already exists, returning existing record`);
+        res.json(existing);
+        return;
+      }
+    }
     const [result] = await db.insert(llcs).values(req.body).returning();
     res.json(result);
-  } catch (error) {
+  } catch (error: any) {
+    // Handle unique constraint violation gracefully
+    if (error.code === '23505' || error.message?.includes('duplicate')) {
+      console.warn("LLC duplicate detected:", error.message);
+      // Try to find and return the existing LLC
+      if (req.body.name) {
+        const [existing] = await db.select().from(llcs).where(eq(llcs.name, req.body.name));
+        if (existing) {
+          res.json(existing);
+          return;
+        }
+      }
+    }
     console.error("Failed to create LLC:", error);
     res.status(500).json({ error: "Failed to create LLC" });
   }

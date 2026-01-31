@@ -17,6 +17,38 @@ import { eq, and, sql, desc } from "drizzle-orm";
 const router = Router();
 
 // ---------------------------------------------------------------------------
+// PROJECT NUMBER UNIQUENESS CHECK
+// ---------------------------------------------------------------------------
+
+router.get('/projects/check-number/:projectNumber', async (req, res) => {
+  try {
+    const { projectNumber } = req.params;
+    const excludeId = req.query.excludeId ? parseInt(req.query.excludeId as string) : null;
+    
+    if (!projectNumber) {
+      return res.json({ isUnique: true });
+    }
+    
+    // Check if project number exists
+    let query = db.select({ id: projects.id })
+      .from(projects)
+      .where(eq(projects.projectNumber, projectNumber));
+    
+    const existingProjects = await query;
+    
+    // If excluding a specific ID (for edit mode), check if the only match is the excluded one
+    if (excludeId && existingProjects.length === 1 && existingProjects[0].id === excludeId) {
+      return res.json({ isUnique: true });
+    }
+    
+    res.json({ isUnique: existingProjects.length === 0 });
+  } catch (error) {
+    console.error("Failed to check project number:", error);
+    res.json({ isUnique: true }); // Default to true to not block on errors
+  }
+});
+
+// ---------------------------------------------------------------------------
 // DEBUG - Variable Audit (temporary)
 // ---------------------------------------------------------------------------
 

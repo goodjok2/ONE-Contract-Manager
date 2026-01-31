@@ -22,6 +22,38 @@ export const Step8ScheduleWarranty: React.FC = () => {
     updateProjectData({ overrideJurisdiction: checked });
   };
   
+  // Initialize default values on mount to ensure validation passes
+  useEffect(() => {
+    const updates: Partial<typeof projectData> = {};
+    
+    // Default warranty periods if not set
+    if (!projectData.warrantyFitFinishMonths) {
+      updates.warrantyFitFinishMonths = 24;
+    }
+    if (!projectData.warrantyBuildingEnvelopeMonths) {
+      updates.warrantyBuildingEnvelopeMonths = 60;
+    }
+    if (!projectData.warrantyStructuralMonths) {
+      updates.warrantyStructuralMonths = 120;
+    }
+    
+    // Default arbitration provider if not set
+    if (!projectData.arbitrationProvider) {
+      updates.arbitrationProvider = 'JAMS';
+    }
+    
+    // Default effectiveDate from agreementDate if not set
+    if (!projectData.effectiveDate && projectData.agreementDate) {
+      updates.effectiveDate = projectData.agreementDate;
+    } else if (!projectData.effectiveDate) {
+      updates.effectiveDate = new Date().toISOString().split('T')[0];
+    }
+    
+    if (Object.keys(updates).length > 0) {
+      updateProjectData(updates);
+    }
+  }, []);
+  
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('en-US', { 
       year: 'numeric', 
