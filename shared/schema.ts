@@ -443,6 +443,28 @@ export const stateDisclosures = pgTable("state_disclosures", {
   updatedAt: timestamp("updated_at"),
 });
 
+export const exhibits = pgTable("exhibits", {
+  id: serial("id").primaryKey(),
+  letter: text("letter").notNull(), // e.g., 'A', 'B', 'G'
+  title: text("title").notNull(), // e.g., 'State-Specific Provisions'
+  content: text("content").notNull(), // Text/HTML content
+  isDynamic: boolean("is_dynamic").default(false), // True if uses state-specific lookup logic
+  disclosureCode: text("disclosure_code"), // For dynamic exhibits, the disclosure code to lookup
+  contractTypes: text("contract_types").array(), // ['ONE', 'MANUFACTURING', 'ONSITE']
+  sortOrder: integer("sort_order").default(0), // Order exhibits appear in contract
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at"),
+});
+
+export const insertExhibitSchema = createInsertSchema(exhibits).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertExhibit = z.infer<typeof insertExhibitSchema>;
+export type Exhibit = typeof exhibits.$inferSelect;
+
 export const contractVariables = pgTable("contract_variables", {
   id: serial("id").primaryKey(),
   variableName: text("variable_name").notNull().unique(), // e.g., "CLIENT_LEGAL_NAME"
