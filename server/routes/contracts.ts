@@ -1514,7 +1514,10 @@ router.post("/contracts/download-all-zip", async (req, res) => {
     
     const archive = archiver('zip', { zlib: { level: 9 } });
     
-    const zipFilename = `${projectData.PROJECT_NUMBER || 'Contracts'}_Package.zip`;
+    // Format: ProjectNumber_ProjectName.zip
+    const projectNumber = (projectData.PROJECT_NUMBER || 'Contracts').toString().replace(/[^a-z0-9-]/gi, '_');
+    const projectName = (projectData.PROJECT_NAME || '').toString().replace(/[^a-z0-9\s]/gi, '').replace(/\s+/g, '_');
+    const zipFilename = projectName ? `${projectNumber}_${projectName}.zip` : `${projectNumber}.zip`;
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', `attachment; filename="${zipFilename}"`);
     

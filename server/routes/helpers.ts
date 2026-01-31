@@ -19,7 +19,14 @@ export async function getProjectWithRelations(projectId: number): Promise<Projec
   if (!project) return null;
 
   const [client] = await db.select().from(clients).where(eq(clients.projectId, projectId));
-  const [llcRecord] = await db.select().from(llcs).where(eq(llcs.projectId, projectId));
+  
+  // Try multiple ways to find the LLC:
+  // 1. Via llcs.projectId (LLC was created for this project)
+  // 2. Via projects.llcId (project references an existing LLC)
+  let [llcRecord] = await db.select().from(llcs).where(eq(llcs.projectId, projectId));
+  if (!llcRecord && project.llcId) {
+    [llcRecord] = await db.select().from(llcs).where(eq(llcs.id, project.llcId));
+  }
   const [projectDetail] = await db.select().from(projectDetails).where(eq(projectDetails.projectId, projectId));
   const [financial] = await db.select().from(financials).where(eq(financials.projectId, projectId));
   const [warranty] = await db.select().from(warrantyTerms).where(eq(warrantyTerms.projectId, projectId));

@@ -186,6 +186,7 @@ export const Step9ReviewGenerate: React.FC = () => {
         },
         body: JSON.stringify({
           contractType,
+          projectId: draftProjectId,
           projectData
         }),
       });
@@ -194,11 +195,21 @@ export const Step9ReviewGenerate: React.FC = () => {
         throw new Error('Failed to generate document');
       }
       
+      // Get filename from Content-Disposition header if available
+      const contentDisposition = response.headers.get('Content-Disposition');
+      let filename = `${projectData.projectNumber || 'DRAFT'}_${projectData.projectName?.replace(/\s+/g, '_') || 'Contract'}_${contractName.replace(/\s+/g, '_')}.pdf`;
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename="(.+)"/);
+        if (match) {
+          filename = match[1];
+        }
+      }
+      
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${projectData.projectNumber || 'Contract'}_${contractName.replace(/\s+/g, '_')}.pdf`;
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -237,11 +248,21 @@ export const Step9ReviewGenerate: React.FC = () => {
         throw new Error('Failed to generate contract package');
       }
       
+      // Get filename from Content-Disposition header if available
+      const contentDisposition = response.headers.get('Content-Disposition');
+      let filename = `${projectData.projectNumber || 'Contracts'}_${projectData.projectName?.replace(/\s+/g, '_') || ''}.zip`;
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename="(.+)"/);
+        if (match) {
+          filename = match[1];
+        }
+      }
+      
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${projectData.projectNumber || 'Contracts'}_Package.zip`;
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);

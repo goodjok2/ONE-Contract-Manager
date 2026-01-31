@@ -3101,15 +3101,17 @@ function calculateEstimatedCompletion(projectData: Record<string, any>): string 
 }
 
 export function getContractFilename(contractType: string, projectData: Record<string, any>, format: 'pdf' | 'docx' = 'pdf'): string {
-  const projectName = (projectData.projectName || 'Contract').replace(/[^a-z0-9]/gi, '_');
-  const projectNumber = (projectData.projectNumber || 'DRAFT').replace(/[^a-z0-9-]/gi, '_');
+  // Support both camelCase (from wizard) and UPPER_CASE (from mapper) formats
+  const projectNumber = (projectData.PROJECT_NUMBER || projectData.projectNumber || 'DRAFT').toString().replace(/[^a-z0-9-]/gi, '_');
+  const projectName = (projectData.PROJECT_NAME || projectData.projectName || 'Contract').toString().replace(/[^a-z0-9\s]/gi, '').replace(/\s+/g, '_');
   
   const typeMap: Record<string, string> = {
-    'ONE': 'one_agreement',
-    'MANUFACTURING': 'manufacturing_sub',
-    'ONSITE': 'onsite_sub'
+    'ONE': 'ONE_Agreement',
+    'MANUFACTURING': 'Manufacturing_Subcontract',
+    'ONSITE': 'OnSite_Subcontract'
   };
   
-  const typeName = typeMap[contractType] || contractType.toLowerCase();
-  return `${projectName}_${typeName}_${projectNumber}.${format}`;
+  const typeName = typeMap[contractType] || contractType;
+  // Format: ProjectNumber_ProjectName_ContractType.pdf
+  return `${projectNumber}_${projectName}_${typeName}.${format}`;
 }
