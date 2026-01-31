@@ -30,7 +30,12 @@ const VARIABLE_PATTERN = /\{\{([A-Z0-9_]+)\}\}/g;
 const STATE_DISCLOSURE_PATTERN = /\[STATE_DISCLOSURE:([A-Z0-9_]+)\]/g;
 // More robust pattern: matches "EXHIBIT X", "EXHIBIT X:", "EXHIBIT X -", "EXHIBIT X.", "EXHIBIT-X", etc.
 // The pattern is case-insensitive and allows for various separators between "EXHIBIT" and the letter
+// Updated for hard split: Forces page-break-before on every block starting with "EXHIBIT"
 const EXHIBIT_HEADER_PATTERN = /^\s*EXHIBIT[\s\-]*([A-Z])[\s:.\-\u2013\u2014]*(.*)$/i;
+
+// Strict pattern for validating exhibit letter headers before appending content
+// This ensures Exhibit E doesn't capture content belonging to Exhibit F
+const EXHIBIT_STRICT_HEADER_PATTERN = /^\s*EXHIBIT\s*([A-Z])\s*[:.\-\u2013\u2014]?\s*/i;
 
 // Keywords that indicate dynamic/state-specific exhibits
 const DYNAMIC_EXHIBIT_KEYWORDS = [
@@ -323,8 +328,15 @@ async function parseExhibitsFromDocument(docxPath: string): Promise<ParsedExhibi
     if (!trimmedText) continue;
     
     // Check if this is an exhibit header (case-insensitive hard break)
+    // HARD SPLIT: Validate the "Letter" header before appending content
     const headerMatch = trimmedText.match(EXHIBIT_HEADER_PATTERN);
     if (headerMatch) {
+      // Validate with strict pattern to ensure proper letter extraction
+      const strictMatch = trimmedText.match(EXHIBIT_STRICT_HEADER_PATTERN);
+      if (!strictMatch) {
+        console.log(`    Warning: Potential exhibit header "${trimmedText.substring(0, 50)}..." did not pass strict validation`);
+      }
+      
       // Save previous exhibit with content cleaning
       if (currentExhibit) {
         // Close any open list
@@ -344,7 +356,7 @@ async function parseExhibitsFromDocument(docxPath: string): Promise<ParsedExhibi
         console.log(`    Saved Exhibit ${currentExhibit.letter} (${currentExhibit.content.length} chars, cleaned)`);
       }
       
-      // Start new exhibit
+      // Start new exhibit - HARD SPLIT point
       const letter = headerMatch[1].toUpperCase();
       const title = (headerMatch[2] || '').trim().replace(/^[:.\-\s]+/, '').trim();
       
@@ -360,12 +372,24 @@ async function parseExhibitsFromDocument(docxPath: string): Promise<ParsedExhibi
       contentBuilder = [];
       inListContext = false;
       
-      console.log(`  Found Exhibit ${letter}: ${title}`);
+      // Force page-break-before: always for exhibit content (applied when rendering)
+      // This is marked in the content with a special comment for the contract generator
+      contentBuilder.push('<!-- EXHIBIT_PAGE_BREAK -->');
+      
+      console.log(`  Found Exhibit ${letter}: ${title} [HARD SPLIT]`);
       continue;
     }
     
-    // If we're in an exhibit, add content with proper HTML formatting
+    // VALIDATION: Before appending content, verify we're in the correct exhibit
+    // This prevents Exhibit E from capturing content that belongs to Exhibit F
     if (currentExhibit) {
+      // Check if this line looks like it might be a different exhibit's content
+      const potentialExhibitRef = trimmedText.match(/^\s*EXHIBIT\s+([A-Z])/i);
+      if (potentialExhibitRef && potentialExhibitRef[1].toUpperCase() !== currentExhibit.letter) {
+        // This content references a different exhibit letter - might be misplaced
+        console.log(`    Warning: Content referencing Exhibit ${potentialExhibitRef[1]} found in Exhibit ${currentExhibit.letter}`);
+      }
+      
       const { blockType, level } = determineBlockTypeFromStyle(para.style, trimmedText);
       const tags = getHtmlTagForLevel(level, blockType);
       

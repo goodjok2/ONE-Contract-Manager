@@ -215,6 +215,7 @@ interface BlockNode {
   children: BlockNode[];
   isHidden?: boolean;
   dynamicNumber?: string; // Computed number (e.g., "1", "1.1", "1.1.1")
+  isInsideConditional?: boolean; // Track if inside [IF] block for Level 2 rendering
 }
 
 export async function generateContract(options: ContractGenerationOptions): Promise<Buffer> {
@@ -373,19 +374,32 @@ function buildBlockTree(clauses: Clause[], projectState?: string): BlockNode[] {
   return rootNodes;
 }
 
+// Track section counter for Level 2 sections (resets when Level 1 is encountered)
+let globalSectionCounter = 0;
+
 /**
- * Apply dynamic numbering to the block tree
+ * Apply dynamic numbering to the block tree with absolute hierarchy rules
  * Uses hierarchy_level from the clause data (not recursion depth) to determine format:
- * - hierarchy_level 1: Upper Roman (I, II, III) for Agreement Parts
- * - hierarchy_level 2: Section X (e.g., Section 1, Section 2) for Major Sections
+ * - hierarchy_level 1: Upper Roman (I, II, III) for Agreement Parts - RESETS ALL sub-counters
+ * - hierarchy_level 2: "Section X" for Major Sections (independent counter), OR dot-notation if inside [IF] tag
  * - hierarchy_level 3: X.X (e.g., 1.1, 2.3) for Clauses - dot-notation
  * - hierarchy_level 4: X.X.X (e.g., 1.1.1) for Sub-headers - dot-notation
  * - hierarchy_level 5-6: No numbering (body text and conspicuous)
  * - hierarchy_level 7: i., ii., iii. (lowercase Roman numerals for list items)
  * Auto-renumbers when blocks are hidden
  */
-function applyDynamicNumbering(nodes: BlockNode[], parentNumber: string = '', level: number = 0): void {
+function applyDynamicNumbering(
+  nodes: BlockNode[], 
+  parentNumber: string = '', 
+  level: number = 0,
+  isInsideConditional: boolean = false
+): void {
   let visibleIndex = 0;
+  
+  // Reset global section counter at root level
+  if (level === 0) {
+    globalSectionCounter = 0;
+  }
   
   for (const node of nodes) {
     if (node.isHidden) continue;
@@ -395,13 +409,19 @@ function applyDynamicNumbering(nodes: BlockNode[], parentNumber: string = '', le
     // Use hierarchy_level from clause data if available, otherwise fall back to tree depth
     const hierarchyLevel = node.clause.hierarchy_level ?? (level + 1);
     const blockType = node.clause.block_type || 'clause';
+    const clauseName = node.clause.name || '';
+    
+    // Check if this is a conditional [IF] block
+    const isConditionalBlock = clauseName.startsWith('[IF') || clauseName.includes('[IF ');
     
     // Determine the number format based on hierarchy_level (not tree depth)
     let number: string;
     
     if (hierarchyLevel === 1) {
       // Level 1: Upper Roman for Agreement Parts (I, II, III)
-      const clauseName = node.clause.name || '';
+      // ABSOLUTE RULE: Reset all sub-counters when Level 1 is encountered
+      globalSectionCounter = 0; // Reset section counter
+      
       const clauseCode = node.clause.clause_code || '';
       const isRomanSection = /^[IVX]+\.?\s/.test(clauseCode) || /^[IVX]+\.?\s/.test(clauseName);
       
@@ -410,6 +430,17 @@ function applyDynamicNumbering(nodes: BlockNode[], parentNumber: string = '', le
       } else {
         number = String(visibleIndex);
       }
+    } else if (hierarchyLevel === 2) {
+      // Level 2: "Section X" for Major Sections, OR dot-notation if inside conditional [IF] tag
+      // ABSOLUTE RULE: If inside an [IF] tag, render as nested dot-notation (e.g., 5.1)
+      if (isInsideConditional || isConditionalBlock) {
+        // Inside conditional block - use dot-notation (parent.child format)
+        number = parentNumber ? `${parentNumber}.${visibleIndex}` : String(visibleIndex);
+      } else {
+        // Regular Level 2 outside [IF] - use independent section numbering (Section 1, 2, 3...)
+        globalSectionCounter++;
+        number = String(globalSectionCounter);
+      }
     } else if (hierarchyLevel === 5 || hierarchyLevel === 6) {
       // Levels 5-6: No numbering (body text and conspicuous)
       number = '';
@@ -417,15 +448,20 @@ function applyDynamicNumbering(nodes: BlockNode[], parentNumber: string = '', le
       // Level 7 ONLY: Lowercase Roman numerals for Roman Lists (i., ii., iii.)
       number = toLowerRoman(visibleIndex);
     } else {
-      // Levels 2-4: Parent.Child format (e.g., 1, 1.1, 1.1.1)
+      // Levels 3-4: Parent.Child format (e.g., 1.1, 1.1.1)
       number = parentNumber ? `${parentNumber}.${visibleIndex}` : String(visibleIndex);
     }
     
     node.dynamicNumber = number || undefined;
     
+    // Mark if this node is inside a conditional block for rendering decisions
+    node.isInsideConditional = isInsideConditional || isConditionalBlock;
+    
     // Recursively number children
+    // Pass down conditional context so children know they're inside an [IF] block
     if (node.children.length > 0) {
-      applyDynamicNumbering(node.children, number, level + 1);
+      const childConditionalContext = isInsideConditional || isConditionalBlock;
+      applyDynamicNumbering(node.children, number, level + 1, childConditionalContext);
     }
   }
 }
@@ -754,7 +790,7 @@ function renderBlockTreeHTML(nodes: BlockNode[], projectData: Record<string, any
  * Supports 8-level hierarchy: Agreement Parts, Major Sections, Clauses, Sub-headers, Body, Conspicuous, Roman Lists
  */
 function renderBlockNode(node: BlockNode): string {
-  const { clause, children, dynamicNumber } = node;
+  const { clause, children, dynamicNumber, isInsideConditional } = node;
   const blockType = clause.block_type || 'clause';
   const hierarchyLevel = clause.hierarchy_level ?? 1;
   const rawContent = clause.content || '';
@@ -802,14 +838,28 @@ function renderBlockNode(node: BlockNode): string {
         ${content ? `<p>${content}</p>` : ''}
       `;
     } else {
-      // Level 2: Major Sections - Blue, Bold, "Section X. "
+      // Level 2: Major Sections
+      // ABSOLUTE RULE: If inside [IF] tag, use dot-notation (e.g., 5.1) instead of "Section X"
       const displayName = clauseName.replace(/^Section\s*\d+\.?\s*/i, '');
-      html += `
-        <div class="level-2 subsection-header">
-          ${dynamicNumber ? `Section ${dynamicNumber}. ` : ''}${escapeHtml(displayName)}
-        </div>
-        ${content ? `<p>${content}</p>` : ''}
-      `;
+      const isConditionalClause = clauseName.startsWith('[IF') || clauseName.includes('[IF ');
+      
+      if (isInsideConditional || isConditionalClause) {
+        // Inside conditional block - use dot-notation, skip "Section" prefix
+        html += `
+          <div class="level-2 subsection-header">
+            ${dynamicNumber ? `${dynamicNumber}. ` : ''}${escapeHtml(displayName)}
+          </div>
+          ${content ? `<p>${content}</p>` : ''}
+        `;
+      } else {
+        // Regular Level 2 - use "Section X" format
+        html += `
+          <div class="level-2 subsection-header">
+            ${dynamicNumber ? `Section ${dynamicNumber}. ` : ''}${escapeHtml(displayName)}
+          </div>
+          ${content ? `<p>${content}</p>` : ''}
+        `;
+      }
     }
   } else if (blockType === 'clause') {
     // Level 3: Clauses - Black, Bold, Dot-notation (1.1, 2.3)
@@ -849,7 +899,13 @@ function renderBlockNode(node: BlockNode): string {
       html += `<div class="level-1">${dynamicNumber ? `${dynamicNumber}. ` : ''}${escapeHtml(clauseName.toUpperCase())}</div>`;
       if (content) html += `<p>${content}</p>`;
     } else if (hierarchyLevel === 2) {
-      html += `<div class="level-2">${dynamicNumber ? `Section ${dynamicNumber}. ` : ''}${escapeHtml(clauseName)}</div>`;
+      // ABSOLUTE RULE: If inside [IF] tag, use dot-notation instead of "Section X"
+      const isConditionalClause = clauseName.startsWith('[IF') || clauseName.includes('[IF ');
+      if (isInsideConditional || isConditionalClause) {
+        html += `<div class="level-2">${dynamicNumber ? `${dynamicNumber}. ` : ''}${escapeHtml(clauseName)}</div>`;
+      } else {
+        html += `<div class="level-2">${dynamicNumber ? `Section ${dynamicNumber}. ` : ''}${escapeHtml(clauseName)}</div>`;
+      }
       if (content) html += `<p>${content}</p>`;
     } else if (hierarchyLevel === 3) {
       html += `<div class="level-3">${dynamicNumber ? `${dynamicNumber}. ` : ''}${escapeHtml(clauseName)}</div>`;
@@ -1049,16 +1105,17 @@ function getContractStyles(): string {
       display: inline;
     }
     
-    /* Level 5: Body Text - Left-flush, Hanging indent */
+    /* Level 5: Body Text - Left-flush, justified with proper line-height */
     .level-5 {
       font-size: 11pt;
       font-weight: normal;
       margin-bottom: 10pt;
-      text-align: left;
-      line-height: 1.15;
+      text-align: justify;
+      line-height: 1.5;
       text-indent: 0;
       margin-left: 0;
       padding-left: 0.35in;
+      word-wrap: break-word;
     }
     
     /* Regular paragraphs - Left-justified, no indent */
@@ -1074,31 +1131,32 @@ function getContractStyles(): string {
       margin-left: 0.25in;
     }
     
-    /* Level 6: Conspicuous/Legal Disclaimers - Left-flush, Hanging indent, ENTIRELY BOLD */
+    /* Level 6: Conspicuous/Legal Disclaimers - Left-flush, justified, ENTIRELY BOLD */
     .level-6,
     .conspicuous {
       font-size: 11pt;
       font-weight: bold;
       margin-bottom: 10pt;
-      text-align: left;
-      line-height: 1.15;
+      text-align: justify;
+      line-height: 1.5;
       text-indent: 0;
       margin-left: 0;
       padding-left: 0.35in;
       text-transform: none;
+      word-wrap: break-word;
     }
     
-    /* Level 7 (H5): Roman Lists - Margin-Left: 60pt, Lower Roman (i., ii., iii.) */
+    /* Level 7 (H5): Roman Lists - Margin-Left: 60pt, text-indent: -20pt, Lower Roman (i., ii., iii.) */
     .level-7,
     .list-item-roman {
       font-size: 11pt;
       font-weight: normal;
       margin-bottom: 8pt;
-      line-height: 1.15;
+      line-height: 1.5;
       margin-left: 60pt;
-      padding-left: 0.35in;
-      text-indent: -0.35in;
-      list-style-type: none;
+      text-indent: -20pt;
+      list-style-type: lower-roman;
+      word-wrap: break-word;
     }
     
     .list-item-roman .list-marker {
@@ -1538,16 +1596,17 @@ function generateHTMLFromClauses(
       display: inline;
     }
     
-    /* Level 5: Body Text - Left-flush, Hanging indent */
+    /* Level 5: Body Text - Left-flush, justified with proper line-height */
     .level-5 {
       font-size: 11pt;
       font-weight: normal;
       margin-bottom: 10pt;
-      text-align: left;
-      line-height: 1.15;
+      text-align: justify;
+      line-height: 1.5;
       text-indent: 0;
       margin-left: 0;
       padding-left: 0.35in;
+      word-wrap: break-word;
     }
     
     /* Regular paragraphs - Left-justified, no indent */
@@ -1563,31 +1622,32 @@ function generateHTMLFromClauses(
       margin-left: 0.25in;
     }
     
-    /* Level 6: Conspicuous/Legal Disclaimers - Left-flush, Hanging indent, ENTIRELY BOLD */
+    /* Level 6: Conspicuous/Legal Disclaimers - Left-flush, justified, ENTIRELY BOLD */
     .level-6,
     .conspicuous {
       font-size: 11pt;
       font-weight: bold;
       margin-bottom: 10pt;
-      text-align: left;
-      line-height: 1.15;
+      text-align: justify;
+      line-height: 1.5;
       text-indent: 0;
       margin-left: 0;
       padding-left: 0.35in;
       text-transform: none;
+      word-wrap: break-word;
     }
     
-    /* Level 7 (H5): Roman Lists - Margin-Left: 60pt, Lower Roman (i., ii., iii.) */
+    /* Level 7 (H5): Roman Lists - Margin-Left: 60pt, text-indent: -20pt, Lower Roman (i., ii., iii.) */
     .level-7,
     .list-item-roman {
       font-size: 11pt;
       font-weight: normal;
       margin-bottom: 8pt;
-      line-height: 1.15;
+      line-height: 1.5;
       margin-left: 60pt;
-      padding-left: 0.35in;
-      text-indent: -0.35in;
-      list-style-type: none;
+      text-indent: -20pt;
+      list-style-type: lower-roman;
+      word-wrap: break-word;
     }
     
     .list-item-roman .list-marker {
