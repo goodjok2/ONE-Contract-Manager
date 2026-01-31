@@ -9,7 +9,8 @@ import {
   Eye,
   Wand2,
   Variable,
-  Upload
+  Upload,
+  FileCode
 } from "lucide-react";
 import {
   Sidebar,
@@ -58,6 +59,11 @@ const configNavItems = [
     title: "Clause Library",
     url: "/clause-library",
     icon: Library,
+  },
+  {
+    title: "Exhibits",
+    url: "/exhibits",
+    icon: FileCode,
   },
   {
     title: "Import Templates",
