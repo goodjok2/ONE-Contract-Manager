@@ -416,15 +416,17 @@ export const clauses = pgTable("clauses", {
   id: serial("id").primaryKey(),
   clauseCode: text("clause_code"), // e.g., "1.1", "2.3.4"
   parentClauseId: integer("parent_clause_id"), // References clauses.id for recursive tree
-  hierarchyLevel: integer("hierarchy_level"), // 0=section, 1=subsection, 2=paragraph
+  hierarchyLevel: integer("hierarchy_level"), // 1-7: Agreement Parts, Major Sections, Clauses, Sub-headers, Body, Conspicuous, Roman Lists
   sortOrder: integer("sort_order").notNull().default(0), // Strictly enforced for drag-and-drop ordering
-  blockType: text("block_type"), // 'section', 'clause', 'paragraph', or 'table'
+  blockType: text("block_type"), // 'section', 'clause', 'paragraph', 'table', 'dynamic_disclosure', 'list_item', 'conspicuous'
   name: text("name"), // Clause title
   category: text("category"), // 'scope', 'payment', 'warranty', 'termination', etc.
   contractType: text("contract_type"), // 'ONE', 'MANUFACTURING', 'ONSITE'
   content: text("content").notNull(), // The actual clause content
   variablesUsed: text("variables_used").array(), // Array of variable names
   conditions: text("conditions"), // JSONB for conditional logic
+  disclosureCode: text("disclosure_code"), // For [STATE_DISCLOSURE:XXXX] dynamic lookups
+  serviceModelCondition: text("service_model_condition"), // 'CRC' or 'CMOS' for service model branching
   riskLevel: text("risk_level"), // 'low', 'medium', 'high'
   negotiable: boolean("negotiable").default(true),
   owner: text("owner"), // Who owns/maintains this clause
