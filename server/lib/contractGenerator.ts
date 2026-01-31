@@ -81,6 +81,46 @@ function getStateDisclosureSync(disclosureCode: string, state: string): string {
 }
 
 /**
+ * Resolve inline [STATE_DISCLOSURE:XXXX] tags in content by looking up from state_disclosures table
+ * These tags are found in exhibit content and clauses
+ * Returns the content with tags replaced by actual disclosure content
+ */
+async function resolveInlineStateDisclosureTags(content: string, projectState: string): Promise<string> {
+  if (!content || !projectState) return content;
+  
+  // Pattern: [STATE_DISCLOSURE:XXXX] where XXXX is the disclosure code
+  const tagPattern = /\[STATE_DISCLOSURE:([A-Z0-9_]+)\]/g;
+  
+  // Find all unique disclosure codes using exec loop (for ES5 compatibility)
+  const disclosureCodes: string[] = [];
+  let match;
+  while ((match = tagPattern.exec(content)) !== null) {
+    if (!disclosureCodes.includes(match[1])) {
+      disclosureCodes.push(match[1]);
+    }
+  }
+  
+  if (disclosureCodes.length === 0) return content;
+  
+  // Preload all required disclosures
+  console.log(`📜 Resolving ${disclosureCodes.length} inline state disclosure tags for ${projectState}...`);
+  for (let i = 0; i < disclosureCodes.length; i++) {
+    await lookupStateDisclosure(disclosureCodes[i], projectState);
+  }
+  
+  // Replace all tags with actual content
+  let result = content;
+  for (let i = 0; i < disclosureCodes.length; i++) {
+    const code = disclosureCodes[i];
+    const disclosure = getStateDisclosureSync(code, projectState);
+    const pattern = new RegExp(`\\[STATE_DISCLOSURE:${code}\\]`, 'g');
+    result = result.replace(pattern, disclosure);
+  }
+  
+  return result;
+}
+
+/**
  * Fetch exhibits from database for a given contract type
  * Returns array of exhibit records ordered by sortOrder and letter
  */
@@ -140,7 +180,13 @@ async function renderExhibitsHTML(
     // Exhibit content
     let content = exhibit.content || '';
     
-    // For dynamic exhibits, look up state-specific content
+    // Resolve inline [STATE_DISCLOSURE:XXXX] tags in exhibit content
+    // These are tags embedded in the content that need to be replaced with actual disclosure text
+    if (projectState && content.includes('[STATE_DISCLOSURE:')) {
+      content = await resolveInlineStateDisclosureTags(content, projectState);
+    }
+    
+    // For dynamic exhibits with a disclosureCode property, also look up that content
     if (exhibit.isDynamic && exhibit.disclosureCode && projectState) {
       const disclosureContent = await lookupStateDisclosure(exhibit.disclosureCode, projectState);
       // If disclosure found, append it to content
@@ -187,10 +233,24 @@ export async function generateContract(options: ContractGenerationOptions): Prom
   // Set current project state for disclosure lookups
   currentProjectState = projectState;
   
-  // Step 1.5: Preload state disclosures for dynamic_disclosure blocks
+  // Step 1.5: Preload state disclosures for dynamic_disclosure blocks AND inline tags
   const disclosureCodes = clauses
     .filter(c => c.block_type === 'dynamic_disclosure' && c.disclosure_code)
     .map(c => c.disclosure_code as string);
+  
+  // Also find inline [STATE_DISCLOSURE:XXXX] tags in clause content
+  const inlineTagPattern = /\[STATE_DISCLOSURE:([A-Z0-9_]+)\]/g;
+  for (const clause of clauses) {
+    if (clause.content) {
+      let match;
+      while ((match = inlineTagPattern.exec(clause.content)) !== null) {
+        if (!disclosureCodes.includes(match[1])) {
+          disclosureCodes.push(match[1]);
+        }
+      }
+      inlineTagPattern.lastIndex = 0; // Reset for next clause
+    }
+  }
   
   if (disclosureCodes.length > 0 && projectState) {
     console.log(`📋 Preloading ${disclosureCodes.length} state disclosures for ${projectState}...`);
@@ -558,6 +618,27 @@ function replaceVariables(content: string, variableMap: Record<string, string>):
   if (!content) return '';
   
   let result = content;
+  
+  // Replace [STATE_DISCLOSURE:XXXX] inline tags with cached disclosure content
+  // These should have been preloaded in the generateContract function
+  if (result.includes('[STATE_DISCLOSURE:') && currentProjectState) {
+    // Find all unique disclosure codes first
+    const codePattern = /\[STATE_DISCLOSURE:([A-Z0-9_]+)\]/g;
+    const uniqueCodes: string[] = [];
+    let codeMatch;
+    while ((codeMatch = codePattern.exec(result)) !== null) {
+      if (!uniqueCodes.includes(codeMatch[1])) {
+        uniqueCodes.push(codeMatch[1]);
+      }
+    }
+    // Then replace ALL occurrences of each code with a global replace
+    for (let i = 0; i < uniqueCodes.length; i++) {
+      const code = uniqueCodes[i];
+      const disclosureContent = getStateDisclosureSync(code, currentProjectState);
+      const replacePattern = new RegExp(`\\[STATE_DISCLOSURE:${code}\\]`, 'g');
+      result = result.replace(replacePattern, disclosureContent);
+    }
+  }
   
   // Replace variables with their values using special markers
   // These markers will be converted to HTML spans after formatting

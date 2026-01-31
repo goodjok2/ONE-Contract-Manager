@@ -7,7 +7,7 @@ import type {
   WarrantyTerm,
   Contractor,
 } from "../../shared/schema";
-import { generatePricingTableHtml, generatePaymentScheduleHtml, generateUnitDetailsHtml, UnitDetail } from "./tableGenerators";
+import { generatePricingTableHtml, generatePaymentScheduleHtml, generateUnitDetailsHtml, UnitDetail, ContractFilterType } from "./tableGenerators";
 
 // =============================================================================
 // TYPE DEFINITIONS
@@ -507,7 +507,8 @@ function buildUnitModelList(units?: ProjectUnit[]): string {
 
 export function mapProjectToVariables(
   data: ProjectWithRelations, 
-  pricingSummary?: PricingSummaryForMapper
+  pricingSummary?: PricingSummaryForMapper,
+  contractType: ContractFilterType = 'ONE'
 ): ContractVariables {
   const { project, client, childLlc, projectDetails, financials, milestones, warrantyTerms, contractors, units } = data;
 
@@ -733,8 +734,17 @@ export function mapProjectToVariables(
       });
       return {};
     })()),
-    PRICING_BREAKDOWN_TABLE: generatePricingTableHtml(pricingSummary || null),
-    PAYMENT_SCHEDULE_TABLE: generatePaymentScheduleHtml(pricingSummary?.paymentSchedule || null),
+    PRICING_BREAKDOWN_TABLE: generatePricingTableHtml(pricingSummary || null, contractType),
+    PAYMENT_SCHEDULE_TABLE: generatePaymentScheduleHtml(
+      pricingSummary?.paymentSchedule || null, 
+      contractType,
+      // Pass filtered contract total for accurate milestone amounts
+      contractType === 'MANUFACTURING' 
+        ? (pricingSummary?.breakdown.totalDesignFee || 0) + (pricingSummary?.breakdown.totalOffsite || 0)
+        : contractType === 'ONSITE'
+          ? (pricingSummary?.breakdown.totalOnsite || 0)
+          : undefined
+    ),
     UNIT_DETAILS_TABLE: generateUnitDetailsHtml(
       units?.map(u => ({
         unitLabel: u.unitLabel || `Unit ${u.id}`,

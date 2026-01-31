@@ -1480,12 +1480,27 @@ router.post("/contracts/download-all-zip", async (req, res) => {
     
     for (const contractType of contractTypes) {
       try {
+        // Generate separate projectData for each contract type with filtered tables
+        const contractProjectData = mapProjectToVariables(fullProject, pricingSummary || undefined, contractType);
+        
+        // Apply the same enrichments as the main projectData
+        if (pricingSummary && pricingSummary.unitCount > 0) {
+          contractProjectData.DESIGN_FEE = centsToDollars(pricingSummary.breakdown.totalDesignFee);
+          contractProjectData.DESIGN_FEE_WRITTEN = formatCentsAsCurrency(pricingSummary.breakdown.totalDesignFee);
+          contractProjectData.PRELIM_OFFSITE = centsToDollars(pricingSummary.breakdown.totalOffsite);
+          contractProjectData.PRELIM_OFFSITE_WRITTEN = formatCentsAsCurrency(pricingSummary.breakdown.totalOffsite);
+          contractProjectData.PRELIMINARY_OFFSITE_PRICE = formatCentsAsCurrency(pricingSummary.breakdown.totalOffsite);
+          contractProjectData.PRELIM_ONSITE = centsToDollars(pricingSummary.breakdown.totalOnsite);
+          contractProjectData.PRELIM_ONSITE_WRITTEN = formatCentsAsCurrency(pricingSummary.breakdown.totalOnsite);
+          contractProjectData.PRELIMINARY_ONSITE_PRICE = formatCentsAsCurrency(pricingSummary.breakdown.totalOnsite);
+        }
+        
         const buffer = await generateContract({
           contractType,
-          projectData,
+          projectData: contractProjectData,
           format: 'pdf'
         });
-        const filename = getContractFilename(contractType, projectData, 'pdf');
+        const filename = getContractFilename(contractType, contractProjectData, 'pdf');
         generatedContracts.push({ buffer, filename });
         console.log(`Generated ${contractType}: ${filename} (${buffer.length} bytes)`);
       } catch (err) {
@@ -1550,8 +1565,10 @@ router.post("/contracts/download-pdf", async (req, res) => {
         console.warn(`⚠️ Pricing engine error (using fallback):`, pricingError);
       }
       
-      // Now call mapProjectToVariables WITH the pricingSummary so tables are populated
-      projectData = mapProjectToVariables(fullProject, pricingSummary || undefined);
+      // Now call mapProjectToVariables WITH the pricingSummary and contractType so tables are filtered correctly
+      // Contract type filtering: ONE shows all, MANUFACTURING shows offsite only, ONSITE shows onsite only
+      const contractFilterType = contractType as 'ONE' | 'MANUFACTURING' | 'ONSITE';
+      projectData = mapProjectToVariables(fullProject, pricingSummary || undefined, contractFilterType);
       
       console.log(`\n=== Generating ${contractType} contract for project ${projectId} ===`);
       console.log(`Project: ${projectData.PROJECT_NUMBER} - ${projectData.PROJECT_NAME}`);
@@ -1706,8 +1723,10 @@ router.post("/contracts/draft-preview", async (req, res) => {
       console.warn(`⚠️ Pricing engine error (using fallback):`, pricingError);
     }
     
-    // Map project to variables WITH pricingSummary (same as PDF route)
-    const projectData = mapProjectToVariables(fullProject, pricingSummary || undefined);
+    // Map project to variables WITH pricingSummary and contractType (same as PDF route)
+    // Contract type filtering: ONE shows all, MANUFACTURING shows offsite only, ONSITE shows onsite only
+    const contractFilterType = contractType as 'ONE' | 'MANUFACTURING' | 'ONSITE';
+    const projectData = mapProjectToVariables(fullProject, pricingSummary || undefined, contractFilterType);
     
     console.log(`\n=== Generating ${contractType} DRAFT PREVIEW for project ${projectId} ===`);
     console.log(`Project: ${projectData.PROJECT_NUMBER} - ${projectData.PROJECT_NAME}`);

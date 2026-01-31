@@ -1,13 +1,24 @@
 /**
  * Table Generators for Contract PDF Generation
  * Generates HTML tables with inline styles for PDF compatibility
+ * 
+ * Contract Type Filtering:
+ * - MANUFACTURING: Shows only Offsite/Manufacturing costs
+ * - ONSITE: Shows only Onsite/Shipping/Installation costs
+ * - ONE: Shows full master budget (all costs)
  */
+
+// Contract type for filtering pricing data
+export type ContractFilterType = 'ONE' | 'MANUFACTURING' | 'ONSITE';
 
 interface PricingBreakdown {
   totalDesignFee: number;
   totalOffsite: number;
   totalOnsite: number;
   totalCustomizations?: number;
+  // Optional detailed breakdown for subcontract filtering
+  totalShipping?: number;
+  totalInstallation?: number;
 }
 
 interface PricingSummary {
@@ -38,14 +49,34 @@ function formatCurrency(cents: number): string {
 /**
  * Generates an HTML table showing pricing breakdown
  * Includes Design Fee, Offsite Manufacturing, Onsite Services (if applicable), and Grand Total
+ * 
+ * Contract type filtering:
+ * - ONE: Shows full master budget (design + offsite + onsite)
+ * - MANUFACTURING: Shows only manufacturing costs (design fee + offsite/manufacturing)
+ * - ONSITE: Shows only onsite costs (onsite services + shipping + installation)
  */
-export function generatePricingTableHtml(pricingSummary: PricingSummary | null): string {
+export function generatePricingTableHtml(
+  pricingSummary: PricingSummary | null, 
+  contractType: ContractFilterType = 'ONE'
+): string {
   if (!pricingSummary) {
     return 'No pricing data found.';
   }
 
   const { breakdown, contractValue, serviceModel } = pricingSummary;
   const isCMOS = serviceModel === 'CMOS';
+  
+  // Calculate filtered contract total based on contract type
+  let filteredContractTotal = contractValue;
+  if (contractType === 'MANUFACTURING') {
+    // Manufacturing subcontract: Design Fee + Offsite (Manufacturing)
+    filteredContractTotal = breakdown.totalDesignFee + breakdown.totalOffsite;
+  } else if (contractType === 'ONSITE') {
+    // Onsite subcontract: Onsite Services only (+ shipping/installation if available)
+    filteredContractTotal = breakdown.totalOnsite + 
+      (breakdown.totalShipping || 0) + 
+      (breakdown.totalInstallation || 0);
+  }
 
   const tableStyle = `
     width: 100%;
@@ -106,27 +137,32 @@ export function generatePricingTableHtml(pricingSummary: PricingSummary | null):
     font-size: 12pt;
   `.trim().replace(/\s+/g, ' ');
 
-  let rows = `
+  let rows = '';
+  
+  // Build rows based on contract type
+  if (contractType === 'ONE' || contractType === 'MANUFACTURING') {
+    // ONE and MANUFACTURING contracts include Design Fee
+    rows += `
     <tr>
       <td style="${cellStyle}">Design Fee</td>
       <td style="${cellRightStyle}">${formatCurrency(breakdown.totalDesignFee)}</td>
     </tr>
+    `;
+  }
+  
+  if (contractType === 'ONE' || contractType === 'MANUFACTURING') {
+    // ONE and MANUFACTURING contracts include Offsite (Manufacturing)
+    rows += `
     <tr>
       <td style="${cellStyle}">Offsite (Manufacturing)</td>
       <td style="${cellRightStyle}">${formatCurrency(breakdown.totalOffsite)}</td>
     </tr>
-  `;
-
-  if (isCMOS && breakdown.totalOnsite > 0) {
-    rows += `
-    <tr>
-      <td style="${cellStyle}">Onsite Services</td>
-      <td style="${cellRightStyle}">${formatCurrency(breakdown.totalOnsite)}</td>
-    </tr>
     `;
   }
 
-  if (breakdown.totalCustomizations && breakdown.totalCustomizations > 0) {
+  // Include customizations for ONE and MANUFACTURING contracts
+  if ((contractType === 'ONE' || contractType === 'MANUFACTURING') && 
+      breakdown.totalCustomizations && breakdown.totalCustomizations > 0) {
     rows += `
     <tr>
       <td style="${cellStyle}">Customizations</td>
@@ -134,6 +170,41 @@ export function generatePricingTableHtml(pricingSummary: PricingSummary | null):
     </tr>
     `;
   }
+  
+  // Onsite Services shown for ONE (if CMOS) and ONSITE contracts
+  if ((contractType === 'ONE' && isCMOS && breakdown.totalOnsite > 0) || 
+      contractType === 'ONSITE') {
+    rows += `
+    <tr>
+      <td style="${cellStyle}">Onsite Services</td>
+      <td style="${cellRightStyle}">${formatCurrency(breakdown.totalOnsite)}</td>
+    </tr>
+    `;
+  }
+  
+  // For ONSITE contracts, also show shipping and installation if available
+  if (contractType === 'ONSITE') {
+    if (breakdown.totalShipping && breakdown.totalShipping > 0) {
+      rows += `
+    <tr>
+      <td style="${cellStyle}">Shipping</td>
+      <td style="${cellRightStyle}">${formatCurrency(breakdown.totalShipping)}</td>
+    </tr>
+      `;
+    }
+    if (breakdown.totalInstallation && breakdown.totalInstallation > 0) {
+      rows += `
+    <tr>
+      <td style="${cellStyle}">Installation</td>
+      <td style="${cellRightStyle}">${formatCurrency(breakdown.totalInstallation)}</td>
+    </tr>
+      `;
+    }
+  }
+
+  // Determine contract total label based on contract type
+  const totalLabel = contractType === 'ONE' ? 'Contract Total' : 
+    contractType === 'MANUFACTURING' ? 'Manufacturing Contract Total' : 'Onsite Contract Total';
 
   return `
 <table style="${tableStyle}">
@@ -146,8 +217,8 @@ export function generatePricingTableHtml(pricingSummary: PricingSummary | null):
   <tbody>
     ${rows}
     <tr style="${totalRowStyle}">
-      <td style="${totalCellStyle}">Contract Total</td>
-      <td style="${totalCellRightStyle}">${formatCurrency(contractValue)}</td>
+      <td style="${totalCellStyle}">${totalLabel}</td>
+      <td style="${totalCellRightStyle}">${formatCurrency(filteredContractTotal)}</td>
     </tr>
   </tbody>
 </table>
@@ -157,10 +228,58 @@ export function generatePricingTableHtml(pricingSummary: PricingSummary | null):
 /**
  * Generates an HTML table showing payment schedule milestones
  * Shows Phase, Percentage, and Amount for each milestone
+ * 
+ * Contract type filtering:
+ * - ONE: Shows all payment milestones
+ * - MANUFACTURING: Shows only manufacturing phase milestones (Design, Production)
+ * - ONSITE: Shows only onsite phase milestones (Onsite, Delivery, Completion)
  */
-export function generatePaymentScheduleHtml(paymentSchedule: PaymentMilestone[] | null): string {
+export function generatePaymentScheduleHtml(
+  paymentSchedule: PaymentMilestone[] | null,
+  contractType: ContractFilterType = 'ONE',
+  filteredContractTotal?: number
+): string {
   if (!paymentSchedule || paymentSchedule.length === 0) {
     return 'No payment schedule data found.';
+  }
+  
+  // Filter milestones based on contract type
+  let filteredMilestones = paymentSchedule;
+  
+  if (contractType === 'MANUFACTURING') {
+    // Manufacturing: Design and Production phases only
+    filteredMilestones = paymentSchedule.filter(m => {
+      const phase = (m.phase || '').toLowerCase();
+      const name = (m.name || '').toLowerCase();
+      return phase.includes('design') || 
+             phase.includes('production') || 
+             name.includes('deposit') ||
+             name.includes('green light') ||
+             name.includes('production');
+    });
+  } else if (contractType === 'ONSITE') {
+    // Onsite: Onsite, Delivery, and Completion phases only
+    filteredMilestones = paymentSchedule.filter(m => {
+      const phase = (m.phase || '').toLowerCase();
+      const name = (m.name || '').toLowerCase();
+      return phase.includes('onsite') || 
+             phase.includes('delivery') || 
+             phase.includes('completion') ||
+             name.includes('delivery') ||
+             name.includes('retainage') ||
+             name.includes('completion');
+    });
+  }
+  
+  // If we have a filtered contract total, recalculate milestone amounts proportionally
+  if (filteredContractTotal && filteredContractTotal > 0 && filteredMilestones.length > 0) {
+    const totalPercentage = filteredMilestones.reduce((sum, m) => sum + m.percentage, 0);
+    if (totalPercentage > 0) {
+      filteredMilestones = filteredMilestones.map(m => ({
+        ...m,
+        amount: Math.round((filteredContractTotal * m.percentage) / totalPercentage)
+      }));
+    }
   }
 
   const tableStyle = `
@@ -198,7 +317,7 @@ export function generatePaymentScheduleHtml(paymentSchedule: PaymentMilestone[] 
     border: 1px solid #2c3e50;
   `.trim().replace(/\s+/g, ' ');
 
-  const rows = paymentSchedule.map((milestone, index) => {
+  const rows = filteredMilestones.map((milestone, index) => {
     const isEven = index % 2 === 0;
     const rowBg = isEven ? 'background-color: #ffffff;' : 'background-color: #f8f9fa;';
     
@@ -232,8 +351,8 @@ export function generatePaymentScheduleHtml(paymentSchedule: PaymentMilestone[] 
     `;
   }).join('');
 
-  const total = paymentSchedule.reduce((sum, m) => sum + m.amount, 0);
-  const totalPercent = paymentSchedule.reduce((sum, m) => sum + m.percentage, 0);
+  const total = filteredMilestones.reduce((sum, m) => sum + m.amount, 0);
+  const totalPercent = filteredMilestones.reduce((sum, m) => sum + m.percentage, 0);
 
   const totalRowStyle = `
     background-color: #f0f0f0;
