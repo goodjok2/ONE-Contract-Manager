@@ -91,6 +91,7 @@ export default function TemplatesUpload() {
       queryClient.invalidateQueries({ queryKey: ["/api/contracts/templates"] });
       queryClient.invalidateQueries({ queryKey: ["/api/clauses"] });
       queryClient.invalidateQueries({ queryKey: ["/api/exhibits"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/state-disclosures"] });
     },
     onError: (error: Error) => {
       toast({

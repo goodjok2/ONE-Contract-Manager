@@ -10,7 +10,8 @@ import {
   Wand2,
   Variable,
   Upload,
-  FileCode
+  FileCode,
+  Scale
 } from "lucide-react";
 import {
   Sidebar,
@@ -64,6 +65,11 @@ const configNavItems = [
     title: "Exhibits",
     url: "/exhibits",
     icon: FileCode,
+  },
+  {
+    title: "State Disclosures",
+    url: "/state-disclosures",
+    icon: Scale,
   },
   {
     title: "Import Templates",

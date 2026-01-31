@@ -443,6 +443,14 @@ export const stateDisclosures = pgTable("state_disclosures", {
   updatedAt: timestamp("updated_at"),
 });
 
+export const insertStateDisclosureSchema = createInsertSchema(stateDisclosures).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertStateDisclosure = z.infer<typeof insertStateDisclosureSchema>;
+export type StateDisclosure = typeof stateDisclosures.$inferSelect;
+
 export const exhibits = pgTable("exhibits", {
   id: serial("id").primaryKey(),
   letter: text("letter").notNull(), // e.g., 'A', 'B', 'G'

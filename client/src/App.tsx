@@ -22,6 +22,7 @@ import GenerateContracts from "@/pages/generate-contracts";
 import VariableMappings from "@/pages/variable-mappings";
 import TemplatesUpload from "@/pages/templates-upload";
 import Exhibits from "@/pages/exhibits";
+import StateDisclosures from "@/pages/state-disclosures";
 
 function Router() {
   return (
@@ -30,6 +31,7 @@ function Router() {
       <Route path="/agreements/new" component={AgreementsNew} />
       <Route path="/clause-library" component={ClauseLibrary} />
       <Route path="/exhibits" component={Exhibits} />
+      <Route path="/state-disclosures" component={StateDisclosures} />
       <Route path="/contract-preview" component={ContractPreview} />
       <Route path="/generate-contracts" component={GenerateContracts} />
       <Route path="/contracts" component={Contracts} />
