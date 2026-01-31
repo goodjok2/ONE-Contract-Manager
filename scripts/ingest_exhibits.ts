@@ -28,7 +28,9 @@ interface ParsedExhibit {
 
 const VARIABLE_PATTERN = /\{\{([A-Z0-9_]+)\}\}/g;
 const STATE_DISCLOSURE_PATTERN = /\[STATE_DISCLOSURE:([A-Z0-9_]+)\]/g;
-const EXHIBIT_HEADER_PATTERN = /^EXHIBIT\s+([A-Z])[\s:.\-]+(.+)?$/i;
+// More robust pattern: matches "EXHIBIT X", "EXHIBIT X:", "EXHIBIT X -", "EXHIBIT X.", "EXHIBIT-X", etc.
+// The pattern is case-insensitive and allows for various separators between "EXHIBIT" and the letter
+const EXHIBIT_HEADER_PATTERN = /^\s*EXHIBIT[\s\-]*([A-Z])[\s:.\-\u2013\u2014]*(.*)$/i;
 
 // Keywords that indicate dynamic/state-specific exhibits
 const DYNAMIC_EXHIBIT_KEYWORDS = [
@@ -120,6 +122,37 @@ function cleanText(html: string): string {
     .replace(/&nbsp;/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+/**
+ * Clean exhibit content by removing trailing garbage content
+ * This includes empty paragraphs, whitespace, and other artifacts
+ */
+function cleanExhibitContent(content: string): string {
+  if (!content) return '';
+  
+  // Remove trailing empty HTML tags and whitespace
+  let cleaned = content
+    .replace(/(<p[^>]*>\s*<\/p>\s*)+$/gi, '')
+    .replace(/(<li[^>]*>\s*<\/li>\s*)+$/gi, '')
+    .replace(/(<ul[^>]*>\s*<\/ul>\s*)+$/gi, '')
+    .replace(/(<div[^>]*>\s*<\/div>\s*)+$/gi, '')
+    .replace(/(<br\s*\/?>\s*)+$/gi, '')
+    .trim();
+  
+  // Remove trailing paragraphs with only whitespace or punctuation
+  cleaned = cleaned
+    .replace(/(<p[^>]*>\s*[.\s\-_]*\s*<\/p>\s*)+$/gi, '')
+    .trim();
+  
+  // Ensure proper closing of unclosed tags
+  const openUl = (cleaned.match(/<ul/g) || []).length;
+  const closeUl = (cleaned.match(/<\/ul>/g) || []).length;
+  if (openUl > closeUl) {
+    cleaned += '</ul>'.repeat(openUl - closeUl);
+  }
+  
+  return cleaned;
 }
 
 function isDynamicExhibit(letter: string, title: string, content: string): boolean {
@@ -289,17 +322,18 @@ async function parseExhibitsFromDocument(docxPath: string): Promise<ParsedExhibi
     const trimmedText = para.text.trim();
     if (!trimmedText) continue;
     
-    // Check if this is an exhibit header
+    // Check if this is an exhibit header (case-insensitive hard break)
     const headerMatch = trimmedText.match(EXHIBIT_HEADER_PATTERN);
     if (headerMatch) {
-      // Save previous exhibit
+      // Save previous exhibit with content cleaning
       if (currentExhibit) {
         // Close any open list
         if (inListContext) {
           contentBuilder.push('</ul>');
           inListContext = false;
         }
-        currentExhibit.content = contentBuilder.join('\n');
+        // Clean and trim garbage content from the end
+        currentExhibit.content = cleanExhibitContent(contentBuilder.join('\n'));
         currentExhibit.isDynamic = isDynamicExhibit(
           currentExhibit.letter,
           currentExhibit.title,
@@ -307,6 +341,7 @@ async function parseExhibitsFromDocument(docxPath: string): Promise<ParsedExhibi
         );
         currentExhibit.disclosureCode = extractDisclosureCode(currentExhibit.content);
         exhibitsList.push(currentExhibit);
+        console.log(`    Saved Exhibit ${currentExhibit.letter} (${currentExhibit.content.length} chars, cleaned)`);
       }
       
       // Start new exhibit
@@ -356,7 +391,8 @@ async function parseExhibitsFromDocument(docxPath: string): Promise<ParsedExhibi
     if (inListContext) {
       contentBuilder.push('</ul>');
     }
-    currentExhibit.content = contentBuilder.join('\n');
+    // Clean and trim garbage content from the end
+    currentExhibit.content = cleanExhibitContent(contentBuilder.join('\n'));
     currentExhibit.isDynamic = isDynamicExhibit(
       currentExhibit.letter,
       currentExhibit.title,
@@ -364,6 +400,7 @@ async function parseExhibitsFromDocument(docxPath: string): Promise<ParsedExhibi
     );
     currentExhibit.disclosureCode = extractDisclosureCode(currentExhibit.content);
     exhibitsList.push(currentExhibit);
+    console.log(`    Saved Exhibit ${currentExhibit.letter} (${currentExhibit.content.length} chars, cleaned)`);
   }
   
   return exhibitsList;

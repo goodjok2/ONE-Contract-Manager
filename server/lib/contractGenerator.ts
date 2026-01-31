@@ -1017,12 +1017,12 @@ function getContractStyles(): string {
       margin-left: 0;
     }
     
-    /* Level 3: Clauses - Black, Bold, Dot-notation (1.1, 2.3) */
+    /* Level 3: Clauses - Blue, Bold, Dot-notation (1.1, 2.3) */
     .level-3,
     .clause-header {
       font-size: 11pt;
       font-weight: bold;
-      color: #000;
+      color: #1a73e8;
       margin-top: 14pt;
       margin-bottom: 8pt;
       page-break-after: avoid;
@@ -1035,7 +1035,7 @@ function getContractStyles(): string {
     .paragraph-numbered {
       font-size: 11pt;
       font-weight: bold;
-      color: #000;
+      color: #1a73e8;
       margin-bottom: 10pt;
       line-height: 1.15;
       margin-left: 0;
@@ -1506,12 +1506,12 @@ function generateHTMLFromClauses(
       margin-left: 0;
     }
     
-    /* Level 3: Clauses - Black, Bold, Dot-notation (1.1, 2.3) */
+    /* Level 3: Clauses - Blue, Bold, Dot-notation (1.1, 2.3) */
     .level-3,
     .clause-header {
       font-size: 11pt;
       font-weight: bold;
-      color: #000;
+      color: #1a73e8;
       margin-top: 14pt;
       margin-bottom: 8pt;
       page-break-after: avoid;
@@ -1524,7 +1524,7 @@ function generateHTMLFromClauses(
     .paragraph-numbered {
       font-size: 11pt;
       font-weight: bold;
-      color: #000;
+      color: #1a73e8;
       margin-bottom: 10pt;
       line-height: 1.15;
       margin-left: 0;
