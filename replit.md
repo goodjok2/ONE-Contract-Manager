@@ -55,6 +55,7 @@ The application is built on a modern full-stack architecture.
 - **State Disclosure Double-Lookup System**: Uses a `state_disclosures` table for dynamic lookup of state-specific content based on `disclosure_code` and `PROJECT_STATE`.
 - **4-Level Hierarchical Styling**: PDF contracts apply dynamic CSS styling for 4 hierarchy levels based on clause structure.
 - **Exhibit Library**: Manages contract exhibits with CRUD functionality, supporting dynamic content, variable placeholders, and contract type associations.
+- **State Disclosure Library Management**: Full CRUD UI for managing state-specific legal disclosures, with state/code filtering, accessible via Configuration menu. Supports 16 states (AZ, CA, CO, FL, GA, ID, IL, MA, MI, NV, NY, OR, PA, TX, UT, WA).
 - **Universal Template Ingestor**: Enhanced UI for uploading various template types (Contract Agreement, Exhibit Library, State Disclosure Library) with intelligent ingestion logic for each.
 
 ## External Dependencies
