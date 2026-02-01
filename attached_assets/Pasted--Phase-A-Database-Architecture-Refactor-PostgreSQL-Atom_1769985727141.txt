@@ -1,0 +1,365 @@
+# Phase A: Database Architecture Refactor (PostgreSQL & Atomic Clauses)
+
+**Context:**
+We are refactoring the application to support "Atomic Clauses" and switching the schema definition to match our PostgreSQL database (replacing the previous SQLite definitions). We need to split clauses into distinct "Header" and "Body" fields, implement a self-referencing parent/child relationship (Tree Structure), and utilize Postgres-native types like `jsonb` and `serial`.
+
+**Task:**
+Update `server/db/schema.ts` to replace the existing schema with the new structure below.
+
+**Action:**
+Replace the entire content of `server/db/schema.ts` with the following code:
+
+```typescript
+import { pgTable, text, integer, real, serial, boolean, jsonb, timestamp } from "drizzle-orm/pg-core";
+import { relations } from "drizzle-orm";
+
+// =============================================================================
+// CORE TABLES
+// =============================================================================
+
+export const projects = pgTable("projects", {
+  id: serial("id").primaryKey(),
+  projectNumber: text("project_number").unique().notNull(),
+  name: text("name").notNull(),
+  status: text("status").default("Draft").notNull(), // Draft, Design, GreenLight, Production, Delivered, Complete
+  state: text("state"), // Project state (CA, TX, AZ, etc.)
+  onSiteSelection: text("on_site_selection").default("CRC"), // CRC or CMOS
+  odooProjectId: integer("odoo_project_id"), // Link to Odoo
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at"),
+  // Schedule Durations (in days)
+  designDuration: integer("design_duration").default(0),
+  permittingDuration: integer("permitting_duration").default(0),
+  productionDuration: integer("production_duration").default(0),
+  deliveryDuration: integer("delivery_duration").default(0),
+  completionDuration: integer("completion_duration").default(0),
+  estimatedDeliveryDate: text("estimated_delivery_date"),
+  estimatedCompletionDate: text("estimated_completion_date"),
+});
+
+export const clients = pgTable("clients", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id")
+    .references(() => projects.id)
+    .notNull(),
+  
+  // Primary Client
+  legalName: text("legal_name").notNull(),
+  entityType: text("entity_type"), // Individual, LLC, Corporation, Trust
+  formationState: text("formation_state"), // State where client entity was formed
+  
+  // Address
+  address: text("address"),
+  city: text("city"),
+  state: text("state"),
+  zip: text("zip"),
+  
+  // Contact
+  email: text("email"),
+  phone: text("phone"),
+  
+  // For Trusts
+  trustDate: text("trust_date"),
+  trusteeName: text("trustee_name"),
+  
+  // Secondary Client (if applicable)
+  client2LegalName: text("client2_legal_name"),
+  client2EntityType: text("client2_entity_type"),
+  ownershipSplit: text("ownership_split"), // e.g., "50/50", "60/40"
+});
+
+// =============================================================================
+// PROJECT DETAILS
+// =============================================================================
+
+export const projectDetails = pgTable("project_details", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id")
+    .references(() => projects.id)
+    .notNull(),
+  
+  // Site/Delivery Information
+  deliveryAddress: text("delivery_address"),
+  deliveryCity: text("delivery_city"),
+  deliveryState: text("delivery_state"),
+  deliveryZip: text("delivery_zip"),
+  deliveryCounty: text("delivery_county"),
+  deliveryApn: text("delivery_apn"), // Assessor's Parcel Number
+  siteAcreage: text("site_acreage"),
+  siteZoning: text("site_zoning"),
+  
+  // Home Specifications
+  homeModel: text("home_model"),
+  homeSqFt: integer("home_sq_ft"),
+  homeBedrooms: integer("home_bedrooms"),
+  homeBathrooms: real("home_bathrooms"),
+  homeStories: integer("home_stories"),
+  homeGarage: text("home_garage"), // "2-car attached", "none", etc.
+  totalUnits: integer("total_units").default(1),
+  moduleCount: integer("module_count"),
+  
+  // Building Code & Engineering
+  buildingCodeReference: text("building_code_reference"),
+  climateZone: text("climate_zone"),
+  windSpeed: text("wind_speed"),
+  snowLoad: text("snow_load"),
+  seismicZone: text("seismic_zone"),
+  
+  // Key Dates
+  agreementExecutionDate: text("agreement_execution_date"),
+  designStartDate: text("design_start_date"),
+  designCompleteDate: text("design_complete_date"),
+  greenLightDate: text("green_light_date"),
+  productionStartDate: text("production_start_date"),
+  estimatedDeliveryDate: text("estimated_delivery_date"),
+  actualDeliveryDate: text("actual_delivery_date"),
+  
+  // Legal
+  governingLawState: text("governing_law_state"),
+  arbitrationLocation: text("arbitration_location"),
+});
+
+// =============================================================================
+// FINANCIALS
+// =============================================================================
+
+export const financials = pgTable("financials", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id")
+    .references(() => projects.id)
+    .notNull(),
+  
+  // Design Phase
+  designFee: integer("design_fee"), // Store in cents
+  designRevisionRounds: integer("design_revision_rounds").default(3),
+  designRevisionCostOverage: integer("design_revision_cost_overage"),
+  
+  // Preliminary Pricing (at Design Agreement)
+  prelimOffsite: integer("prelim_offsite"),
+  prelimOnsite: integer("prelim_onsite"),
+  prelimContractPrice: integer("prelim_contract_price"), // Total preliminary
+  
+  // Final Pricing (at Green Light)
+  homeBasePrice: integer("home_base_price"),
+  homeCustomizations: integer("home_customizations").default(0),
+  finalOffsite: integer("final_offsite"), // Locked at Green Light
+  refinedOnsite: integer("refined_onsite"), // Refined estimate
+  finalContractPrice: integer("final_contract_price"),
+  
+  // Price Lock Status
+  isLocked: boolean("is_locked").default(false),
+  lockedAt: text("locked_at"),
+  lockedBy: text("locked_by"),
+  
+  // Inflation/Adjustment Triggers
+  inflationTriggerDate: text("inflation_trigger_date"),
+  inflationAdjustmentPercent: real("inflation_adjustment_percent").default(5.0),
+  materialIncreaseThreshold: real("material_increase_threshold").default(10.0),
+  
+  // Liquidated Damages
+  liquidatedDamagesPerDay: integer("liquidated_damages_per_day"),
+  liquidatedDamagesCap: integer("liquidated_damages_cap"),
+  onsiteLiquidatedDamagesPerDay: integer("onsite_liquidated_damages_per_day"),
+  onsiteLiquidatedDamagesCap: integer("onsite_liquidated_damages_cap"),
+});
+
+// =============================================================================
+// MILESTONES
+// =============================================================================
+
+export const milestones = pgTable("milestones", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id")
+    .references(() => projects.id)
+    .notNull(),
+  
+  // Milestone Identity
+  milestoneType: text("milestone_type").notNull(), // 'client', 'manufacturing', 'onsite'
+  milestoneNumber: integer("milestone_number").notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  
+  // Payment Details
+  percentage: real("percentage"),
+  amount: integer("amount"), // Store in cents
+  
+  // Timing
+  dueUpon: text("due_upon"), // Description of trigger (e.g., "Contract Execution", "Green Light")
+  targetDate: text("target_date"),
+  completedDate: text("completed_date"),
+  
+  // Status
+  status: text("status").default("Pending"), // Pending, Due, Paid, Overdue
+  paidDate: text("paid_date"),
+  paidAmount: integer("paid_amount"),
+  invoiceNumber: text("invoice_number"),
+  
+  // Notes
+  notes: text("notes"),
+});
+
+// =============================================================================
+// WARRANTY TERMS
+// =============================================================================
+
+export const warrantyTerms = pgTable("warranty_terms", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id")
+    .references(() => projects.id)
+    .notNull(),
+  
+  // Dvele (Off-Site) Warranties
+  dveleFitFinishMonths: integer("dvele_fit_finish_months").default(12),
+  dveleStructuralMonths: integer("dvele_structural_months").default(120), // 10 years
+  dveleSystemsMonths: integer("dvele_systems_months").default(24),
+  dveleBuildingEnvelopeMonths: integer("dvele_building_envelope_months").default(60), // 5 years
+  
+  // On-Site Warranties (Company Managed)
+  onsiteFitFinishMonths: integer("onsite_fit_finish_months").default(12),
+  onsiteStructuralMonths: integer("onsite_structural_months").default(120),
+  onsiteSystemsMonths: integer("onsite_systems_months").default(24),
+  
+  // Client-Retained Contractor Warranties (CRC)
+  clientFitFinishMonths: integer("client_fit_finish_months").default(12),
+  clientStructuralMonths: integer("client_structural_months").default(120),
+  clientBuildingEnvelopeMonths: integer("client_building_envelope_months").default(60),
+  
+  // Custom Terms
+  customWarrantyTerms: text("custom_warranty_terms"), // JSON for any non-standard terms
+  warrantyStartDate: text("warranty_start_date"),
+});
+
+// =============================================================================
+// CONTRACTORS
+// =============================================================================
+
+export const contractors = pgTable("contractors", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id")
+    .references(() => projects.id)
+    .notNull(),
+  
+  // Contractor Type
+  contractorType: text("contractor_type").notNull(), // 'manufacturer', 'onsite_general', 'onsite_sub'
+  
+  // Entity Info
+  legalName: text("legal_name").notNull(),
+  state: text("state"),
+  entityType: text("entity_type"), // LLC, Corporation, etc.
+  
+  // Address
+  address: text("address"),
+  city: text("city"),
+  stateAddress: text("state_address"),
+  zip: text("zip"),
+  
+  // Licensing
+  licenseNumber: text("license_number"),
+  licenseState: text("license_state"),
+  licenseExpiration: text("license_expiration"),
+  
+  // Contact
+  contactName: text("contact_name"),
+  contactEmail: text("contact_email"),
+  contactPhone: text("contact_phone"),
+  
+  // Insurance & Bonding
+  bondAmount: integer("bond_amount"),
+  insuranceAmount: integer("insurance_amount"),
+  insuranceExpiration: text("insurance_expiration"),
+  insuranceCarrier: text("insurance_carrier"),
+  
+  // Status
+  isActive: boolean("is_active").default(true),
+});
+
+// =============================================================================
+// GENERATED CONTRACTS
+// =============================================================================
+
+export const contracts = pgTable("contracts", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id")
+    .references(() => projects.id)
+    .notNull(),
+  
+  // Contract Identity
+  contractType: text("contract_type").notNull(), // 'one_agreement', 'manufacturing_sub', 'onsite_sub'
+  version: integer("version").default(1),
+  
+  // Status Tracking
+  status: text("status").default("Draft"), // Draft, PendingReview, Approved, Sent, Executed, Amended
+  
+  // Generation Info
+  generatedAt: timestamp("generated_at").defaultNow(),
+  generatedBy: text("generated_by"),
+  templateVersion: text("template_version"),
+  
+  // File Storage
+  filePath: text("file_path"),
+  fileName: text("file_name"),
+  fileHash: text("file_hash"), // For integrity verification
+  
+  // Variable Snapshot
+  variablesSnapshot: text("variables_snapshot"), // JSON of all variables at generation time
+  
+  // Execution
+  sentAt: text("sent_at"),
+  sentTo: text("sent_to"),
+  executedAt: text("executed_at"),
+  executedFilePath: text("executed_file_path"),
+  
+  // Notes
+  notes: text("notes"),
+});
+
+// =============================================================================
+// CLAUSE LIBRARY (Atomic Structure - Postgres Optimized)
+// =============================================================================
+
+export const clauses = pgTable("clauses", {
+  id: serial("id").primaryKey(),
+  
+  // Identification
+  slug: text("slug").unique(), // Optional: Human readable ID (e.g. OFFSITE_SERVICES_HEADER)
+  
+  // The Atomic Split (Phase A)
+  headerText: text("header_text"), // Styled heading (e.g., "4.1 Offsite Services")
+  bodyHtml: text("body_html"),     // Body content (e.g., "<ul><li>Design...</li></ul>")
+  
+  // Hierarchy
+  level: integer("level").notNull(), // 1-8 based on Hierarchy Chart
+  parentId: integer("parent_id"),    // Self-reference for Nested Tree
+  order: integer("order").notNull(), // Global sort order
+  
+  // Filtering & Logic
+  // Using native Postgres JSONB for array storage
+  contractTypes: jsonb("contract_types"), // Array: ["ONE", "CRC"]
+  tags: jsonb("tags"), // Array for logic flags: ["OFF_SITE_ONLY"]
+  
+  // Metadata
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at"),
+});
+
+// =============================================================================
+// DYNAMIC TABLES (Phase 13/15 - Postgres Optimized)
+// =============================================================================
+
+export const tableDefinitions = pgTable("table_definitions", {
+  id: serial("id").primaryKey(),
+  variableName: text("variable_name").unique().notNull(), // {{CUSTOMER_ACKNOWLEDGE_TABLE}}
+  displayName: text("display_name").notNull(),
+  columns: jsonb("columns").notNull(), // JSONB definition of columns/types
+  description: text("description"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// =============================================================================
+// RELATIONS
+// =============================================================================
+
+export const projectsRelations = relations(projects, ({ one, many }) => ({
+  client: one(clients, {
+    fields: [projects.id],
+    references: [clients.projectId],
