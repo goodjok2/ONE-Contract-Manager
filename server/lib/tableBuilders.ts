@@ -34,7 +34,7 @@ export async function fetchProjectData(projectId: number): Promise<ProjectData> 
   const result = await pool.query(
     `SELECT 
       p.id, p.project_number, p.name as project_name, p.status, p.state,
-      pd.site_address, pd.site_city, pd.site_state, pd.site_zip,
+      pd.delivery_address, pd.delivery_city, pd.delivery_state, pd.delivery_zip,
       c.legal_name as client_name, c.email as client_email, c.phone as client_phone,
       c.address as client_address, c.city as client_city, c.state as client_state, c.zip as client_zip,
       f.final_contract_price, f.design_fee
@@ -68,10 +68,10 @@ export async function fetchProjectData(projectId: number): Promise<ProjectData> 
   data.PROJECT_NAME = row.project_name || "";
   data.PROJECT_NUMBER = row.project_number || "";
   data.PROJECT_STATE = row.state || "";
-  data.SITE_ADDRESS = row.site_address || "";
-  data.SITE_CITY = row.site_city || "";
-  data.SITE_STATE = row.site_state || "";
-  data.SITE_ZIP = row.site_zip || "";
+  data.SITE_ADDRESS = row.delivery_address || "";
+  data.SITE_CITY = row.delivery_city || "";
+  data.SITE_STATE = row.delivery_state || "";
+  data.SITE_ZIP = row.delivery_zip || "";
   data.FINAL_CONTRACT_PRICE = row.final_contract_price 
     ? `$${(row.final_contract_price / 100).toLocaleString("en-US", { minimumFractionDigits: 2 })}` 
     : "$0.00";
