@@ -812,10 +812,10 @@ export default function ClauseLibrary() {
     return (
       <div key={clause.id} className="select-none">
         <div
-          className={`flex items-center gap-1 py-1.5 px-2 rounded-md cursor-pointer hover-elevate transition-colors ${
+          className={`flex items-start gap-1 py-1.5 px-2 rounded-md cursor-pointer hover-elevate transition-colors ${
             isSelected ? 'bg-primary/10 border border-primary/30' : ''
           } ${isChecked ? 'bg-accent/50' : ''} ${isDragging ? 'opacity-50' : ''} ${getDropIndicatorClass()}`}
-          style={{ paddingLeft: `${depth * 16 + 8}px` }}
+          style={{ paddingLeft: `${depth * 16 + 8}px`, minWidth: 0 }}
           onClick={() => setSelectedClause(clause)}
           draggable
           onDragStart={(e) => handleDragStart(e, clause)}
@@ -858,7 +858,7 @@ export default function ClauseLibrary() {
             L{clause.hierarchy_level}
           </Badge>
           <span className="text-xs text-muted-foreground font-mono">{currentNumber}</span>
-          <span className="text-sm truncate flex-1" title={clause.name || "(Untitled)"}>
+          <span className="text-sm flex-1 break-words" title={clause.name || "(Untitled)"}>
             {clause.name || <span className="italic text-muted-foreground">(Untitled)</span>}
           </span>
           {clause.conditions && (
@@ -952,7 +952,7 @@ export default function ClauseLibrary() {
 
       <div className="flex-1 flex overflow-hidden" ref={containerRef}>
         <div 
-          className="border-r flex flex-col bg-muted/30"
+          className="border-r flex flex-col bg-muted/30 overflow-hidden"
           style={{ width: `${treePanelWidth}%`, minWidth: MIN_TREE_WIDTH }}
         >
           <div className="p-2 border-b bg-background">
