@@ -98,14 +98,14 @@ const HIERARCHY_LEVELS = [
 ];
 
 const EDIT_HIERARCHY_OPTIONS = [
-  { value: 1, label: "1 - Agreement Part (Roman Numeral)" },
-  { value: 2, label: "2 - Major Section" },
-  { value: 3, label: "3 - Clause (X.X)" },
-  { value: 4, label: "4 - Sub-header (X.X.X)" },
-  { value: 5, label: "5 - Body Text (No Number)" },
-  { value: 6, label: "6 - Conspicuous (No Number)" },
-  { value: 7, label: "7 - List Item (i, ii, iii)" },
-  { value: 8, label: "8 - Nested List" },
+  { value: 1, label: "Level 1 - Heading 1" },
+  { value: 2, label: "Level 2 - Heading 2" },
+  { value: 3, label: "Level 3 - Heading 3" },
+  { value: 4, label: "Level 4 - Heading 4" },
+  { value: 5, label: "Level 5 - Normal Text" },
+  { value: 6, label: "Level 6 - Heading 6" },
+  { value: 7, label: "Level 7 - Heading 5" },
+  { value: 8, label: "Level 8 - Nested List" },
 ];
 
 export default function ClauseLibrary() {
