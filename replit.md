@@ -58,6 +58,9 @@ The application is built on a modern full-stack architecture.
 - **Exhibit Library**: Manages contract exhibits with CRUD functionality, supporting dynamic content, variable placeholders, and contract type associations.
 - **State Disclosure Library Management**: Full CRUD UI for managing state-specific legal disclosures, with state/code filtering, accessible via Configuration menu. Supports 16 states (AZ, CA, CO, FL, GA, ID, IL, MA, MI, NV, NY, OR, PA, TX, UT, WA).
 - **Universal Template Ingestor**: Enhanced UI for uploading various template types (Contract Agreement, Exhibit Library, State Disclosure Library) with intelligent ingestion logic for each.
+- **Clause Explorer UI (Phase 10)**: Two-pane layout with 35% hierarchical tree panel and 65% editor+preview. Features L1-L8 nesting visualization with position-based numbering (e.g., 1, 1.1, 1.2), multi-select contract type tagging (ONE, CMOS, CRC, ONSITE), live HTML preview with hierarchy-aware styling, and drag-and-drop reordering with cycle detection.
+- **Component Library**: Dedicated page for previewing dynamic TABLE variables (PRICING_BREAKDOWN_TABLE, PAYMENT_SCHEDULE_TABLE, UNIT_SPEC_TABLE) with live project data. Uses Sandbox project (ID: 106) for testing.
+- **Multi-Contract Type Tagging**: Clauses support array of contract_types for flexible many-to-many associations. API filters with `ANY(contract_types)` for backward compatibility.
 
 ## External Dependencies
 
