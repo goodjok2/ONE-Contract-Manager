@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, real, boolean, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, real, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -488,6 +488,35 @@ export const contractVariables = pgTable("contract_variables", {
   erpSource: text("erp_source"), // ERP field mapping, e.g., "Customers.LegalName"
   createdAt: timestamp("created_at").defaultNow(),
 });
+
+// Table Definitions - Custom dynamic table components for contracts
+export const tableDefinitions = pgTable("table_definitions", {
+  id: serial("id").primaryKey(),
+  variableName: text("variable_name").notNull().unique(), // e.g., "CUSTOMER_ACKNOWLEDGE_TABLE"
+  displayName: text("display_name").notNull(), // Human-readable name
+  description: text("description"),
+  columns: jsonb("columns").notNull(), // Array of {header, type, width, value}
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertTableDefinitionSchema = createInsertSchema(tableDefinitions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertTableDefinition = z.infer<typeof insertTableDefinitionSchema>;
+export type TableDefinition = typeof tableDefinitions.$inferSelect;
+
+// Column type definition for table_definitions.columns
+export const tableColumnSchema = z.object({
+  header: z.string(),
+  type: z.enum(["text", "data_field", "signature"]),
+  width: z.string().optional(),
+  value: z.string(),
+});
+export type TableColumn = z.infer<typeof tableColumnSchema>;
 
 // =============================================================================
 // RELATIONS
