@@ -421,7 +421,8 @@ export const clauses = pgTable("clauses", {
   blockType: text("block_type"), // 'section', 'clause', 'paragraph', 'table', 'dynamic_disclosure', 'list_item', 'conspicuous'
   name: text("name"), // Clause title
   category: text("category"), // 'scope', 'payment', 'warranty', 'termination', etc.
-  contractType: text("contract_type"), // 'ONE', 'MANUFACTURING', 'ONSITE'
+  contractType: text("contract_type"), // DEPRECATED: Use contractTypes array. Kept for backward compatibility
+  contractTypes: text("contract_types").array(), // ['ONE', 'CMOS', 'CRC', 'ONSITE'] - Supports tagging for multiple contract types
   content: text("content").notNull(), // The actual clause content
   variablesUsed: text("variables_used").array(), // Array of variable names
   conditions: text("conditions"), // JSONB for conditional logic
