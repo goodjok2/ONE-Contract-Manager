@@ -1,8 +1,7 @@
 import { Router } from "express";
 import { db } from "../db/index";
-import { financials, projectUnits, homeModels } from "../../shared/schema";
+import { financials } from "../../shared/schema";
 import { eq } from "drizzle-orm";
-import { calculateProjectPricing } from "../services/pricingEngine";
 
 const router = Router();
 
@@ -42,31 +41,6 @@ router.post("/projects/:projectId/financials", async (req, res) => {
   }
 });
 
-// ---------------------------------------------------------------------------
-// PRICING ENGINE - Multi-Unit Pricing Summary
-// ---------------------------------------------------------------------------
-
-router.get("/projects/:id/pricing-summary", async (req, res) => {
-  try {
-    const projectId = parseInt(req.params.id);
-    
-    if (isNaN(projectId)) {
-      return res.status(400).json({ error: "Invalid project ID" });
-    }
-
-    const pricingSummary = await calculateProjectPricing(projectId);
-    res.json(pricingSummary);
-  } catch (error: any) {
-    console.error("Failed to calculate pricing summary:", error);
-    
-    if (error.message?.includes('not found')) {
-      return res.status(404).json({ error: error.message });
-    }
-    
-    res.status(500).json({ error: "Failed to calculate pricing summary" });
-  }
-});
-
 router.patch("/projects/:projectId/financials", async (req, res) => {
   try {
     const projectId = parseInt(req.params.projectId);
@@ -98,7 +72,7 @@ router.post("/projects/:projectId/financials/lock", async (req, res) => {
       .update(financials)
       .set({
         isLocked: true,
-        lockedAt: new Date(),
+        lockedAt: new Date().toISOString(),
         lockedBy: lockedBy || "system",
       })
       .where(eq(financials.projectId, projectId))

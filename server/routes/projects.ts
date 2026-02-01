@@ -6,9 +6,6 @@ import {
   clients,
   projectDetails,
   contractors,
-  contractorEntities,
-  homeModels,
-  projectUnits,
   milestones,
   warrantyTerms,
 } from "../../shared/schema";
@@ -69,7 +66,8 @@ router.get('/debug/audit-variables', async (req, res) => {
     };
     
     clauseList.forEach((clause: any) => {
-      const content = (clause.content || '') + ' ' + (clause.name || '');
+      // Updated to use new atomic clause field names: bodyHtml, headerText, contractTypes
+      const content = (clause.bodyHtml || '') + ' ' + (clause.headerText || '');
       const matches = content.match(/\{\{([A-Z_0-9]+)\}\}/g);
       
       if (matches) {
@@ -77,12 +75,17 @@ router.get('/debug/audit-variables', async (req, res) => {
           const varName = match.replace(/[{}]/g, '');
           variableSet.add(varName);
           
-          const contractType = (clause.contract_type || '').toLowerCase();
-          if (contractType.includes('one')) {
+          // contractTypes is now a JSONB array
+          const contractTypes: string[] = clause.contractTypes || [];
+          const contractTypesLower = contractTypes.map((t: string) => t.toLowerCase());
+          
+          if (contractTypesLower.some((t: string) => t.includes('one'))) {
             variablesByContract.ONE.add(varName);
-          } else if (contractType.includes('manufacturing') || contractType.includes('offsite')) {
+          }
+          if (contractTypesLower.some((t: string) => t.includes('manufacturing') || t.includes('offsite'))) {
             variablesByContract.MANUFACTURING.add(varName);
-          } else if (contractType.includes('onsite') || contractType.includes('installation')) {
+          }
+          if (contractTypesLower.some((t: string) => t.includes('onsite') || t.includes('installation'))) {
             variablesByContract.ONSITE.add(varName);
           }
         });
@@ -155,197 +158,6 @@ router.get('/debug/audit-variables', async (req, res) => {
       error: 'Failed to audit variables', 
       message: error.message 
     });
-  }
-});
-
-// ---------------------------------------------------------------------------
-// DEBUG - Seed Home Models (temporary)
-// ---------------------------------------------------------------------------
-
-router.get('/debug/seed-models', async (req, res) => {
-  try {
-    const existingModels = await db.select().from(homeModels);
-    
-    if (existingModels.length > 0) {
-      return res.json({
-        message: 'Home models already seeded',
-        count: existingModels.length,
-        models: existingModels
-      });
-    }
-    
-    const seedData = [
-      {
-        name: 'Trinity',
-        modelCode: 'TRINITY-3000',
-        bedrooms: 4,
-        bathrooms: 3.5,
-        sqFt: 3000,
-        designFee: 5000000,
-        offsiteBasePrice: 85000000,
-        onsiteEstPrice: 45000000,
-        isActive: true
-      },
-      {
-        name: 'Salt Point',
-        modelCode: 'SALTPOINT-1800',
-        bedrooms: 3,
-        bathrooms: 2.0,
-        sqFt: 1800,
-        designFee: 3500000,
-        offsiteBasePrice: 55000000,
-        onsiteEstPrice: 30000000,
-        isActive: true
-      },
-      {
-        name: 'Mini-Mod',
-        modelCode: 'MINIMOD-600',
-        bedrooms: 1,
-        bathrooms: 1.0,
-        sqFt: 600,
-        designFee: 1000000,
-        offsiteBasePrice: 18000000,
-        onsiteEstPrice: 10000000,
-        isActive: true
-      }
-    ];
-    
-    const insertedModels = await db.insert(homeModels).values(seedData).returning();
-    
-    console.log(`Seeded ${insertedModels.length} home models`);
-    
-    res.json({
-      message: 'Home models seeded successfully',
-      count: insertedModels.length,
-      models: insertedModels
-    });
-    
-  } catch (error: any) {
-    console.error('Seed models error:', error);
-    res.status(500).json({ 
-      error: 'Failed to seed home models', 
-      message: error.message 
-    });
-  }
-});
-
-// ---------------------------------------------------------------------------
-// HOME MODELS - Catalog Management
-// ---------------------------------------------------------------------------
-
-router.get('/home-models', async (req, res) => {
-  try {
-    const models = await db
-      .select()
-      .from(homeModels)
-      .where(eq(homeModels.isActive, true));
-    res.json(models);
-  } catch (error: any) {
-    console.error('Failed to fetch home models:', error);
-    res.status(500).json({ error: 'Failed to fetch home models' });
-  }
-});
-
-// ---------------------------------------------------------------------------
-// PROJECT UNITS - Multi-Unit Management
-// ---------------------------------------------------------------------------
-
-router.get('/projects/:projectId/units', async (req, res) => {
-  try {
-    const projectId = parseInt(req.params.projectId);
-    
-    const units = await db
-      .select({
-        id: projectUnits.id,
-        projectId: projectUnits.projectId,
-        modelId: projectUnits.modelId,
-        unitLabel: projectUnits.unitLabel,
-        basePriceSnapshot: projectUnits.basePriceSnapshot,
-        customizationTotal: projectUnits.customizationTotal,
-        createdAt: projectUnits.createdAt,
-        model: {
-          id: homeModels.id,
-          name: homeModels.name,
-          modelCode: homeModels.modelCode,
-          bedrooms: homeModels.bedrooms,
-          bathrooms: homeModels.bathrooms,
-          sqFt: homeModels.sqFt,
-          designFee: homeModels.designFee,
-          offsiteBasePrice: homeModels.offsiteBasePrice,
-          onsiteEstPrice: homeModels.onsiteEstPrice,
-        }
-      })
-      .from(projectUnits)
-      .innerJoin(homeModels, eq(projectUnits.modelId, homeModels.id))
-      .where(eq(projectUnits.projectId, projectId));
-
-    res.json(units);
-  } catch (error: any) {
-    console.error('Failed to fetch project units:', error);
-    res.status(500).json({ error: 'Failed to fetch project units' });
-  }
-});
-
-router.post('/projects/:projectId/units', async (req, res) => {
-  try {
-    const projectId = parseInt(req.params.projectId);
-    const { modelId, unitLabel } = req.body;
-
-    if (!modelId) {
-      return res.status(400).json({ error: 'modelId is required' });
-    }
-
-    const [model] = await db
-      .select()
-      .from(homeModels)
-      .where(eq(homeModels.id, modelId));
-
-    if (!model) {
-      return res.status(404).json({ error: 'Home model not found' });
-    }
-
-    const existingUnits = await db
-      .select()
-      .from(projectUnits)
-      .where(eq(projectUnits.projectId, projectId));
-
-    const label = unitLabel || `Unit ${existingUnits.length + 1}`;
-
-    const [newUnit] = await db
-      .insert(projectUnits)
-      .values({
-        projectId,
-        modelId,
-        unitLabel: label,
-        basePriceSnapshot: model.offsiteBasePrice,
-        customizationTotal: 0,
-      })
-      .returning();
-
-    res.json(newUnit);
-  } catch (error: any) {
-    console.error('Failed to create project unit:', error);
-    res.status(500).json({ error: 'Failed to create project unit' });
-  }
-});
-
-router.delete('/project-units/:id', async (req, res) => {
-  try {
-    const unitId = parseInt(req.params.id);
-    
-    const [deleted] = await db
-      .delete(projectUnits)
-      .where(eq(projectUnits.id, unitId))
-      .returning();
-
-    if (!deleted) {
-      return res.status(404).json({ error: 'Unit not found' });
-    }
-
-    res.json({ success: true, deleted });
-  } catch (error: any) {
-    console.error('Failed to delete project unit:', error);
-    res.status(500).json({ error: 'Failed to delete project unit' });
   }
 });
 
@@ -824,70 +636,6 @@ router.delete("/contractors/:id", async (req, res) => {
   } catch (error) {
     console.error("Failed to delete contractor:", error);
     res.status(500).json({ error: "Failed to delete contractor" });
-  }
-});
-
-// ---------------------------------------------------------------------------
-// CONTRACTOR ENTITIES (Reusable across projects)
-// ---------------------------------------------------------------------------
-
-router.get("/contractor-entities", async (req, res) => {
-  try {
-    const { type } = req.query;
-    let query = db.select().from(contractorEntities).where(eq(contractorEntities.isActive, true));
-    
-    const allEntities = await query;
-    
-    const filtered = type 
-      ? allEntities.filter(e => e.contractorType === type)
-      : allEntities;
-    
-    res.json(filtered);
-  } catch (error) {
-    console.error("Failed to fetch contractor entities:", error);
-    res.status(500).json({ error: "Failed to fetch contractor entities" });
-  }
-});
-
-router.get("/contractor-entities/type/:type", async (req, res) => {
-  try {
-    const contractorType = req.params.type;
-    const entities = await db
-      .select()
-      .from(contractorEntities)
-      .where(and(
-        eq(contractorEntities.contractorType, contractorType),
-        eq(contractorEntities.isActive, true)
-      ));
-    res.json(entities);
-  } catch (error) {
-    console.error("Failed to fetch contractor entities by type:", error);
-    res.status(500).json({ error: "Failed to fetch contractor entities" });
-  }
-});
-
-router.post("/contractor-entities", async (req, res) => {
-  try {
-    const [result] = await db.insert(contractorEntities).values(req.body).returning();
-    res.json(result);
-  } catch (error) {
-    console.error("Failed to create contractor entity:", error);
-    res.status(500).json({ error: "Failed to create contractor entity" });
-  }
-});
-
-router.patch("/contractor-entities/:id", async (req, res) => {
-  try {
-    const entityId = parseInt(req.params.id);
-    const [result] = await db
-      .update(contractorEntities)
-      .set(req.body)
-      .where(eq(contractorEntities.id, entityId))
-      .returning();
-    res.json(result);
-  } catch (error) {
-    console.error("Failed to update contractor entity:", error);
-    res.status(500).json({ error: "Failed to update contractor entity" });
   }
 });
 
