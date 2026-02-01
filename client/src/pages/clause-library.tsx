@@ -34,7 +34,17 @@ import {
   Hash,
   Layers,
   BookOpen,
+  RotateCcw,
+  Settings,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
@@ -80,6 +90,22 @@ const HIERARCHY_LEVELS = [
   { value: "1", label: "Sections (Level 1)" },
   { value: "2", label: "Subsections (Level 2)" },
   { value: "3", label: "Paragraphs (Level 3)" },
+  { value: "4", label: "Sub-headers (Level 4)" },
+  { value: "5", label: "Body Text (Level 5)" },
+  { value: "6", label: "Conspicuous (Level 6)" },
+  { value: "7", label: "List Items (Level 7)" },
+  { value: "8", label: "Nested List (Level 8)" },
+];
+
+const EDIT_HIERARCHY_OPTIONS = [
+  { value: 1, label: "1 - Agreement Part (Roman Numeral)" },
+  { value: 2, label: "2 - Major Section" },
+  { value: 3, label: "3 - Clause (X.X)" },
+  { value: 4, label: "4 - Sub-header (X.X.X)" },
+  { value: 5, label: "5 - Body Text (No Number)" },
+  { value: 6, label: "6 - Conspicuous (No Number)" },
+  { value: 7, label: "7 - List Item (i, ii, iii)" },
+  { value: 8, label: "8 - Nested List" },
 ];
 
 export default function ClauseLibrary() {
@@ -92,7 +118,25 @@ export default function ClauseLibrary() {
   const [expandedClauses, setExpandedClauses] = useState<Set<number>>(new Set());
   const [inlineEditingId, setInlineEditingId] = useState<number | null>(null);
   const [inlineEditContent, setInlineEditContent] = useState("");
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editingClause, setEditingClause] = useState<Clause | null>(null);
+  const [editHierarchyLevel, setEditHierarchyLevel] = useState<number>(3);
   const { toast } = useToast();
+
+  const clearFilters = () => {
+    setSearchTerm("");
+    setContractType("ALL");
+    setHierarchyLevel("all");
+  };
+
+  const hasActiveFilters = searchTerm !== "" || contractType !== "ALL" || hierarchyLevel !== "all";
+
+  const openEditModal = (clause: Clause, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingClause(clause);
+    setEditHierarchyLevel(clause.hierarchy_level);
+    setEditModalOpen(true);
+  };
 
   const { data, isLoading, error } = useQuery<ClauseResponse>({
     queryKey: ["/api/clauses", contractType, hierarchyLevel, searchTerm],
@@ -133,6 +177,34 @@ export default function ClauseLibrary() {
 
   const handleSave = () => {
     updateMutation.mutate(editData);
+  };
+
+  const hierarchyUpdateMutation = useMutation({
+    mutationFn: async ({ id, hierarchy_level }: { id: number; hierarchy_level: number }) => {
+      const response = await apiRequest("PATCH", `/api/clauses/${id}`, { hierarchy_level });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clauses"] });
+      setEditModalOpen(false);
+      setEditingClause(null);
+      toast({
+        title: "Hierarchy Level Updated",
+        description: "The clause hierarchy level has been updated successfully.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to update hierarchy level. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const saveHierarchyLevel = () => {
+    if (!editingClause) return;
+    hierarchyUpdateMutation.mutate({ id: editingClause.id, hierarchy_level: editHierarchyLevel });
   };
 
   const inlineUpdateMutation = useMutation({
@@ -324,6 +396,79 @@ export default function ClauseLibrary() {
     return formatted;
   };
 
+  const getHierarchyStyles = (level: number) => {
+    switch (level) {
+      case 1:
+        return {
+          headerClass: "text-center text-[#1a73e8] font-bold text-base uppercase tracking-wide py-2",
+          bodyClass: "text-center text-sm mt-2",
+          wrapper: "bg-blue-50/50 dark:bg-blue-950/20 p-4"
+        };
+      case 2:
+        return {
+          headerClass: "text-[#1a73e8] font-semibold text-sm",
+          bodyClass: "text-sm leading-relaxed mt-1 ml-2",
+          wrapper: "py-2"
+        };
+      case 3:
+        return {
+          headerClass: "font-medium text-sm ml-4",
+          bodyClass: "text-sm leading-relaxed ml-4 mt-1",
+          wrapper: "py-1"
+        };
+      case 4:
+        return {
+          headerClass: "font-medium text-sm italic ml-6",
+          bodyClass: "text-sm leading-relaxed ml-6 mt-1",
+          wrapper: "py-1"
+        };
+      case 5:
+        return {
+          headerClass: "text-sm ml-8",
+          bodyClass: "text-sm leading-relaxed text-justify ml-8 mt-1",
+          wrapper: "py-1"
+        };
+      case 6:
+        return {
+          headerClass: "font-bold uppercase text-sm ml-8",
+          bodyClass: "text-sm leading-relaxed text-justify ml-8 mt-1",
+          wrapper: "py-1"
+        };
+      case 7:
+        return {
+          headerClass: "text-sm ml-10",
+          bodyClass: "text-sm leading-relaxed ml-12 mt-1",
+          wrapper: "py-1",
+          isListItem: true
+        };
+      default:
+        return {
+          headerClass: "text-sm",
+          bodyClass: "text-sm leading-relaxed",
+          wrapper: ""
+        };
+    }
+  };
+
+  const formatStyledContent = (clause: Clause) => {
+    const styles = getHierarchyStyles(clause.hierarchy_level);
+    const content = clause.content || "";
+    const name = clause.name || "";
+    const level = clause.hierarchy_level;
+    
+    let formattedContent = formatContent(content);
+    
+    const isLevel7 = level === 7;
+    const headerPrefix = isLevel7 ? '<span class="font-mono mr-2">i.</span>' : '';
+    
+    return `
+      <div class="${styles.wrapper}">
+        <div class="${styles.headerClass} mb-1">${headerPrefix}${escapeHtml(name)}</div>
+        <div class="${styles.bodyClass}">${formattedContent}</div>
+      </div>
+    `;
+  };
+
   return (
     <div className="flex-1 p-6 md:p-8">
       <div className="max-w-7xl mx-auto">
@@ -387,6 +532,18 @@ export default function ClauseLibrary() {
                       ))}
                     </SelectContent>
                   </Select>
+                  {hasActiveFilters && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={clearFilters}
+                      className="shrink-0"
+                      data-testid="button-clear-filters"
+                    >
+                      <RotateCcw className="h-4 w-4 mr-1" />
+                      Clear Filters
+                    </Button>
+                  )}
                 </div>
               </CardHeader>
               <CardContent>
@@ -450,6 +607,12 @@ export default function ClauseLibrary() {
                                   <Badge variant="secondary" className="text-xs">
                                     {clause.contract_type}
                                   </Badge>
+                                  <Badge 
+                                    variant="outline" 
+                                    className={`text-xs ${clause.hierarchy_level === 1 ? 'bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border-blue-300' : ''}`}
+                                  >
+                                    L{clause.hierarchy_level}
+                                  </Badge>
                                   {clause.category && (
                                     <span className="text-xs text-muted-foreground">{clause.category}</span>
                                   )}
@@ -500,18 +663,29 @@ export default function ClauseLibrary() {
                                     </Button>
                                   </>
                                 ) : (
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      startInlineEdit(clause);
-                                    }}
-                                    data-testid={`button-edit-inline-${clause.id}`}
-                                  >
-                                    <Edit className="h-4 w-4 mr-1" />
-                                    Edit Content
-                                  </Button>
+                                  <>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={(e) => openEditModal(clause, e)}
+                                      data-testid={`button-settings-${clause.id}`}
+                                    >
+                                      <Settings className="h-4 w-4 mr-1" />
+                                      Level
+                                    </Button>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        startInlineEdit(clause);
+                                      }}
+                                      data-testid={`button-edit-inline-${clause.id}`}
+                                    >
+                                      <Edit className="h-4 w-4 mr-1" />
+                                      Edit Content
+                                    </Button>
+                                  </>
                                 )}
                               </div>
                               {inlineEditingId === clause.id ? (
@@ -522,8 +696,8 @@ export default function ClauseLibrary() {
                                 />
                               ) : (
                                 <div
-                                  className="text-sm max-w-none"
-                                  dangerouslySetInnerHTML={{ __html: formatContent(clause.content || "") }}
+                                  className="max-w-none"
+                                  dangerouslySetInnerHTML={{ __html: formatStyledContent(clause) }}
                                 />
                               )}
                               {clause.variables_used && clause.variables_used.length > 0 && (
@@ -654,6 +828,66 @@ export default function ClauseLibrary() {
           </div>
         </div>
       </div>
+
+      <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Clause Settings</DialogTitle>
+          </DialogHeader>
+          {editingClause && (
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Clause Code</Label>
+                <p className="text-sm text-muted-foreground font-mono">{editingClause.clause_code}</p>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Clause Name</Label>
+                <p className="text-sm text-muted-foreground">{editingClause.name}</p>
+              </div>
+              <Separator />
+              <div className="space-y-2">
+                <Label htmlFor="hierarchy-level" className="text-sm font-medium">
+                  Hierarchy Level
+                </Label>
+                <Select
+                  value={String(editHierarchyLevel)}
+                  onValueChange={(value) => setEditHierarchyLevel(parseInt(value, 10))}
+                >
+                  <SelectTrigger className="w-full" data-testid="select-edit-hierarchy">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {EDIT_HIERARCHY_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={String(option.value)}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Changing the hierarchy level affects how this clause is numbered and styled in contracts.
+                </p>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setEditModalOpen(false)}
+              data-testid="button-cancel-edit-modal"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={saveHierarchyLevel}
+              disabled={hierarchyUpdateMutation.isPending}
+              data-testid="button-save-hierarchy"
+            >
+              {hierarchyUpdateMutation.isPending ? "Saving..." : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
