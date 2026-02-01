@@ -1,5 +1,15 @@
 import { pool } from "../db";
 
+function escapeHtml(text: string): string {
+  if (!text) return "";
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 interface TableColumn {
   header: string;
   type: "text" | "data_field" | "signature";
@@ -76,14 +86,15 @@ export async function fetchProjectData(projectId: number): Promise<ProjectData> 
 function resolveColumnValue(column: TableColumn, projectData: ProjectData): string {
   switch (column.type) {
     case "text":
-      return column.value || "";
+      return escapeHtml(column.value || "");
     case "data_field":
       const varName = column.value.replace(/\{\{|\}\}/g, "").trim();
-      return projectData[varName] || `[${varName}]`;
+      const value = projectData[varName];
+      return value !== undefined ? escapeHtml(String(value)) : `[${escapeHtml(varName)}]`;
     case "signature":
       return `<div style="border-bottom: 1px solid #000; height: 30px; min-width: 150px;"></div>`;
     default:
-      return column.value || "";
+      return escapeHtml(column.value || "");
   }
 }
 
@@ -106,7 +117,7 @@ export async function renderDynamicTable(
   }
 
   if (tableResult.rows.length === 0) {
-    return `<p class="text-red-500">[Table not found: ${tableIdOrVariable}]</p>`;
+    return `<p class="text-red-500">[Table not found: ${escapeHtml(String(tableIdOrVariable))}]</p>`;
   }
 
   const tableDef: TableDefinition = tableResult.rows[0];
@@ -121,14 +132,14 @@ export async function renderDynamicTable(
 
   const headerRow = columns
     .map(col => {
-      const width = col.width ? `width: ${col.width};` : "";
-      return `<th style="border: 1px solid #ddd; padding: 8px; background-color: #f2f2f2; text-align: left; ${width}">${col.header}</th>`;
+      const width = col.width ? `width: ${escapeHtml(col.width)};` : "";
+      return `<th style="border: 1px solid #ddd; padding: 8px; background-color: #f2f2f2; text-align: left; ${width}">${escapeHtml(col.header)}</th>`;
     })
     .join("");
 
   const dataRow = columns
     .map(col => {
-      const width = col.width ? `width: ${col.width};` : "";
+      const width = col.width ? `width: ${escapeHtml(col.width)};` : "";
       const value = resolveColumnValue(col, projectData);
       return `<td style="border: 1px solid #ddd; padding: 8px; ${width}">${value}</td>`;
     })

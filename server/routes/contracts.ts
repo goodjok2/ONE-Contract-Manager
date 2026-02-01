@@ -2500,4 +2500,89 @@ router.get("/table-definitions/:id/preview", async (req, res) => {
   }
 });
 
+router.post("/resolve-clause-tables", async (req, res) => {
+  try {
+    const { content, projectId } = req.body;
+    
+    if (!content) {
+      return res.json({ html: "" });
+    }
+    
+    const { renderDynamicTable, getAllTableDefinitions } = await import("../lib/tableBuilders");
+    const { generatePricingTableHtml, generatePaymentScheduleHtml, generateUnitDetailsHtml } = await import("../lib/tableGenerators");
+    const { calculateProjectPricing } = await import("../services/pricingEngine");
+    
+    let resolvedContent = content;
+    
+    if (projectId) {
+      const pid = parseInt(projectId);
+      
+      if (resolvedContent.includes("{{PRICING_BREAKDOWN_TABLE}}")) {
+        try {
+          const pricing = await calculateProjectPricing(pid);
+          const pricingHtml = generatePricingTableHtml(pricing, 'ONE');
+          resolvedContent = resolvedContent.replace(/\{\{PRICING_BREAKDOWN_TABLE\}\}/g, pricingHtml);
+        } catch {
+          resolvedContent = resolvedContent.replace(/\{\{PRICING_BREAKDOWN_TABLE\}\}/g, '<p class="text-muted-foreground">[Pricing - No data available]</p>');
+        }
+      }
+      
+      if (resolvedContent.includes("{{PAYMENT_SCHEDULE_TABLE}}")) {
+        try {
+          const pricing = await calculateProjectPricing(pid);
+          const milestones = [
+            { name: "Design Agreement Signing", percentage: 10, amount: pricing ? pricing.contractValue * 0.10 : 0, phase: "Design" },
+            { name: "Green Light / Production Start", percentage: 40, amount: pricing ? pricing.contractValue * 0.40 : 0, phase: "Production" },
+            { name: "Module Delivery", percentage: 40, amount: pricing ? pricing.contractValue * 0.40 : 0, phase: "Delivery" },
+            { name: "Final Completion", percentage: 10, amount: pricing ? pricing.contractValue * 0.10 : 0, phase: "Completion" },
+          ];
+          const scheduleHtml = generatePaymentScheduleHtml(milestones);
+          resolvedContent = resolvedContent.replace(/\{\{PAYMENT_SCHEDULE_TABLE\}\}/g, scheduleHtml);
+        } catch {
+          resolvedContent = resolvedContent.replace(/\{\{PAYMENT_SCHEDULE_TABLE\}\}/g, '<p class="text-muted-foreground">[Payment Schedule - No data available]</p>');
+        }
+      }
+      
+      if (resolvedContent.includes("{{UNIT_SPEC_TABLE}}")) {
+        try {
+          const unitsResult = await pool.query(
+            `SELECT pu.*, hm.name as model_name, hm.model_code, hm.bedrooms, hm.bathrooms, hm.sq_ft
+             FROM project_units pu
+             JOIN home_models hm ON hm.id = pu.model_id
+             WHERE pu.project_id = $1
+             ORDER BY pu.unit_label`,
+            [pid]
+          );
+          const formattedUnits = unitsResult.rows.map(u => ({
+            unitLabel: u.unit_label,
+            modelName: u.model_name,
+            bedrooms: u.bedrooms,
+            bathrooms: u.bathrooms,
+            squareFootage: u.sq_ft,
+            estimatedPrice: (u.base_price_snapshot || 0) + (u.customization_total || 0),
+          }));
+          const unitHtml = generateUnitDetailsHtml(formattedUnits);
+          resolvedContent = resolvedContent.replace(/\{\{UNIT_SPEC_TABLE\}\}/g, unitHtml);
+        } catch {
+          resolvedContent = resolvedContent.replace(/\{\{UNIT_SPEC_TABLE\}\}/g, '<p class="text-muted-foreground">[Unit Spec - No data available]</p>');
+        }
+      }
+      
+      const tableDefs = await getAllTableDefinitions();
+      for (const table of tableDefs) {
+        const pattern = new RegExp(`\\{\\{${table.variable_name}\\}\\}`, 'g');
+        if (pattern.test(resolvedContent)) {
+          const tableHtml = await renderDynamicTable(table.id, pid);
+          resolvedContent = resolvedContent.replace(pattern, tableHtml);
+        }
+      }
+    }
+    
+    res.json({ html: resolvedContent });
+  } catch (error: any) {
+    console.error("Failed to resolve clause tables:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;

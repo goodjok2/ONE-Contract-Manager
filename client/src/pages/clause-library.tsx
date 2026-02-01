@@ -42,6 +42,7 @@ import {
   FolderTree,
   Eye,
   GripVertical,
+  Table,
 } from "lucide-react";
 import {
   Dialog,
@@ -71,6 +72,13 @@ interface Clause {
   negotiable: boolean;
   created_at: string;
   updated_at: string;
+}
+
+interface TableDefinition {
+  id: number;
+  variable_name: string;
+  display_name: string;
+  description: string | null;
 }
 
 interface ClauseStats {
@@ -141,6 +149,8 @@ export default function ClauseLibrary() {
   const [draggedClause, setDraggedClause] = useState<Clause | null>(null);
   const [dragOverClauseId, setDragOverClauseId] = useState<number | null>(null);
   const [dropPosition, setDropPosition] = useState<'before' | 'after' | 'child' | null>(null);
+  const [previewProjectId, setPreviewProjectId] = useState<string>("");
+  const [resolveTablesPreview, setResolveTablesPreview] = useState(false);
   const { toast } = useToast();
 
   const clearFilters = () => {
@@ -164,6 +174,57 @@ export default function ClauseLibrary() {
       return response.json();
     },
   });
+
+  const { data: tableDefs } = useQuery<TableDefinition[]>({
+    queryKey: ["/api/table-definitions"],
+  });
+
+  const { data: projects } = useQuery<{ id: number; project_number: string; name: string }[]>({
+    queryKey: ["/api/projects"],
+  });
+
+  const getContentForPreview = () => {
+    if (selectedClause && editingClause?.id === selectedClause.id) {
+      return editContent;
+    }
+    return selectedClause?.content || "";
+  };
+
+  const previewContent = selectedClause && editingClause?.id === selectedClause.id ? editContent : (selectedClause?.content || "");
+  
+  const { data: resolvedPreviewData, isLoading: isResolvingPreview } = useQuery<{ html: string }>({
+    queryKey: ["/api/resolve-clause-tables", previewContent, previewProjectId, resolveTablesPreview],
+    queryFn: async () => {
+      if (!previewContent || !previewProjectId) {
+        return { html: "" };
+      }
+      const response = await fetch("/api/resolve-clause-tables", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: previewContent, projectId: previewProjectId }),
+      });
+      if (!response.ok) throw new Error("Failed to resolve tables");
+      return response.json();
+    },
+    enabled: resolveTablesPreview && !!previewProjectId && !!selectedClause,
+  });
+
+  const insertTableVariable = (variableName: string) => {
+    const textarea = document.querySelector('[data-testid="textarea-edit-content"]') as HTMLTextAreaElement;
+    if (textarea) {
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const newContent = editContent.slice(0, start) + `{{${variableName}}}` + editContent.slice(end);
+      setEditContent(newContent);
+      setTimeout(() => {
+        textarea.focus();
+        const newPos = start + variableName.length + 4;
+        textarea.setSelectionRange(newPos, newPos);
+      }, 0);
+    } else {
+      setEditContent(editContent + `{{${variableName}}}`);
+    }
+  };
 
   const updateMutation = useMutation({
     mutationFn: async (updates: Partial<Clause> & { id: number }) => {
@@ -712,7 +773,36 @@ export default function ClauseLibrary() {
                       />
                     </div>
                     <div>
-                      <Label htmlFor="edit-content">Body Content</Label>
+                      <div className="flex items-center justify-between mb-1">
+                        <Label htmlFor="edit-content">Body Content</Label>
+                        <Select onValueChange={insertTableVariable}>
+                            <SelectTrigger className="w-48 h-8" data-testid="select-insert-table">
+                              <Table className="h-4 w-4 mr-1" />
+                              <SelectValue placeholder="Insert Table..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <div className="px-2 py-1 text-xs font-medium text-muted-foreground">
+                                Built-in Tables
+                              </div>
+                              <SelectItem value="PRICING_BREAKDOWN_TABLE">Pricing Breakdown</SelectItem>
+                              <SelectItem value="PAYMENT_SCHEDULE_TABLE">Payment Schedule</SelectItem>
+                              <SelectItem value="UNIT_SPEC_TABLE">Unit Spec Table</SelectItem>
+                              {tableDefs && tableDefs.length > 0 && (
+                                <>
+                                  <Separator className="my-1" />
+                                  <div className="px-2 py-1 text-xs font-medium text-muted-foreground">
+                                    Custom Tables
+                                  </div>
+                                  {tableDefs.map((table) => (
+                                    <SelectItem key={table.id} value={table.variable_name}>
+                                      {table.display_name}
+                                    </SelectItem>
+                                  ))}
+                                </>
+                              )}
+                            </SelectContent>
+                          </Select>
+                      </div>
                       <Textarea
                         id="edit-content"
                         value={editContent}
@@ -791,20 +881,62 @@ export default function ClauseLibrary() {
 
               <div className="border-t bg-muted/30">
                 <div className="p-2 border-b bg-background">
-                  <h3 className="text-sm font-medium flex items-center gap-2">
-                    <Eye className="h-4 w-4" />
-                    Live HTML Preview
-                  </h3>
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <h3 className="text-sm font-medium flex items-center gap-2">
+                      <Eye className="h-4 w-4" />
+                      Live HTML Preview
+                    </h3>
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id="resolve-tables"
+                        checked={resolveTablesPreview}
+                        onCheckedChange={(checked) => setResolveTablesPreview(checked === true)}
+                        data-testid="checkbox-resolve-tables"
+                      />
+                      <Label htmlFor="resolve-tables" className="text-xs cursor-pointer">
+                        Resolve Tables
+                      </Label>
+                      {resolveTablesPreview && (
+                        <Select value={previewProjectId} onValueChange={setPreviewProjectId}>
+                          <SelectTrigger className="w-44 h-7 text-xs" data-testid="select-preview-project">
+                            <SelectValue placeholder="Select project..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {projects?.map((p) => (
+                              <SelectItem key={p.id} value={p.id.toString()}>
+                                {p.project_number} - {p.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </div>
+                  </div>
                 </div>
                 <div className="p-4 max-h-64 overflow-auto">
-                  <div 
-                    className="prose prose-sm dark:prose-invert max-w-none"
-                    dangerouslySetInnerHTML={{ 
-                      __html: getPreviewHtml(editingClause?.id === selectedClause.id 
-                        ? { ...selectedClause, name: editName, content: editContent, hierarchy_level: editHierarchyLevel }
-                        : selectedClause) 
-                    }}
-                  />
+                  {resolveTablesPreview && previewProjectId ? (
+                    isResolvingPreview ? (
+                      <div className="text-center text-muted-foreground py-4">Resolving tables...</div>
+                    ) : (
+                      <div 
+                        className="prose prose-sm dark:prose-invert max-w-none"
+                        dangerouslySetInnerHTML={{ 
+                          __html: resolvedPreviewData?.html || '<p class="text-muted-foreground">No content to preview</p>'
+                        }}
+                        data-testid="resolved-preview"
+                      />
+                    )
+                  ) : (
+                    <div 
+                      className="prose prose-sm dark:prose-invert max-w-none"
+                      dangerouslySetInnerHTML={{ 
+                        __html: getPreviewHtml(editingClause?.id === selectedClause.id 
+                          ? { ...selectedClause, name: editName, content: editContent, hierarchy_level: editHierarchyLevel }
+                          : selectedClause) 
+                      }}
+                      data-testid="standard-preview"
+                    />
+                  )}
                 </div>
               </div>
             </>
