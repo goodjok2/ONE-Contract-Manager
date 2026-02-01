@@ -2054,7 +2054,7 @@ router.get("/clauses/:id", async (req, res) => {
 router.patch("/clauses/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, content, conditions, riskLevel, negotiable, variablesUsed, hierarchy_level, contract_type, contract_types } = req.body;
+    const { name, content, conditions, riskLevel, negotiable, variablesUsed, hierarchy_level, contract_type, contract_types, sort_order, parent_clause_id } = req.body;
     
     const updateFields: string[] = [];
     const values: any[] = [];
@@ -2105,6 +2105,16 @@ router.patch("/clauses/:id", async (req, res) => {
       values.push(contract_types);
       paramCount++;
     }
+    if (sort_order !== undefined) {
+      updateFields.push(`sort_order = $${paramCount}`);
+      values.push(sort_order);
+      paramCount++;
+    }
+    if (parent_clause_id !== undefined) {
+      updateFields.push(`parent_clause_id = $${paramCount}`);
+      values.push(parent_clause_id);
+      paramCount++;
+    }
     
     if (updateFields.length === 0) {
       return res.status(400).json({ error: "No fields to update" });
@@ -2127,6 +2137,92 @@ router.patch("/clauses/:id", async (req, res) => {
   } catch (error) {
     console.error("Failed to update clause:", error);
     res.status(500).json({ error: "Failed to update clause" });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// CLAUSE REORDER ENDPOINT
+// ---------------------------------------------------------------------------
+
+router.post("/clauses/:id/reorder", async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { id } = req.params;
+    const { parent_clause_id, insert_after_id } = req.body;
+
+    await client.query('BEGIN');
+
+    const clauseResult = await client.query('SELECT * FROM clauses WHERE id = $1', [id]);
+    if (clauseResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: "Clause not found" });
+    }
+    const clause = clauseResult.rows[0];
+
+    if (parent_clause_id !== null && parent_clause_id !== undefined) {
+      if (parent_clause_id === Number(id)) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: "Cannot make a clause its own parent" });
+      }
+      const parentResult = await client.query('SELECT id FROM clauses WHERE id = $1', [parent_clause_id]);
+      if (parentResult.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: "Parent clause not found" });
+      }
+
+      let currentAncestor = parent_clause_id;
+      const visited = new Set<number>();
+      while (currentAncestor !== null) {
+        if (currentAncestor === Number(id)) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ error: "Cannot create cyclic parent-child relationship" });
+        }
+        if (visited.has(currentAncestor)) break;
+        visited.add(currentAncestor);
+        const ancestorResult = await client.query('SELECT parent_clause_id FROM clauses WHERE id = $1', [currentAncestor]);
+        if (ancestorResult.rows.length === 0) break;
+        currentAncestor = ancestorResult.rows[0].parent_clause_id;
+      }
+    }
+
+    const newParentId = parent_clause_id === undefined ? clause.parent_clause_id : parent_clause_id;
+
+    const siblingsResult = await client.query(
+      `SELECT id, sort_order FROM clauses 
+       WHERE ($1::int IS NULL AND parent_clause_id IS NULL) OR parent_clause_id = $1
+       ORDER BY sort_order`,
+      [newParentId]
+    );
+
+    const siblings = siblingsResult.rows.filter(s => s.id !== Number(id));
+    
+    let insertIndex = 0;
+    if (insert_after_id !== null && insert_after_id !== undefined) {
+      const afterIdx = siblings.findIndex(s => s.id === Number(insert_after_id));
+      if (afterIdx === -1) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: "insert_after_id must be a sibling under the target parent" });
+      }
+      insertIndex = afterIdx + 1;
+    }
+
+    siblings.splice(insertIndex, 0, { id: Number(id), sort_order: 0 });
+
+    for (let i = 0; i < siblings.length; i++) {
+      await client.query(
+        'UPDATE clauses SET sort_order = $1, parent_clause_id = $2, updated_at = NOW() WHERE id = $3',
+        [i * 10, newParentId, siblings[i].id]
+      );
+    }
+
+    await client.query('COMMIT');
+    res.json({ success: true, message: "Clause reordered successfully" });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error("Failed to reorder clause:", error);
+    res.status(500).json({ error: "Failed to reorder clause" });
+  } finally {
+    client.release();
   }
 });
 

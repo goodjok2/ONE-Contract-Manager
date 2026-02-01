@@ -138,6 +138,9 @@ export default function ClauseLibrary() {
   const [editContent, setEditContent] = useState("");
   const [editHierarchyLevel, setEditHierarchyLevel] = useState<number>(3);
   const [editContractTypes, setEditContractTypes] = useState<string[]>([]);
+  const [draggedClause, setDraggedClause] = useState<Clause | null>(null);
+  const [dragOverClauseId, setDragOverClauseId] = useState<number | null>(null);
+  const [dropPosition, setDropPosition] = useState<'before' | 'after' | 'child' | null>(null);
   const { toast } = useToast();
 
   const clearFilters = () => {
@@ -180,6 +183,28 @@ export default function ClauseLibrary() {
       toast({
         title: "Error",
         description: "Failed to update clause. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const reorderMutation = useMutation({
+    mutationFn: async (updates: { id: number; parent_clause_id: number | null; insert_after_id: number | null }) => {
+      const { id, ...rest } = updates;
+      const response = await apiRequest("POST", `/api/clauses/${id}/reorder`, rest);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clauses"] });
+      toast({
+        title: "Clause Reordered",
+        description: "The clause position has been updated.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to reorder clause. Please try again.",
         variant: "destructive",
       });
     },
@@ -262,6 +287,83 @@ export default function ClauseLibrary() {
         return [...prev, type];
       }
     });
+  };
+
+  const handleDragStart = (e: React.DragEvent, clause: Clause) => {
+    setDraggedClause(clause);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', String(clause.id));
+  };
+
+  const handleDragEnd = () => {
+    setDraggedClause(null);
+    setDragOverClauseId(null);
+    setDropPosition(null);
+  };
+
+  const handleDragOver = (e: React.DragEvent, clause: Clause) => {
+    e.preventDefault();
+    if (!draggedClause || draggedClause.id === clause.id) return;
+    
+    const rect = e.currentTarget.getBoundingClientRect();
+    const y = e.clientY - rect.top;
+    const height = rect.height;
+    
+    let position: 'before' | 'after' | 'child';
+    if (y < height * 0.25) {
+      position = 'before';
+    } else if (y > height * 0.75) {
+      position = 'after';
+    } else {
+      position = 'child';
+    }
+    
+    setDragOverClauseId(clause.id);
+    setDropPosition(position);
+  };
+
+  const handleDragLeave = () => {
+    setDragOverClauseId(null);
+    setDropPosition(null);
+  };
+
+  const findPreviousSibling = (targetClause: Clause, parentId: number | null): number | null => {
+    const siblings = clauses
+      .filter(c => c.parent_clause_id === parentId && c.id !== draggedClause?.id)
+      .sort((a, b) => a.sort_order - b.sort_order);
+    
+    const targetIdx = siblings.findIndex(s => s.id === targetClause.id);
+    if (targetIdx > 0) {
+      return siblings[targetIdx - 1].id;
+    }
+    return null;
+  };
+
+  const handleDrop = (e: React.DragEvent, targetClause: Clause) => {
+    e.preventDefault();
+    if (!draggedClause || draggedClause.id === targetClause.id || !dropPosition) return;
+
+    let newParentId: number | null;
+    let insertAfterId: number | null = null;
+
+    if (dropPosition === 'before') {
+      newParentId = targetClause.parent_clause_id;
+      insertAfterId = findPreviousSibling(targetClause, newParentId);
+    } else if (dropPosition === 'after') {
+      newParentId = targetClause.parent_clause_id;
+      insertAfterId = targetClause.id;
+    } else {
+      newParentId = targetClause.id;
+      insertAfterId = null;
+    }
+
+    reorderMutation.mutate({
+      id: draggedClause.id,
+      parent_clause_id: newParentId,
+      insert_after_id: insertAfterId,
+    });
+
+    handleDragEnd();
   };
 
   const getHierarchyLabel = (level: number) => {
@@ -359,6 +461,8 @@ export default function ClauseLibrary() {
     const isExpanded = expandedNodes.has(clause.id);
     const isSelected = selectedClause?.id === clause.id;
     const hasChildren = children.length > 0;
+    const isDragOver = dragOverClauseId === clause.id;
+    const isDragging = draggedClause?.id === clause.id;
     
     const currentNumber = clause.hierarchy_level === 1 
       ? `${siblingIndex + 1}` 
@@ -366,16 +470,31 @@ export default function ClauseLibrary() {
         ? `${parentNumber}.${siblingIndex + 1}` 
         : `${siblingIndex + 1}`;
 
+    const getDropIndicatorClass = () => {
+      if (!isDragOver || !dropPosition) return '';
+      if (dropPosition === 'before') return 'border-t-2 border-t-primary';
+      if (dropPosition === 'after') return 'border-b-2 border-b-primary';
+      if (dropPosition === 'child') return 'ring-2 ring-primary ring-inset';
+      return '';
+    };
+
     return (
       <div key={clause.id} className="select-none">
         <div
           className={`flex items-center gap-1 py-1.5 px-2 rounded-md cursor-pointer hover-elevate transition-colors ${
             isSelected ? 'bg-primary/10 border border-primary/30' : ''
-          }`}
+          } ${isDragging ? 'opacity-50' : ''} ${getDropIndicatorClass()}`}
           style={{ paddingLeft: `${depth * 16 + 8}px` }}
           onClick={() => setSelectedClause(clause)}
+          draggable
+          onDragStart={(e) => handleDragStart(e, clause)}
+          onDragEnd={handleDragEnd}
+          onDragOver={(e) => handleDragOver(e, clause)}
+          onDragLeave={handleDragLeave}
+          onDrop={(e) => handleDrop(e, clause)}
           data-testid={`tree-node-${clause.id}`}
         >
+          <GripVertical className="h-3 w-3 text-muted-foreground cursor-grab shrink-0" />
           {hasChildren ? (
             <button
               onClick={(e) => {
