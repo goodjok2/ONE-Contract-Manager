@@ -36,7 +36,11 @@ import {
   BookOpen,
   RotateCcw,
   Settings,
+  CheckSquare,
+  Square,
+  Minus,
 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -121,6 +125,9 @@ export default function ClauseLibrary() {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editingClause, setEditingClause] = useState<Clause | null>(null);
   const [editHierarchyLevel, setEditHierarchyLevel] = useState<number>(3);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [massHierarchyLevel, setMassHierarchyLevel] = useState<string>("");
+  const [massContractType, setMassContractType] = useState<string>("");
   const { toast } = useToast();
 
   const clearFilters = () => {
@@ -130,6 +137,33 @@ export default function ClauseLibrary() {
   };
 
   const hasActiveFilters = searchTerm !== "" || contractType !== "ALL" || hierarchyLevel !== "all";
+
+  const toggleClauseSelection = (id: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === clauses.length && clauses.length > 0) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(clauses.map(c => c.id)));
+    }
+  };
+
+  const clearSelection = () => {
+    setSelectedIds(new Set());
+    setMassHierarchyLevel("");
+    setMassContractType("");
+  };
 
   const openEditModal = (clause: Clause, e: React.MouseEvent) => {
     e.stopPropagation();
