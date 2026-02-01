@@ -8,6 +8,7 @@ import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -36,6 +37,7 @@ import {
   BookOpen,
   RotateCcw,
   Settings,
+  CheckSquare,
 } from "lucide-react";
 import {
   Dialog,
@@ -121,6 +123,9 @@ export default function ClauseLibrary() {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editingClause, setEditingClause] = useState<Clause | null>(null);
   const [editHierarchyLevel, setEditHierarchyLevel] = useState<number>(3);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [massHierarchyLevel, setMassHierarchyLevel] = useState<string>("");
+  const [massContractType, setMassContractType] = useState<string>("");
   const { toast } = useToast();
 
   const clearFilters = () => {
@@ -130,6 +135,27 @@ export default function ClauseLibrary() {
   };
 
   const hasActiveFilters = searchTerm !== "" || contractType !== "ALL" || hierarchyLevel !== "all";
+
+  const toggleSelectClause = (id: number) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const selectAllVisible = () => {
+    const allIds = new Set((data?.clauses || []).map(c => c.id));
+    setSelectedIds(allIds);
+  };
+
+  const deselectAll = () => {
+    setSelectedIds(new Set());
+  };
 
   const openEditModal = (clause: Clause, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -242,6 +268,72 @@ export default function ClauseLibrary() {
   const cancelInlineEdit = () => {
     setInlineEditingId(null);
     setInlineEditContent("");
+  };
+
+  const massHierarchyMutation = useMutation({
+    mutationFn: async ({ ids, hierarchy_level }: { ids: number[]; hierarchy_level: number }) => {
+      const results = await Promise.all(
+        ids.map(id => apiRequest("PATCH", `/api/clauses/${id}`, { hierarchy_level }))
+      );
+      return results;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clauses"] });
+      setSelectedIds(new Set());
+      setMassHierarchyLevel("");
+      toast({
+        title: "Hierarchy Levels Updated",
+        description: `Successfully updated ${variables.ids.length} clause(s) to Level ${variables.hierarchy_level}.`,
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to update hierarchy levels. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const massContractTypeMutation = useMutation({
+    mutationFn: async ({ ids, contract_type }: { ids: number[]; contract_type: string }) => {
+      const results = await Promise.all(
+        ids.map(id => apiRequest("PATCH", `/api/clauses/${id}`, { contract_type }))
+      );
+      return results;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clauses"] });
+      setSelectedIds(new Set());
+      setMassContractType("");
+      toast({
+        title: "Contract Types Updated",
+        description: `Successfully updated ${variables.ids.length} clause(s) to ${variables.contract_type}.`,
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to update contract types. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const applyMassHierarchy = () => {
+    if (!massHierarchyLevel || selectedIds.size === 0) return;
+    massHierarchyMutation.mutate({
+      ids: Array.from(selectedIds),
+      hierarchy_level: parseInt(massHierarchyLevel, 10),
+    });
+  };
+
+  const applyMassContractType = () => {
+    if (!massContractType || selectedIds.size === 0) return;
+    massContractTypeMutation.mutate({
+      ids: Array.from(selectedIds),
+      contract_type: massContractType,
+    });
   };
 
   const toggleExpanded = (id: number) => {
@@ -469,6 +561,23 @@ export default function ClauseLibrary() {
     `;
   };
 
+  const getHeaderBodyPreview = (clause: Clause) => {
+    const name = clause.name || "";
+    const content = clause.content || "";
+    
+    const plainContent = content
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/\{\{[A-Z0-9_]+\}\}/g, '[...]')
+      .replace(/\s+/g, ' ')
+      .trim();
+    
+    const truncatedBody = plainContent.length > 150 
+      ? plainContent.substring(0, 150) + "..." 
+      : plainContent;
+    
+    return { header: name, body: truncatedBody };
+  };
+
   return (
     <div className="flex-1 p-6 md:p-8">
       <div className="max-w-7xl mx-auto">
@@ -565,7 +674,72 @@ export default function ClauseLibrary() {
                     <p className="text-sm mt-1">Try adjusting your filters or search term</p>
                   </div>
                 ) : (
-                  <div className="space-y-2 max-h-[600px] overflow-y-auto">
+                  <>
+                    {selectedIds.size > 0 && (
+                      <div className="mb-4 p-3 bg-muted/50 rounded-lg border" data-testid="mass-actions-bar">
+                        <div className="flex items-center gap-4 flex-wrap">
+                          <div className="flex items-center gap-2">
+                            <CheckSquare className="h-4 w-4 text-primary" />
+                            <span className="text-sm font-medium">{selectedIds.size} selected</span>
+                          </div>
+                          <Separator orientation="vertical" className="h-6" />
+                          <div className="flex items-center gap-2">
+                            <Select value={massHierarchyLevel} onValueChange={setMassHierarchyLevel}>
+                              <SelectTrigger className="w-[180px] h-8" data-testid="select-mass-hierarchy">
+                                <SelectValue placeholder="Change Level..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {EDIT_HIERARCHY_OPTIONS.map((option) => (
+                                  <SelectItem key={option.value} value={String(option.value)}>
+                                    {option.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <Button
+                              size="sm"
+                              onClick={applyMassHierarchy}
+                              disabled={!massHierarchyLevel || massHierarchyMutation.isPending}
+                              data-testid="button-apply-mass-hierarchy"
+                            >
+                              Apply
+                            </Button>
+                          </div>
+                          <Separator orientation="vertical" className="h-6" />
+                          <div className="flex items-center gap-2">
+                            <Select value={massContractType} onValueChange={setMassContractType}>
+                              <SelectTrigger className="w-[180px] h-8" data-testid="select-mass-contract-type">
+                                <SelectValue placeholder="Change Type..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {CONTRACT_TYPES.filter(t => t.value !== "ALL").map((type) => (
+                                  <SelectItem key={type.value} value={type.value}>
+                                    {type.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <Button
+                              size="sm"
+                              onClick={applyMassContractType}
+                              disabled={!massContractType || massContractTypeMutation.isPending}
+                              data-testid="button-apply-mass-contract-type"
+                            >
+                              Apply
+                            </Button>
+                          </div>
+                          <div className="ml-auto flex items-center gap-2">
+                            <Button variant="ghost" size="sm" onClick={selectAllVisible} data-testid="button-select-all">
+                              Select All
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={deselectAll} data-testid="button-deselect-all">
+                              Deselect All
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    <div className="space-y-2 max-h-[600px] overflow-y-auto">
                     {clauses.map((clause) => (
                       <Collapsible
                         key={clause.id}
@@ -586,6 +760,12 @@ export default function ClauseLibrary() {
                               }}
                               data-testid={`clause-row-${clause.id}`}
                             >
+                              <Checkbox
+                                checked={selectedIds.has(clause.id)}
+                                onCheckedChange={() => toggleSelectClause(clause.id)}
+                                onClick={(e) => e.stopPropagation()}
+                                data-testid={`checkbox-clause-${clause.id}`}
+                              />
                               <div className="text-muted-foreground">
                                 {expandedClauses.has(clause.id) ? (
                                   <ChevronDown className="h-4 w-4" />
@@ -601,7 +781,12 @@ export default function ClauseLibrary() {
                                   <Badge variant="outline" className="font-mono text-xs">
                                     {clause.clause_code}
                                   </Badge>
-                                  <span className="font-medium truncate">{clause.name}</span>
+                                  <span className="font-bold text-[#1a73e8] truncate" data-testid={`header-preview-${clause.id}`}>
+                                    {getHeaderBodyPreview(clause).header || <span className="text-red-500 italic">(No Header)</span>}
+                                  </span>
+                                </div>
+                                <div className="text-xs text-muted-foreground mt-1 line-clamp-2" data-testid={`body-preview-${clause.id}`}>
+                                  {getHeaderBodyPreview(clause).body || <span className="italic">(No Body Content)</span>}
                                 </div>
                                 <div className="flex items-center gap-2 mt-1 flex-wrap">
                                   <Badge variant="secondary" className="text-xs">
@@ -725,7 +910,8 @@ export default function ClauseLibrary() {
                         </div>
                       </Collapsible>
                     ))}
-                  </div>
+                    </div>
+                  </>
                 )}
               </CardContent>
             </Card>
