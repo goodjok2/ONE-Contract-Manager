@@ -295,6 +295,7 @@ export const VARIABLE_CATEGORIES = {
     "PRICING_BREAKDOWN_TABLE",
     "PAYMENT_SCHEDULE_TABLE",
     "UNIT_DETAILS_TABLE",
+    "WHAT_HAPPENS_NEXT_TABLE", // Dynamic table from table_definitions
   ],
   conditional: [
     "IS_CRC",

@@ -29,6 +29,87 @@ let stateDisclosureCache: Map<string, string> = new Map();
 // Current project state for disclosure lookups (set during generation)
 let currentProjectState: string = '';
 
+// Current service model for conditional [IF] tag processing
+let currentServiceModel: string = '';
+
+/**
+ * Process [IF CMOS]/[IF CRC] conditional tags in content
+ * Removes content wrapped in opposite service model tags
+ * Strips the literal [IF ...] and [/IF] tags from output
+ */
+function processConditionalTags(content: string, serviceModel: string): string {
+  if (!content) return '';
+  
+  let result = content;
+  const model = serviceModel.toUpperCase();
+  
+  // If CRC project, remove all [IF CMOS]...[/IF] content
+  if (model === 'CRC') {
+    // Remove [IF CMOS]...[/IF] blocks (including nested content)
+    result = result.replace(/\[IF\s+CMOS\][\s\S]*?\[\/IF\]/gi, '');
+    // Also remove [IF COMPANY-MANAGED]...[/IF] blocks
+    result = result.replace(/\[IF\s+COMPANY-MANAGED\][\s\S]*?\[\/IF\]/gi, '');
+  }
+  
+  // If CMOS project, remove all [IF CRC]...[/IF] content
+  if (model === 'CMOS') {
+    // Remove [IF CRC]...[/IF] blocks (including nested content)
+    result = result.replace(/\[IF\s+CRC\][\s\S]*?\[\/IF\]/gi, '');
+    // Also remove [IF CLIENT-RETAINED]...[/IF] blocks
+    result = result.replace(/\[IF\s+CLIENT-RETAINED\][\s\S]*?\[\/IF\]/gi, '');
+  }
+  
+  // Keep and unwrap the matching service model content (remove tags but keep content)
+  if (model === 'CRC') {
+    result = result.replace(/\[IF\s+CRC\]([\s\S]*?)\[\/IF\]/gi, '$1');
+    result = result.replace(/\[IF\s+CLIENT-RETAINED\]([\s\S]*?)\[\/IF\]/gi, '$1');
+  }
+  if (model === 'CMOS') {
+    result = result.replace(/\[IF\s+CMOS\]([\s\S]*?)\[\/IF\]/gi, '$1');
+    result = result.replace(/\[IF\s+COMPANY-MANAGED\]([\s\S]*?)\[\/IF\]/gi, '$1');
+  }
+  
+  // Remove any remaining [IF ...] and [/IF] tags that might have been left over
+  result = result.replace(/\[IF\s+[A-Z_-]+\]/gi, '');
+  result = result.replace(/\[\/IF\]/gi, '');
+  
+  return result.trim();
+}
+
+/**
+ * Resolve dynamic table variables from table_definitions table
+ * Looks for custom table variables (e.g., WHAT_HAPPENS_NEXT_TABLE) and renders them
+ */
+async function resolveDynamicTableVariables(
+  variableMap: Record<string, string>,
+  projectId: number | null
+): Promise<void> {
+  try {
+    const { renderDynamicTable } = await import('./tableBuilders');
+    
+    // List of custom table variable names to resolve from table_definitions
+    const customTableVars = ['WHAT_HAPPENS_NEXT_TABLE'];
+    
+    for (const varName of customTableVars) {
+      // Only resolve if not already set in the variable map
+      if (!variableMap[varName] || variableMap[varName].includes('NOT PROVIDED') || variableMap[varName].includes('MISSING')) {
+        try {
+          const tableHtml = await renderDynamicTable(varName, projectId);
+          // Only set if we got valid HTML (not an error message)
+          if (tableHtml && !tableHtml.includes('[Table not found')) {
+            variableMap[varName] = tableHtml;
+            console.log(`✓ Resolved dynamic table: ${varName}`);
+          }
+        } catch (tableError) {
+          console.log(`   ℹ️ Custom table ${varName} not defined in table_definitions (this is OK)`);
+        }
+      }
+    }
+  } catch (error) {
+    console.warn('⚠️ Could not resolve dynamic table variables:', error);
+  }
+}
+
 /**
  * Look up state disclosure from the database
  * Returns content if found, or a missing disclosure warning
@@ -132,7 +213,7 @@ async function fetchExhibitsForContract(contractType: string): Promise<any[]> {
     
     const allExhibits = await db.select()
       .from(exhibits)
-      .orderBy(asc(exhibits.sortOrder), asc(exhibits.letter));
+      .orderBy(asc(exhibits.letter)); // Primary sort by exhibit_letter (A, B, C, D, E, F, G)
     
     // Filter by contract type and active status
     const filteredExhibits = allExhibits.filter(exhibit => 
@@ -140,7 +221,14 @@ async function fetchExhibitsForContract(contractType: string): Promise<any[]> {
       exhibit.contractTypes?.includes(contractType.toUpperCase())
     );
     
-    console.log(`📎 Found ${filteredExhibits.length} exhibits for ${contractType}`);
+    // Ensure exhibits are sorted by letter ascending (A-G)
+    filteredExhibits.sort((a, b) => {
+      const letterA = (a.letter || '').toUpperCase();
+      const letterB = (b.letter || '').toUpperCase();
+      return letterA.localeCompare(letterB);
+    });
+    
+    console.log(`📎 Found ${filteredExhibits.length} exhibits for ${contractType}, sorted A-G: ${filteredExhibits.map(e => e.letter).join(', ')}`);
     return filteredExhibits;
   } catch (error) {
     console.error('Error fetching exhibits:', error);
@@ -234,6 +322,10 @@ export async function generateContract(options: ContractGenerationOptions): Prom
   // Set current project state for disclosure lookups
   currentProjectState = projectState;
   
+  // Set current service model for [IF] tag processing
+  currentServiceModel = (projectData.serviceModel || projectData.ON_SITE_SELECTION || 'CRC').toUpperCase();
+  console.log(`📍 Service model for [IF] tag processing: ${currentServiceModel}`);
+  
   // Step 1.5: Preload state disclosures for dynamic_disclosure blocks AND inline tags
   const disclosureCodes = clauses
     .filter(c => c.block_type === 'dynamic_disclosure' && c.disclosure_code)
@@ -273,6 +365,10 @@ export async function generateContract(options: ContractGenerationOptions): Prom
   const variableMap = buildVariableMap(projectData);
   console.log(`✓ Built variable map with ${Object.keys(variableMap).length} variables`);
   
+  // Step 4.5: Resolve dynamic table variables (e.g., WHAT_HAPPENS_NEXT_TABLE)
+  const projectId = projectData.projectId || projectData.PROJECT_ID || null;
+  await resolveDynamicTableVariables(variableMap, projectId);
+  
   // Step 5: Process all clauses with variable replacement (recursive)
   processBlockTreeVariables(blockTree, variableMap);
   console.log(`✓ Processed block tree with variable replacement`);
@@ -302,14 +398,24 @@ export async function generateContract(options: ContractGenerationOptions): Prom
  * Build a recursive tree structure from flat clause array
  * Organizes blocks by parent_clause_id into Parent → Children hierarchy
  * Filters out blocks based on PROJECT_STATE condition
+ * De-duplicates clauses by clause_id to prevent double-rendering
  */
 function buildBlockTree(clauses: Clause[], projectState?: string): BlockNode[] {
   // Create a map for quick lookup
   const clauseMap = new Map<number, BlockNode>();
   const rootNodes: BlockNode[] = [];
   
+  // De-duplication: Track seen clause IDs to prevent double-rendering
+  const seenClauseIds = new Set<number>();
+  
   // First pass: create BlockNode for each clause, checking state conditions
   for (const clause of clauses) {
+    // De-duplication check
+    if (seenClauseIds.has(clause.id)) {
+      console.log(`   ⚠️ SKIPPED DUPLICATE: [${clause.id}] ${clause.clause_code}`);
+      continue;
+    }
+    seenClauseIds.add(clause.id);
     // Check PROJECT_STATE condition
     let shouldInclude = true;
     if (clause.conditions) {
@@ -655,6 +761,11 @@ function replaceVariables(content: string, variableMap: Record<string, string>):
   if (!content) return '';
   
   let result = content;
+  
+  // Process [IF CMOS]/[IF CRC] conditional tags based on current service model
+  if (currentServiceModel && (result.includes('[IF ') || result.includes('[IF]'))) {
+    result = processConditionalTags(result, currentServiceModel);
+  }
   
   // Replace [STATE_DISCLOSURE:XXXX] inline tags with cached disclosure content
   // These should have been preloaded in the generateContract function
