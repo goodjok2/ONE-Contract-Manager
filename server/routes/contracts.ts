@@ -2500,6 +2500,27 @@ router.get("/table-definitions/:id/preview", async (req, res) => {
   }
 });
 
+router.post("/table-definitions/preview-columns", async (req, res) => {
+  try {
+    const { columns, projectId } = req.body;
+    
+    if (!columns || !Array.isArray(columns)) {
+      return res.status(400).json({ error: "columns array is required" });
+    }
+    
+    const { renderTableFromColumns } = await import("../lib/tableBuilders");
+    const html = await renderTableFromColumns(
+      columns,
+      projectId ? parseInt(projectId) : null
+    );
+    
+    res.json({ html });
+  } catch (error: any) {
+    console.error("Failed to preview table from columns:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 router.post("/resolve-clause-tables", async (req, res) => {
   try {
     const { content, projectId } = req.body;

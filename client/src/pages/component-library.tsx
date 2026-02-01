@@ -156,12 +156,39 @@ export default function ComponentLibrary() {
     return `custom_${selectedComponent.id}`;
   };
 
+  const getPreviewColumns = () => {
+    if (isEditMode && editingTable) {
+      return editingTable.columns;
+    }
+    if (!isBuiltin(selectedComponent) && selectedComponent) {
+      return selectedComponent.columns;
+    }
+    return null;
+  };
+
+  const previewColumns = getPreviewColumns();
+  const previewColumnsKey = previewColumns ? JSON.stringify(previewColumns) : null;
+
   const { data: previewHtml, isLoading: previewLoading, refetch: refetchPreview } = useQuery<{ html: string }>({
-    queryKey: ["/api/components/preview", getComponentId(), selectedProjectId],
+    queryKey: ["/api/components/preview", getComponentId(), selectedProjectId, previewColumnsKey],
     queryFn: async () => {
       const componentId = getComponentId();
-      if (!componentId || !selectedProjectId) {
+      if (!selectedProjectId) {
         return { html: "<p class='text-muted-foreground text-center py-8'>Select a project to preview live data</p>" };
+      }
+      
+      if (isEditMode && editingTable && previewColumns) {
+        const response = await fetch("/api/table-definitions/preview-columns", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ columns: previewColumns, projectId: selectedProjectId }),
+        });
+        if (!response.ok) throw new Error("Failed to fetch preview");
+        return response.json();
+      }
+      
+      if (!componentId) {
+        return { html: "<p class='text-muted-foreground text-center py-8'>Select a component to preview</p>" };
       }
       const response = await fetch(`/api/components/preview/${componentId}?projectId=${selectedProjectId}`);
       if (!response.ok) throw new Error("Failed to fetch preview");

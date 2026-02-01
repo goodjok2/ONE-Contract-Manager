@@ -92,7 +92,7 @@ function resolveColumnValue(column: TableColumn, projectData: ProjectData): stri
       const value = projectData[varName];
       return value !== undefined ? escapeHtml(String(value)) : `[${escapeHtml(varName)}]`;
     case "signature":
-      return `<div style="border-bottom: 1px solid #000; height: 30px; min-width: 150px;"></div>`;
+      return `<div class="signature-box" style="min-width: 120px; width: 120px;">X_______________________</div>`;
     default:
       return escapeHtml(column.value || "");
   }
@@ -132,28 +132,32 @@ export async function renderDynamicTable(
 
   const headerRow = columns
     .map(col => {
-      const width = col.width ? `width: ${escapeHtml(col.width)};` : "";
-      return `<th style="border: 1px solid #ddd; padding: 8px; background-color: #f2f2f2; text-align: left; ${width}">${escapeHtml(col.header)}</th>`;
+      const width = col.width ? `width: ${escapeHtml(col.width)};` : (col.type === "signature" ? "width: 120px;" : "");
+      return `<th style="${width}">${escapeHtml(col.header)}</th>`;
     })
     .join("");
 
   const dataRow = columns
     .map(col => {
-      const width = col.width ? `width: ${escapeHtml(col.width)};` : "";
+      const width = col.width ? `width: ${escapeHtml(col.width)};` : (col.type === "signature" ? "width: 120px;" : "");
       const value = resolveColumnValue(col, projectData);
-      return `<td style="border: 1px solid #ddd; padding: 8px; ${width}">${value}</td>`;
+      return `<td style="${width}">${value}</td>`;
     })
     .join("");
 
   return `
-    <table style="width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 14px;">
+    <table class="contract-table" style="width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 14px;">
       <thead>
-        <tr>${headerRow}</tr>
+        <tr style="background-color: #f2f2f2;">${headerRow}</tr>
       </thead>
       <tbody>
         <tr>${dataRow}</tr>
       </tbody>
     </table>
+    <style>
+      .contract-table th, .contract-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+      .contract-table .signature-box { font-family: monospace; white-space: nowrap; }
+    </style>
   `;
 }
 
@@ -170,4 +174,44 @@ export async function getTableDefinition(id: number): Promise<TableDefinition | 
     [id]
   );
   return result.rows[0] || null;
+}
+
+export async function renderTableFromColumns(
+  columns: TableColumn[],
+  projectId: number | null
+): Promise<string> {
+  let projectData: ProjectData = {};
+  if (projectId) {
+    projectData = await fetchProjectData(projectId);
+  }
+
+  const headerRow = columns
+    .map(col => {
+      const width = col.width ? `width: ${escapeHtml(col.width)};` : (col.type === "signature" ? "width: 120px;" : "");
+      return `<th style="${width}">${escapeHtml(col.header)}</th>`;
+    })
+    .join("");
+
+  const dataRow = columns
+    .map(col => {
+      const width = col.width ? `width: ${escapeHtml(col.width)};` : (col.type === "signature" ? "width: 120px;" : "");
+      const value = resolveColumnValue(col, projectData);
+      return `<td style="${width}">${value}</td>`;
+    })
+    .join("");
+
+  return `
+    <table class="contract-table" style="width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 14px;">
+      <thead>
+        <tr style="background-color: #f2f2f2;">${headerRow}</tr>
+      </thead>
+      <tbody>
+        <tr>${dataRow}</tr>
+      </tbody>
+    </table>
+    <style>
+      .contract-table th, .contract-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+      .contract-table .signature-box { font-family: monospace; white-space: nowrap; }
+    </style>
+  `;
 }
