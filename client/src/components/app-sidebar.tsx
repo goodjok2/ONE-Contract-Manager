@@ -11,7 +11,8 @@ import {
   Variable,
   Upload,
   FileCode,
-  Scale
+  Scale,
+  Box
 } from "lucide-react";
 import {
   Sidebar,
@@ -60,6 +61,11 @@ const configNavItems = [
     title: "Clause Library",
     url: "/clause-library",
     icon: Library,
+  },
+  {
+    title: "Component Library",
+    url: "/component-library",
+    icon: Box,
   },
   {
     title: "Exhibits",

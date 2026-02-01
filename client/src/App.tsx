@@ -23,6 +23,7 @@ import VariableMappings from "@/pages/variable-mappings";
 import TemplatesUpload from "@/pages/templates-upload";
 import Exhibits from "@/pages/exhibits";
 import StateDisclosures from "@/pages/state-disclosures";
+import ComponentLibrary from "@/pages/component-library";
 
 function Router() {
   return (
@@ -30,6 +31,7 @@ function Router() {
       <Route path="/" component={Dashboard} />
       <Route path="/agreements/new" component={AgreementsNew} />
       <Route path="/clause-library" component={ClauseLibrary} />
+      <Route path="/component-library" component={ComponentLibrary} />
       <Route path="/exhibits" component={Exhibits} />
       <Route path="/state-disclosures" component={StateDisclosures} />
       <Route path="/contract-preview" component={ContractPreview} />

@@ -1940,7 +1940,7 @@ router.get("/clauses", async (req, res) => {
     let query = `
       SELECT 
         id, clause_code, parent_clause_id, hierarchy_level, sort_order,
-        name, category, contract_type, content, variables_used, conditions,
+        name, category, contract_type, contract_types, content, variables_used, conditions,
         risk_level, negotiable, created_at, updated_at
       FROM clauses
       WHERE 1=1
@@ -1949,7 +1949,7 @@ router.get("/clauses", async (req, res) => {
     let paramCount = 1;
     
     if (contractType && contractType !== 'ALL') {
-      query += ` AND contract_type = $${paramCount}`;
+      query += ` AND (contract_type = $${paramCount} OR $${paramCount} = ANY(contract_types))`;
       params.push(contractType);
       paramCount++;
     }
@@ -2054,7 +2054,7 @@ router.get("/clauses/:id", async (req, res) => {
 router.patch("/clauses/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, content, conditions, riskLevel, negotiable, variablesUsed } = req.body;
+    const { name, content, conditions, riskLevel, negotiable, variablesUsed, hierarchy_level, contract_type, contract_types } = req.body;
     
     const updateFields: string[] = [];
     const values: any[] = [];
@@ -2088,6 +2088,21 @@ router.patch("/clauses/:id", async (req, res) => {
     if (variablesUsed !== undefined) {
       updateFields.push(`variables_used = $${paramCount}`);
       values.push(variablesUsed);
+      paramCount++;
+    }
+    if (hierarchy_level !== undefined) {
+      updateFields.push(`hierarchy_level = $${paramCount}`);
+      values.push(hierarchy_level);
+      paramCount++;
+    }
+    if (contract_type !== undefined) {
+      updateFields.push(`contract_type = $${paramCount}`);
+      values.push(contract_type);
+      paramCount++;
+    }
+    if (contract_types !== undefined) {
+      updateFields.push(`contract_types = $${paramCount}`);
+      values.push(contract_types);
       paramCount++;
     }
     
@@ -2146,6 +2161,96 @@ router.get('/debug/variables-in-clauses', async (req, res) => {
     });
     
   } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// COMPONENT LIBRARY PREVIEWS
+// ---------------------------------------------------------------------------
+
+router.get("/components/preview/:componentId", async (req, res) => {
+  try {
+    const { componentId } = req.params;
+    const { projectId } = req.query;
+    
+    if (!projectId) {
+      return res.json({ html: "<p class='text-center text-gray-500 py-4'>Select a project to see live data</p>" });
+    }
+    
+    const { generatePricingTableHtml, generatePaymentScheduleHtml, generateUnitDetailsHtml } = await import("../lib/tableGenerators");
+    const { calculateProjectPricing } = await import("../services/pricingEngine");
+    
+    const projectResult = await pool.query(
+      `SELECT p.*, pd.*, f.*, c.legal_name as client_name
+       FROM projects p
+       LEFT JOIN project_details pd ON pd.project_id = p.id
+       LEFT JOIN financials f ON f.project_id = p.id
+       LEFT JOIN clients c ON c.project_id = p.id
+       WHERE p.id = $1`,
+      [projectId]
+    );
+    
+    if (projectResult.rows.length === 0) {
+      return res.json({ html: "<p class='text-center text-red-500 py-4'>Project not found</p>" });
+    }
+    
+    const project = projectResult.rows[0];
+    
+    const unitsResult = await pool.query(
+      `SELECT pu.*, hm.name as model_name, hm.model_code, hm.bedrooms, hm.bathrooms, hm.sq_ft
+       FROM project_units pu
+       JOIN home_models hm ON hm.id = pu.model_id
+       WHERE pu.project_id = $1
+       ORDER BY pu.unit_label`,
+      [projectId]
+    );
+    
+    const units = unitsResult.rows;
+    let pricingSummary = null;
+    
+    try {
+      pricingSummary = await calculateProjectPricing(parseInt(projectId as string));
+    } catch (e) {
+      console.error("Failed to calculate pricing:", e);
+    }
+    
+    let html = "";
+    
+    switch (componentId) {
+      case "pricing_breakdown":
+        html = generatePricingTableHtml(pricingSummary, 'ONE');
+        break;
+        
+      case "payment_schedule":
+        const milestones = [
+          { name: "Design Agreement Signing", percentage: 10, amount: pricingSummary ? pricingSummary.contractValue * 0.10 : 0, phase: "Design" },
+          { name: "Green Light / Production Start", percentage: 40, amount: pricingSummary ? pricingSummary.contractValue * 0.40 : 0, phase: "Production" },
+          { name: "Module Delivery", percentage: 40, amount: pricingSummary ? pricingSummary.contractValue * 0.40 : 0, phase: "Delivery" },
+          { name: "Final Completion", percentage: 10, amount: pricingSummary ? pricingSummary.contractValue * 0.10 : 0, phase: "Completion" },
+        ];
+        html = generatePaymentScheduleHtml(milestones);
+        break;
+        
+      case "unit_spec":
+        const formattedUnits = units.map(u => ({
+          unitLabel: u.unit_label,
+          modelName: u.model_name,
+          bedrooms: u.bedrooms,
+          bathrooms: u.bathrooms,
+          squareFootage: u.sq_ft,
+          estimatedPrice: (u.base_price_snapshot || 0) + (u.customization_total || 0),
+        }));
+        html = generateUnitDetailsHtml(formattedUnits);
+        break;
+        
+      default:
+        html = "<p class='text-center text-gray-500 py-4'>Unknown component</p>";
+    }
+    
+    res.json({ html });
+  } catch (error: any) {
+    console.error("Component preview error:", error);
     res.status(500).json({ error: error.message });
   }
 });
