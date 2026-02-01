@@ -92,7 +92,8 @@ function resolveColumnValue(column: TableColumn, projectData: ProjectData): stri
       const value = projectData[varName];
       return value !== undefined ? escapeHtml(String(value)) : `[${escapeHtml(varName)}]`;
     case "signature":
-      return `<div class="signature-box" style="min-width: 120px; width: 120px;">X_______________________</div>`;
+      const sigContent = column.value?.trim() || "";
+      return `<div class="signature-box" style="min-width: 120px; width: 120px;">${escapeHtml(sigContent)}</div>`;
     default:
       return escapeHtml(column.value || "");
   }

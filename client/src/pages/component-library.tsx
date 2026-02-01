@@ -384,10 +384,9 @@ export default function ComponentLibrary() {
                 </SelectContent>
               </Select>
               <Input
-                placeholder={col.type === "data_field" ? "{{VARIABLE}}" : col.type === "signature" ? "(auto)" : "Value"}
+                placeholder={col.type === "data_field" ? "{{VARIABLE}}" : col.type === "signature" ? "e.g. Initials:" : "Value"}
                 value={col.value}
                 onChange={(e) => updateColumn(idx, "value", e.target.value)}
-                disabled={col.type === "signature"}
                 className="text-sm font-mono"
                 data-testid={`input-column-value-${idx}`}
               />
