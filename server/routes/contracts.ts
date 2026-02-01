@@ -2276,6 +2276,7 @@ router.get("/components/preview/:componentId", async (req, res) => {
     
     const { generatePricingTableHtml, generatePaymentScheduleHtml, generateUnitDetailsHtml } = await import("../lib/tableGenerators");
     const { calculateProjectPricing } = await import("../services/pricingEngine");
+    const { renderDynamicTable } = await import("../lib/tableBuilders");
     
     const projectResult = await pool.query(
       `SELECT p.*, pd.*, f.*, c.legal_name as client_name
@@ -2341,12 +2342,160 @@ router.get("/components/preview/:componentId", async (req, res) => {
         break;
         
       default:
-        html = "<p class='text-center text-gray-500 py-4'>Unknown component</p>";
+        if (componentId.startsWith("custom_")) {
+          const tableId = parseInt(componentId.replace("custom_", ""));
+          html = await renderDynamicTable(tableId, parseInt(projectId as string));
+        } else {
+          html = "<p class='text-center text-gray-500 py-4'>Unknown component</p>";
+        }
     }
     
     res.json({ html });
   } catch (error: any) {
     console.error("Component preview error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// TABLE DEFINITIONS CRUD
+// ---------------------------------------------------------------------------
+
+router.get("/table-definitions", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM table_definitions WHERE is_active = true ORDER BY display_name"
+    );
+    res.json(result.rows);
+  } catch (error: any) {
+    console.error("Failed to fetch table definitions:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get("/table-definitions/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(
+      "SELECT * FROM table_definitions WHERE id = $1",
+      [id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Table definition not found" });
+    }
+    res.json(result.rows[0]);
+  } catch (error: any) {
+    console.error("Failed to fetch table definition:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post("/table-definitions", async (req, res) => {
+  try {
+    const { variable_name, display_name, description, columns } = req.body;
+    
+    if (!variable_name || !display_name || !columns) {
+      return res.status(400).json({ error: "variable_name, display_name, and columns are required" });
+    }
+    
+    const result = await pool.query(
+      `INSERT INTO table_definitions (variable_name, display_name, description, columns)
+       VALUES ($1, $2, $3, $4)
+       RETURNING *`,
+      [variable_name, display_name, description, JSON.stringify(columns)]
+    );
+    
+    res.status(201).json(result.rows[0]);
+  } catch (error: any) {
+    console.error("Failed to create table definition:", error);
+    if (error.code === "23505") {
+      return res.status(400).json({ error: "A table with this variable name already exists" });
+    }
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.patch("/table-definitions/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { display_name, description, columns } = req.body;
+    
+    const updateFields: string[] = [];
+    const values: any[] = [];
+    let paramCount = 1;
+    
+    if (display_name !== undefined) {
+      updateFields.push(`display_name = $${paramCount}`);
+      values.push(display_name);
+      paramCount++;
+    }
+    if (description !== undefined) {
+      updateFields.push(`description = $${paramCount}`);
+      values.push(description);
+      paramCount++;
+    }
+    if (columns !== undefined) {
+      updateFields.push(`columns = $${paramCount}`);
+      values.push(JSON.stringify(columns));
+      paramCount++;
+    }
+    
+    if (updateFields.length === 0) {
+      return res.status(400).json({ error: "No fields to update" });
+    }
+    
+    updateFields.push(`updated_at = NOW()`);
+    values.push(id);
+    
+    const result = await pool.query(
+      `UPDATE table_definitions SET ${updateFields.join(', ')} WHERE id = $${paramCount} RETURNING *`,
+      values
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Table definition not found" });
+    }
+    
+    res.json(result.rows[0]);
+  } catch (error: any) {
+    console.error("Failed to update table definition:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.delete("/table-definitions/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(
+      "UPDATE table_definitions SET is_active = false, updated_at = NOW() WHERE id = $1 RETURNING *",
+      [id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Table definition not found" });
+    }
+    
+    res.json({ success: true, message: "Table definition deleted" });
+  } catch (error: any) {
+    console.error("Failed to delete table definition:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get("/table-definitions/:id/preview", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { projectId } = req.query;
+    
+    const { renderDynamicTable } = await import("../lib/tableBuilders");
+    const html = await renderDynamicTable(
+      parseInt(id),
+      projectId ? parseInt(projectId as string) : null
+    );
+    
+    res.json({ html });
+  } catch (error: any) {
+    console.error("Failed to preview table:", error);
     res.status(500).json({ error: error.message });
   }
 });
