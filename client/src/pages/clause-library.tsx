@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,16 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Search,
   FileText,
   ChevronDown,
@@ -39,10 +49,13 @@ import {
   RotateCcw,
   Settings,
   CheckSquare,
+  Square,
   FolderTree,
   Eye,
   GripVertical,
   Table,
+  ArrowUpDown,
+  Trash2,
 } from "lucide-react";
 import {
   Dialog,
@@ -135,6 +148,9 @@ const EDIT_HIERARCHY_OPTIONS = [
   { value: 8, label: "Level 8 - Nested List" },
 ];
 
+const MIN_TREE_WIDTH = 200;
+const MIN_VIEWER_WIDTH = 300;
+
 export default function ClauseLibrary() {
   const [searchTerm, setSearchTerm] = useState("");
   const [contractType, setContractType] = useState("ALL");
@@ -151,7 +167,92 @@ export default function ClauseLibrary() {
   const [dropPosition, setDropPosition] = useState<'before' | 'after' | 'child' | null>(null);
   const [previewProjectId, setPreviewProjectId] = useState<string>("");
   const [resolveTablesPreview, setResolveTablesPreview] = useState(false);
+  
+  const [treePanelWidth, setTreePanelWidth] = useState(35);
+  const [isResizing, setIsResizing] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  
+  const [selectedClauseIds, setSelectedClauseIds] = useState<Set<number>>(new Set());
+  const [bulkLevelDialogOpen, setBulkLevelDialogOpen] = useState(false);
+  const [bulkNewLevel, setBulkNewLevel] = useState<number>(3);
+  const [bulkConfirmDialogOpen, setBulkConfirmDialogOpen] = useState(false);
+  const [pendingBulkAction, setPendingBulkAction] = useState<{ type: string; data?: any } | null>(null);
+  
   const { toast } = useToast();
+  
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+  }, []);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing || !containerRef.current) return;
+      
+      const containerRect = containerRef.current.getBoundingClientRect();
+      const containerWidth = containerRect.width;
+      
+      if (containerWidth <= 0 || !isFinite(containerWidth)) return;
+      
+      const newTreeWidth = ((e.clientX - containerRect.left) / containerWidth) * 100;
+      
+      const minTreePercent = (MIN_TREE_WIDTH / containerWidth) * 100;
+      const maxTreePercent = 100 - (MIN_VIEWER_WIDTH / containerWidth) * 100;
+      
+      if (!isFinite(minTreePercent) || !isFinite(maxTreePercent) || minTreePercent >= maxTreePercent) return;
+      
+      const clampedWidth = Math.min(Math.max(newTreeWidth, minTreePercent), maxTreePercent);
+      if (isFinite(clampedWidth)) {
+        setTreePanelWidth(clampedWidth);
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+    };
+
+    if (isResizing) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [isResizing]);
+  
+  const toggleClauseSelection = (clauseId: number, e?: React.MouseEvent) => {
+    if (e) {
+      e.stopPropagation();
+    }
+    setSelectedClauseIds(prev => {
+      const next = new Set(prev);
+      if (next.has(clauseId)) {
+        next.delete(clauseId);
+      } else {
+        next.add(clauseId);
+      }
+      return next;
+    });
+  };
+  
+  const selectAllClauses = () => {
+    const allIds = new Set(clauses.map(c => c.id));
+    setSelectedClauseIds(allIds);
+  };
+  
+  const clearSelection = () => {
+    setSelectedClauseIds(new Set());
+  };
+  
+  const getSelectedClauses = (): Clause[] => {
+    return clauses.filter(c => selectedClauseIds.has(c.id));
+  };
 
   const clearFilters = () => {
     setSearchTerm("");
@@ -257,6 +358,7 @@ export default function ClauseLibrary() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/clauses"] });
+      clearSelection();
       toast({
         title: "Clause Reordered",
         description: "The clause position has been updated.",
@@ -270,6 +372,108 @@ export default function ClauseLibrary() {
       });
     },
   });
+
+  const bulkUpdateMutation = useMutation({
+    mutationFn: async (updates: { ids: number[]; changes: Partial<Clause> }) => {
+      const promises = updates.ids.map(id => 
+        apiRequest("PATCH", `/api/clauses/${id}`, updates.changes)
+      );
+      return Promise.all(promises);
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clauses"] });
+      clearSelection();
+      toast({
+        title: "Bulk Update Complete",
+        description: `Successfully updated ${variables.ids.length} clauses.`,
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to update clauses. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const bulkReorderMutation = useMutation({
+    mutationFn: async (updates: { ids: number[]; parent_clause_id: number | null; insert_after_id: number | null }) => {
+      let lastInsertId = updates.insert_after_id;
+      for (const id of updates.ids) {
+        await apiRequest("POST", `/api/clauses/${id}/reorder`, {
+          parent_clause_id: updates.parent_clause_id,
+          insert_after_id: lastInsertId,
+        });
+        lastInsertId = id;
+      }
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clauses"] });
+      clearSelection();
+      toast({
+        title: "Bulk Reorder Complete",
+        description: `Successfully moved ${variables.ids.length} clauses.`,
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to reorder clauses. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const confirmBulkAction = (type: string, data?: any) => {
+    setPendingBulkAction({ type, data });
+    setBulkConfirmDialogOpen(true);
+  };
+
+  const executeBulkAction = () => {
+    if (!pendingBulkAction) return;
+    
+    const selectedIds = Array.from(selectedClauseIds);
+    
+    const sortedSelectedIds = selectedIds
+      .map(id => clauses.find(c => c.id === id))
+      .filter(Boolean)
+      .sort((a, b) => (a?.sort_order || 0) - (b?.sort_order || 0))
+      .map(c => c!.id);
+    
+    if (pendingBulkAction.type === 'level') {
+      bulkUpdateMutation.mutate({
+        ids: sortedSelectedIds,
+        changes: { hierarchy_level: pendingBulkAction.data.level },
+      });
+    } else if (pendingBulkAction.type === 'reorder') {
+      bulkReorderMutation.mutate({
+        ids: sortedSelectedIds,
+        parent_clause_id: pendingBulkAction.data.parent_clause_id,
+        insert_after_id: pendingBulkAction.data.insert_after_id,
+      });
+    }
+    
+    setBulkConfirmDialogOpen(false);
+    setPendingBulkAction(null);
+  };
+
+  const openBulkLevelDialog = () => {
+    if (selectedClauseIds.size === 0) {
+      toast({
+        title: "No Clauses Selected",
+        description: "Please select one or more clauses first.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setBulkLevelDialogOpen(true);
+  };
+
+  const applyBulkLevel = () => {
+    setBulkLevelDialogOpen(false);
+    confirmBulkAction('level', { level: bulkNewLevel });
+  };
 
   const clauses = data?.clauses || [];
   const stats = data?.stats;
@@ -353,8 +557,13 @@ export default function ClauseLibrary() {
   const handleDragStart = (e: React.DragEvent, clause: Clause) => {
     setDraggedClause(clause);
     e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', String(clause.id));
+    const dragIds = selectedClauseIds.has(clause.id) 
+      ? Array.from(selectedClauseIds).join(',')
+      : String(clause.id);
+    e.dataTransfer.setData('text/plain', dragIds);
   };
+  
+  const isDraggingMultiple = draggedClause && selectedClauseIds.has(draggedClause.id) && selectedClauseIds.size > 1;
 
   const handleDragEnd = () => {
     setDraggedClause(null);
@@ -388,9 +597,42 @@ export default function ClauseLibrary() {
     setDropPosition(null);
   };
 
+  const isDescendantOf = (targetId: number, ancestorId: number): boolean => {
+    let currentId: number | null = targetId;
+    const visited = new Set<number>();
+    
+    while (currentId !== null) {
+      if (visited.has(currentId)) return false;
+      visited.add(currentId);
+      
+      const current = clauses.find(c => c.id === currentId);
+      if (!current) return false;
+      if (current.parent_clause_id === ancestorId) return true;
+      currentId = current.parent_clause_id;
+    }
+    return false;
+  };
+  
+  const isTargetDescendantOfSelection = (targetId: number): boolean => {
+    const idsToCheck = isDraggingMultiple 
+      ? Array.from(selectedClauseIds)
+      : draggedClause ? [draggedClause.id] : [];
+    
+    for (const id of idsToCheck) {
+      if (targetId === id || isDescendantOf(targetId, id)) {
+        return true;
+      }
+    }
+    return false;
+  };
+
   const findPreviousSibling = (targetClause: Clause, parentId: number | null): number | null => {
+    const idsToExclude = isDraggingMultiple 
+      ? new Set([...Array.from(selectedClauseIds), draggedClause?.id].filter(Boolean) as number[])
+      : new Set([draggedClause?.id].filter(Boolean) as number[]);
+    
     const siblings = clauses
-      .filter(c => c.parent_clause_id === parentId && c.id !== draggedClause?.id)
+      .filter(c => c.parent_clause_id === parentId && !idsToExclude.has(c.id))
       .sort((a, b) => a.sort_order - b.sort_order);
     
     const targetIdx = siblings.findIndex(s => s.id === targetClause.id);
@@ -403,6 +645,26 @@ export default function ClauseLibrary() {
   const handleDrop = (e: React.DragEvent, targetClause: Clause) => {
     e.preventDefault();
     if (!draggedClause || draggedClause.id === targetClause.id || !dropPosition) return;
+
+    if (isDraggingMultiple && selectedClauseIds.has(targetClause.id)) {
+      toast({
+        title: "Invalid Drop Target",
+        description: "Cannot drop selected clauses onto another selected clause.",
+        variant: "destructive",
+      });
+      handleDragEnd();
+      return;
+    }
+    
+    if (isTargetDescendantOfSelection(targetClause.id)) {
+      toast({
+        title: "Invalid Drop Target",
+        description: "Cannot drop a clause into or next to its own descendant.",
+        variant: "destructive",
+      });
+      handleDragEnd();
+      return;
+    }
 
     let newParentId: number | null;
     let insertAfterId: number | null = null;
@@ -418,11 +680,18 @@ export default function ClauseLibrary() {
       insertAfterId = null;
     }
 
-    reorderMutation.mutate({
-      id: draggedClause.id,
-      parent_clause_id: newParentId,
-      insert_after_id: insertAfterId,
-    });
+    if (isDraggingMultiple) {
+      confirmBulkAction('reorder', {
+        parent_clause_id: newParentId,
+        insert_after_id: insertAfterId,
+      });
+    } else {
+      reorderMutation.mutate({
+        id: draggedClause.id,
+        parent_clause_id: newParentId,
+        insert_after_id: insertAfterId,
+      });
+    }
 
     handleDragEnd();
   };
@@ -521,9 +790,10 @@ export default function ClauseLibrary() {
     const { clause, children } = node;
     const isExpanded = expandedNodes.has(clause.id);
     const isSelected = selectedClause?.id === clause.id;
+    const isChecked = selectedClauseIds.has(clause.id);
     const hasChildren = children.length > 0;
     const isDragOver = dragOverClauseId === clause.id;
-    const isDragging = draggedClause?.id === clause.id;
+    const isDragging = draggedClause?.id === clause.id || (isDraggingMultiple && isChecked);
     
     const currentNumber = clause.hierarchy_level === 1 
       ? `${siblingIndex + 1}` 
@@ -544,7 +814,7 @@ export default function ClauseLibrary() {
         <div
           className={`flex items-center gap-1 py-1.5 px-2 rounded-md cursor-pointer hover-elevate transition-colors ${
             isSelected ? 'bg-primary/10 border border-primary/30' : ''
-          } ${isDragging ? 'opacity-50' : ''} ${getDropIndicatorClass()}`}
+          } ${isChecked ? 'bg-accent/50' : ''} ${isDragging ? 'opacity-50' : ''} ${getDropIndicatorClass()}`}
           style={{ paddingLeft: `${depth * 16 + 8}px` }}
           onClick={() => setSelectedClause(clause)}
           draggable
@@ -555,6 +825,13 @@ export default function ClauseLibrary() {
           onDrop={(e) => handleDrop(e, clause)}
           data-testid={`tree-node-${clause.id}`}
         >
+          <Checkbox
+            checked={isChecked}
+            onCheckedChange={() => toggleClauseSelection(clause.id)}
+            onClick={(e) => e.stopPropagation()}
+            className="h-3.5 w-3.5 shrink-0"
+            data-testid={`checkbox-clause-${clause.id}`}
+          />
           <GripVertical className="h-3 w-3 text-muted-foreground cursor-grab shrink-0" />
           {hasChildren ? (
             <button
@@ -673,13 +950,44 @@ export default function ClauseLibrary() {
         </div>
       </div>
 
-      <div className="flex-1 flex overflow-hidden">
-        <div className="w-[35%] border-r flex flex-col bg-muted/30">
+      <div className="flex-1 flex overflow-hidden" ref={containerRef}>
+        <div 
+          className="border-r flex flex-col bg-muted/30"
+          style={{ width: `${treePanelWidth}%`, minWidth: MIN_TREE_WIDTH }}
+        >
           <div className="p-2 border-b bg-background">
-            <h2 className="text-sm font-medium flex items-center gap-2">
-              <FolderTree className="h-4 w-4" />
-              Hierarchy Tree
-            </h2>
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-sm font-medium flex items-center gap-2">
+                <FolderTree className="h-4 w-4" />
+                Hierarchy Tree
+              </h2>
+              {selectedClauseIds.size > 0 && (
+                <div className="flex items-center gap-1">
+                  <Badge variant="secondary" className="text-xs">
+                    {selectedClauseIds.size} selected
+                  </Badge>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={clearSelection}
+                    className="h-6 px-2"
+                    data-testid="button-clear-selection"
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={openBulkLevelDialog}
+                    className="h-6 px-2 text-xs"
+                    data-testid="button-bulk-level"
+                  >
+                    <ArrowUpDown className="h-3 w-3 mr-1" />
+                    Level
+                  </Button>
+                </div>
+              )}
+            </div>
           </div>
           <ScrollArea className="flex-1">
             <div className="p-2">
@@ -701,7 +1009,18 @@ export default function ClauseLibrary() {
           </ScrollArea>
         </div>
 
-        <div className="w-[65%] flex flex-col overflow-hidden">
+        <div
+          className="w-2 bg-border hover:bg-primary/20 cursor-col-resize flex items-center justify-center transition-colors shrink-0"
+          onMouseDown={handleMouseDown}
+          data-testid="resize-handle"
+        >
+          <div className="w-0.5 h-8 bg-muted-foreground/30 rounded-full" />
+        </div>
+
+        <div 
+          className="flex flex-col overflow-hidden flex-1"
+          style={{ minWidth: MIN_VIEWER_WIDTH }}
+        >
           {selectedClause ? (
             <>
               <div className="p-4 border-b bg-background flex-shrink-0">
@@ -951,6 +1270,71 @@ export default function ClauseLibrary() {
           )}
         </div>
       </div>
+
+      <Dialog open={bulkLevelDialogOpen} onOpenChange={setBulkLevelDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Change Hierarchy Level</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-muted-foreground mb-4">
+              Change the hierarchy level for {selectedClauseIds.size} selected clause(s).
+            </p>
+            <Label>New Hierarchy Level</Label>
+            <Select 
+              value={bulkNewLevel.toString()} 
+              onValueChange={(v) => setBulkNewLevel(parseInt(v))}
+            >
+              <SelectTrigger data-testid="select-bulk-level">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {EDIT_HIERARCHY_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value.toString()}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkLevelDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={applyBulkLevel} data-testid="button-apply-bulk-level">
+              Apply to {selectedClauseIds.size} Clauses
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={bulkConfirmDialogOpen} onOpenChange={setBulkConfirmDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Bulk Edit</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingBulkAction?.type === 'level' && (
+                <>
+                  You are about to change the hierarchy level of {selectedClauseIds.size} clause(s) 
+                  to Level {pendingBulkAction?.data?.level}. This action cannot be easily undone.
+                </>
+              )}
+              {pendingBulkAction?.type === 'reorder' && (
+                <>
+                  You are about to move {selectedClauseIds.size} clause(s) to a new position. 
+                  This will change their order in the contract hierarchy.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-bulk">Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={executeBulkAction} data-testid="button-confirm-bulk">
+              Confirm Changes
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
