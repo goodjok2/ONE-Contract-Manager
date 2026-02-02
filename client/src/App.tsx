@@ -1,4 +1,4 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -32,6 +32,7 @@ import AdminStateDisclosures from "@/pages/admin/state-disclosures";
 import AdminContractTemplates from "@/pages/admin/contract-templates";
 import AdminContractorEntities from "@/pages/admin/contractor-entities";
 import AdminProjectUnits from "@/pages/admin/project-units";
+import NewContractWizard from "@/pages/wizard/new";
 
 function Router() {
   return (
@@ -60,35 +61,48 @@ function Router() {
       <Route path="/admin/contract-templates" component={AdminContractTemplates} />
       <Route path="/admin/contractor-entities" component={AdminContractorEntities} />
       <Route path="/admin/project-units" component={AdminProjectUnits} />
+      <Route path="/wizard/new" component={NewContractWizard} />
       <Route component={NotFound} />
     </Switch>
   );
 }
 
-function App() {
+function AppContent() {
+  const [location] = useLocation();
+  
   const sidebarStyle = {
     "--sidebar-width": "16rem",
     "--sidebar-width-icon": "3rem",
   };
 
+  if (location.startsWith("/wizard")) {
+    return <Router />;
+  }
+
+  return (
+    <SidebarProvider style={sidebarStyle as React.CSSProperties}>
+      <div className="flex min-h-screen w-full bg-background">
+        <AppSidebar />
+        <div className="flex flex-col flex-1">
+          <header className="flex h-14 items-center justify-between gap-4 border-b px-4 md:px-6">
+            <SidebarTrigger data-testid="button-sidebar-toggle" />
+            <ThemeToggle />
+          </header>
+          <main className="flex-1 overflow-auto">
+            <Router />
+          </main>
+        </div>
+      </div>
+    </SidebarProvider>
+  );
+}
+
+function App() {
   return (
     <ThemeProvider defaultTheme="light" storageKey="dvele-ui-theme">
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
-          <SidebarProvider style={sidebarStyle as React.CSSProperties}>
-            <div className="flex min-h-screen w-full bg-background">
-              <AppSidebar />
-              <div className="flex flex-col flex-1">
-                <header className="flex h-14 items-center justify-between gap-4 border-b px-4 md:px-6">
-                  <SidebarTrigger data-testid="button-sidebar-toggle" />
-                  <ThemeToggle />
-                </header>
-                <main className="flex-1 overflow-auto">
-                  <Router />
-                </main>
-              </div>
-            </div>
-          </SidebarProvider>
+          <AppContent />
           <Toaster />
         </TooltipProvider>
       </QueryClientProvider>

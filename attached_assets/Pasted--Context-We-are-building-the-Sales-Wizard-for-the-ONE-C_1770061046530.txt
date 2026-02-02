@@ -1,0 +1,49 @@
+## Context
+We are building the "Sales Wizard" for the `ONE-Contract-Manager`.
+**Current State:**
+* **Backend:** Fully ready. Endpoints exist for `home-models`, `llcs`, `projects`, etc.
+* **Admin UI:** Exists and is populated with data.
+* **Frontend Stack:** React, Shadcn UI, React Hook Form, Zod.
+
+## Objective
+Create a **New Contract Wizard** (Multi-step Form) that allows a salesperson to create a Project and draft a Contract by selecting from the pre-defined Admin data.
+
+## Requirements
+
+### 1. Wizard Architecture
+* **Route:** Create a new route `/wizard/new` (or link from "New Project").
+* **Layout:** A focused layout (minimal nav) with a **Step Progress Indicator** (Step 1 of 4).
+* **State Management:** Use a global store (like Context or Zustand) or simply pass state up to a parent `WizardContainer` to persist data between steps.
+
+### 2. The Steps (UI & Logic)
+**Step 1: Client & Project Info**
+* **Fields:** Client Name, Project Name, Lot Address.
+* **Action:** On "Next", create a basic Project record (or hold in state).
+
+**Step 2: Home Configuration**
+* **Data Source:** Fetch from `GET /api/home-models`.
+* **UI:** Display models as selectable "Cards" (showing Name, Bed/Bath, Price).
+* **Logic:** When a model is selected, capture its `id` and `basePrice`.
+* **Input:** Allow adding a specific "Unit Label" (e.g., "Unit A").
+
+**Step 3: Legal & Entity**
+* **Data Source:** Fetch from `GET /api/llcs` and `GET /api/contractor-entities`.
+* **UI:** Dropdowns to select which Dvele Entity (LLC) is the seller.
+* **Logic:** Auto-fill the "Seller" fields in the contract state based on the selected LLC.
+
+**Step 4: Review & Generate**
+* **UI:** Summary of all selections.
+* **Action:** "Create Contract" button.
+* **API Call:** `POST /api/contracts` (or `/api/projects/:id/contract`).
+    * Payload should include: `projectId`, `modelId`, `llcId`, `clientInfo`.
+* **Redirect:** On success, go to the **Contract Editor** (Atomic Clause view) for the newly created contract.
+
+### 3. Technical Specifications
+* **Components:** Use Shadcn `Card` (for selection), `Form` (inputs), `Button` (navigation), `Select` (dropdowns).
+* **Validation:** Use Zod schemas for each step. Prevent proceeding if invalid.
+* **Data Fetching:** Use `useEffect` to load Home Models and LLCs when the component mounts.
+
+## Constraints
+* **User Experience:** "Sales Mode" - keep it simple, visual, and fast.
+* **Error Handling:** If API calls fail (e.g., saving the project), show a clear Toast error.
+* **Integration:** Ensure the final "Create" action properly links the `homeModelId` to the `ProjectUnit` in the backend.
