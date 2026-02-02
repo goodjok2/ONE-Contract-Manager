@@ -35,7 +35,8 @@ The application is built on a modern full-stack architecture.
 
 **Database**:
 - **Primary Database**: PostgreSQL for all persistent data including `contracts`, `clauses`, `projects`, `clients`, `financials`, `projectDetails`, `milestones`, `warrantyTerms`, `contractors`, `contractor_entities`, `contract_variables`.
-- **Phase A Refactoring (In Progress)**: Atomic Clauses Architecture - clauses table refactored to use `slug`, `headerText`, `bodyHtml`, `level`, `parentId`, `order`, `contractTypes` (JSONB), `tags` (JSONB). Removed tables: `llcs`, `homeModels`, `projectUnits`, `exhibits`, `stateDisclosures`, `contractorEntities`, `contractTemplates`.
+- **Phase A (Complete)**: Atomic Clauses Architecture - clauses table refactored to use `slug`, `headerText`, `bodyHtml`, `level`, `parentId`, `order`, `contractTypes` (JSONB), `tags` (JSONB). Removed tables: `llcs`, `homeModels`, `projectUnits`, `exhibits`, `stateDisclosures`, `contractorEntities`, `contractTemplates`.
+- **Phase B (Complete)**: Smart Ingestor with regex-powered hierarchy detection for Roman numeral lists and automatic body paragraph appending.
 
 **Core Features & Design Patterns**:
 - **Autosave System**: Debounced 2-second autosave for draft projects.
