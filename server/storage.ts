@@ -1,5 +1,6 @@
 import { 
-  contracts,
+  llcs, contracts,
+  type LLC, type NewLLC,
   type Contract, type NewContract,
 } from "@shared/schema";
 import { db } from "./db";
@@ -19,6 +20,13 @@ export interface DashboardStats {
 }
 
 export interface IStorage {
+  // LLCs
+  getLLCs(): Promise<LLC[]>;
+  getLLC(id: number): Promise<LLC | undefined>;
+  createLLC(llc: NewLLC): Promise<LLC>;
+  updateLLC(id: number, llc: Partial<NewLLC>): Promise<LLC | undefined>;
+  deleteLLC(id: number): Promise<boolean>;
+  
   // Contracts
   getContracts(): Promise<Contract[]>;
   getContract(id: number): Promise<Contract | undefined>;
@@ -31,6 +39,31 @@ export interface IStorage {
 }
 
 export class DatabaseStorage implements IStorage {
+  // LLCs
+  async getLLCs(): Promise<LLC[]> {
+    return await db.select().from(llcs).orderBy(desc(llcs.createdAt));
+  }
+
+  async getLLC(id: number): Promise<LLC | undefined> {
+    const [llc] = await db.select().from(llcs).where(eq(llcs.id, id));
+    return llc || undefined;
+  }
+
+  async createLLC(insertLLC: NewLLC): Promise<LLC> {
+    const [llc] = await db.insert(llcs).values(insertLLC).returning();
+    return llc;
+  }
+
+  async updateLLC(id: number, updateData: Partial<NewLLC>): Promise<LLC | undefined> {
+    const [llc] = await db.update(llcs).set({ ...updateData, updatedAt: new Date() }).where(eq(llcs.id, id)).returning();
+    return llc || undefined;
+  }
+
+  async deleteLLC(id: number): Promise<boolean> {
+    const result = await db.delete(llcs).where(eq(llcs.id, id)).returning();
+    return result.length > 0;
+  }
+
   // Contracts
   async getContracts(): Promise<Contract[]> {
     return await db.select().from(contracts).orderBy(desc(contracts.generatedAt));
@@ -58,8 +91,11 @@ export class DatabaseStorage implements IStorage {
 
   // Dashboard Stats
   async getDashboardStats(): Promise<DashboardStats> {
-    // LLC stats temporarily disabled (Phase A refactoring - llcs table removed)
-    const pendingLLCsCount = 0;
+    // Count LLCs by status
+    const formingLLCsResult = await db
+      .select({ count: count() })
+      .from(llcs)
+      .where(sql`${llcs.status} IN ('pending', 'forming')`);
     
     // Total contracts
     const totalResult = await db.select({ count: count() }).from(contracts);
@@ -90,7 +126,7 @@ export class DatabaseStorage implements IStorage {
 
     return {
       activeProjects: activeProjectsResult[0]?.count ?? 0,
-      pendingLLCs: pendingLLCsCount,
+      pendingLLCs: formingLLCsResult[0]?.count ?? 0,
       totalContractValue: 0,
       totalContracts: totalResult[0]?.count ?? 0,
       drafts: draftsResult[0]?.count ?? 0,
