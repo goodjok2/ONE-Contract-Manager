@@ -15,8 +15,11 @@ const TEMPLATE_PATH = path.join(process.cwd(), "server", "templates", "ONE_Agree
 // Contract types this template belongs to
 const CONTRACT_TYPES = ["ONE"];
 
-// Regex patterns for detecting list items (Roman numerals, letters)
-const LIST_ITEM_REGEX = /^\s*(\(?[ivxIVX]+\.?\)?|[a-z]\.|\([a-z]\))\s+/;
+// Regex patterns for detecting list items (Roman numerals, letters, numbered)
+const LIST_ITEM_REGEX = /^\s*(\(?[ivxIVX]+\.?\)?|[a-z]\.|\([a-z]\)|[0-9]+\.)\s+/;
+
+// Smart Merge: Threshold for Heading 5 body paragraphs (>60 chars = merge into previous clause)
+const SMART_MERGE_THRESHOLD = 60;
 
 // =============================================================================
 // MAMMOTH STYLE MAPPING
@@ -60,6 +63,11 @@ function getSmartLevel(tagName: string, text: string): SmartLevelResult {
       // Smart detection: Check if it's a Roman numeral list item
       if (LIST_ITEM_REGEX.test(text)) {
         return { level: 7, isListItem: true };
+      }
+      // Smart Merge: Long h5 text (>60 chars, no list marker) should merge into previous clause
+      // Return level 0 to signal "merge into previous" rather than creating new clause
+      if (text.length > SMART_MERGE_THRESHOLD) {
+        return { level: 0, isListItem: false }; // Signal: merge into previous
       }
       // Otherwise it's a standard Level 5 clause
       return { level: 5, isListItem: false };
@@ -134,6 +142,7 @@ async function ingestDocument(): Promise<void> {
   let totalClauses = 0;
   let romanNumeralLists = 0;
   let bodyAppendCount = 0;
+  let smartMergeCount = 0;
   let orderCounter = 0;
 
   // Collect all direct children elements
@@ -158,7 +167,24 @@ async function ingestDocument(): Promise<void> {
       // Determine the smart level
       const { level: targetLevel, isListItem } = getSmartLevel(tagName, text);
 
-      if (targetLevel === 0) continue;
+      // Smart Merge: Level 0 means this h5 should be appended to previous clause's bodyHtml
+      if (targetLevel === 0 && lastClauseId !== null) {
+        const currentClause = await db.select().from(clauses).where(sql`id = ${lastClauseId}`);
+        
+        if (currentClause.length > 0) {
+          const existingBody = currentClause[0].bodyHtml || "";
+          const newBody = existingBody + (existingBody ? "\n" : "") + `<p>${html}</p>`;
+          
+          await db.update(clauses)
+            .set({ bodyHtml: newBody })
+            .where(sql`id = ${lastClauseId}`);
+          
+          smartMergeCount++;
+        }
+        continue; // Skip creating a new clause
+      }
+
+      if (targetLevel === 0) continue; // No previous clause to merge into
 
       if (isListItem) {
         romanNumeralLists++;
@@ -232,6 +258,7 @@ async function ingestDocument(): Promise<void> {
   console.log("=".repeat(60));
   console.log(`   Total clauses created: ${totalClauses}`);
   console.log(`   Roman numeral list items (L7): ${romanNumeralLists}`);
+  console.log(`   Smart merged H5s: ${smartMergeCount}`);
   console.log(`   Body paragraphs appended: ${bodyAppendCount}`);
   console.log(`   Contract types: ${CONTRACT_TYPES.join(", ")}`);
   console.log("");

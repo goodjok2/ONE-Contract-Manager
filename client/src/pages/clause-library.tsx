@@ -846,18 +846,17 @@ export default function ClauseLibrary() {
           ) : (
             <span className="w-4" />
           )}
-          <Badge 
-            variant="outline" 
-            className={`text-[10px] px-1 py-0 ${getHierarchyColor(clause.hierarchy_level)}`}
+          <span className="text-xs text-muted-foreground font-mono shrink-0">{currentNumber}</span>
+          <span 
+            className="text-sm flex-1 truncate min-w-0" 
+            title={clause.header_text || "(Untitled)"}
           >
-            L{clause.hierarchy_level}
-          </Badge>
-          <span className="text-xs text-muted-foreground font-mono">{currentNumber}</span>
-          <span className="text-sm flex-1 break-words" title={clause.header_text || "(Untitled)"}>
             {clause.header_text || <span className="italic text-muted-foreground">(Untitled)</span>}
           </span>
           {clause.tags && clause.tags.length > 0 && (
-            <Zap className="h-3 w-3 text-amber-500 shrink-0" title="Has tags" />
+            <span title="Has tags">
+              <Zap className="h-3 w-3 text-amber-500 shrink-0" />
+            </span>
           )}
         </div>
         {hasChildren && isExpanded && (
