@@ -774,10 +774,9 @@ export default function NewContractWizard() {
 
       await apiRequest("POST", "/api/project-units", {
         projectId: project.id,
-        homeModelId: selectedModel.id,
+        modelId: selectedModel.id,
         unitLabel: unitLabel || selectedModel.name,
-        quantity: 1,
-        basePrice: selectedModel.offsite_base_price,
+        basePriceSnapshot: selectedModel.offsite_base_price,
       });
 
       const contractRes = await apiRequest("POST", "/api/contracts", {

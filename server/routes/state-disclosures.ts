@@ -22,11 +22,11 @@ router.get("/state-disclosures", async (req: Request, res: Response) => {
     }
     
     if (disclosureType) {
-      query += ` AND disclosure_type = $${paramIdx}`;
+      query += ` AND code = $${paramIdx}`;
       params.push(disclosureType);
     }
     
-    query += ` ORDER BY state, disclosure_type`;
+    query += ` ORDER BY state, code`;
     
     const result = await pool.query(query, params);
     res.json(result.rows);
@@ -58,13 +58,13 @@ router.get("/state-disclosures/:id", async (req: Request, res: Response) => {
 
 router.post("/state-disclosures", async (req: Request, res: Response) => {
   try {
-    const { state, disclosureType, title, content, requiresInitials } = req.body;
+    const { state, code, content } = req.body;
     
     const result = await pool.query(
-      `INSERT INTO state_disclosures (organization_id, state, disclosure_type, title, content, requires_initials)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO state_disclosures (organization_id, state, code, content, is_active)
+       VALUES ($1, $2, $3, $4, true)
        RETURNING *`,
-      [req.organizationId, state, disclosureType, title, content, requiresInitials]
+      [req.organizationId, state, code, content]
     );
     
     res.status(201).json(result.rows[0]);
@@ -77,20 +77,18 @@ router.post("/state-disclosures", async (req: Request, res: Response) => {
 router.patch("/state-disclosures/:id", async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { state, disclosureType, title, content, requiresInitials, isActive } = req.body;
+    const { state, code, content, isActive } = req.body;
     
     const result = await pool.query(
       `UPDATE state_disclosures SET 
        state = COALESCE($3, state),
-       disclosure_type = COALESCE($4, disclosure_type),
-       title = COALESCE($5, title),
-       content = COALESCE($6, content),
-       requires_initials = COALESCE($7, requires_initials),
-       is_active = COALESCE($8, is_active),
+       code = COALESCE($4, code),
+       content = COALESCE($5, content),
+       is_active = COALESCE($6, is_active),
        updated_at = NOW()
        WHERE id = $1 AND organization_id = $2
        RETURNING *`,
-      [id, req.organizationId, state, disclosureType, title, content, requiresInitials, isActive]
+      [id, req.organizationId, state, code, content, isActive]
     );
     
     if (result.rows.length === 0) {

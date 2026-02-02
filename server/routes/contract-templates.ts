@@ -54,8 +54,8 @@ router.post("/contract-templates", async (req: Request, res: Response) => {
     const { name, contractType, version, content } = req.body;
     
     const result = await pool.query(
-      `INSERT INTO contract_templates (organization_id, name, contract_type, version, content)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO contract_templates (organization_id, name, display_name, contract_type, version, content)
+       VALUES ($1, $2, $2, $3, $4, $5)
        RETURNING *`,
       [req.organizationId, name, contractType, version, content]
     );
