@@ -24,6 +24,14 @@ import TemplatesUpload from "@/pages/templates-upload";
 import Exhibits from "@/pages/exhibits";
 import StateDisclosures from "@/pages/state-disclosures";
 import ComponentLibrary from "@/pages/component-library";
+import AdminGeneral from "@/pages/admin/index";
+import AdminHomeModels from "@/pages/admin/home-models";
+import AdminLLCs from "@/pages/admin/llcs";
+import AdminExhibits from "@/pages/admin/exhibits";
+import AdminStateDisclosures from "@/pages/admin/state-disclosures";
+import AdminContractTemplates from "@/pages/admin/contract-templates";
+import AdminContractorEntities from "@/pages/admin/contractor-entities";
+import AdminProjectUnits from "@/pages/admin/project-units";
 
 function Router() {
   return (
@@ -44,6 +52,14 @@ function Router() {
       <Route path="/llc-admin/:id" component={LLCDetail} />
       <Route path="/variable-mappings" component={VariableMappings} />
       <Route path="/settings" component={Settings} />
+      <Route path="/admin" component={AdminGeneral} />
+      <Route path="/admin/home-models" component={AdminHomeModels} />
+      <Route path="/admin/llcs" component={AdminLLCs} />
+      <Route path="/admin/exhibits" component={AdminExhibits} />
+      <Route path="/admin/state-disclosures" component={AdminStateDisclosures} />
+      <Route path="/admin/contract-templates" component={AdminContractTemplates} />
+      <Route path="/admin/contractor-entities" component={AdminContractorEntities} />
+      <Route path="/admin/project-units" component={AdminProjectUnits} />
       <Route component={NotFound} />
     </Switch>
   );

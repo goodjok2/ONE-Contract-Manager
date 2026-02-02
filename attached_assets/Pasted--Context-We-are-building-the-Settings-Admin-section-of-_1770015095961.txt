@@ -1,0 +1,52 @@
+## Context
+We are building the "Settings / Admin" section of a SaaS application.
+**Stack:** React (Vite), Tailwind CSS, Shadcn UI.
+**Backend:** The API endpoints are ready (e.g., `GET/POST /api/home-models`) and secured by "Ghost Mode" middleware (no complex auth headers required).
+
+## Objective
+Create a comprehensive **Admin Dashboard** to manage the business entities (Home Models, LLCs, Templates). This will be the control center where the sales team inputs the data used in contracts.
+
+## Requirements
+
+### 1. Layout & Routing
+* **New Route:** Create a main route `/settings` (or `/admin`).
+* **Layout Component:** Create a `SettingsLayout` with a **Sidebar Navigation** (using Tailwind/Shadcn).
+* **Sidebar Items:**
+    * General (Organization info - placeholder for now)
+    * Home Models
+    * Project Units
+    * LLCs
+    * Exhibits
+    * State Disclosures
+    * Contract Templates
+
+### 2. "Home Models" Management Page
+Create a page to manage Home Models (`/api/home-models`).
+* **List View:** Use the Shadcn `Table` component to display: Name, Code, Beds, Baths, SqFt, Base Price.
+* **Create/Edit:** Use a Shadcn `Dialog` (Modal) or `Sheet` (Side drawer) containing a form to add/edit a model.
+    * **Fields:** Name (text), Model Code (text), Bedrooms (number), Bathrooms (number), SqFt (number), Offsite Base Price (currency), Design Fee (currency).
+* **Actions:** Add "Edit" and "Delete" buttons to each table row.
+
+### 3. "LLC" Management Page
+Create a page to manage LLCs (`/api/llcs`).
+* **List View:** Shadcn `Table` displaying: Name, Project Name, State, Status.
+* **Create/Edit:** `Dialog` or `Sheet` with fields: Name, Project Name, State of Formation, Delivery Address.
+
+### 4. General Pattern for Other Pages
+Apply the same pattern (Table + Add/Edit Dialog) for **Exhibits**, **State Disclosures**, and **Contract Templates**.
+
+## Technical Specifications
+* **Components:** Strictly use Shadcn UI components (`Button`, `Input`, `Table`, `Dialog`, `Label`, `Card`).
+* **Icons:** Use `lucide-react` icons (e.g., `Plus`, `Pencil`, `Trash`, `Settings`).
+* **State Management:** Use standard React `useState` and `useEffect` for fetching data, or `tanstack-query` if already installed in the repo.
+* **Forms:** Use `react-hook-form` + `zod` if available (standard with Shadcn), otherwise standard controlled inputs are fine.
+* **API Interaction:**
+    * Fetch data on mount.
+    * On Form Submit: `POST` (create) or `PUT` (update) to the API.
+    * On Delete: `DELETE` to the API.
+    * **Important:** Handle loading states (show a spinner or skeleton) and error states (toast notification).
+
+## Constraints
+* **Design:** Keep it clean and professional. Use the existing color palette (via Tailwind classes).
+* **UX:** Ensure the "Add New" button is prominent (top right of the page).
+* **Validation:** Ensure numeric fields (Prices, SqFt) accept numbers only.
