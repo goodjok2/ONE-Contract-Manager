@@ -41,6 +41,7 @@ The application is built on a modern full-stack architecture.
 - **Phase D (Complete)**: Atomic UI & HTML Preview Upgrade - Editor UI with separate Header/Body fields, hierarchy-based styling (L1-L4 blue, L6 amber conspicuous, L7-L8 indented). Reorder endpoint fixed to use snake_case columns. All SQL queries use snake_case: `header_text`, `body_html`, `parent_id`, `updated_at`, `contract_types`.
 - **Phase E (Complete)**: Contract Viewer & Preview Logic updated - Endpoints reconstructing legacy `content` field from atomic `header_text`/`body_html` for frontend compatibility. Preview rendering with level-based CSS classes.
 - **Phase F (Complete)**: Smart Merge Ingestion - Heading 5 paragraphs >60 chars without list markers are merged into previous clause's bodyHtml instead of creating new tree nodes. Reduced clause count from 174 to 137. UI cleanup removed debug labels and added title truncation.
+- **Phase F-2 (Complete)**: Aggressive Smart Merge - Extended smart merge logic to H3, H4, H5 tags. Any heading >60 chars without list markers now merges into previous clause. Reduced clause count from 137 to 129 (45 total smart merges).
 
 **Core Features & Design Patterns**:
 - **Autosave System**: Debounced 2-second autosave for draft projects.

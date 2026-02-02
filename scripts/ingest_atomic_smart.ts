@@ -18,8 +18,12 @@ const CONTRACT_TYPES = ["ONE"];
 // Regex patterns for detecting list items (Roman numerals, letters, numbered)
 const LIST_ITEM_REGEX = /^\s*(\(?[ivxIVX]+\.?\)?|[a-z]\.|\([a-z]\)|[0-9]+\.)\s+/;
 
-// Smart Merge: Threshold for Heading 5 body paragraphs (>60 chars = merge into previous clause)
+// Smart Merge: Threshold for long paragraphs (>60 chars = merge into previous clause)
+// Applied to H3, H4, H5 tags that look like body text rather than headers
 const SMART_MERGE_THRESHOLD = 60;
+
+// Tags eligible for smart merge (long text without list markers → merge into previous)
+const SMART_MERGE_TAGS = ["h3", "h4", "h5"];
 
 // =============================================================================
 // MAMMOTH STYLE MAPPING
@@ -47,6 +51,20 @@ interface SmartLevelResult {
 function getSmartLevel(tagName: string, text: string): SmartLevelResult {
   const tag = tagName.toLowerCase();
   
+  // Smart Merge: For h3, h4, h5 - check if this is actually body text (long, no list marker)
+  // If so, return level 0 to signal it should be merged into the previous clause
+  if (SMART_MERGE_TAGS.includes(tag)) {
+    // First check for Roman numeral list items (h5 only)
+    if (tag === "h5" && LIST_ITEM_REGEX.test(text)) {
+      return { level: 7, isListItem: true };
+    }
+    
+    // Smart Merge: Long text (>60 chars) without list markers = body paragraph, not a header
+    if (text.length > SMART_MERGE_THRESHOLD && !LIST_ITEM_REGEX.test(text)) {
+      return { level: 0, isListItem: false }; // Signal: merge into previous clause
+    }
+  }
+  
   switch (tag) {
     case "h1":
       return { level: 1, isListItem: false };
@@ -56,21 +74,11 @@ function getSmartLevel(tagName: string, text: string): SmartLevelResult {
       return { level: 3, isListItem: false };
     case "h4":
       return { level: 4, isListItem: false };
+    case "h5":
+      return { level: 5, isListItem: false };
     case "h6":
       // Heading 6 = Level 6 (Conspicuous text)
       return { level: 6, isListItem: false };
-    case "h5":
-      // Smart detection: Check if it's a Roman numeral list item
-      if (LIST_ITEM_REGEX.test(text)) {
-        return { level: 7, isListItem: true };
-      }
-      // Smart Merge: Long h5 text (>60 chars, no list marker) should merge into previous clause
-      // Return level 0 to signal "merge into previous" rather than creating new clause
-      if (text.length > SMART_MERGE_THRESHOLD) {
-        return { level: 0, isListItem: false }; // Signal: merge into previous
-      }
-      // Otherwise it's a standard Level 5 clause
-      return { level: 5, isListItem: false };
     default:
       return { level: 0, isListItem: false };
   }
@@ -258,7 +266,7 @@ async function ingestDocument(): Promise<void> {
   console.log("=".repeat(60));
   console.log(`   Total clauses created: ${totalClauses}`);
   console.log(`   Roman numeral list items (L7): ${romanNumeralLists}`);
-  console.log(`   Smart merged H5s: ${smartMergeCount}`);
+  console.log(`   Smart merged (H3/H4/H5 >60 chars): ${smartMergeCount}`);
   console.log(`   Body paragraphs appended: ${bodyAppendCount}`);
   console.log(`   Contract types: ${CONTRACT_TYPES.join(", ")}`);
   console.log("");
