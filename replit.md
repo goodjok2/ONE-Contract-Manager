@@ -42,6 +42,7 @@ The application is built on a modern full-stack architecture.
 - **Phase E (Complete)**: Contract Viewer & Preview Logic updated - Endpoints reconstructing legacy `content` field from atomic `header_text`/`body_html` for frontend compatibility. Preview rendering with level-based CSS classes.
 - **Phase F (Complete)**: Smart Merge Ingestion - Heading 5 paragraphs >60 chars without list markers are merged into previous clause's bodyHtml instead of creating new tree nodes. Reduced clause count from 174 to 137. UI cleanup removed debug labels and added title truncation.
 - **Phase F-2 (Complete)**: Aggressive Smart Merge - Extended smart merge logic to H3, H4, H5 tags. Any heading >60 chars without list markers now merges into previous clause. Reduced clause count from 137 to 129 (45 total smart merges).
+- **Phase G (Complete)**: Hydrated table_definitions with column configurations for PRICING_TABLE (3 cols), PAYMENT_SCHEDULE_TABLE (3 cols), SIGNATURE_BLOCK_TABLE (3 cols), EXHIBIT_LIST_TABLE (2 cols). Script: `npx tsx scripts/update_tables.ts`.
 
 **Core Features & Design Patterns**:
 - **Autosave System**: Debounced 2-second autosave for draft projects.
