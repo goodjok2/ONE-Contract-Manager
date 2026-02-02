@@ -13,7 +13,8 @@ import {
   FileCode,
   Scale,
   Box,
-  Shield
+  Shield,
+  Plus
 } from "lucide-react";
 import {
   Sidebar,
@@ -34,6 +35,11 @@ const mainNavItems = [
     title: "Dashboard",
     url: "/",
     icon: LayoutDashboard,
+  },
+  {
+    title: "New Contract",
+    url: "/wizard/new",
+    icon: Plus,
   },
   {
     title: "Generate Contracts",

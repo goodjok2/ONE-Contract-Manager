@@ -741,10 +741,13 @@ export default function NewContractWizard() {
       }
 
       const nextNumberRes = await fetch("/api/projects/next-number");
-      const { projectNumber } = await nextNumberRes.json();
+      if (!nextNumberRes.ok) {
+        throw new Error("Failed to get next project number");
+      }
+      const { nextProjectNumber } = await nextNumberRes.json();
 
       const projectRes = await apiRequest("POST", "/api/projects", {
-        projectNumber,
+        projectNumber: nextProjectNumber,
         name: step1.projectName,
         status: "Draft",
         state: step1.state,
