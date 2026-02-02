@@ -1,0 +1,50 @@
+# Phase B: Smart Ingestor (Regex-Powered Hierarchy)
+
+**Context:**
+We have verified that `ONE_Agreement_Master.docx` uses Heading 1-6. We need to ingest this into our "Atomic Clause" PostgreSQL schema (`clauses` table).
+The script must use **Regex Detection** to distinguish between standard sub-clauses (Level 5) and Roman Numeral lists (Level 7) which both share the "Heading 5" style.
+
+**Task:**
+Create `scripts/ingest_atomic_smart.ts` to parse the DOCX and populate the DB.
+
+**1. Setup**
+- Install dependencies: `npm install mammoth cheerio` (and `@types` for dev).
+
+**2. The Ingestor Script (`scripts/ingest_atomic_smart.ts`)**
+- **Imports:** `mammoth`, `cheerio`, `db`, `schema`.
+- **Style Mapping:** Configure `mammoth` to map:
+    - `Heading 1` -> `h1`
+    - ...
+    - `Heading 6` -> `h6`
+- **Parsing Logic:**
+  - Load the DOCX, convert to HTML.
+  - Load HTML into `cheerio`.
+  - Iterate through elements in order.
+  - Maintain a "Parent Stack": `parents = { 1: null, 2: null, ... 8: null }`.
+
+- **The "Smart Level" Function:**
+  - If tag is `h1` -> Level 1.
+  - If tag is `h2` -> Level 2.
+  - If tag is `h3` -> Level 3.
+  - If tag is `h4` -> Level 4.
+  - If tag is `h6` -> **Level 6** (Conspicuous).
+  - **If tag is `h5`:**
+    - Check text regex: `^(\s*\(?[ivxIVX]+\.?\)|[a-z]\.)` (Matches `i.`, `ii.`, `(a)`).
+    - If match -> **Level 7** (List Item).
+    - Else -> **Level 5** (Atomic Child).
+
+- **Insertion Loop:**
+  - When a Header (`h1-h6`) is found:
+    - Determine `targetLevel` (using logic above).
+    - Look up `parentId` from `parents[targetLevel - 1]`.
+    - Insert into `clauses`.
+    - Update `parents[targetLevel] = newClauseId`.
+    - Clear lower parents (e.g., if inserting L4, set L5-L8 to null).
+  - When a Paragraph (`p`) is found:
+    - Append HTML to the `bodyHtml` of the **last active clause**.
+    - *Tip:* If the last active clause was a Header, this `p` is its body.
+
+**3. Execution**
+- Script should **TRUNCATE** the `clauses` table before running.
+- Log progress: "Processed X clauses. Found Y Roman Numeral lists."
+- Add to package.json: `"ingest:atomic": "tsx scripts/ingest_atomic_smart.ts"`.
