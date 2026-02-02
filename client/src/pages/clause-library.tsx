@@ -807,7 +807,7 @@ export default function ClauseLibrary() {
     return (
       <div key={clause.id} className="select-none">
         <div
-          className={`flex items-center gap-1 py-1.5 px-2 rounded-md cursor-pointer hover-elevate transition-colors overflow-hidden ${
+          className={`flex items-start gap-1 py-1.5 px-2 rounded-md cursor-pointer hover-elevate transition-colors ${
             isSelected ? 'bg-primary/10 border border-primary/30' : ''
           } ${isChecked ? 'bg-accent/50' : ''} ${isDragging ? 'opacity-50' : ''} ${getDropIndicatorClass()}`}
           style={{ paddingLeft: `${depth * 16 + 8}px` }}
@@ -824,10 +824,10 @@ export default function ClauseLibrary() {
             checked={isChecked}
             onCheckedChange={() => toggleClauseSelection(clause.id)}
             onClick={(e) => e.stopPropagation()}
-            className="h-3.5 w-3.5 flex-shrink-0"
+            className="h-3.5 w-3.5 flex-shrink-0 mt-0.5"
             data-testid={`checkbox-clause-${clause.id}`}
           />
-          <GripVertical className="h-3 w-3 text-muted-foreground cursor-grab flex-shrink-0" />
+          <GripVertical className="h-3 w-3 text-muted-foreground cursor-grab flex-shrink-0 mt-0.5" />
           {hasChildren ? (
             <button
               onClick={(e) => {
@@ -846,15 +846,12 @@ export default function ClauseLibrary() {
           ) : (
             <span className="w-4 flex-shrink-0" />
           )}
-          <span className="text-xs text-muted-foreground font-mono flex-shrink-0">{currentNumber}</span>
-          <span 
-            className="text-sm truncate" 
-            title={clause.header_text || "(Untitled)"}
-          >
+          <span className="text-xs text-muted-foreground font-mono flex-shrink-0 mt-0.5">{currentNumber}</span>
+          <span className="text-sm flex-1 break-words">
             {clause.header_text || <span className="italic text-muted-foreground">(Untitled)</span>}
           </span>
           {clause.tags && clause.tags.length > 0 && (
-            <span title="Has tags" className="flex-shrink-0">
+            <span title="Has tags" className="flex-shrink-0 mt-0.5">
               <Zap className="h-3 w-3 text-amber-500" />
             </span>
           )}
