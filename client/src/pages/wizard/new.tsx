@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -28,13 +28,15 @@ import {
   Check,
   Home,
   User,
-  Building2,
   FileText,
   Bed,
   Bath,
   Ruler,
   DollarSign,
   X,
+  Loader2,
+  Wrench,
+  Building,
 } from "lucide-react";
 
 const US_STATES = [
@@ -46,13 +48,23 @@ const US_STATES = [
 ];
 
 const step1Schema = z.object({
-  clientName: z.string().min(1, "Client name is required"),
+  clientFirstName: z.string().min(1, "First name is required"),
+  clientLastName: z.string().min(1, "Last name is required"),
   projectName: z.string().min(1, "Project name is required"),
   lotAddress: z.string().min(1, "Lot address is required"),
   city: z.string().min(1, "City is required"),
   state: z.string().min(1, "State is required"),
   zip: z.string().min(1, "ZIP code is required"),
-  onSiteSelection: z.enum(["CRC", "CMOS"]),
+  onSiteType: z.enum(["CRC", "CMOS"]),
+});
+
+const step2Schema = z.object({
+  selectedModelId: z.number().min(1, "Please select a home model"),
+});
+
+const step3Schema = z.object({
+  step1Complete: z.boolean().refine((val) => val === true, "Step 1 must be complete"),
+  step2Complete: z.boolean().refine((val) => val === true, "Step 2 must be complete"),
 });
 
 type Step1Data = z.infer<typeof step1Schema>;
@@ -71,26 +83,15 @@ interface HomeModel {
   onsite_est_price: number;
 }
 
-interface LLC {
-  id: number;
-  name: string;
-  status: string;
-  stateOfFormation: string;
-  ein: string;
-}
-
 interface WizardState {
   step1: Step1Data | null;
   selectedModel: HomeModel | null;
-  unitLabel: string;
-  selectedLlc: LLC | null;
 }
 
 const STEPS = [
-  { id: 1, title: "Client & Project", icon: User },
-  { id: 2, title: "Home Configuration", icon: Home },
-  { id: 3, title: "Legal Entity", icon: Building2 },
-  { id: 4, title: "Review & Create", icon: FileText },
+  { id: 1, title: "Project & Client", icon: User },
+  { id: 2, title: "Home Selection", icon: Home },
+  { id: 3, title: "Review & Generate", icon: FileText },
 ];
 
 function StepIndicator({ currentStep }: { currentStep: number }) {
@@ -130,7 +131,7 @@ function StepIndicator({ currentStep }: { currentStep: number }) {
   );
 }
 
-function Step1ClientProject({
+function Step1ProjectClient({
   onNext,
   initialData,
 }: {
@@ -140,15 +141,18 @@ function Step1ClientProject({
   const form = useForm<Step1Data>({
     resolver: zodResolver(step1Schema),
     defaultValues: initialData || {
-      clientName: "",
+      clientFirstName: "",
+      clientLastName: "",
       projectName: "",
       lotAddress: "",
       city: "",
       state: "CA",
       zip: "",
-      onSiteSelection: "CRC",
+      onSiteType: "CRC",
     },
   });
+
+  const selectedServiceType = form.watch("onSiteType");
 
   const onSubmit = (data: Step1Data) => {
     onNext(data);
@@ -159,7 +163,7 @@ function Step1ClientProject({
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <User className="h-5 w-5" />
-          Client & Project Information
+          Project & Client Information
         </CardTitle>
         <CardDescription>
           Enter the client details and project location to get started.
@@ -171,15 +175,15 @@ function Step1ClientProject({
             <div className="grid gap-4 md:grid-cols-2">
               <FormField
                 control={form.control}
-                name="clientName"
+                name="clientFirstName"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Client Name *</FormLabel>
+                    <FormLabel>Client First Name *</FormLabel>
                     <FormControl>
                       <Input 
-                        placeholder="John & Jane Smith" 
+                        placeholder="John" 
                         {...field} 
-                        data-testid="input-client-name"
+                        data-testid="input-client-first-name"
                       />
                     </FormControl>
                     <FormMessage />
@@ -188,15 +192,15 @@ function Step1ClientProject({
               />
               <FormField
                 control={form.control}
-                name="projectName"
+                name="clientLastName"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Project Name *</FormLabel>
+                    <FormLabel>Client Last Name *</FormLabel>
                     <FormControl>
                       <Input 
-                        placeholder="Smith Residence" 
+                        placeholder="Smith" 
                         {...field}
-                        data-testid="input-project-name"
+                        data-testid="input-client-last-name"
                       />
                     </FormControl>
                     <FormMessage />
@@ -205,10 +209,28 @@ function Step1ClientProject({
               />
             </div>
 
+            <FormField
+              control={form.control}
+              name="projectName"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Project Name *</FormLabel>
+                  <FormControl>
+                    <Input 
+                      placeholder="Smith Residence" 
+                      {...field}
+                      data-testid="input-project-name"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
             <Separator />
 
             <div className="space-y-4">
-              <h4 className="text-sm font-medium">Project Location</h4>
+              <h4 className="text-sm font-medium">Site Address</h4>
               <FormField
                 control={form.control}
                 name="lotAddress"
@@ -292,21 +314,79 @@ function Step1ClientProject({
 
             <FormField
               control={form.control}
-              name="onSiteSelection"
+              name="onSiteType"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>On-Site Service Model *</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <FormControl>
-                      <SelectTrigger data-testid="select-service-model">
-                        <SelectValue placeholder="Select service model" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="CRC">CRC - Client Responsible for Construction</SelectItem>
-                      <SelectItem value="CMOS">CMOS - Company Managed On-Site Services</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <FormLabel>On-Site Services *</FormLabel>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Select how on-site construction will be managed for this project.
+                  </p>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <Card
+                      className={`cursor-pointer transition-all hover-elevate ${
+                        field.value === "CRC" ? "ring-2 ring-primary bg-primary/5" : ""
+                      }`}
+                      onClick={() => field.onChange("CRC")}
+                      data-testid="card-service-crc"
+                    >
+                      <CardHeader className="pb-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Wrench className="h-5 w-5 text-muted-foreground" />
+                            <CardTitle className="text-base">Option A</CardTitle>
+                          </div>
+                          {field.value === "CRC" && (
+                            <Badge variant="default">
+                              <Check className="h-3 w-3 mr-1" />
+                              Selected
+                            </Badge>
+                          )}
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="font-medium text-sm">Client-Retained Contractor (CRC)</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Client hires their own general contractor for on-site work.
+                          Dvele provides modular components only.
+                        </p>
+                      </CardContent>
+                    </Card>
+
+                    <Card
+                      className={`cursor-pointer transition-all hover-elevate ${
+                        field.value === "CMOS" ? "ring-2 ring-primary bg-primary/5" : ""
+                      }`}
+                      onClick={() => field.onChange("CMOS")}
+                      data-testid="card-service-cmos"
+                    >
+                      <CardHeader className="pb-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Building className="h-5 w-5 text-muted-foreground" />
+                            <CardTitle className="text-base">Option B</CardTitle>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {field.value === "CMOS" && (
+                              <Badge variant="default">
+                                <Check className="h-3 w-3 mr-1" />
+                                Selected
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-sm">Company-Managed On-Site (CMOS)</p>
+                          <Badge variant="secondary" className="text-xs">Full Service</Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Dvele manages all on-site construction. 
+                          Turnkey solution from design to completion.
+                        </p>
+                      </CardContent>
+                    </Card>
+                  </div>
                   <FormMessage />
                 </FormItem>
               )}
@@ -325,20 +405,18 @@ function Step1ClientProject({
   );
 }
 
-function Step2HomeConfiguration({
+function Step2HomeSelection({
   onNext,
   onBack,
   selectedModel,
-  unitLabel,
   onSelectModel,
-  onUnitLabelChange,
+  validationError,
 }: {
   onNext: () => void;
   onBack: () => void;
   selectedModel: HomeModel | null;
-  unitLabel: string;
   onSelectModel: (model: HomeModel | null) => void;
-  onUnitLabelChange: (label: string) => void;
+  validationError: string | null;
 }) {
   const { data: homeModels, isLoading } = useQuery<HomeModel[]>({
     queryKey: ["/api/home-models"],
@@ -357,7 +435,7 @@ function Step2HomeConfiguration({
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Home className="h-5 w-5" />
-          Home Configuration
+          Home Selection
         </CardTitle>
         <CardDescription>
           Select a home model from the available options.
@@ -365,7 +443,8 @@ function Step2HomeConfiguration({
       </CardHeader>
       <CardContent className="space-y-6">
         {isLoading ? (
-          <div className="text-center py-8 text-muted-foreground">
+          <div className="flex items-center justify-center py-12 text-muted-foreground">
+            <Loader2 className="h-6 w-6 animate-spin mr-2" />
             Loading home models...
           </div>
         ) : !homeModels || homeModels.length === 0 ? (
@@ -374,77 +453,63 @@ function Step2HomeConfiguration({
           </div>
         ) : (
           <>
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {homeModels.map((model) => {
-                const isSelected = selectedModel?.id === model.id;
-                return (
-                  <Card
-                    key={model.id}
-                    className={`cursor-pointer transition-all hover-elevate ${
-                      isSelected ? "ring-2 ring-primary bg-primary/5" : ""
-                    }`}
-                    onClick={() => onSelectModel(isSelected ? null : model)}
-                    data-testid={`card-model-${model.id}`}
-                  >
-                    <CardHeader className="pb-2">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <CardTitle className="text-base">{model.name}</CardTitle>
-                          <CardDescription className="text-xs">
-                            {model.model_code}
-                          </CardDescription>
-                        </div>
-                        {isSelected && (
-                          <Badge variant="default" className="ml-2">
-                            <Check className="h-3 w-3 mr-1" />
-                            Selected
-                          </Badge>
-                        )}
-                      </div>
-                    </CardHeader>
-                    <CardContent className="pb-4">
-                      <div className="grid grid-cols-3 gap-2 text-sm mb-3">
-                        <div className="flex items-center gap-1 text-muted-foreground">
-                          <Bed className="h-3 w-3" />
-                          <span>{model.bedrooms} bed</span>
-                        </div>
-                        <div className="flex items-center gap-1 text-muted-foreground">
-                          <Bath className="h-3 w-3" />
-                          <span>{model.bathrooms} bath</span>
-                        </div>
-                        <div className="flex items-center gap-1 text-muted-foreground">
-                          <Ruler className="h-3 w-3" />
-                          <span>{model.sq_ft?.toLocaleString()} sqft</span>
-                        </div>
-                      </div>
-                      <Separator className="my-2" />
-                      <div className="flex items-center gap-1 text-primary font-semibold">
-                        <DollarSign className="h-4 w-4" />
-                        <span>{formatCurrency(model.offsite_base_price)}</span>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-1">Base Price</p>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-
-            {selectedModel && (
-              <div className="border rounded-lg p-4 bg-muted/30">
-                <Label htmlFor="unitLabel">Unit Label (Optional)</Label>
-                <Input
-                  id="unitLabel"
-                  placeholder="e.g., Unit A, Primary Residence"
-                  value={unitLabel}
-                  onChange={(e) => onUnitLabelChange(e.target.value)}
-                  className="mt-2 max-w-sm"
-                  data-testid="input-unit-label"
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Add a label to identify this unit within the project.
-                </p>
-              </div>
+            {validationError && (
+              <div className="text-sm text-destructive mb-4">{validationError}</div>
             )}
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {homeModels.map((model) => {
+              const isSelected = selectedModel?.id === model.id;
+              return (
+                <Card
+                  key={model.id}
+                  className={`cursor-pointer transition-all hover-elevate ${
+                    isSelected ? "ring-2 ring-primary bg-primary/5" : ""
+                  }`}
+                  onClick={() => onSelectModel(isSelected ? null : model)}
+                  data-testid={`card-model-${model.id}`}
+                >
+                  <CardHeader className="pb-2">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <CardTitle className="text-base">{model.name}</CardTitle>
+                        <CardDescription className="text-xs">
+                          {model.model_code}
+                        </CardDescription>
+                      </div>
+                      {isSelected && (
+                        <Badge variant="default" className="ml-2">
+                          <Check className="h-3 w-3 mr-1" />
+                          Selected
+                        </Badge>
+                      )}
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pb-4">
+                    <div className="grid grid-cols-3 gap-2 text-sm mb-3">
+                      <div className="flex items-center gap-1 text-muted-foreground">
+                        <Bed className="h-3 w-3" />
+                        <span>{model.bedrooms} bed</span>
+                      </div>
+                      <div className="flex items-center gap-1 text-muted-foreground">
+                        <Bath className="h-3 w-3" />
+                        <span>{model.bathrooms} bath</span>
+                      </div>
+                      <div className="flex items-center gap-1 text-muted-foreground">
+                        <Ruler className="h-3 w-3" />
+                        <span>{model.sq_ft?.toLocaleString()} sqft</span>
+                      </div>
+                    </div>
+                    <Separator className="my-2" />
+                    <div className="flex items-center gap-1 text-primary font-semibold">
+                      <DollarSign className="h-4 w-4" />
+                      <span>{formatCurrency(model.offsite_base_price)}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">Base Price</p>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
           </>
         )}
 
@@ -467,113 +532,7 @@ function Step2HomeConfiguration({
   );
 }
 
-function Step3LegalEntity({
-  onNext,
-  onBack,
-  selectedLlc,
-  onSelectLlc,
-}: {
-  onNext: () => void;
-  onBack: () => void;
-  selectedLlc: LLC | null;
-  onSelectLlc: (llc: LLC | null) => void;
-}) {
-  const { data: llcs, isLoading } = useQuery<LLC[]>({
-    queryKey: ["/api/llcs"],
-  });
-
-  const activeLlcs = llcs?.filter((llc) => llc.status === "active") || [];
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Building2 className="h-5 w-5" />
-          Legal Entity Selection
-        </CardTitle>
-        <CardDescription>
-          Select the Dvele entity (LLC) that will be the seller for this contract.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {isLoading ? (
-          <div className="text-center py-8 text-muted-foreground">
-            Loading LLCs...
-          </div>
-        ) : activeLlcs.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
-            No active LLCs available. Please create an LLC in the Admin section.
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <Label>Seller Entity *</Label>
-            <Select
-              value={selectedLlc?.id.toString() || ""}
-              onValueChange={(value) => {
-                const llc = activeLlcs.find((l) => l.id.toString() === value);
-                onSelectLlc(llc || null);
-              }}
-            >
-              <SelectTrigger className="w-full" data-testid="select-llc">
-                <SelectValue placeholder="Select an LLC..." />
-              </SelectTrigger>
-              <SelectContent>
-                {activeLlcs.map((llc) => (
-                  <SelectItem key={llc.id} value={llc.id.toString()}>
-                    {llc.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            {selectedLlc && (
-              <Card className="bg-muted/30">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm">Selected Entity Details</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid gap-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Name:</span>
-                      <span className="font-medium">{selectedLlc.name}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">State of Formation:</span>
-                      <span className="font-medium">{selectedLlc.stateOfFormation || "Delaware"}</span>
-                    </div>
-                    {selectedLlc.ein && (
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">EIN:</span>
-                        <span className="font-medium">{selectedLlc.ein}</span>
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </div>
-        )}
-
-        <div className="flex justify-between pt-4">
-          <Button variant="outline" onClick={onBack} data-testid="button-back-step3">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back
-          </Button>
-          <Button
-            onClick={onNext}
-            disabled={!selectedLlc}
-            data-testid="button-next-step3"
-          >
-            Next Step
-            <ArrowRight className="ml-2 h-4 w-4" />
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function Step4Review({
+function Step3ReviewGenerate({
   onBack,
   onCreate,
   isCreating,
@@ -592,18 +551,37 @@ function Step4Review({
     }).format(value || 0);
   };
 
+  const clientName = `${wizardState.step1?.clientFirstName} ${wizardState.step1?.clientLastName}`;
+  const isCMOS = wizardState.step1?.onSiteType === "CMOS";
+
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <FileText className="h-5 w-5" />
-          Review & Create Contract
+          Review & Generate Contract
         </CardTitle>
         <CardDescription>
-          Review all details before creating the project and contract.
+          Review all details before generating the contract.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+        <div className="bg-muted/50 rounded-lg p-6 text-center">
+          <h3 className="text-xl font-semibold mb-2">
+            {wizardState.step1?.projectName}
+          </h3>
+          <div className="flex items-center justify-center gap-2 text-muted-foreground">
+            <span>{wizardState.selectedModel?.name}</span>
+            <span>-</span>
+            <span>{wizardState.selectedModel?.bedrooms}BR</span>
+            <span>-</span>
+            <Badge variant={isCMOS ? "default" : "secondary"}>
+              {wizardState.step1?.onSiteType}
+              {isCMOS && <span className="ml-1">(Full Service)</span>}
+            </Badge>
+          </div>
+        </div>
+
         <div className="grid gap-6 md:grid-cols-2">
           <Card className="bg-muted/30">
             <CardHeader className="pb-2">
@@ -615,7 +593,7 @@ function Step4Review({
             <CardContent className="text-sm space-y-2">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Client:</span>
-                <span className="font-medium">{wizardState.step1?.clientName}</span>
+                <span className="font-medium">{clientName}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Project:</span>
@@ -623,15 +601,17 @@ function Step4Review({
               </div>
               <Separator className="my-2" />
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Address:</span>
+                <span className="text-muted-foreground">Site Address:</span>
                 <span className="font-medium text-right">
                   {wizardState.step1?.lotAddress}<br />
                   {wizardState.step1?.city}, {wizardState.step1?.state} {wizardState.step1?.zip}
                 </span>
               </div>
-              <div className="flex justify-between">
+              <div className="flex justify-between items-center">
                 <span className="text-muted-foreground">Service Model:</span>
-                <Badge variant="secondary">{wizardState.step1?.onSiteSelection}</Badge>
+                <Badge variant={isCMOS ? "default" : "secondary"}>
+                  {wizardState.step1?.onSiteType}
+                </Badge>
               </div>
             </CardContent>
           </Card>
@@ -640,7 +620,7 @@ function Step4Review({
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
                 <Home className="h-4 w-4" />
-                Home Configuration
+                Home Model
               </CardTitle>
             </CardHeader>
             <CardContent className="text-sm space-y-2">
@@ -653,17 +633,17 @@ function Step4Review({
                 <span className="font-medium">{wizardState.selectedModel?.model_code}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Size:</span>
+                <span className="text-muted-foreground">Specs:</span>
                 <span className="font-medium">
                   {wizardState.selectedModel?.bedrooms} bed / {wizardState.selectedModel?.bathrooms} bath
                 </span>
               </div>
-              {wizardState.unitLabel && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Unit Label:</span>
-                  <span className="font-medium">{wizardState.unitLabel}</span>
-                </div>
-              )}
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Size:</span>
+                <span className="font-medium">
+                  {wizardState.selectedModel?.sq_ft?.toLocaleString()} sqft
+                </span>
+              </div>
               <Separator className="my-2" />
               <div className="flex justify-between text-primary">
                 <span>Base Price:</span>
@@ -673,31 +653,12 @@ function Step4Review({
               </div>
             </CardContent>
           </Card>
-
-          <Card className="bg-muted/30 md:col-span-2">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <Building2 className="h-4 w-4" />
-                Legal Entity
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="text-sm space-y-2">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Seller Entity:</span>
-                <span className="font-medium">{wizardState.selectedLlc?.name}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">State of Formation:</span>
-                <span className="font-medium">{wizardState.selectedLlc?.stateOfFormation || "Delaware"}</span>
-              </div>
-            </CardContent>
-          </Card>
         </div>
 
         <Separator />
 
         <div className="flex justify-between pt-4">
-          <Button variant="outline" onClick={onBack} disabled={isCreating} data-testid="button-back-step4">
+          <Button variant="outline" onClick={onBack} disabled={isCreating} data-testid="button-back-step3">
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back
           </Button>
@@ -705,14 +666,17 @@ function Step4Review({
             onClick={onCreate}
             disabled={isCreating}
             className="min-w-[180px]"
-            data-testid="button-create-contract"
+            data-testid="button-generate-contract"
           >
             {isCreating ? (
-              "Creating..."
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Generating...
+              </>
             ) : (
               <>
                 <Check className="mr-2 h-4 w-4" />
-                Create Contract
+                Generate Contract
               </>
             )}
           </Button>
@@ -726,17 +690,16 @@ export default function NewContractWizard() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const [currentStep, setCurrentStep] = useState(1);
+  const [step2Error, setStep2Error] = useState<string | null>(null);
   const [wizardState, setWizardState] = useState<WizardState>({
     step1: null,
     selectedModel: null,
-    unitLabel: "",
-    selectedLlc: null,
   });
 
   const createContractMutation = useMutation({
     mutationFn: async () => {
-      const { step1, selectedModel, unitLabel, selectedLlc } = wizardState;
-      if (!step1 || !selectedModel || !selectedLlc) {
+      const { step1, selectedModel } = wizardState;
+      if (!step1 || !selectedModel) {
         throw new Error("Missing required data");
       }
 
@@ -746,18 +709,20 @@ export default function NewContractWizard() {
       }
       const { nextProjectNumber } = await nextNumberRes.json();
 
+      const clientName = `${step1.clientFirstName} ${step1.clientLastName}`;
+
       const projectRes = await apiRequest("POST", "/api/projects", {
         projectNumber: nextProjectNumber,
         name: step1.projectName,
         status: "Draft",
         state: step1.state,
-        onSiteSelection: step1.onSiteSelection,
+        onSiteSelection: step1.onSiteType,
       });
 
       const project = await projectRes.json();
 
       await apiRequest("POST", `/api/projects/${project.id}/client`, {
-        legalName: step1.clientName,
+        legalName: clientName,
         entityType: "Individual",
         address: step1.lotAddress,
         city: step1.city,
@@ -766,22 +731,25 @@ export default function NewContractWizard() {
       });
 
       await apiRequest("POST", `/api/projects/${project.id}/details`, {
-        siteAddress: step1.lotAddress,
-        siteCity: step1.city,
-        siteState: step1.state,
-        siteZip: step1.zip,
+        deliveryAddress: step1.lotAddress,
+        deliveryCity: step1.city,
+        deliveryState: step1.state,
+        deliveryZip: step1.zip,
+        homeModel: selectedModel.name,
+        homeSqFt: selectedModel.sq_ft,
+        homeBedrooms: selectedModel.bedrooms,
+        homeBathrooms: selectedModel.bathrooms,
       });
 
       await apiRequest("POST", "/api/project-units", {
         projectId: project.id,
         modelId: selectedModel.id,
-        unitLabel: unitLabel || selectedModel.name,
+        unitLabel: selectedModel.name,
         basePriceSnapshot: selectedModel.offsite_base_price,
       });
 
       const contractRes = await apiRequest("POST", "/api/contracts", {
         projectId: project.id,
-        llcId: selectedLlc.id,
         contractType: "ONE",
         status: "draft",
       });
@@ -791,7 +759,7 @@ export default function NewContractWizard() {
     },
     onSuccess: ({ contract }) => {
       toast({
-        title: "Contract Created",
+        title: "Contract Generated",
         description: "Your new project and contract have been created successfully.",
       });
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
@@ -814,11 +782,15 @@ export default function NewContractWizard() {
   };
 
   const handleStep2Next = () => {
+    const result = step2Schema.safeParse({
+      selectedModelId: wizardState.selectedModel?.id || 0,
+    });
+    if (!result.success) {
+      setStep2Error(result.error.errors[0]?.message || "Please select a home model");
+      return;
+    }
+    setStep2Error(null);
     setCurrentStep(3);
-  };
-
-  const handleStep3Next = () => {
-    setCurrentStep(4);
   };
 
   const handleBack = () => {
@@ -843,7 +815,7 @@ export default function NewContractWizard() {
           </Button>
           <div className="flex-1">
             <h1 className="text-lg font-semibold">New Contract Wizard</h1>
-            <p className="text-sm text-muted-foreground">Step {currentStep} of 4</p>
+            <p className="text-sm text-muted-foreground">Step {currentStep} of 3</p>
           </div>
         </div>
       </header>
@@ -852,40 +824,27 @@ export default function NewContractWizard() {
         <StepIndicator currentStep={currentStep} />
 
         {currentStep === 1 && (
-          <Step1ClientProject
+          <Step1ProjectClient
             onNext={handleStep1Next}
             initialData={wizardState.step1}
           />
         )}
 
         {currentStep === 2 && (
-          <Step2HomeConfiguration
+          <Step2HomeSelection
             onNext={handleStep2Next}
             onBack={handleBack}
             selectedModel={wizardState.selectedModel}
-            unitLabel={wizardState.unitLabel}
-            onSelectModel={(model) =>
-              setWizardState((prev) => ({ ...prev, selectedModel: model }))
-            }
-            onUnitLabelChange={(label) =>
-              setWizardState((prev) => ({ ...prev, unitLabel: label }))
-            }
+            onSelectModel={(model) => {
+              setStep2Error(null);
+              setWizardState((prev) => ({ ...prev, selectedModel: model }));
+            }}
+            validationError={step2Error}
           />
         )}
 
         {currentStep === 3 && (
-          <Step3LegalEntity
-            onNext={handleStep3Next}
-            onBack={handleBack}
-            selectedLlc={wizardState.selectedLlc}
-            onSelectLlc={(llc) =>
-              setWizardState((prev) => ({ ...prev, selectedLlc: llc }))
-            }
-          />
-        )}
-
-        {currentStep === 4 && (
-          <Step4Review
+          <Step3ReviewGenerate
             onBack={handleBack}
             onCreate={handleCreate}
             isCreating={createContractMutation.isPending}
