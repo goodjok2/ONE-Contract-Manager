@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "../db/index";
 import { pool } from "../db";
-import { contracts, llcs, financials, projects } from "../../shared/schema";
+import { contracts, financials, projects } from "../../shared/schema";
 import { eq, or, count, countDistinct, sql } from "drizzle-orm";
 
 const router = Router();
@@ -46,13 +46,8 @@ router.get("/dashboard/stats", async (req, res) => {
       }
     });
     
-    const pendingLLCsResult = await db
-      .select({ count: count() })
-      .from(llcs)
-      .where(or(
-        eq(llcs.status, 'pending'),
-        eq(llcs.status, 'forming')
-      ));
+    // LLC stats temporarily disabled (Phase A refactoring - llcs table removed)
+    const pendingLLCsCount = 0;
     
     const activeProjectsCount = packagesByProject.size - draftsCount;
     
@@ -86,7 +81,7 @@ router.get("/dashboard/stats", async (req, res) => {
       drafts: draftsCount,
       pendingReview: pendingCount,
       signed: signedCount,
-      pendingLLCs: pendingLLCsResult[0]?.count ?? 0,
+      pendingLLCs: pendingLLCsCount,
       activeProjects: activeProjectsCount,
       totalContractValue: totalValue,
       draftsValue,

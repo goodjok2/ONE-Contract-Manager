@@ -34,7 +34,10 @@ The application is built on a modern full-stack architecture.
 - **Modular Route Architecture**: Routes are organized into domain-focused modules (e.g., `projects.ts`, `contracts.ts`, `llc.ts`).
 
 **Database**:
-- **Primary Database**: PostgreSQL for all persistent data including `llcs`, `contracts`, `clauses`, `projects`, `clients`, `financials`, `projectDetails`, `milestones`, `warrantyTerms`, `contractors`, `contractor_entities`, `contract_variables`, `exhibits`, and `state_disclosures`.
+- **Primary Database**: PostgreSQL for all persistent data including `contracts`, `clauses`, `projects`, `clients`, `financials`, `projectDetails`, `milestones`, `warrantyTerms`, `contractors`, `contractor_entities`, `contract_variables`.
+- **Phase A (Complete)**: Atomic Clauses Architecture - clauses table refactored to use `slug`, `headerText`, `bodyHtml`, `level`, `parentId`, `order`, `contractTypes` (JSONB), `tags` (JSONB). Removed tables: `llcs`, `homeModels`, `projectUnits`, `exhibits`, `stateDisclosures`, `contractorEntities`, `contractTemplates`.
+- **Phase B (Complete)**: Smart Ingestor with regex-powered hierarchy detection for Roman numeral lists and automatic body paragraph appending.
+- **Phase C (Complete)**: System Restoration - API backward compatibility with `content` field reconstruction from header+body, table_definitions seeded for Variable Library.
 
 **Core Features & Design Patterns**:
 - **Autosave System**: Debounced 2-second autosave for draft projects.

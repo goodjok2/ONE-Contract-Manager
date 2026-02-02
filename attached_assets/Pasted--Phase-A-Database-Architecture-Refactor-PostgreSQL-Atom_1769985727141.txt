@@ -1,7 +1,17 @@
+# Phase A: Database Architecture Refactor (PostgreSQL & Atomic Clauses)
+
+**Context:**
+We are refactoring the application to support "Atomic Clauses" and switching the schema definition to match our PostgreSQL database (replacing the previous SQLite definitions). We need to split clauses into distinct "Header" and "Body" fields, implement a self-referencing parent/child relationship (Tree Structure), and utilize Postgres-native types like `jsonb` and `serial`.
+
+**Task:**
+Update `server/db/schema.ts` to replace the existing schema with the new structure below.
+
+**Action:**
+Replace the entire content of `server/db/schema.ts` with the following code:
+
+```typescript
 import { pgTable, text, integer, real, serial, boolean, jsonb, timestamp } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
-import { createInsertSchema } from "drizzle-zod";
-import { z } from "zod";
 
 // =============================================================================
 // CORE TABLES
@@ -353,183 +363,3 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   client: one(clients, {
     fields: [projects.id],
     references: [clients.projectId],
-  }),
-  projectDetails: one(projectDetails, {
-    fields: [projects.id],
-    references: [projectDetails.projectId],
-  }),
-  financials: one(financials, {
-    fields: [projects.id],
-    references: [financials.projectId],
-  }),
-  warrantyTerms: one(warrantyTerms, {
-    fields: [projects.id],
-    references: [warrantyTerms.projectId],
-  }),
-  milestones: many(milestones),
-  contractors: many(contractors),
-  contracts: many(contracts),
-}));
-
-export const clientsRelations = relations(clients, ({ one }) => ({
-  project: one(projects, {
-    fields: [clients.projectId],
-    references: [projects.id],
-  }),
-}));
-
-export const projectDetailsRelations = relations(projectDetails, ({ one }) => ({
-  project: one(projects, {
-    fields: [projectDetails.projectId],
-    references: [projects.id],
-  }),
-}));
-
-export const financialsRelations = relations(financials, ({ one }) => ({
-  project: one(projects, {
-    fields: [financials.projectId],
-    references: [projects.id],
-  }),
-}));
-
-export const warrantyTermsRelations = relations(warrantyTerms, ({ one }) => ({
-  project: one(projects, {
-    fields: [warrantyTerms.projectId],
-    references: [projects.id],
-  }),
-}));
-
-export const milestonesRelations = relations(milestones, ({ one }) => ({
-  project: one(projects, {
-    fields: [milestones.projectId],
-    references: [projects.id],
-  }),
-}));
-
-export const contractorsRelations = relations(contractors, ({ one }) => ({
-  project: one(projects, {
-    fields: [contractors.projectId],
-    references: [projects.id],
-  }),
-}));
-
-export const contractsRelations = relations(contracts, ({ one }) => ({
-  project: one(projects, {
-    fields: [contracts.projectId],
-    references: [projects.id],
-  }),
-}));
-
-export const clausesRelations = relations(clauses, ({ one, many }) => ({
-  parent: one(clauses, {
-    fields: [clauses.parentId],
-    references: [clauses.id],
-    relationName: "clause_children",
-  }),
-  children: many(clauses, {
-    relationName: "clause_children",
-  }),
-}));
-
-// =============================================================================
-// TYPE EXPORTS
-// =============================================================================
-
-export type Project = typeof projects.$inferSelect;
-export type NewProject = typeof projects.$inferInsert;
-
-export type Client = typeof clients.$inferSelect;
-export type NewClient = typeof clients.$inferInsert;
-
-export type ProjectDetails = typeof projectDetails.$inferSelect;
-export type NewProjectDetails = typeof projectDetails.$inferInsert;
-
-export type Financial = typeof financials.$inferSelect;
-export type NewFinancial = typeof financials.$inferInsert;
-
-export type Milestone = typeof milestones.$inferSelect;
-export type NewMilestone = typeof milestones.$inferInsert;
-
-export type WarrantyTerm = typeof warrantyTerms.$inferSelect;
-export type NewWarrantyTerm = typeof warrantyTerms.$inferInsert;
-
-export type Contractor = typeof contractors.$inferSelect;
-export type NewContractor = typeof contractors.$inferInsert;
-
-export type Contract = typeof contracts.$inferSelect;
-export type NewContract = typeof contracts.$inferInsert;
-
-export type Clause = typeof clauses.$inferSelect;
-export type NewClause = typeof clauses.$inferInsert;
-
-export type TableDefinition = typeof tableDefinitions.$inferSelect;
-export type NewTableDefinition = typeof tableDefinitions.$inferInsert;
-
-// =============================================================================
-// INSERT SCHEMAS
-// =============================================================================
-
-export const insertProjectSchema = createInsertSchema(projects).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
-export type InsertProject = z.infer<typeof insertProjectSchema>;
-
-export const insertClientSchema = createInsertSchema(clients).omit({
-  id: true,
-});
-export type InsertClient = z.infer<typeof insertClientSchema>;
-
-export const insertProjectDetailsSchema = createInsertSchema(projectDetails).omit({
-  id: true,
-});
-export type InsertProjectDetails = z.infer<typeof insertProjectDetailsSchema>;
-
-export const insertFinancialSchema = createInsertSchema(financials).omit({
-  id: true,
-});
-export type InsertFinancial = z.infer<typeof insertFinancialSchema>;
-
-export const insertMilestoneSchema = createInsertSchema(milestones).omit({
-  id: true,
-});
-export type InsertMilestone = z.infer<typeof insertMilestoneSchema>;
-
-export const insertWarrantyTermSchema = createInsertSchema(warrantyTerms).omit({
-  id: true,
-});
-export type InsertWarrantyTerm = z.infer<typeof insertWarrantyTermSchema>;
-
-export const insertContractorSchema = createInsertSchema(contractors).omit({
-  id: true,
-});
-export type InsertContractor = z.infer<typeof insertContractorSchema>;
-
-export const insertContractSchema = createInsertSchema(contracts).omit({
-  id: true,
-  generatedAt: true,
-});
-export type InsertContract = z.infer<typeof insertContractSchema>;
-
-export const insertClauseSchema = createInsertSchema(clauses).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
-export type InsertClause = z.infer<typeof insertClauseSchema>;
-
-export const insertTableDefinitionSchema = createInsertSchema(tableDefinitions).omit({
-  id: true,
-  createdAt: true,
-});
-export type InsertTableDefinition = z.infer<typeof insertTableDefinitionSchema>;
-
-// Column type definition for table_definitions.columns
-export const tableColumnSchema = z.object({
-  header: z.string(),
-  type: z.enum(["text", "data_field", "signature"]),
-  width: z.string().optional(),
-  value: z.string(),
-});
-export type TableColumn = z.infer<typeof tableColumnSchema>;
