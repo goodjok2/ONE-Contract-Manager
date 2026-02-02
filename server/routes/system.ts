@@ -146,10 +146,11 @@ router.get("/variable-mappings", async (req, res) => {
       );
     }
     
+    // Use atomic clause structure (body_html contains variables)
     const clauseUsageQuery = `
-      SELECT id, clause_code, name, content, contract_type, hierarchy_level
+      SELECT id, slug, header_text, body_html, contract_types, level
       FROM clauses
-      WHERE content LIKE '%{{%'
+      WHERE body_html LIKE '%{{%'
     `;
     const clausesResult = await pool.query(clauseUsageQuery);
     const clausesWithVariables = clausesResult.rows;
@@ -159,7 +160,8 @@ router.get("/variable-mappings", async (req, res) => {
     for (const clause of clausesWithVariables) {
       const variablePattern = /\{\{([A-Z0-9_]+)\}\}/gi;
       let match;
-      while ((match = variablePattern.exec(clause.content)) !== null) {
+      const content = clause.body_html || '';
+      while ((match = variablePattern.exec(content)) !== null) {
         const varName = match[1];
         if (!variableToClausesMap[varName]) {
           variableToClausesMap[varName] = [];
@@ -167,10 +169,10 @@ router.get("/variable-mappings", async (req, res) => {
         if (!variableToClausesMap[varName].some((c: any) => c.id === clause.id)) {
           variableToClausesMap[varName].push({
             id: clause.id,
-            clauseCode: clause.clause_code,
-            name: clause.name,
-            contractType: clause.contract_type,
-            hierarchyLevel: clause.hierarchy_level
+            clauseCode: clause.slug,
+            name: clause.header_text,
+            contractType: clause.contract_types,
+            hierarchyLevel: clause.level
           });
         }
       }
@@ -404,27 +406,27 @@ router.post("/debug/migrate-clauses", async (req, res) => {
   try {
     const results: { clause: string; action: string }[] = [];
     
-    // Find and update Payment Terms clause
+    // Find and update Payment Terms clause (using atomic clause structure)
     const paymentTermsResult = await pool.query(`
-      SELECT id, clause_code, name, category, content 
+      SELECT id, slug, header_text, body_html, tags 
       FROM clauses 
-      WHERE LOWER(name) LIKE '%payment%' 
-         OR LOWER(category) LIKE '%payment%'
-         OR LOWER(clause_code) LIKE '%payment%'
+      WHERE LOWER(header_text) LIKE '%payment%' 
+         OR LOWER(slug) LIKE '%payment%'
       LIMIT 5
     `);
     
     if (paymentTermsResult.rows.length > 0) {
       for (const clause of paymentTermsResult.rows) {
+        const bodyHtml = clause.body_html || '';
         // Check if already has the table variable
-        if (clause.content && clause.content.includes('{{PAYMENT_SCHEDULE_TABLE}}')) {
+        if (bodyHtml.includes('{{PAYMENT_SCHEDULE_TABLE}}')) {
           results.push({ 
-            clause: `${clause.clause_code} (${clause.name})`, 
+            clause: `${clause.slug} (${clause.header_text})`, 
             action: 'Already has PAYMENT_SCHEDULE_TABLE - skipped' 
           });
         } else {
           results.push({ 
-            clause: `${clause.clause_code} (${clause.name})`, 
+            clause: `${clause.slug} (${clause.header_text})`, 
             action: 'Found - manual update recommended to add {{PAYMENT_SCHEDULE_TABLE}}' 
           });
         }
@@ -436,28 +438,29 @@ router.post("/debug/migrate-clauses", async (req, res) => {
       });
     }
     
-    // Find and update Contract Price / Recital H clause
+    // Find and update Contract Price / Recital H clause (using atomic clause structure)
     const pricingResult = await pool.query(`
-      SELECT id, clause_code, name, category, content 
+      SELECT id, slug, header_text, body_html, tags 
       FROM clauses 
-      WHERE LOWER(name) LIKE '%price%' 
-         OR LOWER(name) LIKE '%recital%'
-         OR LOWER(clause_code) LIKE '%price%'
-         OR LOWER(clause_code) LIKE '%recital%h%'
+      WHERE LOWER(header_text) LIKE '%price%' 
+         OR LOWER(header_text) LIKE '%recital%'
+         OR LOWER(slug) LIKE '%price%'
+         OR LOWER(slug) LIKE '%recital%h%'
       LIMIT 5
     `);
     
     if (pricingResult.rows.length > 0) {
       for (const clause of pricingResult.rows) {
+        const bodyHtml = clause.body_html || '';
         // Check if already has the table variable
-        if (clause.content && clause.content.includes('{{PRICING_BREAKDOWN_TABLE}}')) {
+        if (bodyHtml.includes('{{PRICING_BREAKDOWN_TABLE}}')) {
           results.push({ 
-            clause: `${clause.clause_code} (${clause.name})`, 
+            clause: `${clause.slug} (${clause.header_text})`, 
             action: 'Already has PRICING_BREAKDOWN_TABLE - skipped' 
           });
         } else {
           results.push({ 
-            clause: `${clause.clause_code} (${clause.name})`, 
+            clause: `${clause.slug} (${clause.header_text})`, 
             action: 'Found - manual update recommended to add {{PRICING_BREAKDOWN_TABLE}}' 
           });
         }
