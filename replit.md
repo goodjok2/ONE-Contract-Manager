@@ -34,15 +34,7 @@ The application is built on a modern full-stack architecture.
 - **Modular Route Architecture**: Routes are organized into domain-focused modules (e.g., `projects.ts`, `contracts.ts`, `llc.ts`).
 
 **Database**:
-- **Primary Database**: PostgreSQL for all persistent data including `contracts`, `clauses`, `projects`, `clients`, `financials`, `projectDetails`, `milestones`, `warrantyTerms`, `contractors`, `contractor_entities`, `contract_variables`.
-- **Phase A (Complete)**: Atomic Clauses Architecture - clauses table refactored to use `slug`, `header_text`, `body_html`, `level`, `parent_id`, `order`, `contract_types` (JSONB), `tags` (JSONB). Database uses snake_case column names.
-- **Phase B (Complete)**: Smart Ingestor with regex-powered hierarchy detection for Roman numeral lists and automatic body paragraph appending.
-- **Phase C (Complete)**: System Restoration - API backward compatibility with `content` field reconstruction from header+body, table_definitions seeded for Variable Library.
-- **Phase D (Complete)**: Atomic UI & HTML Preview Upgrade - Editor UI with separate Header/Body fields, hierarchy-based styling (L1-L4 blue, L6 amber conspicuous, L7-L8 indented). Reorder endpoint fixed to use snake_case columns. All SQL queries use snake_case: `header_text`, `body_html`, `parent_id`, `updated_at`, `contract_types`.
-- **Phase E (Complete)**: Contract Viewer & Preview Logic updated - Endpoints reconstructing legacy `content` field from atomic `header_text`/`body_html` for frontend compatibility. Preview rendering with level-based CSS classes.
-- **Phase F (Complete)**: Smart Merge Ingestion - Heading 5 paragraphs >60 chars without list markers are merged into previous clause's bodyHtml instead of creating new tree nodes. Reduced clause count from 174 to 137. UI cleanup removed debug labels and added title truncation.
-- **Phase F-2 (Complete)**: Aggressive Smart Merge - Extended smart merge logic to H3, H4, H5 tags. Any heading >60 chars without list markers now merges into previous clause. Reduced clause count from 137 to 129 (45 total smart merges).
-- **Phase G (Complete)**: Hydrated table_definitions with column configurations for PRICING_TABLE (3 cols), PAYMENT_SCHEDULE_TABLE (3 cols), SIGNATURE_BLOCK_TABLE (3 cols), EXHIBIT_LIST_TABLE (2 cols). Script: `npx tsx scripts/update_tables.ts`.
+- **Primary Database**: PostgreSQL for all persistent data including `llcs`, `contracts`, `clauses`, `projects`, `clients`, `financials`, `projectDetails`, `milestones`, `warrantyTerms`, `contractors`, `contractor_entities`, `contract_variables`, `exhibits`, and `state_disclosures`.
 
 **Core Features & Design Patterns**:
 - **Autosave System**: Debounced 2-second autosave for draft projects.

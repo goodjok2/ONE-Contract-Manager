@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "../db/index";
 import { pool } from "../db";
-import { contracts, financials, projects } from "../../shared/schema";
+import { contracts, llcs, financials, projects } from "../../shared/schema";
 import { eq, or, count, countDistinct, sql } from "drizzle-orm";
 
 const router = Router();
@@ -46,8 +46,13 @@ router.get("/dashboard/stats", async (req, res) => {
       }
     });
     
-    // LLC stats temporarily disabled (Phase A refactoring - llcs table removed)
-    const pendingLLCsCount = 0;
+    const pendingLLCsResult = await db
+      .select({ count: count() })
+      .from(llcs)
+      .where(or(
+        eq(llcs.status, 'pending'),
+        eq(llcs.status, 'forming')
+      ));
     
     const activeProjectsCount = packagesByProject.size - draftsCount;
     
@@ -81,7 +86,7 @@ router.get("/dashboard/stats", async (req, res) => {
       drafts: draftsCount,
       pendingReview: pendingCount,
       signed: signedCount,
-      pendingLLCs: pendingLLCsCount,
+      pendingLLCs: pendingLLCsResult[0]?.count ?? 0,
       activeProjects: activeProjectsCount,
       totalContractValue: totalValue,
       draftsValue,
@@ -146,11 +151,10 @@ router.get("/variable-mappings", async (req, res) => {
       );
     }
     
-    // Use atomic clause structure (body_html contains variables)
     const clauseUsageQuery = `
-      SELECT id, slug, header_text, body_html, contract_types, level
+      SELECT id, clause_code, name, content, contract_type, hierarchy_level
       FROM clauses
-      WHERE body_html LIKE '%{{%'
+      WHERE content LIKE '%{{%'
     `;
     const clausesResult = await pool.query(clauseUsageQuery);
     const clausesWithVariables = clausesResult.rows;
@@ -160,8 +164,7 @@ router.get("/variable-mappings", async (req, res) => {
     for (const clause of clausesWithVariables) {
       const variablePattern = /\{\{([A-Z0-9_]+)\}\}/gi;
       let match;
-      const content = clause.body_html || '';
-      while ((match = variablePattern.exec(content)) !== null) {
+      while ((match = variablePattern.exec(clause.content)) !== null) {
         const varName = match[1];
         if (!variableToClausesMap[varName]) {
           variableToClausesMap[varName] = [];
@@ -169,10 +172,10 @@ router.get("/variable-mappings", async (req, res) => {
         if (!variableToClausesMap[varName].some((c: any) => c.id === clause.id)) {
           variableToClausesMap[varName].push({
             id: clause.id,
-            clauseCode: clause.slug,
-            name: clause.header_text,
-            contractType: clause.contract_types,
-            hierarchyLevel: clause.level
+            clauseCode: clause.clause_code,
+            name: clause.name,
+            contractType: clause.contract_type,
+            hierarchyLevel: clause.hierarchy_level
           });
         }
       }
@@ -406,27 +409,27 @@ router.post("/debug/migrate-clauses", async (req, res) => {
   try {
     const results: { clause: string; action: string }[] = [];
     
-    // Find and update Payment Terms clause (using atomic clause structure)
+    // Find and update Payment Terms clause
     const paymentTermsResult = await pool.query(`
-      SELECT id, slug, header_text, body_html, tags 
+      SELECT id, clause_code, name, category, content 
       FROM clauses 
-      WHERE LOWER(header_text) LIKE '%payment%' 
-         OR LOWER(slug) LIKE '%payment%'
+      WHERE LOWER(name) LIKE '%payment%' 
+         OR LOWER(category) LIKE '%payment%'
+         OR LOWER(clause_code) LIKE '%payment%'
       LIMIT 5
     `);
     
     if (paymentTermsResult.rows.length > 0) {
       for (const clause of paymentTermsResult.rows) {
-        const bodyHtml = clause.body_html || '';
         // Check if already has the table variable
-        if (bodyHtml.includes('{{PAYMENT_SCHEDULE_TABLE}}')) {
+        if (clause.content && clause.content.includes('{{PAYMENT_SCHEDULE_TABLE}}')) {
           results.push({ 
-            clause: `${clause.slug} (${clause.header_text})`, 
+            clause: `${clause.clause_code} (${clause.name})`, 
             action: 'Already has PAYMENT_SCHEDULE_TABLE - skipped' 
           });
         } else {
           results.push({ 
-            clause: `${clause.slug} (${clause.header_text})`, 
+            clause: `${clause.clause_code} (${clause.name})`, 
             action: 'Found - manual update recommended to add {{PAYMENT_SCHEDULE_TABLE}}' 
           });
         }
@@ -438,29 +441,28 @@ router.post("/debug/migrate-clauses", async (req, res) => {
       });
     }
     
-    // Find and update Contract Price / Recital H clause (using atomic clause structure)
+    // Find and update Contract Price / Recital H clause
     const pricingResult = await pool.query(`
-      SELECT id, slug, header_text, body_html, tags 
+      SELECT id, clause_code, name, category, content 
       FROM clauses 
-      WHERE LOWER(header_text) LIKE '%price%' 
-         OR LOWER(header_text) LIKE '%recital%'
-         OR LOWER(slug) LIKE '%price%'
-         OR LOWER(slug) LIKE '%recital%h%'
+      WHERE LOWER(name) LIKE '%price%' 
+         OR LOWER(name) LIKE '%recital%'
+         OR LOWER(clause_code) LIKE '%price%'
+         OR LOWER(clause_code) LIKE '%recital%h%'
       LIMIT 5
     `);
     
     if (pricingResult.rows.length > 0) {
       for (const clause of pricingResult.rows) {
-        const bodyHtml = clause.body_html || '';
         // Check if already has the table variable
-        if (bodyHtml.includes('{{PRICING_BREAKDOWN_TABLE}}')) {
+        if (clause.content && clause.content.includes('{{PRICING_BREAKDOWN_TABLE}}')) {
           results.push({ 
-            clause: `${clause.slug} (${clause.header_text})`, 
+            clause: `${clause.clause_code} (${clause.name})`, 
             action: 'Already has PRICING_BREAKDOWN_TABLE - skipped' 
           });
         } else {
           results.push({ 
-            clause: `${clause.slug} (${clause.header_text})`, 
+            clause: `${clause.clause_code} (${clause.name})`, 
             action: 'Found - manual update recommended to add {{PRICING_BREAKDOWN_TABLE}}' 
           });
         }

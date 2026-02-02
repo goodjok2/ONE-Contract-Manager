@@ -1,10 +1,11 @@
 import { Router } from "express";
 import { db } from "../db/index";
 import { pool } from "../db";
-import { contracts, projects, clauses, financials } from "../../shared/schema";
+import { contracts, projects, clauses, projectUnits, homeModels, financials, exhibits, stateDisclosures } from "../../shared/schema";
 import { eq, count, desc, and, sql } from "drizzle-orm";
 import { getProjectWithRelations } from "./helpers";
 import { mapProjectToVariables } from "../lib/mapper";
+import { calculateProjectPricing } from "../services/pricingEngine";
 import path from "path";
 import fs from "fs";
 import multer from "multer";
@@ -118,8 +119,7 @@ router.post("/contracts/upload-template", templateUpload.single("template"), asy
         const countResult = await db
           .select({ count: sql<number>`count(*)::int` })
           .from(clauses)
-          .where(sql`${clauses.contractTypes} @> ${JSON.stringify([contractType])}`);
-
+          .where(eq(clauses.contractType, contractType));
         
         itemsCreated = countResult[0]?.count || 0;
         
@@ -370,11 +370,26 @@ async function ingestExhibitsFromDocument(filePath: string): Promise<number> {
     return 0;
   }
   
-  // TODO: Exhibits table temporarily removed in Phase A refactoring
-  // This functionality will be restored when exhibits table is re-added
-  console.log(`   ⚠️ Exhibit ingestion temporarily disabled (Phase A refactoring)`);
-  console.log(`   Found ${exhibitsList.length} exhibits but table is not available`);
-  return 0;
+  // Clear existing exhibits and insert new ones
+  console.log(`\n   Clearing existing exhibits...`);
+  await db.execute(sql`DELETE FROM exhibits`);
+  
+  console.log(`   Inserting ${exhibitsList.length} exhibits...`);
+  for (const exhibit of exhibitsList) {
+    await db.insert(exhibits).values({
+      letter: exhibit.letter,
+      title: exhibit.title,
+      content: exhibit.content,
+      isDynamic: exhibit.isDynamic,
+      disclosureCode: exhibit.disclosureCode,
+      contractTypes: exhibit.contractTypes,
+      sortOrder: exhibit.sortOrder,
+      isActive: true,
+    });
+  }
+  
+  console.log(`   ✓ Successfully ingested ${exhibitsList.length} exhibits`);
+  return exhibitsList.length;
 }
 
 async function ingestStateDisclosuresFromDocument(filePath: string): Promise<number> {
@@ -476,11 +491,21 @@ async function ingestStateDisclosuresFromDocument(filePath: string): Promise<num
     return 0;
   }
   
-  // TODO: State disclosures table temporarily removed in Phase A refactoring
-  // This functionality will be restored when state_disclosures table is re-added
-  console.log(`   ⚠️ State disclosure ingestion temporarily disabled (Phase A refactoring)`);
-  console.log(`   Found ${disclosuresList.length} disclosures but table is not available`);
-  return 0;
+  // Clear existing disclosures with this code and insert new ones
+  console.log(`\n   Clearing existing disclosures with code '${defaultCode}'...`);
+  await db.execute(sql`DELETE FROM state_disclosures WHERE code = ${defaultCode}`);
+  
+  console.log(`   Inserting ${disclosuresList.length} state disclosures...`);
+  for (const disclosure of disclosuresList) {
+    await db.insert(stateDisclosures).values({
+      code: disclosure.code,
+      state: disclosure.state,
+      content: disclosure.content,
+    });
+  }
+  
+  console.log(`   ✓ Successfully ingested ${disclosuresList.length} state disclosures`);
+  return disclosuresList.length;
 }
 
 // Get list of existing templates
@@ -513,14 +538,16 @@ router.get("/contracts/templates", async (req, res) => {
         };
       });
     
-    // Get clause counts for each contract type using JSONB array unnest
-    const clauseCounts = await pool.query(`
-      SELECT type_val, COUNT(*)::int as count
-      FROM clauses, jsonb_array_elements_text(contract_types) AS type_val
-      GROUP BY type_val
-    `);
+    // Get clause counts for each contract type
+    const clauseCounts = await db
+      .select({ 
+        contractType: clauses.contractType, 
+        count: sql<number>`count(*)::int` 
+      })
+      .from(clauses)
+      .groupBy(clauses.contractType);
     
-    const countMap = new Map(clauseCounts.rows.map((c: any) => [c.type_val, c.count]));
+    const countMap = new Map(clauseCounts.map(c => [c.contractType, c.count]));
     
     const templates = files.map(f => ({
       ...f,
@@ -580,11 +607,8 @@ router.delete("/contracts/templates/:fileName", async (req, res) => {
     // Delete the file
     fs.unlinkSync(filePath);
     
-    // Delete associated clauses that have this contract type in their array
-    await pool.query(`
-      DELETE FROM clauses 
-      WHERE contract_types @> $1::jsonb
-    `, [JSON.stringify([contractType])]);
+    // Delete associated clauses
+    await db.delete(clauses).where(eq(clauses.contractType, contractType));
     
     res.json({ 
       success: true, 
@@ -940,15 +964,14 @@ router.get("/contracts/:id/clauses", async (req, res) => {
     
     const templateType = contractTypeMap[contract.contractType] || 'ONE_AGREEMENT';
     
-    // Query using atomic clause structure (header_text, body_html)
     const clauseQuery = `
-      SELECT c.id, c.slug, c.header_text, c.body_html, c.level, c."order", c.contract_types, c.tags
+      SELECT c.id, c.name, c.content, c.hierarchy_level, c.risk_level, c.clause_code as section_number
       FROM clauses c
-      WHERE c.contract_types @> $1::jsonb OR c.contract_types @> '["ALL"]'::jsonb
-      ORDER BY c."order", c.slug
+      WHERE c.contract_type = $1 OR c.contract_type = 'ALL'
+      ORDER BY c.sort_order, c.clause_code
     `;
     
-    const result = await pool.query(clauseQuery, [JSON.stringify([templateType])]);
+    const result = await pool.query(clauseQuery, [templateType]);
     
     let variables: Record<string, string | number | boolean | null> = {};
     if (contract.projectId) {
@@ -970,41 +993,19 @@ router.get("/contracts/:id/clauses", async (req, res) => {
     }
     
     const clausesWithValues = result.rows.map((clause: any) => {
-      // Replace variables in both header and body
-      let headerText = clause.header_text || '';
-      let bodyHtml = clause.body_html || '';
+      let content = clause.content || '';
       
-      const replaceVars = (text: string) => {
-        return text.replace(/\{\{([A-Z0-9_]+)\}\}/g, (match: string, varName: string) => {
-          const value = variables[varName];
-          if (value !== null && value !== undefined && value !== '') {
-            return String(value);
-          }
-          return match;
-        });
-      };
-      
-      headerText = replaceVars(headerText);
-      bodyHtml = replaceVars(bodyHtml);
-      
-      // Reconstruct content field for frontend compatibility
-      const content = `
-        <div class="clause-wrapper level-${clause.level}">
-          <h4 class="clause-header">${headerText}</h4>
-          <div class="clause-body">${bodyHtml}</div>
-        </div>`;
+      content = content.replace(/\{\{([A-Z0-9_]+)\}\}/g, (match: string, varName: string) => {
+        const value = variables[varName];
+        if (value !== null && value !== undefined && value !== '') {
+          return String(value);
+        }
+        return match;
+      });
       
       return {
-        id: clause.id,
-        clause_code: clause.slug,
-        section_number: clause.slug,
-        name: headerText,
-        header_text: headerText,
-        body_html: bodyHtml,
-        content: content,
-        hierarchy_level: clause.level,
-        contract_types: clause.contract_types,
-        tags: clause.tags
+        ...clause,
+        content
       };
     });
     
@@ -1168,23 +1169,23 @@ router.post("/contracts/preview-clauses", async (req, res) => {
       });
     }
     
-    // Use atomic clause structure
     const clausesQuery = `
       SELECT 
-        id, slug, parent_id, level, "order",
-        header_text, body_html, contract_types, tags
+        id, clause_code, parent_clause_id, hierarchy_level, sort_order,
+        name, category, contract_type, content, variables_used, conditions,
+        risk_level, negotiable
       FROM clauses
       WHERE id = ANY($1)
-      ORDER BY "order"
+      ORDER BY sort_order
     `;
     
     const clausesResult = await pool.query(clausesQuery, [clauseIds]);
     const clausesList = clausesResult.rows;
     
-    const sections = clausesList.filter((c: any) => c.level === 1);
-    const subsections = clausesList.filter((c: any) => c.level === 2);
-    const paragraphs = clausesList.filter((c: any) => c.level === 3);
-    const conditionalIncluded = clausesList.filter((c: any) => c.tags?.conditions !== null);
+    const sections = clausesList.filter((c: any) => c.hierarchy_level === 1);
+    const subsections = clausesList.filter((c: any) => c.hierarchy_level === 2);
+    const paragraphs = clausesList.filter((c: any) => c.hierarchy_level === 3);
+    const conditionalIncluded = clausesList.filter((c: any) => c.conditions !== null);
     
     res.json({
       contractType: contractType.toUpperCase(),
@@ -1197,18 +1198,18 @@ router.post("/contracts/preview-clauses", async (req, res) => {
         conditionalIncluded: conditionalIncluded.length
       },
       conditionalClauses: conditionalIncluded.map((c: any) => ({
-        code: c.slug,
-        name: c.header_text,
-        conditions: c.tags?.conditions,
-        category: c.tags?.category
+        code: c.clause_code,
+        name: c.name,
+        conditions: c.conditions,
+        category: c.category
       })),
       allClauses: clausesList.map((c: any) => ({
-        code: c.slug,
-        level: c.level,
-        name: c.header_text,
-        category: c.tags?.category,
-        variablesUsed: c.tags?.variables_used,
-        conditional: c.tags?.conditions !== null
+        code: c.clause_code,
+        level: c.hierarchy_level,
+        name: c.name,
+        category: c.category,
+        variablesUsed: c.variables_used,
+        conditional: c.conditions !== null
       }))
     });
     
@@ -1275,12 +1276,11 @@ router.post("/contracts/generate-package", async (req, res) => {
         return { content: "", filename: `${contractType}_empty.docx`, clauseCount: 0 };
       }
       
-      // Use atomic clause structure
       const clausesQuery = `
-        SELECT slug, level, header_text, body_html
+        SELECT clause_code, hierarchy_level, name, content, variables_used
         FROM clauses
         WHERE id = ANY($1)
-        ORDER BY "order"
+        ORDER BY sort_order
       `;
       
       const clausesResult = await pool.query(clausesQuery, [clauseIds]);
@@ -1288,17 +1288,14 @@ router.post("/contracts/generate-package", async (req, res) => {
       
       let documentText = "";
       for (const clause of clausesList) {
-        const headerText = clause.header_text || '';
-        const bodyHtml = clause.body_html || '';
-        
-        if (clause.level === 1) {
-          documentText += `\n\n${headerText.toUpperCase()}\n\n`;
-        } else if (clause.level === 2) {
-          documentText += `\n${headerText}\n\n`;
+        if (clause.hierarchy_level === 1) {
+          documentText += `\n\n${clause.name.toUpperCase()}\n\n`;
+        } else if (clause.hierarchy_level === 2) {
+          documentText += `\n${clause.name}\n\n`;
         } else {
           documentText += "\n";
         }
-        documentText += bodyHtml + "\n";
+        documentText += clause.content + "\n";
       }
       
       documentText = documentText.replace(/\{\{([A-Z_]+)\}\}/g, (match, varName) => {
@@ -1873,22 +1870,20 @@ router.post("/contracts/compare-service-models", async (req, res) => {
         return { clauses: [], clauseIds: [] };
       }
       
-      // Use atomic clause structure (header_text, body_html)
       const clausesQuery = `
-        SELECT id, slug, header_text, body_html, level, tags
+        SELECT id, clause_code, name, category, conditions, hierarchy_level
         FROM clauses
         WHERE id = ANY($1)
-        ORDER BY "order"
+        ORDER BY sort_order
       `;
       
       const clausesResult = await pool.query(clausesQuery, [clauseIds]);
       
       const filteredClauses = clausesResult.rows.filter((clause: any) => {
-        // Filter by service model tag if present
-        if (!clause.tags) return true;
-        const tags = clause.tags;
-        if (tags.service_model) {
-          return tags.service_model === serviceModel || tags.service_model === "BOTH";
+        if (!clause.conditions) return true;
+        const conditions = clause.conditions;
+        if (conditions.service_model) {
+          return conditions.service_model === serviceModel || conditions.service_model === "BOTH";
         }
         return true;
       });
@@ -1921,8 +1916,8 @@ router.post("/contracts/compare-service-models", async (req, res) => {
         clauses: cmosResult.clauses
       },
       comparison: {
-        crcOnly: crcOnly.map((c: any) => ({ id: c.id, code: c.slug, name: c.header_text })),
-        cmosOnly: cmosOnly.map((c: any) => ({ id: c.id, code: c.slug, name: c.header_text })),
+        crcOnly: crcOnly.map((c: any) => ({ id: c.id, code: c.clause_code, name: c.name })),
+        cmosOnly: cmosOnly.map((c: any) => ({ id: c.id, code: c.clause_code, name: c.name })),
         shared: shared.length,
         crcTotal: crcResult.clauses.length,
         cmosTotal: cmosResult.clauses.length
@@ -1940,14 +1935,13 @@ router.post("/contracts/compare-service-models", async (req, res) => {
 
 router.get("/clauses", async (req, res) => {
   try {
-    const { contractType, search, hierarchyLevel } = req.query;
+    const { contractType, category, search, hierarchyLevel } = req.query;
     
-    // New atomic clauses schema (use snake_case column names from DB)
     let query = `
       SELECT 
-        id, slug, parent_id, level, "order",
-        header_text, body_html, contract_types, tags,
-        created_at, updated_at
+        id, clause_code, parent_clause_id, hierarchy_level, sort_order,
+        name, category, contract_type, contract_types, content, variables_used, conditions,
+        risk_level, negotiable, created_at, updated_at
       FROM clauses
       WHERE 1=1
     `;
@@ -1955,63 +1949,45 @@ router.get("/clauses", async (req, res) => {
     let paramCount = 1;
     
     if (contractType && contractType !== 'ALL') {
-      // Use JSONB containment operator for array filtering
-      query += ` AND contract_types @> $${paramCount}::jsonb`;
-      params.push(JSON.stringify([contractType]));
+      query += ` AND (contract_type = $${paramCount} OR $${paramCount} = ANY(contract_types))`;
+      params.push(contractType);
       paramCount++;
     }
     
-    if (hierarchyLevel && hierarchyLevel !== 'all') {
-      query += ` AND level = $${paramCount}`;
+    if (category) {
+      query += ` AND category = $${paramCount}`;
+      params.push(category);
+      paramCount++;
+    }
+    
+    if (hierarchyLevel) {
+      query += ` AND hierarchy_level = $${paramCount}`;
       params.push(parseInt(hierarchyLevel as string));
       paramCount++;
     }
     
     if (search) {
-      query += ` AND (header_text ILIKE $${paramCount} OR body_html ILIKE $${paramCount} OR slug ILIKE $${paramCount})`;
+      query += ` AND (name ILIKE $${paramCount} OR content ILIKE $${paramCount} OR clause_code ILIKE $${paramCount})`;
       params.push(`%${search}%`);
       paramCount++;
     }
     
-    query += ` ORDER BY "order", slug`;
+    query += ` ORDER BY sort_order, clause_code`;
     
     const result = await pool.query(query, params);
     
-    // Fixed: Use proper FROM/LATERAL pattern for JSONB array unnest
-    const totalCountResult = await pool.query('SELECT COUNT(*) as total FROM clauses');
-    const distinctTypesResult = await pool.query(`
-      SELECT COUNT(DISTINCT type_val)::int as contract_types
-      FROM clauses, jsonb_array_elements_text(contract_types) AS type_val
-    `);
-    
-    const statsResult = {
-      rows: [{
-        total: totalCountResult.rows[0]?.total || 0,
-        contract_types: distinctTypesResult.rows[0]?.contract_types || 0,
-        categories: 0,
-        conditional: 0
-      }]
-    };
-    
-    // Map to frontend expected format with atomic fields
-    const mappedClauses = result.rows.map((row: any) => {
-      return {
-        id: row.id,
-        clause_code: row.slug,
-        parent_clause_id: row.parent_id,
-        hierarchy_level: row.level,
-        sort_order: row.order,
-        header_text: row.header_text || '',
-        body_html: row.body_html || '',
-        contract_types: row.contract_types || [],
-        tags: row.tags || [],
-        created_at: row.created_at,
-        updated_at: row.updated_at
-      };
-    });
+    const statsQuery = `
+      SELECT 
+        COUNT(*) as total,
+        COUNT(DISTINCT contract_type) as contract_types,
+        COUNT(DISTINCT category) as categories,
+        COUNT(*) FILTER (WHERE conditions IS NOT NULL) as conditional
+      FROM clauses
+    `;
+    const statsResult = await pool.query(statsQuery);
     
     res.json({
-      clauses: mappedClauses,
+      clauses: result.rows,
       stats: statsResult.rows[0]
     });
   } catch (error) {
@@ -2022,8 +1998,13 @@ router.get("/clauses", async (req, res) => {
 
 router.get("/clauses/meta/categories", async (req, res) => {
   try {
-    // Categories removed in new atomic schema - return empty for backward compat
-    res.json([]);
+    const result = await pool.query(`
+      SELECT DISTINCT category, COUNT(*) as count
+      FROM clauses
+      GROUP BY category
+      ORDER BY category
+    `);
+    res.json(result.rows);
   } catch (error) {
     console.error("Failed to fetch clause categories:", error);
     res.status(500).json({ error: "Failed to fetch categories" });
@@ -2032,14 +2013,15 @@ router.get("/clauses/meta/categories", async (req, res) => {
 
 router.get("/clauses/meta/contract-types", async (req, res) => {
   try {
-    // Use JSONB unnest to get contract types from array
-    const result = await pool.query(`
-      SELECT type_val as contract_type, COUNT(*)::int as count
-      FROM clauses, jsonb_array_elements_text(contract_types) AS type_val
-      GROUP BY type_val
-      ORDER BY type_val
-    `);
-    res.json(result.rows);
+    const result = await db
+      .select({
+        contractType: clauses.contractType,
+        count: count(),
+      })
+      .from(clauses)
+      .groupBy(clauses.contractType)
+      .orderBy(clauses.contractType);
+    res.json(result.map(r => ({ contract_type: r.contractType, count: Number(r.count) })));
   } catch (error) {
     console.error("Failed to fetch contract types:", error);
     res.status(500).json({ error: "Failed to fetch contract types" });
@@ -2051,9 +2033,9 @@ router.get("/clauses/:id", async (req, res) => {
     const { id } = req.params;
     const result = await pool.query(`
       SELECT 
-        id, slug, parent_id, level, "order",
-        header_text, body_html, contract_types, tags,
-        created_at, updated_at
+        id, clause_code, parent_clause_id, hierarchy_level, sort_order,
+        name, category, contract_type, content, variables_used, conditions,
+        risk_level, negotiable, created_at, updated_at
       FROM clauses
       WHERE id = $1
     `, [id]);
@@ -2062,21 +2044,7 @@ router.get("/clauses/:id", async (req, res) => {
       return res.status(404).json({ error: "Clause not found" });
     }
     
-    // Map to frontend expected format
-    const row = result.rows[0];
-    res.json({
-      id: row.id,
-      clause_code: row.slug,
-      parent_clause_id: row.parent_id,
-      hierarchy_level: row.level,
-      sort_order: row.order,
-      name: row.header_text,
-      content: row.body_html,
-      contract_types: row.contract_types || [],
-      tags: row.tags || [],
-      created_at: row.created_at,
-      updated_at: row.updated_at
-    });
+    res.json(result.rows[0]);
   } catch (error) {
     console.error("Failed to fetch clause:", error);
     res.status(500).json({ error: "Failed to fetch clause" });
@@ -2086,63 +2054,65 @@ router.get("/clauses/:id", async (req, res) => {
 router.patch("/clauses/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    // Map old field names to new schema
-    const { 
-      name, content, // Old field names
-      headerText, bodyHtml, // camelCase field names
-      header_text, body_html, // snake_case field names
-      hierarchy_level, level, // Old/new
-      contract_types, contractTypes, // Old/new
-      sort_order, order, // Old/new
-      parent_clause_id, parentId, // Old/new
-      tags
-    } = req.body;
+    const { name, content, conditions, riskLevel, negotiable, variablesUsed, hierarchy_level, contract_type, contract_types, sort_order, parent_clause_id } = req.body;
     
     const updateFields: string[] = [];
     const values: any[] = [];
     let paramCount = 1;
     
-    // Support all field name variations (snake_case, camelCase, old names)
-    const finalHeaderText = header_text ?? headerText ?? name;
-    const finalBodyHtml = body_html ?? bodyHtml ?? content;
-    const finalLevel = level ?? hierarchy_level;
-    const finalContractTypes = contractTypes ?? contract_types;
-    const finalOrder = order ?? sort_order;
-    const finalParentId = parentId ?? parent_clause_id;
-    
-    if (finalHeaderText !== undefined) {
-      updateFields.push(`header_text = $${paramCount}`);
-      values.push(finalHeaderText);
+    if (name !== undefined) {
+      updateFields.push(`name = $${paramCount}`);
+      values.push(name);
       paramCount++;
     }
-    if (finalBodyHtml !== undefined) {
-      updateFields.push(`body_html = $${paramCount}`);
-      values.push(finalBodyHtml);
+    if (content !== undefined) {
+      updateFields.push(`content = $${paramCount}`);
+      values.push(content);
       paramCount++;
     }
-    if (finalLevel !== undefined) {
-      updateFields.push(`level = $${paramCount}`);
-      values.push(finalLevel);
+    if (conditions !== undefined) {
+      updateFields.push(`conditions = $${paramCount}`);
+      values.push(JSON.stringify(conditions));
       paramCount++;
     }
-    if (finalContractTypes !== undefined) {
+    if (riskLevel !== undefined) {
+      updateFields.push(`risk_level = $${paramCount}`);
+      values.push(riskLevel);
+      paramCount++;
+    }
+    if (negotiable !== undefined) {
+      updateFields.push(`negotiable = $${paramCount}`);
+      values.push(negotiable);
+      paramCount++;
+    }
+    if (variablesUsed !== undefined) {
+      updateFields.push(`variables_used = $${paramCount}`);
+      values.push(variablesUsed);
+      paramCount++;
+    }
+    if (hierarchy_level !== undefined) {
+      updateFields.push(`hierarchy_level = $${paramCount}`);
+      values.push(hierarchy_level);
+      paramCount++;
+    }
+    if (contract_type !== undefined) {
+      updateFields.push(`contract_type = $${paramCount}`);
+      values.push(contract_type);
+      paramCount++;
+    }
+    if (contract_types !== undefined) {
       updateFields.push(`contract_types = $${paramCount}`);
-      values.push(JSON.stringify(finalContractTypes));
+      values.push(contract_types);
       paramCount++;
     }
-    if (finalOrder !== undefined) {
-      updateFields.push(`"order" = $${paramCount}`);
-      values.push(finalOrder);
+    if (sort_order !== undefined) {
+      updateFields.push(`sort_order = $${paramCount}`);
+      values.push(sort_order);
       paramCount++;
     }
-    if (finalParentId !== undefined) {
-      updateFields.push(`parent_id = $${paramCount}`);
-      values.push(finalParentId);
-      paramCount++;
-    }
-    if (tags !== undefined) {
-      updateFields.push(`tags = $${paramCount}`);
-      values.push(JSON.stringify(tags));
+    if (parent_clause_id !== undefined) {
+      updateFields.push(`parent_clause_id = $${paramCount}`);
+      values.push(parent_clause_id);
       paramCount++;
     }
     
@@ -2163,21 +2133,7 @@ router.patch("/clauses/:id", async (req, res) => {
       return res.status(404).json({ error: "Clause not found" });
     }
     
-    // Map to frontend expected format (snake_case from DB)
-    const row = result.rows[0];
-    res.json({
-      id: row.id,
-      clause_code: row.slug,
-      parent_clause_id: row.parent_id,
-      hierarchy_level: row.level,
-      sort_order: row.order,
-      name: row.header_text,
-      content: row.body_html,
-      contract_types: row.contract_types || [],
-      tags: row.tags || [],
-      created_at: row.created_at,
-      updated_at: row.updated_at
-    });
+    res.json(result.rows[0]);
   } catch (error) {
     console.error("Failed to update clause:", error);
     res.status(500).json({ error: "Failed to update clause" });
@@ -2192,9 +2148,7 @@ router.post("/clauses/:id/reorder", async (req, res) => {
   const client = await pool.connect();
   try {
     const { id } = req.params;
-    // Support both old (parent_clause_id) and new (parentId) field names
-    const { parent_clause_id, parentId, insert_after_id } = req.body;
-    const targetParentId = parentId ?? parent_clause_id;
+    const { parent_clause_id, insert_after_id } = req.body;
 
     await client.query('BEGIN');
 
@@ -2205,18 +2159,18 @@ router.post("/clauses/:id/reorder", async (req, res) => {
     }
     const clause = clauseResult.rows[0];
 
-    if (targetParentId !== null && targetParentId !== undefined) {
-      if (targetParentId === Number(id)) {
+    if (parent_clause_id !== null && parent_clause_id !== undefined) {
+      if (parent_clause_id === Number(id)) {
         await client.query('ROLLBACK');
         return res.status(400).json({ error: "Cannot make a clause its own parent" });
       }
-      const parentResult = await client.query('SELECT id FROM clauses WHERE id = $1', [targetParentId]);
+      const parentResult = await client.query('SELECT id FROM clauses WHERE id = $1', [parent_clause_id]);
       if (parentResult.rows.length === 0) {
         await client.query('ROLLBACK');
         return res.status(400).json({ error: "Parent clause not found" });
       }
 
-      let currentAncestor = targetParentId;
+      let currentAncestor = parent_clause_id;
       const visited = new Set<number>();
       while (currentAncestor !== null) {
         if (currentAncestor === Number(id)) {
@@ -2225,26 +2179,26 @@ router.post("/clauses/:id/reorder", async (req, res) => {
         }
         if (visited.has(currentAncestor)) break;
         visited.add(currentAncestor);
-        const ancestorResult = await client.query('SELECT parent_id FROM clauses WHERE id = $1', [currentAncestor]);
+        const ancestorResult = await client.query('SELECT parent_clause_id FROM clauses WHERE id = $1', [currentAncestor]);
         if (ancestorResult.rows.length === 0) break;
-        currentAncestor = ancestorResult.rows[0].parent_id;
+        currentAncestor = ancestorResult.rows[0].parent_clause_id;
       }
     }
 
-    const newParentId = targetParentId === undefined ? clause.parent_id : targetParentId;
+    const newParentId = parent_clause_id === undefined ? clause.parent_clause_id : parent_clause_id;
 
     const siblingsResult = await client.query(
-      `SELECT id, "order" FROM clauses 
-       WHERE ($1::int IS NULL AND parent_id IS NULL) OR parent_id = $1
-       ORDER BY "order"`,
+      `SELECT id, sort_order FROM clauses 
+       WHERE ($1::int IS NULL AND parent_clause_id IS NULL) OR parent_clause_id = $1
+       ORDER BY sort_order`,
       [newParentId]
     );
 
-    const siblings = siblingsResult.rows.filter((s: any) => s.id !== Number(id));
+    const siblings = siblingsResult.rows.filter(s => s.id !== Number(id));
     
     let insertIndex = 0;
     if (insert_after_id !== null && insert_after_id !== undefined) {
-      const afterIdx = siblings.findIndex((s: any) => s.id === Number(insert_after_id));
+      const afterIdx = siblings.findIndex(s => s.id === Number(insert_after_id));
       if (afterIdx === -1) {
         await client.query('ROLLBACK');
         return res.status(400).json({ error: "insert_after_id must be a sibling under the target parent" });
@@ -2252,11 +2206,11 @@ router.post("/clauses/:id/reorder", async (req, res) => {
       insertIndex = afterIdx + 1;
     }
 
-    siblings.splice(insertIndex, 0, { id: Number(id), order: 0 });
+    siblings.splice(insertIndex, 0, { id: Number(id), sort_order: 0 });
 
     for (let i = 0; i < siblings.length; i++) {
       await client.query(
-        'UPDATE clauses SET "order" = $1, parent_id = $2, updated_at = NOW() WHERE id = $3',
+        'UPDATE clauses SET sort_order = $1, parent_clause_id = $2, updated_at = NOW() WHERE id = $3',
         [i * 10, newParentId, siblings[i].id]
       );
     }
@@ -2278,14 +2232,13 @@ router.post("/clauses/:id/reorder", async (req, res) => {
 
 router.get('/debug/variables-in-clauses', async (req, res) => {
   try {
-    // Use snake_case column names
-    const clausesResult = await pool.query('SELECT body_html FROM clauses');
+    const clausesResult = await pool.query('SELECT content FROM clauses');
     const clausesList = clausesResult.rows;
     
     const variableSet = new Set<string>();
     
     clausesList.forEach((clause: any) => {
-      const content = clause.body_html || '';
+      const content = clause.content || '';
       const matches = content.match(/\{\{([A-Z_0-9]+)\}\}/g);
       if (matches) {
         matches.forEach((match: string) => {
