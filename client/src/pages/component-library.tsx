@@ -337,7 +337,7 @@ export default function ComponentLibrary() {
     setEditingTable(null);
   };
 
-  const sandboxProject = projects?.find(p => p.name.toLowerCase().includes("sandbox") || p.project_number.includes("SANDBOX"));
+  const sandboxProject = projects?.find(p => p?.name && (p.name.toLowerCase().includes("sandbox") || p.project_number?.includes("SANDBOX")));
   const allComponents = [...BUILTIN_COMPONENTS, ...(customTables || [])];
 
   const renderColumnEditor = (columns: TableColumn[], isDialog: boolean = false) => (

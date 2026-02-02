@@ -1,0 +1,43 @@
+# Phase H: Fix Component Library Crash & Register Custom Table
+
+**Context:**
+1. The **Component Library** page is crashing with `Cannot read properties of undefined (reading 'includes')`. This indicates a runtime error where the code iterates over `projects` and encounters a `null` or `undefined` project name (likely from a "Ghost Record" created during earlier migrations).
+2. The user has a custom table variable `{{Client Signature_TABLE}}` (used for initials) which lacks a database definition. This prevents it from being usable in the UI or rendering correctly in PDFs.
+
+**Task 1: Fix Crash in Component Library (`client/src/pages/component-library.tsx`)**
+- Locate the logic responsible for finding the "Sandbox" project (approx. line 340).
+- **Apply Safety Check:** Update the `.find()` callback to safely handle missing properties.
+  - **Change:**
+    ```typescript
+    // Old (Crash prone)
+    const sandboxProject = projects?.find(p => p.name.toLowerCase().includes("sandbox"));
+    ```
+    To:
+    ```typescript
+    // New (Safe)
+    const sandboxProject = projects?.find(p => p?.name && p.name.toLowerCase().includes("sandbox"));
+    ```
+- This ensures that if a project record is corrupt (missing a name), it is skipped rather than crashing the page.
+
+**Task 2: Register Custom Table Definition (`scripts/add_custom_table.ts`)**
+- Create a new script `scripts/add_custom_table.ts` to insert the definition for `Client Signature_TABLE`.
+- **Logic:** Upsert (Insert or Update) into `table_definitions`.
+- **Data Structure:**
+  - **Variable Name:** `Client Signature_TABLE`
+  - **Display Name:** `Client Initials`
+  - **Description:** `Table for client initials on specific terms.`
+  - **Columns (JSON):**
+    ```json
+    [
+      {"header": "Term", "key": "term", "type": "text", "width": "80%"},
+      {"header": "Initials", "key": "initials", "type": "signature", "width": "20%"}
+    ]
+    ```
+
+**Task 3: Execution**
+- Run the script immediately using `npx tsx scripts/add_custom_table.ts`.
+- Verify the Component Library loads without error.
+
+**Goal:**
+- Restore access to the Component Library UI.
+- Enable the "Client Initials" table to be edited in the Project View.
