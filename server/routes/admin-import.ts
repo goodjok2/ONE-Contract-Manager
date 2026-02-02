@@ -64,50 +64,114 @@ router.post("/admin/parse-docx", upload.single('file'), async (req: Request, res
 function shredDocument(html: string): ParsedClause[] {
   const clauses: ParsedClause[] = [];
   
-  const headerRegex = /<h([1-6])[^>]*>(.*?)<\/h[1-6]>/gi;
-  const parts = html.split(headerRegex);
+  // Clean up empty paragraph tags first
+  let cleanedHtml = html.replace(/<p[^>]*>\s*<\/p>/gi, '');
+  
+  // Regex to match top-level HTML elements (headers, paragraphs, lists, tables, divs)
+  const elementRegex = /<(h[1-6]|p|ul|ol|table|div|blockquote)([^>]*)>([\s\S]*?)<\/\1>/gi;
   
   let currentClause: ParsedClause | null = null;
+  let lastIndex = 0;
+  let match;
   
-  for (let i = 1; i < parts.length; i += 3) {
-    const level = parseInt(parts[i], 10);
-    const headerText = stripHtml(parts[i + 1] || '');
-    const content = parts[i + 2] || '';
-    
-    if (headerText.trim()) {
-      if (currentClause) {
-        clauses.push(currentClause);
-      }
-      
+  // Check for content before the first element
+  const firstElementMatch = cleanedHtml.match(/<(h[1-6]|p|ul|ol|table|div|blockquote)/i);
+  if (firstElementMatch && firstElementMatch.index && firstElementMatch.index > 0) {
+    const preContent = cleanedHtml.substring(0, firstElementMatch.index).trim();
+    if (preContent && stripHtml(preContent).trim()) {
       currentClause = {
-        name: headerText.trim(),
-        content: content.trim(),
-        level
+        name: "Introduction",
+        content: preContent,
+        level: 1
       };
-    } else if (currentClause) {
-      currentClause.content += content;
     }
   }
   
-  if (currentClause) {
+  // Reset regex
+  elementRegex.lastIndex = 0;
+  
+  while ((match = elementRegex.exec(cleanedHtml)) !== null) {
+    const tagName = match[1].toLowerCase();
+    const attributes = match[2] || '';
+    const innerContent = match[3];
+    const fullElement = match[0];
+    
+    // Check if this is a header (h1-h6)
+    if (/^h[1-6]$/.test(tagName)) {
+      const level = parseInt(tagName.charAt(1), 10);
+      const headerText = stripHtml(innerContent).trim();
+      
+      // Skip empty headers
+      if (!headerText) {
+        continue;
+      }
+      
+      // Push the current clause if it exists and has content
+      if (currentClause && (currentClause.content.trim() || currentClause.name !== "Introduction")) {
+        clauses.push(currentClause);
+      }
+      
+      // Start a new clause with this header
+      currentClause = {
+        name: headerText,
+        content: "",
+        level
+      };
+    } else {
+      // This is body content (p, ul, ol, table, div, blockquote)
+      // Append to current clause's content
+      
+      // Skip empty paragraphs
+      if (tagName === 'p' && !stripHtml(innerContent).trim()) {
+        continue;
+      }
+      
+      if (currentClause) {
+        // Append the full element HTML to preserve formatting
+        currentClause.content += fullElement;
+      } else {
+        // No header yet - create Introduction clause
+        currentClause = {
+          name: "Introduction",
+          content: fullElement,
+          level: 1
+        };
+      }
+    }
+    
+    lastIndex = elementRegex.lastIndex;
+  }
+  
+  // Push the final clause
+  if (currentClause && (currentClause.content.trim() || currentClause.name !== "Introduction")) {
     clauses.push(currentClause);
   }
   
-  if (clauses.length === 0 && parts[0]) {
-    const paragraphs = parts[0].split(/<p[^>]*>/i).filter(p => p.trim());
-    paragraphs.forEach((p, index) => {
-      const text = stripHtml(p);
-      if (text.trim()) {
-        clauses.push({
-          name: `Section ${index + 1}`,
-          content: `<p>${p}`,
-          level: 1
-        });
-      }
+  // Handle edge case: document has no recognizable elements
+  if (clauses.length === 0 && cleanedHtml.trim()) {
+    clauses.push({
+      name: "Document Content",
+      content: cleanedHtml.trim(),
+      level: 1
     });
   }
   
-  return clauses;
+  // Clean up content in all clauses
+  return clauses.map(clause => ({
+    ...clause,
+    content: cleanContent(clause.content)
+  }));
+}
+
+function cleanContent(html: string): string {
+  return html
+    // Remove empty paragraphs
+    .replace(/<p[^>]*>\s*<\/p>/gi, '')
+    // Remove excessive whitespace between tags
+    .replace(/>\s+</g, '><')
+    // Add single newline between block elements for readability
+    .replace(/(<\/(?:p|ul|ol|li|table|tr|div|blockquote)>)(<(?:p|ul|ol|li|table|tr|div|blockquote))/gi, '$1\n$2')
+    .trim();
 }
 
 function stripHtml(html: string): string {
