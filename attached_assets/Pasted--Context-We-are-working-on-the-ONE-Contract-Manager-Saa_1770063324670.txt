@@ -1,0 +1,55 @@
+## Context
+We are working on the `ONE-Contract-Manager` SaaS.
+**Current State:**
+* **Frontend:** React + Shadcn UI.
+* **Backend:** Node/Express + Drizzle ORM + Postgres (Multi-tenant "Ghost Mode").
+* **Architecture:** "Atomic Clauses" (contracts are built from many small reusable text blocks).
+* **Missing Feature:** A UI to upload a DOCX file and automatically convert it into a "Contract Template" + "Atomic Clauses".
+
+## Objective
+Build the **Template Import Wizard** (`/admin/import-templates`) that allows an admin to upload a DOCX contract, parses it into distinct clauses, and saves them to the database.
+
+## Requirements
+
+### 1. New Dependency (Backend)
+* Add `mammoth` (or `mammoth.js`) to `server/package.json` to handle DOCX extraction.
+
+### 2. API Endpoint: `POST /api/admin/parse-docx`
+* **Input:** A multipart/form-data file upload (DOCX).
+* **Logic:**
+    1. Use `mammoth.convertToHtml` to read the file.
+    2. **The "Shredder" Logic:** Iterate through the content. Every **Header** (H1, H2, H3) starts a NEW clause. The header text becomes the `clause.name`, and the following paragraphs become the `clause.content`.
+    3. **Return:** A JSON array of "Preview Clauses" (name, content) back to the frontend. *Do not save to DB yet.*
+
+### 3. API Endpoint: `POST /api/admin/save-template`
+* **Input:** `templateName`, `contractType`, and an array of `clauses`.
+* **Logic (Transaction):**
+    1. Create a new `contract_templates` record (linked to `req.organizationId`).
+    2. Loop through the clauses:
+       * Create a `clauses` record (linked to `req.organizationId`).
+       * Create a `template_clauses` link (associating the clause to the template with an `order` index).
+    3. Return success.
+
+### 4. Frontend UI: `/admin/import-templates`
+Create a 3-step Wizard UI:
+* **Step 1: Upload**
+    * A "Drag & Drop" zone for DOCX files.
+    * Inputs for "Template Name" (e.g., "Standard PSA") and "Contract Type" (Dropdown).
+* **Step 2: Review & Edit**
+    * Display the parsed results.
+    * Show a list of "Found Clauses."
+    * Allow the user to **Edit** the Name or Content of a clause before saving.
+    * Allow the user to **Delete** a clause (e.g., "Table of Contents" which shouldn't be a clause).
+* **Step 3: Save**
+    * A "Complete Import" button that calls the Save API.
+    * Redirect to the "Contract Templates" list on success.
+
+## Technical Specifications
+* **Library:** Use `lucide-react` for icons (UploadCloud, FileText).
+* **Components:** Use Shadcn `Card`, `Button`, `Input`, `Textarea` (for editing content), and `ScrollArea` (for the long list of clauses).
+* **Security:** Ensure all DB inserts include the `organizationId` from the auth middleware.
+
+## Constraints
+* **Parsing Strategy:** We are assuming "Header = Clause Name". This is the standard legal formatting.
+* **Styling:** Maintain the Admin Dashboard look and feel.
+* **Variables:** If the DOCX contains text like `{{Client_Name}}`, preserve it exactly as is in the database.

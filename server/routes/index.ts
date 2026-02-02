@@ -11,6 +11,7 @@ import projectUnitsRouter from "./project-units";
 import contractTemplatesRouter from "./contract-templates";
 import contractVariablesRouter from "./contract-variables";
 import llcsRouter from "./llcs";
+import adminImportRouter from "./admin-import";
 
 const router = Router();
 
@@ -27,5 +28,6 @@ router.use(projectUnitsRouter);
 router.use(contractTemplatesRouter);
 router.use(contractVariablesRouter);
 router.use(llcsRouter);
+router.use(adminImportRouter);
 
 export default router;

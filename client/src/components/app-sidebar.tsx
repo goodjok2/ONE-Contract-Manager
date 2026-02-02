@@ -86,7 +86,7 @@ const configNavItems = [
   },
   {
     title: "Import Templates",
-    url: "/templates-upload",
+    url: "/admin/import-templates",
     icon: Upload,
   },
   {
