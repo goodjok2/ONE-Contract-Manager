@@ -12,7 +12,8 @@ import {
   Upload,
   FileCode,
   Scale,
-  Box
+  Box,
+  Shield
 } from "lucide-react";
 import {
   Sidebar,
@@ -96,6 +97,11 @@ const configNavItems = [
     title: "Settings",
     url: "/settings",
     icon: Settings,
+  },
+  {
+    title: "Admin",
+    url: "/admin",
+    icon: Shield,
   },
 ];
 
