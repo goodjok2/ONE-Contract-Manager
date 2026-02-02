@@ -5,6 +5,8 @@ import { contracts, projects, clauses, financials } from "../../shared/schema";
 import { eq, count, desc, and, sql } from "drizzle-orm";
 import { getProjectWithRelations } from "./helpers";
 import { mapProjectToVariables } from "../lib/mapper";
+import { resolveComponentTags, ComponentRenderContext } from "../services/component-library";
+import { getVariableMap } from "../services/variable-mapper";
 import path from "path";
 import fs from "fs";
 import multer from "multer";
@@ -1301,6 +1303,19 @@ router.post("/contracts/generate-package", async (req, res) => {
         documentText += bodyHtml + "\n";
       }
       
+      // Pre-process: Resolve BLOCK_ and TABLE_ component tags first
+      // Standardize service model source: check SERVICE_MODEL, ON_SITE_SELECTION, or default to CRC
+      const serviceModel = (enrichedData.SERVICE_MODEL || enrichedData.ON_SITE_SELECTION || 'CRC').toUpperCase();
+      const componentContext: ComponentRenderContext = {
+        projectId: enrichedData.PROJECT_ID || 0,
+        organizationId: enrichedData.ORGANIZATION_ID || 1,
+        contractType: contractType as any,
+        onSiteType: serviceModel
+      };
+      
+      documentText = await resolveComponentTags(documentText, componentContext);
+      
+      // Then replace simple variable tags
       documentText = documentText.replace(/\{\{([A-Z_]+)\}\}/g, (match, varName) => {
         const value = enrichedData[varName];
         if (value === undefined || value === null) {

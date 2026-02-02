@@ -757,10 +757,50 @@ const VAR_END = '\u0001/VAR\u0002';
 const PLACEHOLDER_START = '\u0001PH\u0002';
 const PLACEHOLDER_END = '\u0001/PH\u0002';
 
+// Import centralized BLOCK_ tag resolution from component-library
+import { renderComponent } from '../services/component-library';
+
+/**
+ * Resolve BLOCK_ component tags based on service model (CRC vs CMOS)
+ * Uses centralized component-library for consistency
+ * Defaults to CRC if service model is not specified
+ */
+function resolveBlockTags(content: string, serviceModel: string): string {
+  let result = content;
+  const model = (serviceModel || 'CRC').toUpperCase();
+  
+  // Replace BLOCK_ON_SITE_SCOPE using centralized component library
+  if (result.includes('{{BLOCK_ON_SITE_SCOPE}}')) {
+    const blockContent = renderComponent('BLOCK_ON_SITE_SCOPE', {
+      projectId: 0,
+      organizationId: 1,
+      onSiteType: model
+    });
+    result = result.replace(/\{\{BLOCK_ON_SITE_SCOPE\}\}/g, blockContent);
+  }
+  
+  // Replace BLOCK_WARRANTY_SECTION using centralized component library
+  if (result.includes('{{BLOCK_WARRANTY_SECTION}}')) {
+    const blockContent = renderComponent('BLOCK_WARRANTY_SECTION', {
+      projectId: 0,
+      organizationId: 1,
+      onSiteType: model
+    });
+    result = result.replace(/\{\{BLOCK_WARRANTY_SECTION\}\}/g, blockContent);
+  }
+  
+  return result;
+}
+
 function replaceVariables(content: string, variableMap: Record<string, string>): string {
   if (!content) return '';
   
   let result = content;
+  
+  // Process BLOCK_ component tags based on current service model
+  if (result.includes('{{BLOCK_')) {
+    result = resolveBlockTags(result, currentServiceModel);
+  }
   
   // Process [IF CMOS]/[IF CRC] conditional tags based on current service model
   if (currentServiceModel && (result.includes('[IF ') || result.includes('[IF]'))) {

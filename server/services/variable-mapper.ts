@@ -225,5 +225,30 @@ export async function getVariableMap(
     }
   }
 
+  // Add VAR_ prefixed aliases for key variables
+  stringMap['VAR_ON_SITE_SELECTION_NAME'] = getOnSiteSelectionName(stringMap['ON_SITE_SELECTION'] || 'CRC');
+  stringMap['VAR_PROJECT_ADDRESS'] = stringMap['SITE_ADDRESS'] || stringMap['PROJECT_ADDRESS'] || '';
+  stringMap['VAR_CLIENT_NAME'] = stringMap['CLIENT_NAME'] || '';
+  stringMap['VAR_TOTAL_PRICE'] = stringMap['TOTAL_CONTRACT_PRICE'] || stringMap['CONTRACT_VALUE'] || '';
+
   return stringMap;
+}
+
+function getOnSiteSelectionName(onSiteType: string): string {
+  switch (onSiteType?.toUpperCase()) {
+    case 'CMOS':
+      return 'Company-Managed On-Site Services (CMOS)';
+    case 'CRC':
+    default:
+      return 'Client-Retained Contractor (CRC)';
+  }
+}
+
+export function formatCurrency(cents: number): string {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(cents / 100);
 }

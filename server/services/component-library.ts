@@ -10,6 +10,58 @@ import { calculateProjectPricing, PricingSummary } from "./pricingEngine";
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
+// =============================================================================
+// CRC vs CMOS TEXT BLOCKS
+// =============================================================================
+
+const BLOCK_ON_SITE_SCOPE_CRC = `
+<p><strong>Option A – Client-Retained Contractor ("CRC")</strong></p>
+<p>Client has elected to retain a separate licensed general contractor ("Site Contractor") to perform all on-site construction services, including but not limited to: site preparation, foundation work, utility connections, module setting and crane services, exterior finishing, and all other work required to complete the Home on the Site.</p>
+<p>Company's scope of work under this Agreement is expressly limited to the design, engineering, manufacturing, and delivery of the modular components ("Modules") to the Site. Company shall have no responsibility for, and expressly disclaims any liability arising from, the on-site construction work performed by the Site Contractor or any other party retained by Client.</p>
+<p>Client acknowledges and agrees that:</p>
+<p>(i) Client is solely responsible for selecting, contracting with, and supervising the Site Contractor;</p>
+<p>(ii) Client shall ensure the Site Contractor is properly licensed, insured, and qualified to perform the required work;</p>
+<p>(iii) Company's Limited Warranty does not extend to any work performed by the Site Contractor;</p>
+<p>(iv) Client shall coordinate with Company regarding delivery scheduling and Module placement requirements.</p>
+`.trim();
+
+const BLOCK_ON_SITE_SCOPE_CMOS = `
+<p><strong>Option B – Company-Managed On-Site Services ("CMOS")</strong></p>
+<p>Client has elected to have Company manage and coordinate all on-site construction services required to complete the Home on the Site. Company shall retain qualified subcontractors to perform site preparation, foundation work, utility connections, module setting and crane services, exterior finishing, and all other work required to complete the Home.</p>
+<p>Company's scope of work under this Agreement includes the design, engineering, manufacturing, delivery, and installation of the modular components, as well as coordination of all on-site construction activities through substantial completion.</p>
+<p>Client acknowledges and agrees that:</p>
+<p>(i) Company shall select and manage all on-site subcontractors;</p>
+<p>(ii) The Total Contract Price includes all on-site construction costs;</p>
+<p>(iii) Company's Limited Warranty extends to the on-site work performed under Company's supervision;</p>
+<p>(iv) Company shall provide a single point of contact for all construction-related matters.</p>
+`.trim();
+
+const BLOCK_WARRANTY_SECTION_CRC = `
+<p><strong>Limited Warranty – Client-Retained Contractor Projects</strong></p>
+<p>Company warrants the Modules manufactured by Company against defects in materials and workmanship for a period of one (1) year from the date of delivery to the Site ("Warranty Period"). This warranty covers only the modular components manufactured by Company and expressly excludes:</p>
+<p>(i) Any defects or damage arising from transportation, handling, or storage after delivery;</p>
+<p>(ii) Any work performed by the Site Contractor or other parties not employed by Company;</p>
+<p>(iii) Normal wear and tear, cosmetic imperfections, or minor variations in materials;</p>
+<p>(iv) Damage caused by misuse, neglect, or failure to maintain the Home;</p>
+<p>(v) Any modifications or alterations made without Company's prior written approval.</p>
+<p>Client's sole remedy under this warranty is repair or replacement, at Company's option, of the defective component. Company shall not be liable for any consequential, incidental, or indirect damages.</p>
+`.trim();
+
+const BLOCK_WARRANTY_SECTION_CMOS = `
+<p><strong>Limited Warranty – Company-Managed On-Site Projects</strong></p>
+<p>Company warrants the completed Home against defects in materials and workmanship for a period of one (1) year from the date of substantial completion ("Warranty Period"). This comprehensive warranty covers:</p>
+<p>(i) The modular components manufactured by Company;</p>
+<p>(ii) On-site construction work performed under Company's supervision;</p>
+<p>(iii) Mechanical, electrical, and plumbing systems installed as part of the Home;</p>
+<p>(iv) Foundation and structural elements.</p>
+<p>This warranty expressly excludes:</p>
+<p>(i) Normal wear and tear, cosmetic imperfections, or minor variations in materials;</p>
+<p>(ii) Damage caused by misuse, neglect, or failure to maintain the Home;</p>
+<p>(iii) Any modifications or alterations made without Company's prior written approval;</p>
+<p>(iv) Landscaping, fencing, or other site improvements not included in the scope of work.</p>
+<p>Client's sole remedy under this warranty is repair or replacement, at Company's option, of the defective component or workmanship. Company shall not be liable for any consequential, incidental, or indirect damages.</p>
+`.trim();
+
 export interface Exhibit {
   id: number;
   name: string;
@@ -17,11 +69,46 @@ export interface Exhibit {
   description?: string;
 }
 
+export interface ProjectContext {
+  projectId: number;
+  organizationId: number;
+  onSiteType?: string | null;
+  contractValue?: number;
+  pricingSummary?: PricingSummary;
+}
+
 export interface ComponentRenderContext {
   projectId: number;
   organizationId: number;
   contractType: ContractFilterType;
   pricingSummary?: PricingSummary;
+  onSiteType?: string | null;
+}
+
+// =============================================================================
+// RENDER COMPONENT FUNCTION
+// =============================================================================
+
+export function renderComponent(tagName: string, projectContext: ProjectContext): string {
+  const onSiteType = projectContext.onSiteType || 'CRC';
+  
+  switch (tagName) {
+    case 'BLOCK_ON_SITE_SCOPE':
+      return onSiteType === 'CMOS' ? BLOCK_ON_SITE_SCOPE_CMOS : BLOCK_ON_SITE_SCOPE_CRC;
+    
+    case 'BLOCK_WARRANTY_SECTION':
+      return onSiteType === 'CMOS' ? BLOCK_WARRANTY_SECTION_CMOS : BLOCK_WARRANTY_SECTION_CRC;
+    
+    case 'TABLE_PAYMENT_SCHEDULE':
+      if (projectContext.pricingSummary) {
+        return renderPaymentSchedule(projectContext.pricingSummary, 'ONE');
+      }
+      return '<p>Payment schedule not available.</p>';
+    
+    default:
+      console.warn(`Unknown component tag: ${tagName}`);
+      return `<!-- Unknown component: ${tagName} -->`;
+  }
 }
 
 export function renderPaymentSchedule(
@@ -167,17 +254,41 @@ export async function resolveComponentTags(
   context: ComponentRenderContext
 ): Promise<string> {
   let result = content;
+  const onSiteType = context.onSiteType || 'CRC';
 
+  // Handle BLOCK_ tags (CRC vs CMOS dynamic content)
+  if (result.includes('{{BLOCK_ON_SITE_SCOPE}}')) {
+    const blockContent = renderComponent('BLOCK_ON_SITE_SCOPE', {
+      projectId: context.projectId,
+      organizationId: context.organizationId,
+      onSiteType,
+      pricingSummary: context.pricingSummary
+    });
+    result = result.replace(/\{\{BLOCK_ON_SITE_SCOPE\}\}/g, blockContent);
+  }
+
+  if (result.includes('{{BLOCK_WARRANTY_SECTION}}')) {
+    const blockContent = renderComponent('BLOCK_WARRANTY_SECTION', {
+      projectId: context.projectId,
+      organizationId: context.organizationId,
+      onSiteType,
+      pricingSummary: context.pricingSummary
+    });
+    result = result.replace(/\{\{BLOCK_WARRANTY_SECTION\}\}/g, blockContent);
+  }
+
+  // Handle TABLE_ tags
   if (result.includes('{{PRICING_BREAKDOWN_TABLE}}')) {
     const pricingSummary = context.pricingSummary || await calculateProjectPricing(context.projectId);
     const table = renderPricingBreakdown(pricingSummary, context.contractType);
     result = result.replace(/\{\{PRICING_BREAKDOWN_TABLE\}\}/g, table);
   }
 
-  if (result.includes('{{PAYMENT_SCHEDULE_TABLE}}')) {
+  if (result.includes('{{PAYMENT_SCHEDULE_TABLE}}') || result.includes('{{TABLE_PAYMENT_SCHEDULE}}')) {
     const pricingSummary = context.pricingSummary || await calculateProjectPricing(context.projectId);
     const table = renderPaymentSchedule(pricingSummary, context.contractType);
     result = result.replace(/\{\{PAYMENT_SCHEDULE_TABLE\}\}/g, table);
+    result = result.replace(/\{\{TABLE_PAYMENT_SCHEDULE\}\}/g, table);
   }
 
   if (result.includes('{{UNIT_PRICING_TABLE}}') || result.includes('{{UNIT_SPEC_TABLE}}')) {

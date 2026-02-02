@@ -1,0 +1,48 @@
+## Context
+We are implementing the "Content Injection Engine" for `ONE-Contract-Manager`.
+**Goal:** Replace static text blocks in the Contract DOCX with dynamic variables that render differently based on Project Settings (specifically "CRC" vs "CMOS").
+
+## Objective
+Create the **Component Library Service** and **Variable Mapper** to handle dynamic text blocks and data mapping.
+
+## Requirements
+
+### 1. The "Component Library" (`server/services/component-library.ts`)
+Create a service that interprets special `{{BLOCK_...}}` and `{{TABLE_...}}` tags.
+It must export a function `renderComponent(tagName, projectContext)` that returns the HTML string.
+
+**Implement these specific components:**
+1.  **`BLOCK_ON_SITE_SCOPE`**:
+    * Logic: Check `project.onSiteType`.
+    * If `CRC`: Return the "Option A" text (hardcoded string for now: "Option A – Client-Retained Contractor... [full text]").
+    * If `CMOS`: Return the "Option B" text ("Option B – Company-Managed...").
+2.  **`BLOCK_WARRANTY_SECTION`**:
+    * Logic: Similar CRC vs CMOS split for the warranty text.
+3.  **`TABLE_PAYMENT_SCHEDULE`**:
+    * Logic: Return a simple HTML `<table>` showing the payment milestones based on `project.contractValue`.
+
+### 2. The "Variable Mapper" (`server/services/variable-mapper.ts`)
+Create a service that flattens Project/LLC/Unit data into a simple object for the renderer.
+It must export `getContractVariables(projectId)`.
+
+**Include these mapped variables:**
+* `{{VAR_ON_SITE_SELECTION_NAME}}`: Returns "Client-Retained Contractor (CRC)" or "Company-Managed On-Site Services (CMOS)".
+* `{{VAR_PROJECT_ADDRESS}}`: Maps to `project.siteAddress`.
+* `{{VAR_CLIENT_NAME}}`: Maps to `project.clientName`.
+* `{{VAR_TOTAL_PRICE}}`: Maps to formatted `project.totalContractPrice`.
+
+### 3. Update the Contract Generator (`server/routes/contracts.ts`)
+Modify the generation route to use these new services:
+1.  Fetch Project Data.
+2.  Call `getContractVariables(project)` to get the base list.
+3.  **Pre-Process:** Scan the Clause Content for `{{BLOCK_...}}` or `{{TABLE_...}}` tags.
+4.  If found, call `renderComponent()` and replace the tag with the returned HTML string.
+5.  Pass the final content to the PDF/DOCX generator.
+
+## Technical Specifications
+* **Storage:** For this MVP, store the long "Option A/B" text strings directly as `const` strings inside `component-library.ts`.
+* **Formatting:** Ensure the returned HTML for Blocks uses `<p>` tags so it preserves paragraph formatting in the final document.
+
+## Constraints
+* **Strict Logic:** Default to "CRC" text if `onSiteType` is missing/null to avoid empty holes in the contract.
+* **Performance:** Do all variable mapping in memory before rendering.
