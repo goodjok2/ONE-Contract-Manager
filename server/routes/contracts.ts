@@ -1913,12 +1913,12 @@ router.get("/clauses", async (req, res) => {
   try {
     const { contractType, search, hierarchyLevel } = req.query;
     
-    // New atomic clauses schema (use snake_case column names from DB)
+    // New atomic clauses schema
     let query = `
       SELECT 
-        id, slug, parent_id, level, "order",
-        header_text, body_html, contract_types, tags,
-        created_at, updated_at
+        id, slug, "parentId", level, "order",
+        "headerText", "bodyHtml", "contractTypes", tags,
+        "createdAt", "updatedAt"
       FROM clauses
       WHERE 1=1
     `;
@@ -1927,7 +1927,7 @@ router.get("/clauses", async (req, res) => {
     
     if (contractType && contractType !== 'ALL') {
       // Use JSONB containment operator for array filtering
-      query += ` AND contract_types @> $${paramCount}::jsonb`;
+      query += ` AND "contractTypes" @> $${paramCount}::jsonb`;
       params.push(JSON.stringify([contractType]));
       paramCount++;
     }
@@ -1939,7 +1939,7 @@ router.get("/clauses", async (req, res) => {
     }
     
     if (search) {
-      query += ` AND (header_text ILIKE $${paramCount} OR body_html ILIKE $${paramCount} OR slug ILIKE $${paramCount})`;
+      query += ` AND ("headerText" ILIKE $${paramCount} OR "bodyHtml" ILIKE $${paramCount} OR slug ILIKE $${paramCount})`;
       params.push(`%${search}%`);
       paramCount++;
     }
@@ -1952,7 +1952,7 @@ router.get("/clauses", async (req, res) => {
     const totalCountResult = await pool.query('SELECT COUNT(*) as total FROM clauses');
     const distinctTypesResult = await pool.query(`
       SELECT COUNT(DISTINCT type_val)::int as contract_types
-      FROM clauses, jsonb_array_elements_text(contract_types) AS type_val
+      FROM clauses, jsonb_array_elements_text("contractTypes") AS type_val
     `);
     
     const statsResult = {
@@ -1965,26 +1965,19 @@ router.get("/clauses", async (req, res) => {
     };
     
     // Map to frontend expected format for backward compatibility
-    const mappedClauses = result.rows.map((row: any) => {
-      // Reconstruct content field by combining header and body for UI display
-      const headerHtml = row.header_text ? `<h4>${row.header_text}</h4>` : '';
-      const bodyHtml = row.body_html || '';
-      const reconstructedContent = headerHtml + bodyHtml;
-      
-      return {
-        id: row.id,
-        clause_code: row.slug,
-        parent_clause_id: row.parent_id,
-        hierarchy_level: row.level,
-        sort_order: row.order,
-        name: row.header_text,
-        content: reconstructedContent,
-        contract_types: row.contract_types || [],
-        tags: row.tags || [],
-        created_at: row.created_at,
-        updated_at: row.updated_at
-      };
-    });
+    const mappedClauses = result.rows.map((row: any) => ({
+      id: row.id,
+      clause_code: row.slug,
+      parent_clause_id: row.parentId,
+      hierarchy_level: row.level,
+      sort_order: row.order,
+      name: row.headerText,
+      content: row.bodyHtml,
+      contract_types: row.contractTypes || [],
+      tags: row.tags || [],
+      created_at: row.createdAt,
+      updated_at: row.updatedAt
+    }));
     
     res.json({
       clauses: mappedClauses,
