@@ -4,11 +4,213 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
 // =============================================================================
-// CORE TABLES
+// MULTI-TENANT CORE
+// =============================================================================
+
+export const organizations = pgTable("organizations", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  slug: text("slug").unique().notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at"),
+});
+
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id")
+    .references(() => organizations.id)
+    .notNull(),
+  email: text("email").unique().notNull(),
+  name: text("name"),
+  role: text("role").default("user"), // admin, user
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at"),
+});
+
+// =============================================================================
+// HOME MODELS (Multi-Tenant)
+// =============================================================================
+
+export const homeModels = pgTable("home_models", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id")
+    .references(() => organizations.id)
+    .notNull(),
+  name: text("name").notNull(),
+  modelCode: text("model_code").notNull(),
+  description: text("description"),
+  sqFt: integer("sq_ft"),
+  bedrooms: integer("bedrooms"),
+  bathrooms: real("bathrooms"),
+  stories: integer("stories"),
+  designFee: integer("design_fee"), // cents
+  offsiteBasePrice: integer("offsite_base_price"), // cents
+  onsiteEstPrice: integer("onsite_est_price"), // cents
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at"),
+});
+
+// =============================================================================
+// PROJECT UNITS (Multi-Tenant)
+// =============================================================================
+
+export const projectUnits = pgTable("project_units", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id")
+    .references(() => organizations.id)
+    .notNull(),
+  projectId: integer("project_id")
+    .references(() => projects.id)
+    .notNull(),
+  modelId: integer("model_id")
+    .references(() => homeModels.id),
+  unitLabel: text("unit_label"), // "Unit A", "Main Home", etc.
+  basePriceSnapshot: integer("base_price_snapshot"), // cents - locked price
+  customizationTotal: integer("customization_total").default(0), // cents
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// =============================================================================
+// LLCs (Multi-Tenant)
+// =============================================================================
+
+export const llcs = pgTable("llcs", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id")
+    .references(() => organizations.id)
+    .notNull(),
+  name: text("name").notNull(),
+  state: text("state").notNull(),
+  entityType: text("entity_type").default("LLC"),
+  formationDate: text("formation_date"),
+  ein: text("ein"),
+  address: text("address"),
+  city: text("city"),
+  stateAddress: text("state_address"),
+  zip: text("zip"),
+  registeredAgent: text("registered_agent"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at"),
+});
+
+// =============================================================================
+// CONTRACT TEMPLATES (Multi-Tenant)
+// =============================================================================
+
+export const contractTemplates = pgTable("contract_templates", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id")
+    .references(() => organizations.id)
+    .notNull(),
+  name: text("name").notNull(),
+  contractType: text("contract_type").notNull(), // one_agreement, manufacturing_sub, onsite_sub
+  version: text("version").default("1.0"),
+  content: text("content"), // HTML/template content
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at"),
+});
+
+// =============================================================================
+// CONTRACT VARIABLES (Multi-Tenant)
+// =============================================================================
+
+export const contractVariables = pgTable("contract_variables", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id")
+    .references(() => organizations.id)
+    .notNull(),
+  variableName: text("variable_name").notNull(),
+  displayName: text("display_name"),
+  category: text("category"), // client, project, financial, legal
+  dataType: text("data_type").default("text"), // text, number, date, currency
+  defaultValue: text("default_value"),
+  description: text("description"),
+  isRequired: boolean("is_required").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// =============================================================================
+// EXHIBITS (Multi-Tenant)
+// =============================================================================
+
+export const exhibits = pgTable("exhibits", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id")
+    .references(() => organizations.id)
+    .notNull(),
+  exhibitCode: text("exhibit_code").notNull(), // EXHIBIT_A, EXHIBIT_B
+  name: text("name").notNull(),
+  description: text("description"),
+  content: text("content"), // HTML content
+  contractTypes: jsonb("contract_types"), // Array of applicable contract types
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at"),
+});
+
+// =============================================================================
+// STATE DISCLOSURES (Multi-Tenant)
+// =============================================================================
+
+export const stateDisclosures = pgTable("state_disclosures", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id")
+    .references(() => organizations.id)
+    .notNull(),
+  state: text("state").notNull(), // CA, TX, AZ
+  disclosureType: text("disclosure_type").notNull(), // warranty_waiver, arbitration, etc.
+  title: text("title").notNull(),
+  content: text("content"), // HTML content
+  requiresInitials: boolean("requires_initials").default(false),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at"),
+});
+
+// =============================================================================
+// CONTRACTOR ENTITIES (Multi-Tenant - Master List)
+// =============================================================================
+
+export const contractorEntities = pgTable("contractor_entities", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id")
+    .references(() => organizations.id)
+    .notNull(),
+  legalName: text("legal_name").notNull(),
+  contractorType: text("contractor_type").notNull(), // manufacturer, onsite_general, onsite_sub
+  entityType: text("entity_type"), // LLC, Corporation
+  state: text("state"),
+  address: text("address"),
+  city: text("city"),
+  stateAddress: text("state_address"),
+  zip: text("zip"),
+  licenseNumber: text("license_number"),
+  licenseState: text("license_state"),
+  licenseExpiration: text("license_expiration"),
+  contactName: text("contact_name"),
+  contactEmail: text("contact_email"),
+  contactPhone: text("contact_phone"),
+  bondAmount: integer("bond_amount"),
+  insuranceAmount: integer("insurance_amount"),
+  insuranceExpiration: text("insurance_expiration"),
+  insuranceCarrier: text("insurance_carrier"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at"),
+});
+
+// =============================================================================
+// CORE TABLES (Updated with organizationId)
 // =============================================================================
 
 export const projects = pgTable("projects", {
   id: serial("id").primaryKey(),
+  organizationId: integer("organization_id")
+    .references(() => organizations.id),
   projectNumber: text("project_number").unique().notNull(),
   name: text("name").notNull(),
   status: text("status").default("Draft").notNull(), // Draft, Design, GreenLight, Production, Delivered, Complete
@@ -220,7 +422,7 @@ export const warrantyTerms = pgTable("warranty_terms", {
 });
 
 // =============================================================================
-// CONTRACTORS
+// CONTRACTORS (Project-Level - links to master contractorEntities)
 // =============================================================================
 
 export const contractors = pgTable("contractors", {
@@ -264,11 +466,13 @@ export const contractors = pgTable("contractors", {
 });
 
 // =============================================================================
-// GENERATED CONTRACTS
+// GENERATED CONTRACTS (Updated with organizationId)
 // =============================================================================
 
 export const contracts = pgTable("contracts", {
   id: serial("id").primaryKey(),
+  organizationId: integer("organization_id")
+    .references(() => organizations.id),
   projectId: integer("project_id")
     .references(() => projects.id)
     .notNull(),
@@ -342,14 +546,104 @@ export const tableDefinitions = pgTable("table_definitions", {
   displayName: text("display_name").notNull(),
   columns: jsonb("columns").notNull(), // JSONB definition of columns/types
   description: text("description"),
+  isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at"),
 });
 
 // =============================================================================
 // RELATIONS
 // =============================================================================
 
+export const organizationsRelations = relations(organizations, ({ many }) => ({
+  users: many(users),
+  projects: many(projects),
+  homeModels: many(homeModels),
+  llcs: many(llcs),
+  contractTemplates: many(contractTemplates),
+  contractVariables: many(contractVariables),
+  exhibits: many(exhibits),
+  stateDisclosures: many(stateDisclosures),
+  contractorEntities: many(contractorEntities),
+}));
+
+export const usersRelations = relations(users, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [users.organizationId],
+    references: [organizations.id],
+  }),
+}));
+
+export const homeModelsRelations = relations(homeModels, ({ one, many }) => ({
+  organization: one(organizations, {
+    fields: [homeModels.organizationId],
+    references: [organizations.id],
+  }),
+  projectUnits: many(projectUnits),
+}));
+
+export const projectUnitsRelations = relations(projectUnits, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [projectUnits.organizationId],
+    references: [organizations.id],
+  }),
+  project: one(projects, {
+    fields: [projectUnits.projectId],
+    references: [projects.id],
+  }),
+  model: one(homeModels, {
+    fields: [projectUnits.modelId],
+    references: [homeModels.id],
+  }),
+}));
+
+export const llcsRelations = relations(llcs, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [llcs.organizationId],
+    references: [organizations.id],
+  }),
+}));
+
+export const contractTemplatesRelations = relations(contractTemplates, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [contractTemplates.organizationId],
+    references: [organizations.id],
+  }),
+}));
+
+export const contractVariablesRelations = relations(contractVariables, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [contractVariables.organizationId],
+    references: [organizations.id],
+  }),
+}));
+
+export const exhibitsRelations = relations(exhibits, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [exhibits.organizationId],
+    references: [organizations.id],
+  }),
+}));
+
+export const stateDisclosuresRelations = relations(stateDisclosures, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [stateDisclosures.organizationId],
+    references: [organizations.id],
+  }),
+}));
+
+export const contractorEntitiesRelations = relations(contractorEntities, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [contractorEntities.organizationId],
+    references: [organizations.id],
+  }),
+}));
+
 export const projectsRelations = relations(projects, ({ one, many }) => ({
+  organization: one(organizations, {
+    fields: [projects.organizationId],
+    references: [organizations.id],
+  }),
   client: one(clients, {
     fields: [projects.id],
     references: [clients.projectId],
@@ -369,6 +663,7 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   milestones: many(milestones),
   contractors: many(contractors),
   contracts: many(contracts),
+  projectUnits: many(projectUnits),
 }));
 
 export const clientsRelations = relations(clients, ({ one }) => ({
@@ -414,6 +709,10 @@ export const contractorsRelations = relations(contractors, ({ one }) => ({
 }));
 
 export const contractsRelations = relations(contracts, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [contracts.organizationId],
+    references: [organizations.id],
+  }),
   project: one(projects, {
     fields: [contracts.projectId],
     references: [projects.id],
@@ -434,6 +733,36 @@ export const clausesRelations = relations(clauses, ({ one, many }) => ({
 // =============================================================================
 // TYPE EXPORTS
 // =============================================================================
+
+export type Organization = typeof organizations.$inferSelect;
+export type NewOrganization = typeof organizations.$inferInsert;
+
+export type User = typeof users.$inferSelect;
+export type NewUser = typeof users.$inferInsert;
+
+export type HomeModel = typeof homeModels.$inferSelect;
+export type NewHomeModel = typeof homeModels.$inferInsert;
+
+export type ProjectUnit = typeof projectUnits.$inferSelect;
+export type NewProjectUnit = typeof projectUnits.$inferInsert;
+
+export type Llc = typeof llcs.$inferSelect;
+export type NewLlc = typeof llcs.$inferInsert;
+
+export type ContractTemplate = typeof contractTemplates.$inferSelect;
+export type NewContractTemplate = typeof contractTemplates.$inferInsert;
+
+export type ContractVariable = typeof contractVariables.$inferSelect;
+export type NewContractVariable = typeof contractVariables.$inferInsert;
+
+export type Exhibit = typeof exhibits.$inferSelect;
+export type NewExhibit = typeof exhibits.$inferInsert;
+
+export type StateDisclosure = typeof stateDisclosures.$inferSelect;
+export type NewStateDisclosure = typeof stateDisclosures.$inferInsert;
+
+export type ContractorEntity = typeof contractorEntities.$inferSelect;
+export type NewContractorEntity = typeof contractorEntities.$inferInsert;
 
 export type Project = typeof projects.$inferSelect;
 export type NewProject = typeof projects.$inferInsert;
@@ -468,6 +797,74 @@ export type NewTableDefinition = typeof tableDefinitions.$inferInsert;
 // =============================================================================
 // INSERT SCHEMAS
 // =============================================================================
+
+export const insertOrganizationSchema = createInsertSchema(organizations).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertOrganization = z.infer<typeof insertOrganizationSchema>;
+
+export const insertUserSchema = createInsertSchema(users).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertUser = z.infer<typeof insertUserSchema>;
+
+export const insertHomeModelSchema = createInsertSchema(homeModels).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertHomeModel = z.infer<typeof insertHomeModelSchema>;
+
+export const insertProjectUnitSchema = createInsertSchema(projectUnits).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertProjectUnit = z.infer<typeof insertProjectUnitSchema>;
+
+export const insertLlcSchema = createInsertSchema(llcs).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertLlc = z.infer<typeof insertLlcSchema>;
+
+export const insertContractTemplateSchema = createInsertSchema(contractTemplates).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertContractTemplate = z.infer<typeof insertContractTemplateSchema>;
+
+export const insertContractVariableSchema = createInsertSchema(contractVariables).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertContractVariable = z.infer<typeof insertContractVariableSchema>;
+
+export const insertExhibitSchema = createInsertSchema(exhibits).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertExhibit = z.infer<typeof insertExhibitSchema>;
+
+export const insertStateDisclosureSchema = createInsertSchema(stateDisclosures).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertStateDisclosure = z.infer<typeof insertStateDisclosureSchema>;
+
+export const insertContractorEntitySchema = createInsertSchema(contractorEntities).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertContractorEntity = z.infer<typeof insertContractorEntitySchema>;
 
 export const insertProjectSchema = createInsertSchema(projects).omit({
   id: true,
