@@ -1,5 +1,5 @@
 import { db } from "../db/index";
-import { projects, projectUnits, homeModels, financials, milestones } from "../../shared/schema";
+import { projects, projectDetails, financials, milestones } from "../../shared/schema";
 import { eq } from "drizzle-orm";
 
 export interface PaymentScheduleItem {
@@ -34,27 +34,15 @@ export async function calculateProjectPricing(projectId: number): Promise<Pricin
     throw new Error(`Project with id ${projectId} not found`);
   }
 
-  const units = await db
-    .select({
-      unitId: projectUnits.id,
-      unitLabel: projectUnits.unitLabel,
-      basePriceSnapshot: projectUnits.basePriceSnapshot,
-      customizationTotal: projectUnits.customizationTotal,
-      modelId: projectUnits.modelId,
-      modelName: homeModels.name,
-      modelCode: homeModels.modelCode,
-      designFee: homeModels.designFee,
-      offsiteBasePrice: homeModels.offsiteBasePrice,
-      onsiteEstPrice: homeModels.onsiteEstPrice,
-    })
-    .from(projectUnits)
-    .innerJoin(homeModels, eq(projectUnits.modelId, homeModels.id))
-    .where(eq(projectUnits.projectId, projectId));
-
   const [financial] = await db
     .select()
     .from(financials)
     .where(eq(financials.projectId, projectId));
+
+  const [details] = await db
+    .select()
+    .from(projectDetails)
+    .where(eq(projectDetails.projectId, projectId));
 
   const projectMilestones = await db
     .select()
@@ -64,47 +52,16 @@ export async function calculateProjectPricing(projectId: number): Promise<Pricin
   // Determine service model (CRC or CMOS)
   const serviceModel: 'CRC' | 'CMOS' = (project.onSiteSelection === 'CMOS') ? 'CMOS' : 'CRC';
 
-  if (units.length === 0) {
-    return {
-      breakdown: {
-        totalDesignFee: 0,
-        totalOffsite: 0,
-        totalOnsite: 0,
-        totalCustomizations: 0,
-      },
-      grandTotal: 0,
-      projectBudget: 0,
-      contractValue: 0,
-      serviceModel,
-      paymentSchedule: [],
-      unitCount: 0,
-      unitModelSummary: '',
-    };
-  }
+  // Get pricing from financials table
+  const totalDesignFee = financial?.designFee || 0;
+  const totalOffsite = financial?.prelimOffsite || financial?.finalOffsite || 0;
+  const totalOnsite = financial?.prelimOnsite || financial?.refinedOnsite || 0;
+  const totalCustomizations = financial?.homeCustomizations || 0;
 
-  let totalDesignFee = 0;
-  let totalOffsite = 0;
-  let totalOnsite = 0;
-  let totalCustomizations = 0;
-
-  // Build unit model count summary (e.g., "1x Trinity, 2x Salt Point")
-  const modelCounts: Record<string, number> = {};
-  for (const unit of units) {
-    totalDesignFee += unit.designFee || 0;
-    totalOffsite += (unit.offsiteBasePrice || 0) + (unit.customizationTotal || 0);
-    totalOnsite += unit.onsiteEstPrice || 0;
-    totalCustomizations += unit.customizationTotal || 0;
-    
-    const modelName = unit.modelName || 'Unknown Model';
-    modelCounts[modelName] = (modelCounts[modelName] || 0) + 1;
-  }
-  
-  const unitModelSummary = Object.entries(modelCounts)
-    .map(([name, count]) => `${count}x ${name}`)
-    .join(', ');
-
-  const globalSiteCosts = (financial?.prelimOnsite || 0);
-  totalOnsite += globalSiteCosts;
+  // Get unit info from project details
+  const unitCount = details?.totalUnits || 1;
+  const homeModel = details?.homeModel || 'Custom Home';
+  const unitModelSummary = `${unitCount}x ${homeModel}`;
 
   // projectBudget = full cost of the project (design + offsite + onsite)
   const projectBudget = totalDesignFee + totalOffsite + totalOnsite;
@@ -181,7 +138,7 @@ export async function calculateProjectPricing(projectId: number): Promise<Pricin
     contractValue,
     serviceModel,
     paymentSchedule,
-    unitCount: units.length,
+    unitCount,
     unitModelSummary,
   };
 }
