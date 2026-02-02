@@ -82,7 +82,10 @@ export const llcs = pgTable("llcs", {
     .references(() => organizations.id)
     .notNull(),
   name: text("name").notNull(),
-  state: text("state").notNull(),
+  projectName: text("project_name"),
+  projectAddress: text("project_address"),
+  status: text("status").default("forming"), // forming, active, closed
+  stateOfFormation: text("state_of_formation").default("Delaware"),
   entityType: text("entity_type").default("LLC"),
   formationDate: text("formation_date"),
   ein: text("ein"),
@@ -91,6 +94,10 @@ export const llcs = pgTable("llcs", {
   stateAddress: text("state_address"),
   zip: text("zip"),
   registeredAgent: text("registered_agent"),
+  registeredAgentAddress: text("registered_agent_address"),
+  members: text("members"),
+  annualReportDueDate: text("annual_report_due_date"),
+  annualReportStatus: text("annual_report_status").default("pending"),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at"),
