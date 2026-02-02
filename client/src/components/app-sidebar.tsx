@@ -9,7 +9,6 @@ import {
   Eye,
   Wand2,
   Variable,
-  Upload,
   FileCode,
   Scale,
   Box,
@@ -84,12 +83,7 @@ const configNavItems = [
     url: "/state-disclosures",
     icon: Scale,
   },
-  {
-    title: "Import Templates",
-    url: "/admin/import-templates",
-    icon: Upload,
-  },
-  {
+    {
     title: "Variable Mappings",
     url: "/variable-mappings",
     icon: Variable,

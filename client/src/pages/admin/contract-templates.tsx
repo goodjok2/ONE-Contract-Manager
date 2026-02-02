@@ -50,7 +50,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, FileUp } from "lucide-react";
+import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
@@ -185,10 +186,18 @@ export default function AdminContractTemplates() {
               Manage contract template versions
             </p>
           </div>
-          <Button onClick={handleOpenCreate} data-testid="button-add-template">
-            <Plus className="h-4 w-4 mr-2" />
-            Add Template
-          </Button>
+          <div className="flex gap-2">
+            <Link href="/admin/import-templates">
+              <Button variant="outline" data-testid="button-import-from-word">
+                <FileUp className="h-4 w-4 mr-2" />
+                Import from Word
+              </Button>
+            </Link>
+            <Button onClick={handleOpenCreate} data-testid="button-add-template">
+              <Plus className="h-4 w-4 mr-2" />
+              Add Template
+            </Button>
+          </div>
         </div>
 
         {isLoading ? (
