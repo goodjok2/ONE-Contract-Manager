@@ -807,10 +807,10 @@ export default function ClauseLibrary() {
     return (
       <div key={clause.id} className="select-none">
         <div
-          className={`flex items-start gap-1 py-1.5 px-2 rounded-md cursor-pointer hover-elevate transition-colors ${
+          className={`flex items-center gap-1 py-1.5 px-2 rounded-md cursor-pointer hover-elevate transition-colors overflow-hidden ${
             isSelected ? 'bg-primary/10 border border-primary/30' : ''
           } ${isChecked ? 'bg-accent/50' : ''} ${isDragging ? 'opacity-50' : ''} ${getDropIndicatorClass()}`}
-          style={{ paddingLeft: `${depth * 16 + 8}px`, minWidth: 0 }}
+          style={{ paddingLeft: `${depth * 16 + 8}px` }}
           onClick={() => setSelectedClause(clause)}
           draggable
           onDragStart={(e) => handleDragStart(e, clause)}
@@ -824,17 +824,17 @@ export default function ClauseLibrary() {
             checked={isChecked}
             onCheckedChange={() => toggleClauseSelection(clause.id)}
             onClick={(e) => e.stopPropagation()}
-            className="h-3.5 w-3.5 shrink-0"
+            className="h-3.5 w-3.5 flex-shrink-0"
             data-testid={`checkbox-clause-${clause.id}`}
           />
-          <GripVertical className="h-3 w-3 text-muted-foreground cursor-grab shrink-0" />
+          <GripVertical className="h-3 w-3 text-muted-foreground cursor-grab flex-shrink-0" />
           {hasChildren ? (
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 toggleNode(clause.id);
               }}
-              className="p-0.5 hover:bg-muted rounded"
+              className="p-0.5 hover:bg-muted rounded flex-shrink-0"
               data-testid={`toggle-node-${clause.id}`}
             >
               {isExpanded ? (
@@ -844,18 +844,18 @@ export default function ClauseLibrary() {
               )}
             </button>
           ) : (
-            <span className="w-4" />
+            <span className="w-4 flex-shrink-0" />
           )}
-          <span className="text-xs text-muted-foreground font-mono shrink-0">{currentNumber}</span>
+          <span className="text-xs text-muted-foreground font-mono flex-shrink-0">{currentNumber}</span>
           <span 
-            className="text-sm flex-1 truncate min-w-0" 
+            className="text-sm truncate" 
             title={clause.header_text || "(Untitled)"}
           >
             {clause.header_text || <span className="italic text-muted-foreground">(Untitled)</span>}
           </span>
           {clause.tags && clause.tags.length > 0 && (
-            <span title="Has tags">
-              <Zap className="h-3 w-3 text-amber-500 shrink-0" />
+            <span title="Has tags" className="flex-shrink-0">
+              <Zap className="h-3 w-3 text-amber-500" />
             </span>
           )}
         </div>
@@ -1072,7 +1072,7 @@ export default function ClauseLibrary() {
                 </div>
               </div>
 
-              <div className="flex-1 overflow-auto">
+              <ScrollArea className="flex-1">
                 {editingClause?.id === selectedClause.id ? (
                   <div className="p-4 space-y-4">
                     <div>
@@ -1176,87 +1176,138 @@ export default function ClauseLibrary() {
                         </div>
                       </div>
                     </div>
+                    
+                    <div className="border-t pt-4 mt-4">
+                      <div className="flex items-center justify-between gap-2 flex-wrap mb-2">
+                        <h3 className="text-sm font-medium flex items-center gap-2">
+                          <Eye className="h-4 w-4" />
+                          Live HTML Preview
+                        </h3>
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            id="resolve-tables-edit"
+                            checked={resolveTablesPreview}
+                            onCheckedChange={(checked) => setResolveTablesPreview(checked === true)}
+                            data-testid="checkbox-resolve-tables"
+                          />
+                          <Label htmlFor="resolve-tables-edit" className="text-xs cursor-pointer">
+                            Resolve Tables
+                          </Label>
+                          {resolveTablesPreview && (
+                            <Select value={previewProjectId} onValueChange={setPreviewProjectId}>
+                              <SelectTrigger className="w-44 h-7 text-xs" data-testid="select-preview-project">
+                                <SelectValue placeholder="Select project..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {projects?.map((p) => (
+                                  <SelectItem key={p.id} value={p.id.toString()}>
+                                    {p.project_number} - {p.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        </div>
+                      </div>
+                      <div className="border rounded-md p-3 bg-muted/30 max-h-48 overflow-auto">
+                        {resolveTablesPreview && previewProjectId ? (
+                          isResolvingPreview ? (
+                            <div className="text-center text-muted-foreground py-4">Resolving tables...</div>
+                          ) : (
+                            <div 
+                              className="prose prose-sm dark:prose-invert max-w-none"
+                              dangerouslySetInnerHTML={{ 
+                                __html: resolvedPreviewData?.html || '<p class="text-muted-foreground">No content to preview</p>'
+                              }}
+                              data-testid="resolved-preview"
+                            />
+                          )
+                        ) : (
+                          <div 
+                            className="prose prose-sm dark:prose-invert max-w-none"
+                            dangerouslySetInnerHTML={{ 
+                              __html: getPreviewHtml({ header_text: editHeaderText, body_html: editBodyHtml, hierarchy_level: editHierarchyLevel }) 
+                            }}
+                            data-testid="standard-preview"
+                          />
+                        )}
+                      </div>
+                    </div>
                   </div>
                 ) : (
                   <div className="p-4">
-                    <div className="mb-4">
-                      <h3 className={`mb-2 ${
-                        selectedClause.hierarchy_level <= 2 ? 'font-bold text-lg text-[#1a73e8] uppercase' :
-                        selectedClause.hierarchy_level <= 4 ? 'font-semibold text-[#1a73e8]' :
-                        selectedClause.hierarchy_level === 6 ? 'font-bold uppercase text-amber-600' :
-                        'font-medium'
-                      }`}>
-                        {selectedClause.header_text || "(No Header)"}
-                      </h3>
-                      <div 
-                        className="text-sm text-muted-foreground prose prose-sm dark:prose-invert max-w-none"
-                        dangerouslySetInnerHTML={{ __html: selectedClause.body_html || "(No Content)" }}
-                      />
+                    <h3 className={`mb-2 ${
+                      selectedClause.hierarchy_level <= 2 ? 'font-bold text-lg text-[#1a73e8] uppercase' :
+                      selectedClause.hierarchy_level <= 4 ? 'font-semibold text-[#1a73e8]' :
+                      selectedClause.hierarchy_level === 6 ? 'font-bold uppercase text-amber-600' :
+                      'font-medium'
+                    }`}>
+                      {selectedClause.header_text || "(No Header)"}
+                    </h3>
+                    <div 
+                      className="text-sm text-muted-foreground prose prose-sm dark:prose-invert max-w-none mb-4"
+                      dangerouslySetInnerHTML={{ __html: selectedClause.body_html || "(No Content)" }}
+                    />
+                    
+                    <div className="border-t pt-4">
+                      <div className="flex items-center justify-between gap-2 flex-wrap mb-2">
+                        <h3 className="text-sm font-medium flex items-center gap-2">
+                          <Eye className="h-4 w-4" />
+                          Live HTML Preview
+                        </h3>
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            id="resolve-tables-view"
+                            checked={resolveTablesPreview}
+                            onCheckedChange={(checked) => setResolveTablesPreview(checked === true)}
+                            data-testid="checkbox-resolve-tables"
+                          />
+                          <Label htmlFor="resolve-tables-view" className="text-xs cursor-pointer">
+                            Resolve Tables
+                          </Label>
+                          {resolveTablesPreview && (
+                            <Select value={previewProjectId} onValueChange={setPreviewProjectId}>
+                              <SelectTrigger className="w-44 h-7 text-xs" data-testid="select-preview-project">
+                                <SelectValue placeholder="Select project..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {projects?.map((p) => (
+                                  <SelectItem key={p.id} value={p.id.toString()}>
+                                    {p.project_number} - {p.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        </div>
+                      </div>
+                      <div className="border rounded-md p-3 bg-muted/30 max-h-64 overflow-auto">
+                        {resolveTablesPreview && previewProjectId ? (
+                          isResolvingPreview ? (
+                            <div className="text-center text-muted-foreground py-4">Resolving tables...</div>
+                          ) : (
+                            <div 
+                              className="prose prose-sm dark:prose-invert max-w-none"
+                              dangerouslySetInnerHTML={{ 
+                                __html: resolvedPreviewData?.html || '<p class="text-muted-foreground">No content to preview</p>'
+                              }}
+                              data-testid="resolved-preview"
+                            />
+                          )
+                        ) : (
+                          <div 
+                            className="prose prose-sm dark:prose-invert max-w-none"
+                            dangerouslySetInnerHTML={{ 
+                              __html: getPreviewHtml(selectedClause) 
+                            }}
+                            data-testid="standard-preview"
+                          />
+                        )}
+                      </div>
                     </div>
                   </div>
                 )}
-              </div>
-
-              <div className="border-t bg-muted/30">
-                <div className="p-2 border-b bg-background">
-                  <div className="flex items-center justify-between gap-2 flex-wrap">
-                    <h3 className="text-sm font-medium flex items-center gap-2">
-                      <Eye className="h-4 w-4" />
-                      Live HTML Preview
-                    </h3>
-                    <div className="flex items-center gap-2">
-                      <Checkbox
-                        id="resolve-tables"
-                        checked={resolveTablesPreview}
-                        onCheckedChange={(checked) => setResolveTablesPreview(checked === true)}
-                        data-testid="checkbox-resolve-tables"
-                      />
-                      <Label htmlFor="resolve-tables" className="text-xs cursor-pointer">
-                        Resolve Tables
-                      </Label>
-                      {resolveTablesPreview && (
-                        <Select value={previewProjectId} onValueChange={setPreviewProjectId}>
-                          <SelectTrigger className="w-44 h-7 text-xs" data-testid="select-preview-project">
-                            <SelectValue placeholder="Select project..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {projects?.map((p) => (
-                              <SelectItem key={p.id} value={p.id.toString()}>
-                                {p.project_number} - {p.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                <div className="p-4 max-h-64 overflow-auto">
-                  {resolveTablesPreview && previewProjectId ? (
-                    isResolvingPreview ? (
-                      <div className="text-center text-muted-foreground py-4">Resolving tables...</div>
-                    ) : (
-                      <div 
-                        className="prose prose-sm dark:prose-invert max-w-none"
-                        dangerouslySetInnerHTML={{ 
-                          __html: resolvedPreviewData?.html || '<p class="text-muted-foreground">No content to preview</p>'
-                        }}
-                        data-testid="resolved-preview"
-                      />
-                    )
-                  ) : (
-                    <div 
-                      className="prose prose-sm dark:prose-invert max-w-none"
-                      dangerouslySetInnerHTML={{ 
-                        __html: getPreviewHtml(editingClause?.id === selectedClause.id 
-                          ? { header_text: editHeaderText, body_html: editBodyHtml, hierarchy_level: editHierarchyLevel }
-                          : selectedClause) 
-                      }}
-                      data-testid="standard-preview"
-                    />
-                  )}
-                </div>
-              </div>
+              </ScrollArea>
             </>
           ) : (
             <div className="flex-1 flex items-center justify-center text-muted-foreground">
