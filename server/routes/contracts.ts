@@ -1964,21 +1964,16 @@ router.get("/clauses", async (req, res) => {
       }]
     };
     
-    // Map to frontend expected format for backward compatibility
+    // Map to frontend expected format with atomic fields
     const mappedClauses = result.rows.map((row: any) => {
-      // Reconstruct content field by combining header and body for UI display
-      const headerHtml = row.header_text ? `<h4>${row.header_text}</h4>` : '';
-      const bodyHtml = row.body_html || '';
-      const reconstructedContent = headerHtml + bodyHtml;
-      
       return {
         id: row.id,
         clause_code: row.slug,
         parent_clause_id: row.parent_id,
         hierarchy_level: row.level,
         sort_order: row.order,
-        name: row.header_text,
-        content: reconstructedContent,
+        header_text: row.header_text || '',
+        body_html: row.body_html || '',
         contract_types: row.contract_types || [],
         tags: row.tags || [],
         created_at: row.created_at,
@@ -2065,7 +2060,8 @@ router.patch("/clauses/:id", async (req, res) => {
     // Map old field names to new schema
     const { 
       name, content, // Old field names
-      headerText, bodyHtml, // New field names
+      headerText, bodyHtml, // camelCase field names
+      header_text, body_html, // snake_case field names
       hierarchy_level, level, // Old/new
       contract_types, contractTypes, // Old/new
       sort_order, order, // Old/new
@@ -2077,21 +2073,21 @@ router.patch("/clauses/:id", async (req, res) => {
     const values: any[] = [];
     let paramCount = 1;
     
-    // Support both old and new field names
-    const finalHeaderText = headerText ?? name;
-    const finalBodyHtml = bodyHtml ?? content;
+    // Support all field name variations (snake_case, camelCase, old names)
+    const finalHeaderText = header_text ?? headerText ?? name;
+    const finalBodyHtml = body_html ?? bodyHtml ?? content;
     const finalLevel = level ?? hierarchy_level;
     const finalContractTypes = contractTypes ?? contract_types;
     const finalOrder = order ?? sort_order;
     const finalParentId = parentId ?? parent_clause_id;
     
     if (finalHeaderText !== undefined) {
-      updateFields.push(`"headerText" = $${paramCount}`);
+      updateFields.push(`header_text = $${paramCount}`);
       values.push(finalHeaderText);
       paramCount++;
     }
     if (finalBodyHtml !== undefined) {
-      updateFields.push(`"bodyHtml" = $${paramCount}`);
+      updateFields.push(`body_html = $${paramCount}`);
       values.push(finalBodyHtml);
       paramCount++;
     }
@@ -2101,7 +2097,7 @@ router.patch("/clauses/:id", async (req, res) => {
       paramCount++;
     }
     if (finalContractTypes !== undefined) {
-      updateFields.push(`"contractTypes" = $${paramCount}`);
+      updateFields.push(`contract_types = $${paramCount}`);
       values.push(JSON.stringify(finalContractTypes));
       paramCount++;
     }
@@ -2111,7 +2107,7 @@ router.patch("/clauses/:id", async (req, res) => {
       paramCount++;
     }
     if (finalParentId !== undefined) {
-      updateFields.push(`"parentId" = $${paramCount}`);
+      updateFields.push(`parent_id = $${paramCount}`);
       values.push(finalParentId);
       paramCount++;
     }
@@ -2125,7 +2121,7 @@ router.patch("/clauses/:id", async (req, res) => {
       return res.status(400).json({ error: "No fields to update" });
     }
     
-    updateFields.push(`"updatedAt" = NOW()`);
+    updateFields.push(`updated_at = NOW()`);
     values.push(id);
     
     const result = await pool.query(`

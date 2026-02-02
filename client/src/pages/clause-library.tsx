@@ -74,15 +74,10 @@ interface Clause {
   parent_clause_id: number | null;
   hierarchy_level: number;
   sort_order: number;
-  name: string;
-  category: string;
-  contract_type: string;
+  header_text: string;
+  body_html: string;
   contract_types: string[] | null;
-  content: string;
-  variables_used: string[] | null;
-  conditions: any;
-  risk_level: string;
-  negotiable: boolean;
+  tags: string[] | null;
   created_at: string;
   updated_at: string;
 }
@@ -158,8 +153,8 @@ export default function ClauseLibrary() {
   const [selectedClause, setSelectedClause] = useState<Clause | null>(null);
   const [expandedNodes, setExpandedNodes] = useState<Set<number>>(new Set());
   const [editingClause, setEditingClause] = useState<Clause | null>(null);
-  const [editName, setEditName] = useState("");
-  const [editContent, setEditContent] = useState("");
+  const [editHeaderText, setEditHeaderText] = useState("");
+  const [editBodyHtml, setEditBodyHtml] = useState("");
   const [editHierarchyLevel, setEditHierarchyLevel] = useState<number>(3);
   const [editContractTypes, setEditContractTypes] = useState<string[]>([]);
   const [draggedClause, setDraggedClause] = useState<Clause | null>(null);
@@ -286,12 +281,12 @@ export default function ClauseLibrary() {
 
   const getContentForPreview = () => {
     if (selectedClause && editingClause?.id === selectedClause.id) {
-      return editContent;
+      return editBodyHtml;
     }
-    return selectedClause?.content || "";
+    return selectedClause?.body_html || "";
   };
 
-  const previewContent = selectedClause && editingClause?.id === selectedClause.id ? editContent : (selectedClause?.content || "");
+  const previewContent = selectedClause && editingClause?.id === selectedClause.id ? editBodyHtml : (selectedClause?.body_html || "");
   
   const { data: resolvedPreviewData, isLoading: isResolvingPreview } = useQuery<{ html: string }>({
     queryKey: ["/api/resolve-clause-tables", previewContent, previewProjectId, resolveTablesPreview],
@@ -311,19 +306,19 @@ export default function ClauseLibrary() {
   });
 
   const insertTableVariable = (variableName: string) => {
-    const textarea = document.querySelector('[data-testid="textarea-edit-content"]') as HTMLTextAreaElement;
+    const textarea = document.querySelector('[data-testid="textarea-edit-body"]') as HTMLTextAreaElement;
     if (textarea) {
       const start = textarea.selectionStart;
       const end = textarea.selectionEnd;
-      const newContent = editContent.slice(0, start) + `{{${variableName}}}` + editContent.slice(end);
-      setEditContent(newContent);
+      const newContent = editBodyHtml.slice(0, start) + `{{${variableName}}}` + editBodyHtml.slice(end);
+      setEditBodyHtml(newContent);
       setTimeout(() => {
         textarea.focus();
         const newPos = start + variableName.length + 4;
         textarea.setSelectionRange(newPos, newPos);
       }, 0);
     } else {
-      setEditContent(editContent + `{{${variableName}}}`);
+      setEditBodyHtml(editBodyHtml + `{{${variableName}}}`);
     }
   };
 
@@ -520,27 +515,27 @@ export default function ClauseLibrary() {
 
   const startEditing = (clause: Clause) => {
     setEditingClause(clause);
-    setEditName(clause.name || "");
-    setEditContent(clause.content || "");
+    setEditHeaderText(clause.header_text || "");
+    setEditBodyHtml(clause.body_html || "");
     setEditHierarchyLevel(clause.hierarchy_level);
-    setEditContractTypes(clause.contract_types || (clause.contract_type ? [clause.contract_type] : []));
+    setEditContractTypes(clause.contract_types || []);
   };
 
   const saveEdits = () => {
     if (!editingClause) return;
     updateMutation.mutate({
       id: editingClause.id,
-      name: editName,
-      content: editContent,
+      header_text: editHeaderText,
+      body_html: editBodyHtml,
       hierarchy_level: editHierarchyLevel,
       contract_types: editContractTypes,
-    });
+    } as any);
   };
 
   const cancelEditing = () => {
     setEditingClause(null);
-    setEditName("");
-    setEditContent("");
+    setEditHeaderText("");
+    setEditBodyHtml("");
     setEditContractTypes([]);
   };
 
@@ -733,29 +728,29 @@ export default function ClauseLibrary() {
       .replace(/'/g, '&#039;');
   };
 
-  const getPreviewHtml = (clause: Clause) => {
+  const getPreviewHtml = (clause: { header_text: string; body_html: string; hierarchy_level: number }) => {
     const level = clause.hierarchy_level;
-    const name = clause.name || "";
-    let content = clause.content || "";
+    const headerText = clause.header_text || "";
+    let bodyHtml = clause.body_html || "";
     
-    content = content
+    bodyHtml = bodyHtml
       .replace(/\{\{([A-Z0-9_]+)\}\}/g, '<span class="bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 px-1 rounded font-mono text-xs">[[$1]]</span>');
 
     const styles: Record<number, { header: string; body: string }> = {
       1: {
-        header: "font-bold text-xl uppercase tracking-wide text-center border-b-2 border-gray-300 pb-2 mb-4",
+        header: "font-bold text-xl uppercase tracking-wide text-center border-b-2 border-gray-300 pb-2 mb-4 text-[#1a73e8]",
         body: "text-base leading-relaxed",
       },
       2: {
-        header: "font-bold text-lg uppercase tracking-wide mb-2",
+        header: "font-bold text-lg uppercase tracking-wide mb-2 text-[#1a73e8]",
         body: "text-base leading-relaxed ml-4",
       },
       3: {
-        header: "font-semibold text-base mb-1",
+        header: "font-semibold text-base mb-1 text-[#1a73e8]",
         body: "text-sm leading-relaxed ml-6",
       },
       4: {
-        header: "font-semibold text-sm uppercase mb-1 ml-6",
+        header: "font-semibold text-sm uppercase mb-1 ml-6 text-[#1a73e8]",
         body: "text-sm leading-relaxed ml-8",
       },
       5: {
@@ -779,9 +774,9 @@ export default function ClauseLibrary() {
     const style = styles[level] || styles[5];
 
     return `
-      <div class="py-2">
-        ${name ? `<div class="${style.header}">${escapeHtml(name)}</div>` : ''}
-        <div class="${style.body}">${content}</div>
+      <div class="clause-preview py-2" data-level="${level}">
+        ${headerText ? `<div class="clause-header level-${level} ${style.header}">${escapeHtml(headerText)}</div>` : ''}
+        <div class="clause-body ${style.body}">${bodyHtml}</div>
       </div>
     `;
   };
@@ -858,11 +853,11 @@ export default function ClauseLibrary() {
             L{clause.hierarchy_level}
           </Badge>
           <span className="text-xs text-muted-foreground font-mono">{currentNumber}</span>
-          <span className="text-sm flex-1 break-words" title={clause.name || "(Untitled)"}>
-            {clause.name || <span className="italic text-muted-foreground">(Untitled)</span>}
+          <span className="text-sm flex-1 break-words" title={clause.header_text || "(Untitled)"}>
+            {clause.header_text || <span className="italic text-muted-foreground">(Untitled)</span>}
           </span>
-          {clause.conditions && (
-            <Zap className="h-3 w-3 text-amber-500 shrink-0" />
+          {clause.tags && clause.tags.length > 0 && (
+            <Zap className="h-3 w-3 text-amber-500 shrink-0" title="Has tags" />
           )}
         </div>
         {hasChildren && isExpanded && (
@@ -1035,7 +1030,7 @@ export default function ClauseLibrary() {
                     >
                       {getHierarchyLabel(selectedClause.hierarchy_level)}
                     </Badge>
-                    {(selectedClause.contract_types || [selectedClause.contract_type]).filter(Boolean).map(type => (
+                    {(selectedClause.contract_types || []).filter(Boolean).map(type => (
                       <Badge key={type} variant="secondary" className="text-xs">
                         {type}
                       </Badge>
@@ -1082,18 +1077,29 @@ export default function ClauseLibrary() {
                 {editingClause?.id === selectedClause.id ? (
                   <div className="p-4 space-y-4">
                     <div>
-                      <Label htmlFor="edit-name">Header / Title</Label>
+                      <Label htmlFor="edit-header" className="flex items-center gap-2">
+                        Header / Title
+                        <Badge variant="outline" className={`text-xs ${getHierarchyColor(editHierarchyLevel)}`}>
+                          Level {editHierarchyLevel}
+                        </Badge>
+                      </Label>
                       <Input
-                        id="edit-name"
-                        value={editName}
-                        onChange={(e) => setEditName(e.target.value)}
-                        placeholder="Clause title..."
-                        data-testid="input-edit-name"
+                        id="edit-header"
+                        value={editHeaderText}
+                        onChange={(e) => setEditHeaderText(e.target.value)}
+                        placeholder="Clause header..."
+                        className={`mt-1 ${
+                          editHierarchyLevel <= 2 ? 'font-bold text-lg text-[#1a73e8] uppercase' :
+                          editHierarchyLevel <= 4 ? 'font-semibold text-[#1a73e8]' :
+                          editHierarchyLevel === 6 ? 'font-bold uppercase text-amber-600' :
+                          ''
+                        }`}
+                        data-testid="input-edit-header"
                       />
                     </div>
                     <div>
                       <div className="flex items-center justify-between mb-1">
-                        <Label htmlFor="edit-content">Body Content</Label>
+                        <Label htmlFor="edit-body">Body Content (HTML)</Label>
                         <Select onValueChange={insertTableVariable}>
                             <SelectTrigger className="w-48 h-8" data-testid="select-insert-table">
                               <Table className="h-4 w-4 mr-1" />
@@ -1123,13 +1129,13 @@ export default function ClauseLibrary() {
                           </Select>
                       </div>
                       <Textarea
-                        id="edit-content"
-                        value={editContent}
-                        onChange={(e) => setEditContent(e.target.value)}
-                        placeholder="Clause content..."
+                        id="edit-body"
+                        value={editBodyHtml}
+                        onChange={(e) => setEditBodyHtml(e.target.value)}
+                        placeholder="Clause body HTML content..."
                         rows={8}
                         className="font-mono text-sm"
-                        data-testid="textarea-edit-content"
+                        data-testid="textarea-edit-body"
                       />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
@@ -1175,25 +1181,19 @@ export default function ClauseLibrary() {
                 ) : (
                   <div className="p-4">
                     <div className="mb-4">
-                      <h3 className="font-bold text-[#1a73e8] text-lg mb-2">
-                        {selectedClause.name || "(No Header)"}
+                      <h3 className={`mb-2 ${
+                        selectedClause.hierarchy_level <= 2 ? 'font-bold text-lg text-[#1a73e8] uppercase' :
+                        selectedClause.hierarchy_level <= 4 ? 'font-semibold text-[#1a73e8]' :
+                        selectedClause.hierarchy_level === 6 ? 'font-bold uppercase text-amber-600' :
+                        'font-medium'
+                      }`}>
+                        {selectedClause.header_text || "(No Header)"}
                       </h3>
-                      <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                        {selectedClause.content || "(No Content)"}
-                      </p>
+                      <div 
+                        className="text-sm text-muted-foreground prose prose-sm dark:prose-invert max-w-none"
+                        dangerouslySetInnerHTML={{ __html: selectedClause.body_html || "(No Content)" }}
+                      />
                     </div>
-                    {selectedClause.variables_used && selectedClause.variables_used.length > 0 && (
-                      <div className="mt-4 pt-4 border-t">
-                        <h4 className="text-xs font-medium text-muted-foreground mb-2">Variables Used:</h4>
-                        <div className="flex flex-wrap gap-1">
-                          {selectedClause.variables_used.map((v) => (
-                            <Badge key={v} variant="outline" className="font-mono text-xs">
-                              {`{{${v}}}`}
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
-                    )}
                   </div>
                 )}
               </div>
@@ -1250,7 +1250,7 @@ export default function ClauseLibrary() {
                       className="prose prose-sm dark:prose-invert max-w-none"
                       dangerouslySetInnerHTML={{ 
                         __html: getPreviewHtml(editingClause?.id === selectedClause.id 
-                          ? { ...selectedClause, name: editName, content: editContent, hierarchy_level: editHierarchyLevel }
+                          ? { header_text: editHeaderText, body_html: editBodyHtml, hierarchy_level: editHierarchyLevel }
                           : selectedClause) 
                       }}
                       data-testid="standard-preview"
