@@ -119,14 +119,24 @@ export default function ContractsPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <Link href={`/contracts/${contract.id}/edit`}>
+                        <Link href={`/generate-contracts?projectId=${contract.projectId}`}>
                           <Button
                             size="sm"
                             variant="default"
-                            data-testid={`button-edit-${contract.id}`}
+                            data-testid={`button-edit-project-${contract.id}`}
                           >
                             <Pencil className="h-4 w-4 mr-1" />
-                            Edit
+                            Edit Project
+                          </Button>
+                        </Link>
+                        <Link href={`/contracts/${contract.id}/edit`}>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            data-testid={`button-edit-clauses-${contract.id}`}
+                          >
+                            <Pencil className="h-4 w-4 mr-1" />
+                            Clauses
                           </Button>
                         </Link>
                         <Link href={`/contracts/${contract.id}`}>

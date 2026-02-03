@@ -581,6 +581,18 @@ export function mapProjectToVariables(
     CHILD_LLC_ANNUAL_REPORT_DUE: childLlc?.annualReportDue || "",
 
     // ===================
+    // COMPANY / SIGNATURE BLOCK
+    // ===================
+    COMPANY_NAME: childLlc?.legalName || "Dvele, Inc.",
+    COMPANY_ENTITY_TYPE: childLlc ? "limited liability company" : "corporation",
+    COMPANY_SIGNATORY_NAME: "Authorized Representative",
+    COMPANY_SIGNATORY_TITLE: "VP of Operations",
+    DVELE_LEGAL_NAME: "Dvele, Inc.",
+    DVELE_ADDRESS: "123 Main Street, San Diego, CA 92101",
+    DVELE_STATE: "Delaware",
+    DVELE_ENTITY_TYPE: "corporation",
+
+    // ===================
     // SITE / DELIVERY
     // ===================
     DELIVERY_ADDRESS: projectDetails?.deliveryAddress || "",

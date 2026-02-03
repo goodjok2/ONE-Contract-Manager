@@ -978,30 +978,48 @@ router.get("/contracts/:id/clauses", async (req, res) => {
       return res.status(404).json({ error: "Contract not found" });
     }
 
-    const contractTypeMap: Record<string, string> = {
-      'one_agreement': 'ONE_AGREEMENT',
-      'ONE': 'ONE_AGREEMENT',
-      'ONE Agreement': 'ONE_AGREEMENT',
-      'ONE_AGREEMENT': 'ONE_AGREEMENT',
-      'manufacturing_sub': 'OFFSITE',
-      'MANUFACTURING': 'OFFSITE',
-      'OFFSITE': 'OFFSITE',
-      'onsite_sub': 'ON_SITE',
-      'ONSITE': 'ON_SITE',
-      'ON_SITE': 'ON_SITE',
-    };
-    
-    const templateType = contractTypeMap[contract.contractType] || 'ONE_AGREEMENT';
-    
-    // Query using atomic clause structure (header_text, body_html)
-    const clauseQuery = `
-      SELECT c.id, c.slug, c.header_text, c.body_html, c.level, c."order", c.contract_types, c.tags
-      FROM clauses c
-      WHERE c.contract_types @> $1::jsonb OR c.contract_types @> '["ALL"]'::jsonb
-      ORDER BY c."order", c.slug
+    // FIRST: Try to get hydrated clauses from contract_clauses table
+    const hydratedQuery = `
+      SELECT cc.id, cc.clause_id, cc.header_text, cc.body_html, cc.level, cc."order",
+             c.slug, c.contract_types, c.tags
+      FROM contract_clauses cc
+      LEFT JOIN clauses c ON c.id = cc.clause_id
+      WHERE cc.contract_id = $1
+      ORDER BY cc."order" ASC
     `;
     
-    const result = await pool.query(clauseQuery, [JSON.stringify([templateType])]);
+    let result = await pool.query(hydratedQuery, [contractId]);
+    console.log(`📋 Contract ${contractId}: Found ${result.rows.length} hydrated clauses in contract_clauses`);
+    
+    // FALLBACK: If no hydrated clauses, query from clauses table using contract_types
+    if (result.rows.length === 0) {
+      console.log(`⚠️ No hydrated clauses for contract ${contractId}, falling back to clauses table`);
+      
+      const contractTypeMap: Record<string, string> = {
+        'one_agreement': 'ONE_AGREEMENT',
+        'ONE': 'ONE_AGREEMENT',
+        'ONE Agreement': 'ONE_AGREEMENT',
+        'ONE_AGREEMENT': 'ONE_AGREEMENT',
+        'manufacturing_sub': 'OFFSITE',
+        'MANUFACTURING': 'OFFSITE',
+        'OFFSITE': 'OFFSITE',
+        'onsite_sub': 'ON_SITE',
+        'ONSITE': 'ON_SITE',
+        'ON_SITE': 'ON_SITE',
+      };
+      
+      const templateType = contractTypeMap[contract.contractType] || 'ONE_AGREEMENT';
+      
+      const clauseQuery = `
+        SELECT c.id, c.slug, c.header_text, c.body_html, c.level, c."order", c.contract_types, c.tags
+        FROM clauses c
+        WHERE c.contract_types @> $1::jsonb OR c.contract_types @> '["ALL"]'::jsonb
+        ORDER BY c."order", c.slug
+      `;
+      
+      result = await pool.query(clauseQuery, [JSON.stringify([templateType])]);
+      console.log(`📋 Fallback: Found ${result.rows.length} clauses from clauses table`);
+    }
     
     let variables: Record<string, string | number | boolean | null> = {};
     if (contract.projectId) {
@@ -1187,7 +1205,7 @@ router.post("/contracts/preview-clauses", async (req, res) => {
     
     const templateQuery = `
       SELECT * FROM contract_templates
-      WHERE contract_type = $1 AND status = 'active'
+      WHERE contract_type = $1 AND (status = 'active' OR status IS NULL)
       LIMIT 1
     `;
     
@@ -1195,13 +1213,25 @@ router.post("/contracts/preview-clauses", async (req, res) => {
     
     if (templateResult.rows.length === 0) {
       return res.status(404).json({ 
-        error: `No active template found for: ${contractType}` 
+        error: `No template found for: ${contractType}` 
       });
     }
     
     const template = templateResult.rows[0];
     
+    // Try base_clause_ids first, then fall back to template_clauses junction
     let clauseIds = [...(template.base_clause_ids || [])];
+    
+    // If base_clause_ids is empty, try template_clauses junction table
+    if (clauseIds.length === 0) {
+      console.log(`⚠️ Template ${template.id} has empty base_clause_ids, checking template_clauses junction`);
+      const junctionResult = await pool.query(
+        `SELECT clause_id FROM template_clauses WHERE template_id = $1 ORDER BY order_index`,
+        [template.id]
+      );
+      clauseIds = junctionResult.rows.map((r: any) => r.clause_id);
+      console.log(`📋 Found ${clauseIds.length} clauses via template_clauses junction`);
+    }
     
     const conditionalRules = template.conditional_rules || {};
     for (const [conditionKey, ruleSet] of Object.entries(conditionalRules)) {
@@ -1215,7 +1245,7 @@ router.post("/contracts/preview-clauses", async (req, res) => {
     if (clauseIds.length === 0) {
       return res.json({
         contractType: contractType.toUpperCase(),
-        template: template.display_name,
+        template: template.display_name || template.name,
         summary: { totalClauses: 0, sections: 0, subsections: 0, paragraphs: 0 },
         allClauses: []
       });

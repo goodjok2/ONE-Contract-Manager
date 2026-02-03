@@ -785,4 +785,158 @@ Payment terms, milestone triggers, and amounts are detailed in the Payment Sched
   }
 });
 
+// ---------------------------------------------------------------------------
+// TEMPLATE DIAGNOSTICS AND REPAIR
+// ---------------------------------------------------------------------------
+
+router.get("/system/diagnose-templates", async (req, res) => {
+  try {
+    console.log("🔍 RUNNING TEMPLATE DIAGNOSTICS...");
+    const client = await pool.connect();
+    
+    try {
+      const report: any = {
+        timestamp: new Date().toISOString(),
+        clauseCounts: {},
+        templateStatus: [],
+        templateClausesCounts: {},
+        repairActions: [],
+        errors: []
+      };
+
+      // 1. Count clauses in clauses table
+      const clauseCountResult = await client.query(`
+        SELECT COUNT(*) as total FROM clauses
+      `);
+      report.clauseCounts.total = parseInt(clauseCountResult.rows[0].total);
+      console.log(`📋 Total clauses in database: ${report.clauseCounts.total}`);
+
+      // 2. Count rows in contract_templates
+      const templatesResult = await client.query(`
+        SELECT id, contract_type, name, 
+               COALESCE(array_length(base_clause_ids, 1), 0) as base_ids_count,
+               conditional_rules IS NOT NULL as has_rules,
+               is_active
+        FROM contract_templates
+        ORDER BY contract_type
+      `);
+      
+      console.log(`📄 Found ${templatesResult.rows.length} templates`);
+
+      // 3. Count template_clauses entries per template
+      const templateClausesResult = await client.query(`
+        SELECT template_id, COUNT(*) as clause_count 
+        FROM template_clauses 
+        GROUP BY template_id
+      `);
+      
+      const templateClausesMap = new Map();
+      for (const row of templateClausesResult.rows) {
+        templateClausesMap.set(row.template_id, parseInt(row.clause_count));
+      }
+
+      // 4. Process each template
+      for (const template of templatesResult.rows) {
+        const junctionCount = templateClausesMap.get(template.id) || 0;
+        const templateInfo = {
+          id: template.id,
+          contractType: template.contract_type,
+          name: template.name,
+          baseClauseIdsCount: template.base_ids_count,
+          templateClausesCount: junctionCount,
+          hasConditionalRules: template.has_rules,
+          isActive: template.is_active,
+          status: 'healthy'
+        };
+
+        // Check health
+        if (junctionCount === 0) {
+          templateInfo.status = 'empty_junction';
+        } else if (template.base_ids_count === 0) {
+          templateInfo.status = 'empty_base_ids';
+        }
+
+        report.templateStatus.push(templateInfo);
+        report.templateClausesCounts[template.contract_type] = junctionCount;
+        console.log(`  Template ${template.contract_type}: ${junctionCount} clauses via junction, ${template.base_ids_count} in base_clause_ids`);
+      }
+
+      // 5. Check if we need to create missing templates
+      const requiredTypes = ['ONE', 'MANUFACTURING', 'ONSITE'];
+      const existingTypes = templatesResult.rows.map((r: any) => r.contract_type);
+      
+      for (const type of requiredTypes) {
+        if (!existingTypes.includes(type)) {
+          report.repairActions.push({
+            action: 'create_template',
+            type,
+            status: 'pending',
+            message: `Template for ${type} does not exist`
+          });
+        }
+      }
+
+      // 6. Offer repair if auto-repair query param is set
+      const autoRepair = req.query.repair === 'true';
+      
+      if (autoRepair) {
+        console.log("🔧 AUTO-REPAIR MODE ENABLED");
+        
+        // Sync base_clause_ids from template_clauses junction table
+        for (const template of templatesResult.rows) {
+          const junctionCount = templateClausesMap.get(template.id) || 0;
+          
+          if (junctionCount > 0 && template.base_ids_count !== junctionCount) {
+            // Update base_clause_ids from template_clauses
+            const syncResult = await client.query(`
+              UPDATE contract_templates
+              SET base_clause_ids = (
+                SELECT ARRAY_AGG(clause_id ORDER BY order_index)
+                FROM template_clauses
+                WHERE template_id = $1
+              )
+              WHERE id = $1
+              RETURNING array_length(base_clause_ids, 1) as new_count
+            `, [template.id]);
+            
+            const newCount = syncResult.rows[0]?.new_count || 0;
+            report.repairActions.push({
+              action: 'sync_base_clause_ids',
+              templateId: template.id,
+              contractType: template.contract_type,
+              previousCount: template.base_ids_count,
+              newCount,
+              status: 'completed'
+            });
+            console.log(`  ✅ Synced ${template.contract_type}: ${template.base_ids_count} → ${newCount} base_clause_ids`);
+          }
+        }
+      }
+
+      // Summary
+      report.summary = {
+        totalClauses: report.clauseCounts.total,
+        totalTemplates: templatesResult.rows.length,
+        healthyTemplates: report.templateStatus.filter((t: any) => t.status === 'healthy').length,
+        templatesNeedingRepair: report.templateStatus.filter((t: any) => t.status !== 'healthy').length,
+        repairActionsCompleted: report.repairActions.filter((a: any) => a.status === 'completed').length,
+        repairActionsPending: report.repairActions.filter((a: any) => a.status === 'pending').length
+      };
+
+      console.log("✅ TEMPLATE DIAGNOSTICS COMPLETE");
+      console.log(`  Healthy: ${report.summary.healthyTemplates}, Needs Repair: ${report.summary.templatesNeedingRepair}`);
+
+      res.json(report);
+    } finally {
+      client.release();
+    }
+  } catch (error: any) {
+    console.error("Template diagnostics failed:", error);
+    res.status(500).json({ 
+      error: "Template diagnostics failed",
+      details: error?.message 
+    });
+  }
+});
+
 export default router;
