@@ -784,7 +784,15 @@ router.get("/contracts", async (req, res) => {
 
 router.post("/contracts", async (req, res) => {
   try {
-    const { projectId, contractType, status } = req.body;
+    const { projectId, contractType, status, templateId } = req.body;
+    
+    // Validation: Require templateId
+    if (!templateId) {
+      console.log("❌ POST /contracts failed: Missing templateId");
+      return res.status(400).json({ error: "Missing templateId" });
+    }
+    
+    console.log("🚀 STARTING GENERATION. TemplateID:", templateId, "ProjectID:", projectId);
     
     // Normalize status to ensure consistency
     const normalizedStatus = status === "draft" ? "Draft" : status;
@@ -792,6 +800,27 @@ router.post("/contracts", async (req, res) => {
     
     const client = await pool.connect();
     try {
+      // Fetch playlist from template_clauses
+      const playlistResult = await client.query(
+        `SELECT tc.*, c.header_text, c.body_html, c.level 
+         FROM template_clauses tc
+         JOIN clauses c ON c.id = tc.clause_id
+         WHERE tc.template_id = $1 
+         ORDER BY tc.order_index ASC`,
+        [templateId]
+      );
+      
+      console.log("📋 Found", playlistResult.rows.length, "entries in template_clauses for template", templateId);
+      
+      // Guard clause: Template must have clauses
+      if (playlistResult.rows.length === 0) {
+        console.log("❌ Template is empty. No clauses found for template ID:", templateId);
+        return res.status(400).json({ 
+          error: "Template is empty. Please re-import the template.",
+          templateId 
+        });
+      }
+      
       await client.query('BEGIN');
       
       // Delete existing drafts for same project/type (version control)
@@ -805,7 +834,6 @@ router.post("/contracts", async (req, res) => {
         
         if (deleteResult.rowCount && deleteResult.rowCount > 0) {
           console.log(`🔄 Version control: Replacing ${deleteResult.rowCount} existing draft(s) for project ${projectId}, type ${contractType}`);
-          // Also delete old contract_clauses for deleted contracts
           for (const row of deleteResult.rows) {
             await client.query('DELETE FROM contract_clauses WHERE contract_id = $1', [row.id]);
           }
@@ -833,57 +861,30 @@ router.post("/contracts", async (req, res) => {
       
       const newContract = insertResult.rows[0];
       
-      // HYDRATE CONTRACT: Copy clauses from template_clauses junction table
-      // First, find the template by contract_type
-      const templateResult = await client.query(
-        `SELECT id FROM contract_templates WHERE contract_type = $1 LIMIT 1`,
-        [contractType]
-      );
-      
-      let clauseCount = 0;
-      
-      if (templateResult.rows.length > 0) {
-        const templateId = templateResult.rows[0].id;
-        
-        // Fetch clauses via template_clauses junction, ordered by order_index
-        const clausesResult = await client.query(
-          `SELECT c.id, c.header_text, c.body_html, c.level, tc.order_index
-           FROM template_clauses tc
-           JOIN clauses c ON c.id = tc.clause_id
-           WHERE tc.template_id = $1
-           ORDER BY tc.order_index ASC`,
-          [templateId]
+      // Insert clauses into contract_clauses from the playlist
+      for (const row of playlistResult.rows) {
+        await client.query(
+          `INSERT INTO contract_clauses (contract_id, clause_id, header_text, body_html, level, "order")
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [
+            newContract.id,
+            row.clause_id,
+            row.header_text,
+            row.body_html,
+            row.level,
+            row.order_index
+          ]
         );
-        
-        console.log(`📋 Found ${clausesResult.rows.length} relational clauses for Template ID ${templateId}`);
-        
-        // Insert clauses into contract_clauses
-        for (const clause of clausesResult.rows) {
-          await client.query(
-            `INSERT INTO contract_clauses (contract_id, clause_id, header_text, body_html, level, "order")
-             VALUES ($1, $2, $3, $4, $5, $6)`,
-            [
-              newContract.id,
-              clause.id,
-              clause.header_text,
-              clause.body_html,
-              clause.level,
-              clause.order_index
-            ]
-          );
-        }
-        
-        clauseCount = clausesResult.rows.length;
-      } else {
-        console.log(`⚠️ No template found for contract type ${contractType}`);
       }
       
       await client.query('COMMIT');
       
+      console.log("✅ SUCCESS. Inserted", playlistResult.rows.length, "clauses into contract", newContract.id);
+      
       // Return contract with clause count
       res.json({
         ...newContract,
-        clauseCount
+        clauseCount: playlistResult.rows.length
       });
     } catch (txError) {
       await client.query('ROLLBACK');
@@ -892,7 +893,7 @@ router.post("/contracts", async (req, res) => {
       client.release();
     }
   } catch (error) {
-    console.error("Failed to create contract:", error);
+    console.error("❌ Failed to create contract:", error);
     res.status(500).json({ error: "Failed to create contract" });
   }
 });

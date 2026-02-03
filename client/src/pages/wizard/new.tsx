@@ -748,9 +748,21 @@ export default function NewContractWizard() {
         basePriceSnapshot: selectedModel.offsite_base_price,
       });
 
+      // Fetch template ID for contract type ONE
+      const templateRes = await fetch("/api/contract-templates?contractType=ONE");
+      if (!templateRes.ok) {
+        throw new Error("Failed to fetch template");
+      }
+      const templates = await templateRes.json();
+      const template = templates.find((t: any) => t.contractType === "ONE" || t.contract_type === "ONE");
+      if (!template) {
+        throw new Error("No template found for contract type ONE. Please import a template first.");
+      }
+
       const contractRes = await apiRequest("POST", "/api/contracts", {
         projectId: project.id,
         contractType: "ONE",
+        templateId: template.id,
         status: "draft",
       });
 
