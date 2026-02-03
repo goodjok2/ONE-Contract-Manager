@@ -9,6 +9,8 @@ import {
   FileCheck,
   Users,
   Settings,
+  Variable,
+  Blocks,
 } from "lucide-react";
 
 const adminNavItems = [
@@ -20,6 +22,8 @@ const adminNavItems = [
   { href: "/admin/state-disclosures", label: "State Disclosures", icon: MapPin },
   { href: "/admin/contract-templates", label: "Contract Templates", icon: FileCheck },
   { href: "/admin/contractor-entities", label: "Contractors", icon: Users },
+  { href: "/admin/variables", label: "Variables", icon: Variable },
+  { href: "/admin/components", label: "Components", icon: Blocks },
 ];
 
 interface AdminLayoutProps {
