@@ -1,0 +1,54 @@
+Prompt 2: Verify/Port Pricing Engine & Table Generators
+Goal: Ensure server/services/pricingEngine.ts and server/lib/tableGenerators.ts exist in the current codebase and are working.
+Instructions:
+
+Check if these files exist:
+
+server/services/pricingEngine.ts
+server/lib/tableGenerators.ts
+
+
+If pricingEngine.ts does NOT exist, create it with this content (from v3):
+
+The pricing engine must:
+
+Accept a projectId
+Query project_units joined to home_models for that project
+Query financials for the project
+Query milestones for the project
+Calculate: totalDesignFee, totalOffsite, totalOnsite, totalCustomizations
+Determine serviceModel from project.on_site_selection (CRC or CMOS)
+Calculate projectBudget = design + offsite + onsite (always)
+Calculate contractValue = CRC excludes onsite, CMOS includes all
+Generate default 6-milestone payment schedule if no milestones exist:
+
+Signing Deposit: 20%
+Green Light: 20%
+Production Start: 20%
+Production Midpoint: 20%
+Delivery: 15%
+Retainage: 5%
+
+
+Payment amounts calculated against contractValue, not projectBudget
+Include reconciliation step: adjust last milestone to eliminate rounding discrepancy
+Return PricingSummary object with breakdown, grandTotal, projectBudget, contractValue, serviceModel, paymentSchedule, unitCount, unitModelSummary
+
+
+If tableGenerators.ts does NOT exist, create it with three functions:
+
+generatePricingTableHtml(pricingSummary, contractType) — Pricing breakdown table
+generatePaymentScheduleHtml(paymentSchedule, contractType, filteredContractTotal?) — Payment milestone table
+generateUnitDetailsHtml(units) — Unit breakdown table
+
+All three must produce inline-styled HTML tables (not CSS classes) for PDF compatibility. Use dark header rows (#2c3e50 background, white text), alternating row colors, and proper currency formatting.
+Contract type filtering:
+
+ONE: shows everything
+MANUFACTURING: design + offsite only
+ONSITE: onsite costs only
+
+
+Verify the imports in server/lib/contractGenerator.ts reference these files correctly. Look for import { calculateProjectPricing } and import { generatePricingTableHtml, generatePaymentScheduleHtml, generateUnitDetailsHtml }.
+
+Do not modify the contract generator logic. Only verify/create the engine and generator files.
