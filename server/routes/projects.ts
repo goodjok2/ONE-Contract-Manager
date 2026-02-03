@@ -676,4 +676,95 @@ router.delete("/contractors/:id", async (req, res) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// PROJECT UNITS (nested under projects for wizard compatibility)
+// ---------------------------------------------------------------------------
+
+router.get('/projects/:projectId/units', async (req, res) => {
+  try {
+    const projectId = parseInt(req.params.projectId);
+    const result = await pool.query(
+      `SELECT pu.id, pu.project_id as "projectId", pu.model_id as "modelId", 
+              pu.unit_label as "unitLabel", pu.base_price_snapshot as "basePriceSnapshot",
+              pu.customization_total as "customizationTotal",
+              json_build_object(
+                'id', hm.id,
+                'name', hm.name,
+                'modelCode', hm.model_code,
+                'bedrooms', hm.bedrooms,
+                'bathrooms', hm.bathrooms,
+                'sqFt', hm.sq_ft,
+                'designFee', hm.design_fee,
+                'offsiteBasePrice', hm.offsite_base_price,
+                'onsiteEstPrice', hm.onsite_est_price
+              ) as model
+       FROM project_units pu
+       LEFT JOIN home_models hm ON pu.model_id = hm.id
+       WHERE pu.project_id = $1
+       ORDER BY pu.unit_label`,
+      [projectId]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error("Failed to fetch project units:", error);
+    res.status(500).json({ error: "Failed to fetch project units" });
+  }
+});
+
+router.post('/projects/:projectId/units', async (req, res) => {
+  try {
+    const projectId = parseInt(req.params.projectId);
+    const { modelId } = req.body;
+    
+    const modelResult = await pool.query(
+      `SELECT * FROM home_models WHERE id = $1`,
+      [modelId]
+    );
+    
+    if (modelResult.rows.length === 0) {
+      return res.status(404).json({ error: "Home model not found" });
+    }
+    
+    const model = modelResult.rows[0];
+    
+    const countResult = await pool.query(
+      `SELECT COUNT(*) as count FROM project_units WHERE project_id = $1`,
+      [projectId]
+    );
+    const unitCount = parseInt(countResult.rows[0].count) + 1;
+    const unitLabel = `Unit ${String.fromCharCode(64 + unitCount)}`;
+    
+    const insertResult = await pool.query(
+      `INSERT INTO project_units (project_id, model_id, unit_label, base_price_snapshot, onsite_estimate_snapshot)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING *`,
+      [projectId, modelId, unitLabel, model.offsite_base_price, model.onsite_est_price]
+    );
+    
+    const newUnit = insertResult.rows[0];
+    res.status(201).json({
+      id: newUnit.id,
+      projectId: newUnit.project_id,
+      modelId: newUnit.model_id,
+      unitLabel: newUnit.unit_label,
+      basePriceSnapshot: newUnit.base_price_snapshot,
+      customizationTotal: newUnit.customization_total,
+      model: {
+        id: model.id,
+        name: model.name,
+        modelCode: model.model_code,
+        bedrooms: model.bedrooms,
+        bathrooms: model.bathrooms,
+        sqFt: model.sq_ft,
+        designFee: model.design_fee,
+        offsiteBasePrice: model.offsite_base_price,
+        onsiteEstPrice: model.onsite_est_price
+      }
+    });
+  } catch (error) {
+    console.error("Failed to add unit:", error);
+    res.status(500).json({ error: "Failed to add unit" });
+  }
+});
+
 export default router;
