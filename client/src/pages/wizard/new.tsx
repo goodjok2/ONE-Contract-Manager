@@ -764,7 +764,7 @@ export default function NewContractWizard() {
       });
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
       queryClient.invalidateQueries({ queryKey: ["/api/contracts"] });
-      navigate(`/contracts/${contract.id}`);
+      navigate(`/contracts/${contract.id}/edit`);
     },
     onError: (error: any) => {
       console.error("Error creating contract:", error);

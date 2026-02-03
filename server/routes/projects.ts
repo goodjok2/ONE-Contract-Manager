@@ -223,7 +223,44 @@ router.get("/projects/:id", async (req, res) => {
 
 router.post("/projects", async (req, res) => {
   try {
-    const [result] = await db.insert(projects).values(req.body).returning();
+    let { llcId, ...projectData } = req.body;
+    
+    // Auto-generate LLC if not provided
+    if (!llcId) {
+      // Get site address from project details or project name
+      const siteAddress = projectData.siteAddress || projectData.name || "New Project";
+      
+      // Generate LLC name: "DP [Street Name] LLC"
+      const streetMatch = siteAddress.match(/^\d+\s+(.+?)(?:,|\s+(?:St|Street|Ave|Avenue|Rd|Road|Dr|Drive|Blvd|Boulevard|Ln|Lane|Way|Ct|Court|Pl|Place))?/i);
+      const streetName = streetMatch ? streetMatch[1].trim() : siteAddress.split(',')[0].trim();
+      const llcName = `DP ${streetName} LLC`;
+      
+      console.log(`🏢 Auto-generating LLC: ${llcName} for project: ${projectData.name}`);
+      
+      // Insert new LLC
+      const llcResult = await pool.query(
+        `INSERT INTO llcs (organization_id, name, project_name, project_address, status, state_of_formation)
+         VALUES ($1, $2, $3, $4, 'forming', $5)
+         RETURNING id`,
+        [
+          projectData.organizationId || 1,
+          llcName,
+          projectData.name,
+          siteAddress,
+          projectData.state || 'Delaware'
+        ]
+      );
+      
+      llcId = llcResult.rows[0].id;
+      console.log(`✅ Created LLC id: ${llcId}`);
+    }
+    
+    // Insert project with LLC reference
+    const [result] = await db.insert(projects).values({
+      ...projectData,
+      llcId
+    }).returning();
+    
     res.json(result);
   } catch (error) {
     console.error("Failed to create project:", error);

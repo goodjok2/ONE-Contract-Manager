@@ -218,6 +218,7 @@ export const projects = pgTable("projects", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id")
     .references(() => organizations.id),
+  llcId: integer("llc_id"), // Reference to child LLC (auto-generated if not provided)
   projectNumber: text("project_number").unique().notNull(),
   name: text("name").notNull(),
   status: text("status").default("Draft").notNull(), // Draft, Design, GreenLight, Production, Delivered, Complete
@@ -541,6 +542,32 @@ export const clauses = pgTable("clauses", {
   // Metadata
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at"),
+});
+
+// =============================================================================
+// CONTRACT CLAUSES (Instance-level clause snapshots)
+// =============================================================================
+
+export const contractClauses = pgTable("contract_clauses", {
+  id: serial("id").primaryKey(),
+  contractId: integer("contract_id")
+    .references(() => contracts.id)
+    .notNull(),
+  clauseId: integer("clause_id")
+    .references(() => clauses.id), // Reference to original clause (nullable for custom)
+  
+  // Snapshot of clause at generation time (immutable)
+  headerText: text("header_text"),
+  bodyHtml: text("body_html"),
+  level: integer("level").notNull(),
+  order: integer("order").notNull(),
+  
+  // Overrides
+  customContent: text("custom_content"), // Optional override content
+  isExcluded: boolean("is_excluded").default(false), // Clause excluded from contract
+  
+  // Metadata
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 // =============================================================================

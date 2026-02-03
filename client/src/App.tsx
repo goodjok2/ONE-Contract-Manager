@@ -48,6 +48,7 @@ function Router() {
       <Route path="/generate-contracts" component={GenerateContracts} />
       <Route path="/contracts" component={Contracts} />
       <Route path="/contracts/:id" component={ContractDetail} />
+      <Route path="/contracts/:id/edit" component={ContractDetail} />
       <Route path="/templates" component={Templates} />
       <Route path="/templates-upload" component={TemplatesUpload} />
       <Route path="/llc-admin" component={LLCAdmin} />

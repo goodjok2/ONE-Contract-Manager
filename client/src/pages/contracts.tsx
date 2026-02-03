@@ -312,9 +312,10 @@ export default function Contracts() {
                                   >
                                     <Download className="h-4 w-4" />
                                   </Button>
-                                  <Link href={`/contracts/${contract.id}`}>
-                                    <Button variant="outline" size="sm" data-testid={`button-view-contract-${contract.id}`}>
-                                      View
+                                  <Link href={`/contracts/${contract.id}/edit`}>
+                                    <Button variant="outline" size="sm" data-testid={`button-edit-contract-${contract.id}`}>
+                                      <Pencil className="h-3 w-3 mr-2" />
+                                      Edit
                                     </Button>
                                   </Link>
                                 </div>

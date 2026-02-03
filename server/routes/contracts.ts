@@ -790,14 +790,12 @@ router.post("/contracts", async (req, res) => {
     const normalizedStatus = status === "draft" ? "Draft" : status;
     const contractData = { ...req.body, status: normalizedStatus };
     
-    // Version control: If creating a new Draft, use a transaction to atomically
-    // delete existing Drafts for the same project/type and insert the new one
-    if (projectId && contractType && normalizedStatus === "Draft") {
-      const client = await pool.connect();
-      try {
-        await client.query('BEGIN');
-        
-        // Delete existing drafts for same project/type
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      
+      // Delete existing drafts for same project/type (version control)
+      if (projectId && contractType && normalizedStatus === "Draft") {
         const deleteResult = await client.query(
           `DELETE FROM contracts 
            WHERE project_id = $1 AND contract_type = $2 AND status = 'Draft'
@@ -807,39 +805,74 @@ router.post("/contracts", async (req, res) => {
         
         if (deleteResult.rowCount && deleteResult.rowCount > 0) {
           console.log(`🔄 Version control: Replacing ${deleteResult.rowCount} existing draft(s) for project ${projectId}, type ${contractType}`);
+          // Also delete old contract_clauses for deleted contracts
+          for (const row of deleteResult.rows) {
+            await client.query('DELETE FROM contract_clauses WHERE contract_id = $1', [row.id]);
+          }
         }
-        
-        // Insert new contract
-        const insertResult = await client.query(
-          `INSERT INTO contracts (project_id, contract_type, version, status, generated_at, generated_by, template_version, file_path, file_name, notes)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-           RETURNING *`,
+      }
+      
+      // Insert new contract
+      const insertResult = await client.query(
+        `INSERT INTO contracts (project_id, contract_type, version, status, generated_at, generated_by, template_version, file_path, file_name, notes)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         RETURNING *`,
+        [
+          contractData.projectId,
+          contractData.contractType,
+          contractData.version || 1,
+          contractData.status || 'Draft',
+          contractData.generatedAt || new Date(),
+          contractData.generatedBy || null,
+          contractData.templateVersion || null,
+          contractData.filePath || null,
+          contractData.fileName || null,
+          contractData.notes || null
+        ]
+      );
+      
+      const newContract = insertResult.rows[0];
+      
+      // HYDRATE CONTRACT: Copy clauses from library to contract_clauses
+      // Fetch all clauses that match the contract type
+      const clausesResult = await client.query(
+        `SELECT id, header_text, body_html, level, "order"
+         FROM clauses 
+         WHERE contract_types @> $1::jsonb
+         ORDER BY "order" ASC`,
+        [JSON.stringify([contractType])]
+      );
+      
+      console.log(`📋 Hydrating contract ${newContract.id} with ${clausesResult.rows.length} clauses for type ${contractType}`);
+      
+      // Insert clauses into contract_clauses
+      for (const clause of clausesResult.rows) {
+        await client.query(
+          `INSERT INTO contract_clauses (contract_id, clause_id, header_text, body_html, level, "order")
+           VALUES ($1, $2, $3, $4, $5, $6)`,
           [
-            contractData.projectId,
-            contractData.contractType,
-            contractData.version || 1,
-            contractData.status || 'Draft',
-            contractData.generatedAt || new Date(),
-            contractData.generatedBy || null,
-            contractData.templateVersion || null,
-            contractData.filePath || null,
-            contractData.fileName || null,
-            contractData.notes || null
+            newContract.id,
+            clause.id,
+            clause.header_text,
+            clause.body_html,
+            clause.level,
+            clause.order
           ]
         );
-        
-        await client.query('COMMIT');
-        res.json(insertResult.rows[0]);
-      } catch (txError) {
-        await client.query('ROLLBACK');
-        throw txError;
-      } finally {
-        client.release();
       }
-    } else {
-      // Non-draft contracts: simple insert
-      const [result] = await db.insert(contracts).values(contractData).returning();
-      res.json(result);
+      
+      await client.query('COMMIT');
+      
+      // Return contract with clause count
+      res.json({
+        ...newContract,
+        clauseCount: clausesResult.rows.length
+      });
+    } catch (txError) {
+      await client.query('ROLLBACK');
+      throw txError;
+    } finally {
+      client.release();
     }
   } catch (error) {
     console.error("Failed to create contract:", error);
