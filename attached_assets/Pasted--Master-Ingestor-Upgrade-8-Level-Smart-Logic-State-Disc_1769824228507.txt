@@ -1,0 +1,32 @@
+# Master Ingestor Upgrade: 8-Level Smart Logic & State Disclosures
+
+## Objective
+Upgrade the `scripts/ingest_standard_contracts.ts` (or the relevant parser service used by the "Add New Contract" feature) to support the final 8-level hierarchy, dynamic state-specific lookups, and service model logic.
+
+## 1. Style-to-Level Mapping
+Modify the document parser to map Google Doc/Word styles to the following `hierarchy_level` values in the database:
+- **Heading 1** -> Level 1 (Agreement Parts, e.g., "II. AGREEMENT")
+- **Heading 2** -> Level 2 (Major Sections, e.g., "Section 1. Scope")
+- **Heading 3** -> Level 3 (Clauses, e.g., "2.1. Design Fee")
+- **Heading 4** -> Level 4 (Sub-headers/Lead-ins)
+- **Normal Text** -> Level 5 (Body Paragraphs & simple a/b/c lists)
+- **Heading 6** -> Level 6 (Conspicuous Bold / Legal Disclaimers)
+- **Heading 5** -> Level 7 (Deep Sub-lists / Roman Numerals i, ii, iii)
+
+## 2. Smart Tag & Logic Detection
+- **State Disclosure Double-Lookup**: Detect the pattern `[STATE_DISCLOSURE:XXXX]`. 
+    - Set `block_type = 'dynamic_disclosure'`.
+    - Extract `XXXX` and store it in a new `disclosure_code` column in the `clauses` table.
+- **Service Model Branching**: 
+    - If a Heading 2 or Heading 3 contains "CRC" or "CMOS", tag that block and all nested child blocks with the appropriate `service_model_condition` (e.g., 'CRC' or 'CMOS').
+- **Table Placeholders**: Ensure variables like `{{WHAT_HAPPENS_NEXT_TABLE}}` are preserved as raw text within their blocks for the generator to replace later.
+
+## 3. Data Sanitization & Cleanup
+- **Prefix Stripping**: Use a regex like `^(\d+(\.\d+)*|[a-z]\.|[ivx]+\.)\s+` to remove hardcoded numbers or bullets from the start of the text. The Generator will re-add these dynamically.
+- **Ignore Notes**: Delete/skip any paragraph that starts with `!!!!` (e.g., your "This needs to be deleted" reminders).
+
+## 4. Schema Update
+- Ensure the `clauses` table supports the `hierarchy_level` (Integer) and `disclosure_code` (String/Nullable) columns.
+
+## 5. Execution
+- Once updated, process the uploaded file: `Dvele ONE Agreement - no numbering.docx`.

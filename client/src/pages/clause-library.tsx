@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,8 @@ import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
@@ -20,6 +22,16 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Search,
   FileText,
@@ -34,7 +46,25 @@ import {
   Hash,
   Layers,
   BookOpen,
+  RotateCcw,
+  Settings,
+  CheckSquare,
+  Square,
+  FolderTree,
+  Eye,
+  GripVertical,
+  Table,
+  ArrowUpDown,
+  Trash2,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
@@ -44,16 +74,19 @@ interface Clause {
   parent_clause_id: number | null;
   hierarchy_level: number;
   sort_order: number;
-  name: string;
-  category: string;
-  contract_type: string;
-  content: string;
-  variables_used: string[] | null;
-  conditions: any;
-  risk_level: string;
-  negotiable: boolean;
+  header_text: string;
+  body_html: string;
+  contract_types: string[] | null;
+  tags: string[] | null;
   created_at: string;
   updated_at: string;
+}
+
+interface TableDefinition {
+  id: number;
+  variable_name: string;
+  display_name: string;
+  description: string | null;
 }
 
 interface ClauseStats {
@@ -68,6 +101,18 @@ interface ClauseResponse {
   stats: ClauseStats;
 }
 
+interface TreeNode {
+  clause: Clause;
+  children: TreeNode[];
+}
+
+const CONTRACT_TYPE_OPTIONS = [
+  { value: "ONE", label: "ONE Agreement" },
+  { value: "CMOS", label: "CMOS" },
+  { value: "CRC", label: "CRC" },
+  { value: "ONSITE", label: "OnSite" },
+];
+
 const CONTRACT_TYPES = [
   { value: "ALL", label: "All Contract Types" },
   { value: "ONE Agreement", label: "ONE Agreement" },
@@ -80,19 +125,159 @@ const HIERARCHY_LEVELS = [
   { value: "1", label: "Sections (Level 1)" },
   { value: "2", label: "Subsections (Level 2)" },
   { value: "3", label: "Paragraphs (Level 3)" },
+  { value: "4", label: "Sub-headers (Level 4)" },
+  { value: "5", label: "Body Text (Level 5)" },
+  { value: "6", label: "Conspicuous (Level 6)" },
+  { value: "7", label: "List Items (Level 7)" },
+  { value: "8", label: "Nested List (Level 8)" },
 ];
+
+const EDIT_HIERARCHY_OPTIONS = [
+  { value: 1, label: "Level 1 - Heading 1" },
+  { value: 2, label: "Level 2 - Heading 2" },
+  { value: 3, label: "Level 3 - Heading 3" },
+  { value: 4, label: "Level 4 - Heading 4" },
+  { value: 5, label: "Level 5 - Normal Text" },
+  { value: 6, label: "Level 6 - Heading 6" },
+  { value: 7, label: "Level 7 - Heading 5" },
+  { value: 8, label: "Level 8 - Nested List" },
+];
+
+const MIN_TREE_WIDTH = 200;
+const MIN_VIEWER_WIDTH = 300;
 
 export default function ClauseLibrary() {
   const [searchTerm, setSearchTerm] = useState("");
   const [contractType, setContractType] = useState("ALL");
   const [hierarchyLevel, setHierarchyLevel] = useState("all");
   const [selectedClause, setSelectedClause] = useState<Clause | null>(null);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editData, setEditData] = useState<Partial<Clause>>({});
-  const [expandedClauses, setExpandedClauses] = useState<Set<number>>(new Set());
-  const [inlineEditingId, setInlineEditingId] = useState<number | null>(null);
-  const [inlineEditContent, setInlineEditContent] = useState("");
+  const [expandedNodes, setExpandedNodes] = useState<Set<number>>(new Set());
+  const [editingClause, setEditingClause] = useState<Clause | null>(null);
+  const [editHeaderText, setEditHeaderText] = useState("");
+  const [editBodyHtml, setEditBodyHtml] = useState("");
+  const [editHierarchyLevel, setEditHierarchyLevel] = useState<number>(3);
+  const [editContractTypes, setEditContractTypes] = useState<string[]>([]);
+  const [draggedClause, setDraggedClause] = useState<Clause | null>(null);
+  const [dragOverClauseId, setDragOverClauseId] = useState<number | null>(null);
+  const [dropPosition, setDropPosition] = useState<'before' | 'after' | 'child' | null>(null);
+  const [previewProjectId, setPreviewProjectId] = useState<string>("");
+  const [resolveTablesPreview, setResolveTablesPreview] = useState(false);
+  
+  const [treePanelWidth, setTreePanelWidth] = useState(35);
+  const [editorPanelHeight, setEditorPanelHeight] = useState(50);
+  const [isResizing, setIsResizing] = useState(false);
+  const [isVerticalResizing, setIsVerticalResizing] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const rightPaneRef = useRef<HTMLDivElement>(null);
+  
+  const [selectedClauseIds, setSelectedClauseIds] = useState<Set<number>>(new Set());
+  const [bulkLevelDialogOpen, setBulkLevelDialogOpen] = useState(false);
+  const [bulkNewLevel, setBulkNewLevel] = useState<number>(3);
+  const [bulkConfirmDialogOpen, setBulkConfirmDialogOpen] = useState(false);
+  const [pendingBulkAction, setPendingBulkAction] = useState<{ type: string; data?: any } | null>(null);
+  
   const { toast } = useToast();
+  
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+  }, []);
+
+  const handleVerticalMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsVerticalResizing(true);
+  }, []);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (isResizing && containerRef.current) {
+        const containerRect = containerRef.current.getBoundingClientRect();
+        const containerWidth = containerRect.width;
+        
+        if (containerWidth <= 0 || !isFinite(containerWidth)) return;
+        
+        const newTreeWidth = ((e.clientX - containerRect.left) / containerWidth) * 100;
+        
+        const minTreePercent = (MIN_TREE_WIDTH / containerWidth) * 100;
+        const maxTreePercent = 100 - (MIN_VIEWER_WIDTH / containerWidth) * 100;
+        
+        if (!isFinite(minTreePercent) || !isFinite(maxTreePercent) || minTreePercent >= maxTreePercent) return;
+        
+        const clampedWidth = Math.min(Math.max(newTreeWidth, minTreePercent), maxTreePercent);
+        if (isFinite(clampedWidth)) {
+          setTreePanelWidth(clampedWidth);
+        }
+      }
+      
+      if (isVerticalResizing && rightPaneRef.current) {
+        const paneRect = rightPaneRef.current.getBoundingClientRect();
+        const paneHeight = paneRect.height;
+        
+        if (paneHeight <= 0 || !isFinite(paneHeight)) return;
+        
+        const newEditorHeight = ((e.clientY - paneRect.top) / paneHeight) * 100;
+        const clampedHeight = Math.min(Math.max(newEditorHeight, 20), 80);
+        if (isFinite(clampedHeight)) {
+          setEditorPanelHeight(clampedHeight);
+        }
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+      setIsVerticalResizing(false);
+    };
+
+    if (isResizing || isVerticalResizing) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = isVerticalResizing ? 'row-resize' : 'col-resize';
+      document.body.style.userSelect = 'none';
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [isResizing, isVerticalResizing]);
+  
+  const toggleClauseSelection = (clauseId: number, e?: React.MouseEvent) => {
+    if (e) {
+      e.stopPropagation();
+    }
+    setSelectedClauseIds(prev => {
+      const next = new Set(prev);
+      if (next.has(clauseId)) {
+        next.delete(clauseId);
+      } else {
+        next.add(clauseId);
+      }
+      return next;
+    });
+  };
+  
+  const selectAllClauses = () => {
+    const allIds = new Set(clauses.map(c => c.id));
+    setSelectedClauseIds(allIds);
+  };
+  
+  const clearSelection = () => {
+    setSelectedClauseIds(new Set());
+  };
+  
+  const getSelectedClauses = (): Clause[] => {
+    return clauses.filter(c => selectedClauseIds.has(c.id));
+  };
+
+  const clearFilters = () => {
+    setSearchTerm("");
+    setContractType("ALL");
+    setHierarchyLevel("all");
+  };
+
+  const hasActiveFilters = searchTerm !== "" || contractType !== "ALL" || hierarchyLevel !== "all";
 
   const { data, isLoading, error } = useQuery<ClauseResponse>({
     queryKey: ["/api/clauses", contractType, hierarchyLevel, searchTerm],
@@ -108,15 +293,66 @@ export default function ClauseLibrary() {
     },
   });
 
+  const { data: tableDefs } = useQuery<TableDefinition[]>({
+    queryKey: ["/api/table-definitions"],
+  });
+
+  const { data: projects } = useQuery<{ id: number; project_number: string; name: string }[]>({
+    queryKey: ["/api/projects"],
+  });
+
+  const getContentForPreview = () => {
+    if (selectedClause && editingClause?.id === selectedClause.id) {
+      return editBodyHtml;
+    }
+    return selectedClause?.body_html || "";
+  };
+
+  const previewContent = selectedClause && editingClause?.id === selectedClause.id ? editBodyHtml : (selectedClause?.body_html || "");
+  
+  const { data: resolvedPreviewData, isLoading: isResolvingPreview } = useQuery<{ html: string }>({
+    queryKey: ["/api/resolve-clause-tables", previewContent, previewProjectId, resolveTablesPreview],
+    queryFn: async () => {
+      if (!previewContent || !previewProjectId) {
+        return { html: "" };
+      }
+      const response = await fetch("/api/resolve-clause-tables", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: previewContent, projectId: previewProjectId }),
+      });
+      if (!response.ok) throw new Error("Failed to resolve tables");
+      return response.json();
+    },
+    enabled: resolveTablesPreview && !!previewProjectId && !!selectedClause,
+  });
+
+  const insertTableVariable = (variableName: string) => {
+    const textarea = document.querySelector('[data-testid="textarea-edit-body"]') as HTMLTextAreaElement;
+    if (textarea) {
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const newContent = editBodyHtml.slice(0, start) + `{{${variableName}}}` + editBodyHtml.slice(end);
+      setEditBodyHtml(newContent);
+      setTimeout(() => {
+        textarea.focus();
+        const newPos = start + variableName.length + 4;
+        textarea.setSelectionRange(newPos, newPos);
+      }, 0);
+    } else {
+      setEditBodyHtml(editBodyHtml + `{{${variableName}}}`);
+    }
+  };
+
   const updateMutation = useMutation({
-    mutationFn: async (updates: Partial<Clause>) => {
-      if (!selectedClause) throw new Error("No clause selected");
-      const response = await apiRequest("PATCH", `/api/clauses/${selectedClause.id}`, updates);
+    mutationFn: async (updates: Partial<Clause> & { id: number }) => {
+      const { id, ...rest } = updates;
+      const response = await apiRequest("PATCH", `/api/clauses/${id}`, rest);
       return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/clauses"] });
-      setIsEditing(false);
+      setEditingClause(null);
       toast({
         title: "Clause Updated",
         description: "The clause has been updated successfully.",
@@ -131,49 +367,164 @@ export default function ClauseLibrary() {
     },
   });
 
-  const handleSave = () => {
-    updateMutation.mutate(editData);
-  };
-
-  const inlineUpdateMutation = useMutation({
-    mutationFn: async ({ id, content }: { id: number; content: string }) => {
-      const response = await apiRequest("PATCH", `/api/clauses/${id}`, { content });
+  const reorderMutation = useMutation({
+    mutationFn: async (updates: { id: number; parent_clause_id: number | null; insert_after_id: number | null }) => {
+      const { id, ...rest } = updates;
+      const response = await apiRequest("POST", `/api/clauses/${id}/reorder`, rest);
       return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/clauses"] });
-      setInlineEditingId(null);
-      setInlineEditContent("");
+      clearSelection();
       toast({
-        title: "Clause Updated",
-        description: "The clause content has been updated successfully.",
+        title: "Clause Reordered",
+        description: "The clause position has been updated.",
       });
     },
     onError: () => {
       toast({
         title: "Error",
-        description: "Failed to update clause. Please try again.",
+        description: "Failed to reorder clause. Please try again.",
         variant: "destructive",
       });
     },
   });
 
-  const startInlineEdit = (clause: Clause) => {
-    setInlineEditingId(clause.id);
-    setInlineEditContent(clause.content || "");
+  const bulkUpdateMutation = useMutation({
+    mutationFn: async (updates: { ids: number[]; changes: Partial<Clause> }) => {
+      const promises = updates.ids.map(id => 
+        apiRequest("PATCH", `/api/clauses/${id}`, updates.changes)
+      );
+      return Promise.all(promises);
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clauses"] });
+      clearSelection();
+      toast({
+        title: "Bulk Update Complete",
+        description: `Successfully updated ${variables.ids.length} clauses.`,
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to update clauses. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const bulkReorderMutation = useMutation({
+    mutationFn: async (updates: { ids: number[]; parent_clause_id: number | null; insert_after_id: number | null }) => {
+      let lastInsertId = updates.insert_after_id;
+      for (const id of updates.ids) {
+        await apiRequest("POST", `/api/clauses/${id}/reorder`, {
+          parent_clause_id: updates.parent_clause_id,
+          insert_after_id: lastInsertId,
+        });
+        lastInsertId = id;
+      }
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clauses"] });
+      clearSelection();
+      toast({
+        title: "Bulk Reorder Complete",
+        description: `Successfully moved ${variables.ids.length} clauses.`,
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to reorder clauses. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const confirmBulkAction = (type: string, data?: any) => {
+    setPendingBulkAction({ type, data });
+    setBulkConfirmDialogOpen(true);
   };
 
-  const saveInlineEdit = (id: number) => {
-    inlineUpdateMutation.mutate({ id, content: inlineEditContent });
+  const executeBulkAction = () => {
+    if (!pendingBulkAction) return;
+    
+    const selectedIds = Array.from(selectedClauseIds);
+    
+    const sortedSelectedIds = selectedIds
+      .map(id => clauses.find(c => c.id === id))
+      .filter(Boolean)
+      .sort((a, b) => (a?.sort_order || 0) - (b?.sort_order || 0))
+      .map(c => c!.id);
+    
+    if (pendingBulkAction.type === 'level') {
+      bulkUpdateMutation.mutate({
+        ids: sortedSelectedIds,
+        changes: { hierarchy_level: pendingBulkAction.data.level },
+      });
+    } else if (pendingBulkAction.type === 'reorder') {
+      bulkReorderMutation.mutate({
+        ids: sortedSelectedIds,
+        parent_clause_id: pendingBulkAction.data.parent_clause_id,
+        insert_after_id: pendingBulkAction.data.insert_after_id,
+      });
+    }
+    
+    setBulkConfirmDialogOpen(false);
+    setPendingBulkAction(null);
   };
 
-  const cancelInlineEdit = () => {
-    setInlineEditingId(null);
-    setInlineEditContent("");
+  const openBulkLevelDialog = () => {
+    if (selectedClauseIds.size === 0) {
+      toast({
+        title: "No Clauses Selected",
+        description: "Please select one or more clauses first.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setBulkLevelDialogOpen(true);
   };
 
-  const toggleExpanded = (id: number) => {
-    setExpandedClauses(prev => {
+  const applyBulkLevel = () => {
+    setBulkLevelDialogOpen(false);
+    confirmBulkAction('level', { level: bulkNewLevel });
+  };
+
+  const clauses = data?.clauses || [];
+  const stats = data?.stats;
+
+  const buildTree = useMemo(() => {
+    const clauseMap = new Map<number, TreeNode>();
+    const roots: TreeNode[] = [];
+
+    const sortedClauses = [...clauses].sort((a, b) => {
+      if (a.hierarchy_level !== b.hierarchy_level) {
+        return a.hierarchy_level - b.hierarchy_level;
+      }
+      return a.sort_order - b.sort_order;
+    });
+
+    for (const clause of sortedClauses) {
+      clauseMap.set(clause.id, { clause, children: [] });
+    }
+
+    for (const clause of sortedClauses) {
+      const node = clauseMap.get(clause.id)!;
+      if (clause.parent_clause_id && clauseMap.has(clause.parent_clause_id)) {
+        clauseMap.get(clause.parent_clause_id)!.children.push(node);
+      } else {
+        roots.push(node);
+      }
+    }
+
+    const sortedRoots = roots.sort((a, b) => a.clause.sort_order - b.clause.sort_order);
+    return sortedRoots;
+  }, [clauses]);
+
+  const toggleNode = (id: number) => {
+    setExpandedNodes(prev => {
       const next = new Set(prev);
       if (next.has(id)) {
         next.delete(id);
@@ -184,34 +535,212 @@ export default function ClauseLibrary() {
     });
   };
 
-  const clauses = data?.clauses || [];
-  const stats = data?.stats;
+  const startEditing = (clause: Clause) => {
+    setEditingClause(clause);
+    setEditHeaderText(clause.header_text || "");
+    setEditBodyHtml(clause.body_html || "");
+    setEditHierarchyLevel(clause.hierarchy_level);
+    setEditContractTypes(clause.contract_types || []);
+  };
 
-  const getHierarchyIcon = (level: number) => {
-    switch (level) {
-      case 1: return <Layers className="h-4 w-4" />;
-      case 2: return <Hash className="h-4 w-4" />;
-      default: return <FileText className="h-4 w-4" />;
+  const saveEdits = () => {
+    if (!editingClause) return;
+    updateMutation.mutate({
+      id: editingClause.id,
+      header_text: editHeaderText,
+      body_html: editBodyHtml,
+      hierarchy_level: editHierarchyLevel,
+      contract_types: editContractTypes,
+    } as any);
+  };
+
+  const cancelEditing = () => {
+    setEditingClause(null);
+    setEditHeaderText("");
+    setEditBodyHtml("");
+    setEditContractTypes([]);
+  };
+
+  const toggleContractType = (type: string) => {
+    setEditContractTypes(prev => {
+      if (prev.includes(type)) {
+        return prev.filter(t => t !== type);
+      } else {
+        return [...prev, type];
+      }
+    });
+  };
+
+  const handleDragStart = (e: React.DragEvent, clause: Clause) => {
+    setDraggedClause(clause);
+    e.dataTransfer.effectAllowed = 'move';
+    const dragIds = selectedClauseIds.has(clause.id) 
+      ? Array.from(selectedClauseIds).join(',')
+      : String(clause.id);
+    e.dataTransfer.setData('text/plain', dragIds);
+  };
+  
+  const isDraggingMultiple = draggedClause && selectedClauseIds.has(draggedClause.id) && selectedClauseIds.size > 1;
+
+  const handleDragEnd = () => {
+    setDraggedClause(null);
+    setDragOverClauseId(null);
+    setDropPosition(null);
+  };
+
+  const handleDragOver = (e: React.DragEvent, clause: Clause) => {
+    e.preventDefault();
+    if (!draggedClause || draggedClause.id === clause.id) return;
+    
+    const rect = e.currentTarget.getBoundingClientRect();
+    const y = e.clientY - rect.top;
+    const height = rect.height;
+    
+    let position: 'before' | 'after' | 'child';
+    if (y < height * 0.25) {
+      position = 'before';
+    } else if (y > height * 0.75) {
+      position = 'after';
+    } else {
+      position = 'child';
     }
+    
+    setDragOverClauseId(clause.id);
+    setDropPosition(position);
   };
 
-  const getRiskBadge = (riskLevel: string) => {
-    switch (riskLevel?.toLowerCase()) {
-      case "high":
-        return <Badge variant="destructive" className="text-xs">High Risk</Badge>;
-      case "medium":
-        return <Badge variant="secondary" className="text-xs">Medium Risk</Badge>;
-      default:
-        return <Badge variant="outline" className="text-xs">Low Risk</Badge>;
+  const handleDragLeave = () => {
+    setDragOverClauseId(null);
+    setDropPosition(null);
+  };
+
+  const isDescendantOf = (targetId: number, ancestorId: number): boolean => {
+    let currentId: number | null = targetId;
+    const visited = new Set<number>();
+    
+    while (currentId !== null) {
+      if (visited.has(currentId)) return false;
+      visited.add(currentId);
+      
+      const current = clauses.find(c => c.id === currentId);
+      if (!current) return false;
+      if (current.parent_clause_id === ancestorId) return true;
+      currentId = current.parent_clause_id;
     }
+    return false;
+  };
+  
+  const isTargetDescendantOfSelection = (targetId: number): boolean => {
+    const idsToCheck = isDraggingMultiple 
+      ? Array.from(selectedClauseIds)
+      : draggedClause ? [draggedClause.id] : [];
+    
+    for (const id of idsToCheck) {
+      if (targetId === id || isDescendantOf(targetId, id)) {
+        return true;
+      }
+    }
+    return false;
   };
 
-  const highlightVariables = (content: string) => {
-    if (!content) return "";
-    return content.replace(/\{\{([A-Z0-9_]+)\}\}/g, '<span class="bg-primary/20 text-primary px-1 rounded font-mono text-sm">{{$1}}</span>');
+  const findPreviousSibling = (targetClause: Clause, parentId: number | null): number | null => {
+    const idsToExclude = isDraggingMultiple 
+      ? new Set([...Array.from(selectedClauseIds), draggedClause?.id].filter(Boolean) as number[])
+      : new Set([draggedClause?.id].filter(Boolean) as number[]);
+    
+    const siblings = clauses
+      .filter(c => c.parent_clause_id === parentId && !idsToExclude.has(c.id))
+      .sort((a, b) => a.sort_order - b.sort_order);
+    
+    const targetIdx = siblings.findIndex(s => s.id === targetClause.id);
+    if (targetIdx > 0) {
+      return siblings[targetIdx - 1].id;
+    }
+    return null;
   };
 
-  // Escape HTML to prevent XSS
+  const handleDrop = (e: React.DragEvent, targetClause: Clause) => {
+    e.preventDefault();
+    if (!draggedClause || draggedClause.id === targetClause.id || !dropPosition) return;
+
+    if (isDraggingMultiple && selectedClauseIds.has(targetClause.id)) {
+      toast({
+        title: "Invalid Drop Target",
+        description: "Cannot drop selected clauses onto another selected clause.",
+        variant: "destructive",
+      });
+      handleDragEnd();
+      return;
+    }
+    
+    if (isTargetDescendantOfSelection(targetClause.id)) {
+      toast({
+        title: "Invalid Drop Target",
+        description: "Cannot drop a clause into or next to its own descendant.",
+        variant: "destructive",
+      });
+      handleDragEnd();
+      return;
+    }
+
+    let newParentId: number | null;
+    let insertAfterId: number | null = null;
+
+    if (dropPosition === 'before') {
+      newParentId = targetClause.parent_clause_id;
+      insertAfterId = findPreviousSibling(targetClause, newParentId);
+    } else if (dropPosition === 'after') {
+      newParentId = targetClause.parent_clause_id;
+      insertAfterId = targetClause.id;
+    } else {
+      newParentId = targetClause.id;
+      insertAfterId = null;
+    }
+
+    if (isDraggingMultiple) {
+      confirmBulkAction('reorder', {
+        parent_clause_id: newParentId,
+        insert_after_id: insertAfterId,
+      });
+    } else {
+      reorderMutation.mutate({
+        id: draggedClause.id,
+        parent_clause_id: newParentId,
+        insert_after_id: insertAfterId,
+      });
+    }
+
+    handleDragEnd();
+  };
+
+  const getHierarchyLabel = (level: number) => {
+    const labels: Record<number, string> = {
+      1: "Section",
+      2: "Subsection",
+      3: "Paragraph",
+      4: "Sub-header",
+      5: "Body",
+      6: "Conspicuous",
+      7: "List Item",
+      8: "Nested",
+    };
+    return labels[level] || `L${level}`;
+  };
+
+  const getHierarchyColor = (level: number) => {
+    const colors: Record<number, string> = {
+      1: "bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border-blue-300",
+      2: "bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border-indigo-300",
+      3: "bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 border-purple-300",
+      4: "bg-violet-100 dark:bg-violet-950 text-violet-700 dark:text-violet-300 border-violet-300",
+      5: "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300",
+      6: "bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border-amber-300",
+      7: "bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border-emerald-300",
+      8: "bg-teal-100 dark:bg-teal-950 text-teal-700 dark:text-teal-300 border-teal-300",
+    };
+    return colors[level] || "";
+  };
+
   const escapeHtml = (text: string) => {
     return text
       .replace(/&/g, '&amp;')
@@ -221,439 +750,635 @@ export default function ClauseLibrary() {
       .replace(/'/g, '&#039;');
   };
 
-  // Format content by converting markdown-style tables and bullets to HTML
-  const formatContent = (content: string) => {
-    if (!content) return "";
+  const getPreviewHtml = (clause: { header_text: string; body_html: string; hierarchy_level: number }) => {
+    const level = clause.hierarchy_level;
+    const headerText = clause.header_text || "";
+    let bodyHtml = clause.body_html || "";
     
-    const lines = content.split('\n');
-    const outputBlocks: string[] = [];
-    let i = 0;
-    
-    while (i < lines.length) {
-      const line = lines[i].trim();
-      
-      // Detect table: line starts and ends with | and has multiple cells
-      if (line.startsWith('|') && line.endsWith('|') && line.split('|').length > 2) {
-        // Collect all table rows
-        const tableLines: string[] = [];
-        while (i < lines.length) {
-          const tLine = lines[i].trim();
-          if (tLine.startsWith('|') && tLine.endsWith('|')) {
-            tableLines.push(tLine);
-            i++;
-          } else {
-            break;
-          }
-        }
-        
-        // Build table HTML
-        let tableHtml = '<table class="w-full text-sm border-collapse mb-4"><tbody>';
-        let isHeader = true;
-        
-        for (const tLine of tableLines) {
-          // Skip separator rows (|---|---|---| with any number of columns)
-          if (tLine.match(/^\|[\s\-:|]+\|$/)) continue;
-          
-          const cells = tLine.split('|').slice(1, -1).map(c => escapeHtml(c.trim()));
-          if (cells.length > 0) {
-            const tag = isHeader ? 'th' : 'td';
-            const cellClass = isHeader 
-              ? 'border border-border bg-muted/50 px-3 py-2 text-left font-medium'
-              : 'border border-border px-3 py-2';
-            tableHtml += `<tr>${cells.map(c => `<${tag} class="${cellClass}">${c}</${tag}>`).join('')}</tr>`;
-            isHeader = false;
-          }
-        }
-        tableHtml += '</tbody></table>';
-        outputBlocks.push(tableHtml);
-        continue;
-      }
-      
-      // Detect bullet list: line starts with • or - followed by space
-      if (line.startsWith('•') || (line.startsWith('- ') && !line.startsWith('---'))) {
-        const listItems: string[] = [];
-        while (i < lines.length) {
-          const bulletLine = lines[i].trim();
-          if (bulletLine.startsWith('•') || (bulletLine.startsWith('- ') && !bulletLine.startsWith('---'))) {
-            listItems.push(escapeHtml(bulletLine.replace(/^[•\-]\s*/, '')));
-            i++;
-          } else {
-            break;
-          }
-        }
-        const listHtml = `<ul class="list-disc pl-4 my-2">${listItems.map(item => `<li class="ml-4">${item}</li>`).join('')}</ul>`;
-        outputBlocks.push(listHtml);
-        continue;
-      }
-      
-      // Empty line creates paragraph break (skip consecutive empties)
-      if (line === '') {
-        // Only add <br/> if the last block wasn't already a break
-        if (outputBlocks.length === 0 || !outputBlocks[outputBlocks.length - 1].endsWith('<br/>')) {
-          outputBlocks.push('<br/>');
-        }
-        i++;
-        continue;
-      }
-      
-      // Regular text - collect consecutive non-special lines
-      const textLines: string[] = [];
-      while (i < lines.length) {
-        const tLine = lines[i].trim();
-        const isBullet = tLine.startsWith('•') || (tLine.startsWith('- ') && !tLine.startsWith('---'));
-        const isTable = tLine.startsWith('|') && tLine.endsWith('|');
-        if (tLine === '' || isBullet || isTable) {
-          break;
-        }
-        textLines.push(escapeHtml(tLine));
-        i++;
-      }
-      if (textLines.length > 0) {
-        outputBlocks.push(`<p class="my-1">${textLines.join('<br/>')}</p>`);
-      }
-    }
-    
-    let formatted = outputBlocks.join('');
-    
-    // Wrap in container
-    formatted = `<div class="prose prose-sm max-w-none dark:prose-invert">${formatted}</div>`;
-    
-    // Highlight variables (after escaping, so we unescape the variable pattern)
-    formatted = formatted.replace(/\{\{([A-Z0-9_]+)\}\}/g, '<span class="bg-primary/20 text-primary px-1 rounded font-mono text-sm">{{$1}}</span>');
-    
-    return formatted;
+    bodyHtml = bodyHtml
+      .replace(/\{\{([A-Z0-9_]+)\}\}/g, '<span class="bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 px-1 rounded font-mono text-xs">[[$1]]</span>');
+
+    const styles: Record<number, { header: string; body: string }> = {
+      1: {
+        header: "font-bold text-xl uppercase tracking-wide text-center border-b-2 border-gray-300 pb-2 mb-4 text-[#1a73e8]",
+        body: "text-base leading-relaxed",
+      },
+      2: {
+        header: "font-bold text-lg uppercase tracking-wide mb-2 text-[#1a73e8]",
+        body: "text-base leading-relaxed ml-4",
+      },
+      3: {
+        header: "font-semibold text-base mb-1 text-[#1a73e8]",
+        body: "text-sm leading-relaxed ml-6",
+      },
+      4: {
+        header: "font-semibold text-sm uppercase mb-1 ml-6 text-[#1a73e8]",
+        body: "text-sm leading-relaxed ml-8",
+      },
+      5: {
+        header: "font-medium text-sm ml-8",
+        body: "text-sm leading-relaxed text-justify ml-8",
+      },
+      6: {
+        header: "font-bold uppercase text-sm ml-8 text-amber-700 dark:text-amber-400",
+        body: "text-sm leading-relaxed text-justify ml-8 border-l-4 border-amber-400 pl-3",
+      },
+      7: {
+        header: "text-sm ml-10",
+        body: "text-sm leading-relaxed ml-12",
+      },
+      8: {
+        header: "text-sm ml-14",
+        body: "text-sm leading-relaxed ml-16",
+      },
+    };
+
+    const style = styles[level] || styles[5];
+
+    return `
+      <div class="clause-preview py-2" data-level="${level}">
+        ${headerText ? `<div class="clause-header level-${level} ${style.header}">${escapeHtml(headerText)}</div>` : ''}
+        <div class="clause-body ${style.body}">${bodyHtml}</div>
+      </div>
+    `;
   };
 
-  return (
-    <div className="flex-1 p-6 md:p-8">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
+  const renderTreeNode = (node: TreeNode, depth: number = 0, siblingIndex: number = 0, parentNumber: string = "") => {
+    const { clause, children } = node;
+    const isExpanded = expandedNodes.has(clause.id);
+    const isSelected = selectedClause?.id === clause.id;
+    const isChecked = selectedClauseIds.has(clause.id);
+    const hasChildren = children.length > 0;
+    const isDragOver = dragOverClauseId === clause.id;
+    const isDragging = draggedClause?.id === clause.id || (isDraggingMultiple && isChecked);
+    
+    const currentNumber = clause.hierarchy_level === 1 
+      ? `${siblingIndex + 1}` 
+      : parentNumber 
+        ? `${parentNumber}.${siblingIndex + 1}` 
+        : `${siblingIndex + 1}`;
+
+    const getDropIndicatorClass = () => {
+      if (!isDragOver || !dropPosition) return '';
+      if (dropPosition === 'before') return 'border-t-2 border-t-primary';
+      if (dropPosition === 'after') return 'border-b-2 border-b-primary';
+      if (dropPosition === 'child') return 'ring-2 ring-primary ring-inset';
+      return '';
+    };
+
+    return (
+      <div key={clause.id} className="select-none">
+        <div
+          className={`flex items-start gap-1 py-1.5 px-2 rounded-md cursor-pointer hover-elevate transition-colors ${
+            isSelected ? 'bg-primary/10 border border-primary/30' : ''
+          } ${isChecked ? 'bg-accent/50' : ''} ${isDragging ? 'opacity-50' : ''} ${getDropIndicatorClass()}`}
+          style={{ paddingLeft: `${depth * 16 + 8}px` }}
+          onClick={() => setSelectedClause(clause)}
+          draggable
+          onDragStart={(e) => handleDragStart(e, clause)}
+          onDragEnd={handleDragEnd}
+          onDragOver={(e) => handleDragOver(e, clause)}
+          onDragLeave={handleDragLeave}
+          onDrop={(e) => handleDrop(e, clause)}
+          data-testid={`tree-node-${clause.id}`}
+        >
+          <Checkbox
+            checked={isChecked}
+            onCheckedChange={() => toggleClauseSelection(clause.id)}
+            onClick={(e) => e.stopPropagation()}
+            className="h-3.5 w-3.5 flex-shrink-0 mt-0.5"
+            data-testid={`checkbox-clause-${clause.id}`}
+          />
+          <GripVertical className="h-3 w-3 text-muted-foreground cursor-grab flex-shrink-0 mt-0.5" />
+          {hasChildren ? (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleNode(clause.id);
+              }}
+              className="p-0.5 hover:bg-muted rounded flex-shrink-0"
+              data-testid={`toggle-node-${clause.id}`}
+            >
+              {isExpanded ? (
+                <ChevronDown className="h-3 w-3" />
+              ) : (
+                <ChevronRight className="h-3 w-3" />
+              )}
+            </button>
+          ) : (
+            <span className="w-4 flex-shrink-0" />
+          )}
+          <span className="text-xs text-muted-foreground font-mono flex-shrink-0 mt-0.5">{currentNumber}</span>
+          <span className="text-sm flex-1 break-words">
+            {clause.header_text || <span className="italic text-muted-foreground">(Untitled)</span>}
+          </span>
+          {clause.tags && clause.tags.length > 0 && (
+            <span title="Has tags" className="flex-shrink-0 mt-0.5">
+              <Zap className="h-3 w-3 text-amber-500" />
+            </span>
+          )}
+        </div>
+        {hasChildren && isExpanded && (
           <div>
-            <h1 className="text-2xl font-semibold" data-testid="text-page-title">Clause Library</h1>
-            <p className="text-muted-foreground">
-              Browse, filter, and edit contract clauses
-            </p>
+            {children.map((child, idx) => renderTreeNode(child, depth + 1, idx, currentNumber))}
           </div>
-          {stats && (
-            <div className="flex gap-6">
-              <div className="text-center">
-                <p className="text-2xl font-bold">{stats.total}</p>
-                <p className="text-xs text-muted-foreground">Total Clauses</p>
+        )}
+      </div>
+    );
+  };
+
+  if (error) {
+    return (
+      <div className="flex-1 p-6 md:p-8">
+        <Card className="bg-destructive/10 border-destructive">
+          <CardContent className="flex items-center gap-3 py-4">
+            <AlertTriangle className="h-5 w-5 text-destructive" />
+            <p>Failed to load clauses. Please try again later.</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-1 flex flex-col h-full overflow-hidden">
+      <div className="p-4 border-b bg-background">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-2">
+            <FolderTree className="h-5 w-5 text-primary" />
+            <h1 className="text-xl font-semibold" data-testid="text-page-title">Clause Explorer</h1>
+            {stats && (
+              <Badge variant="secondary" className="ml-2">
+                {stats.total} clauses
+              </Badge>
+            )}
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search clauses..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-8 w-48"
+                data-testid="input-search"
+              />
+            </div>
+            <Select value={contractType} onValueChange={setContractType}>
+              <SelectTrigger className="w-44" data-testid="select-contract-type">
+                <SelectValue placeholder="Contract Type" />
+              </SelectTrigger>
+              <SelectContent>
+                {CONTRACT_TYPES.map((type) => (
+                  <SelectItem key={type.value} value={type.value}>
+                    {type.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={hierarchyLevel} onValueChange={setHierarchyLevel}>
+              <SelectTrigger className="w-40" data-testid="select-hierarchy">
+                <SelectValue placeholder="Hierarchy" />
+              </SelectTrigger>
+              <SelectContent>
+                {HIERARCHY_LEVELS.map((level) => (
+                  <SelectItem key={level.value} value={level.value}>
+                    {level.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {hasActiveFilters && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearFilters}
+                data-testid="button-clear-filters"
+              >
+                <RotateCcw className="h-4 w-4 mr-1" />
+                Clear
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex-1 flex min-h-0 overflow-hidden" ref={containerRef}>
+        <div 
+          className="border-r flex flex-col bg-muted/30 min-h-0 overflow-hidden"
+          style={{ width: `${treePanelWidth}%`, minWidth: MIN_TREE_WIDTH }}
+        >
+          <div className="p-2 border-b bg-background flex-shrink-0">
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-sm font-medium flex items-center gap-2">
+                <FolderTree className="h-4 w-4" />
+                Hierarchy Tree
+              </h2>
+              {selectedClauseIds.size > 0 && (
+                <div className="flex items-center gap-1">
+                  <Badge variant="secondary" className="text-xs">
+                    {selectedClauseIds.size} selected
+                  </Badge>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={clearSelection}
+                    className="h-6 px-2"
+                    data-testid="button-clear-selection"
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={openBulkLevelDialog}
+                    className="h-6 px-2 text-xs"
+                    data-testid="button-bulk-level"
+                  >
+                    <ArrowUpDown className="h-3 w-3 mr-1" />
+                    Level
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="flex-1 min-h-0 overflow-auto">
+            <div className="p-2">
+              {isLoading ? (
+                <div className="space-y-2">
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <Skeleton key={i} className="h-8 w-full" />
+                  ))}
+                </div>
+              ) : buildTree.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <FileText className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">No clauses found</p>
+                </div>
+              ) : (
+                buildTree.map((node, idx) => renderTreeNode(node, 0, idx))
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div
+          className="w-2 bg-border hover:bg-primary/20 cursor-col-resize flex items-center justify-center transition-colors shrink-0"
+          onMouseDown={handleMouseDown}
+          data-testid="resize-handle"
+        >
+          <div className="w-0.5 h-8 bg-muted-foreground/30 rounded-full" />
+        </div>
+
+        <div 
+          ref={rightPaneRef}
+          className="flex flex-col min-h-0 flex-1"
+          style={{ minWidth: MIN_VIEWER_WIDTH }}
+        >
+          {selectedClause ? (
+            <>
+              <div className="p-3 border-b bg-background flex-shrink-0">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge variant="outline" className="font-mono">
+                      {selectedClause.clause_code || `#${selectedClause.id}`}
+                    </Badge>
+                    <Badge 
+                      variant="outline" 
+                      className={getHierarchyColor(selectedClause.hierarchy_level)}
+                    >
+                      {getHierarchyLabel(selectedClause.hierarchy_level)}
+                    </Badge>
+                    {(selectedClause.contract_types || []).filter(Boolean).map(type => (
+                      <Badge key={type} variant="secondary" className="text-xs">
+                        {type}
+                      </Badge>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {editingClause?.id === selectedClause.id ? (
+                      <>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={cancelEditing}
+                          data-testid="button-cancel-edit"
+                        >
+                          <X className="h-4 w-4 mr-1" />
+                          Cancel
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={saveEdits}
+                          disabled={updateMutation.isPending}
+                          data-testid="button-save-edit"
+                        >
+                          <Save className="h-4 w-4 mr-1" />
+                          Save
+                        </Button>
+                      </>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => startEditing(selectedClause)}
+                        data-testid="button-edit-clause"
+                      >
+                        <Edit className="h-4 w-4 mr-1" />
+                        Edit
+                      </Button>
+                    )}
+                  </div>
+                </div>
               </div>
+
+              <div className="flex-1 flex flex-col min-h-0">
+                <div 
+                  className="flex flex-col min-h-0"
+                  style={{ height: `${editorPanelHeight}%` }}
+                >
+                  <div className="p-2 border-b bg-muted/30 flex-shrink-0">
+                    <h3 className="text-xs font-medium text-muted-foreground flex items-center gap-2">
+                      <Code className="h-3 w-3" />
+                      {editingClause?.id === selectedClause.id ? "Editor" : "Content"}
+                    </h3>
+                  </div>
+                  <div className="flex-1 min-h-0 overflow-auto">
+                    {editingClause?.id === selectedClause.id ? (
+                      <div className="p-4 space-y-4">
+                        <div>
+                          <Label htmlFor="edit-header" className="flex items-center gap-2">
+                            Header / Title
+                            <Badge variant="outline" className={`text-xs ${getHierarchyColor(editHierarchyLevel)}`}>
+                              Level {editHierarchyLevel}
+                            </Badge>
+                          </Label>
+                          <Input
+                            id="edit-header"
+                            value={editHeaderText}
+                            onChange={(e) => setEditHeaderText(e.target.value)}
+                            placeholder="Clause header..."
+                            className={`mt-1 ${
+                              editHierarchyLevel <= 2 ? 'font-bold text-lg text-[#1a73e8] uppercase' :
+                              editHierarchyLevel <= 4 ? 'font-semibold text-[#1a73e8]' :
+                              editHierarchyLevel === 6 ? 'font-bold uppercase text-amber-600' :
+                              ''
+                            }`}
+                            data-testid="input-edit-header"
+                          />
+                        </div>
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <Label htmlFor="edit-body">Body Content (HTML)</Label>
+                            <Select onValueChange={insertTableVariable}>
+                              <SelectTrigger className="w-48 h-8" data-testid="select-insert-table">
+                                <Table className="h-4 w-4 mr-1" />
+                                <SelectValue placeholder="Insert Table..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <div className="px-2 py-1 text-xs font-medium text-muted-foreground">
+                                  Built-in Tables
+                                </div>
+                                <SelectItem value="PRICING_BREAKDOWN_TABLE">Pricing Breakdown</SelectItem>
+                                <SelectItem value="PAYMENT_SCHEDULE_TABLE">Payment Schedule</SelectItem>
+                                <SelectItem value="UNIT_SPEC_TABLE">Unit Spec Table</SelectItem>
+                                {tableDefs && tableDefs.length > 0 && (
+                                  <>
+                                    <Separator className="my-1" />
+                                    <div className="px-2 py-1 text-xs font-medium text-muted-foreground">
+                                      Custom Tables
+                                    </div>
+                                    {tableDefs.map((table) => (
+                                      <SelectItem key={table.id} value={table.variable_name}>
+                                        {table.display_name}
+                                      </SelectItem>
+                                    ))}
+                                  </>
+                                )}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <Textarea
+                            id="edit-body"
+                            value={editBodyHtml}
+                            onChange={(e) => setEditBodyHtml(e.target.value)}
+                            placeholder="Clause body HTML content..."
+                            rows={6}
+                            className="font-mono text-sm"
+                            data-testid="textarea-edit-body"
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <Label>Hierarchy Level</Label>
+                            <Select 
+                              value={editHierarchyLevel.toString()} 
+                              onValueChange={(v) => setEditHierarchyLevel(parseInt(v))}
+                            >
+                              <SelectTrigger data-testid="select-edit-hierarchy">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {EDIT_HIERARCHY_OPTIONS.map((opt) => (
+                                  <SelectItem key={opt.value} value={opt.value.toString()}>
+                                    {opt.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label>Contract Types (Tags)</Label>
+                            <div className="flex flex-wrap gap-2 mt-2">
+                              {CONTRACT_TYPE_OPTIONS.map((type) => (
+                                <Badge
+                                  key={type.value}
+                                  variant={editContractTypes.includes(type.value) ? "default" : "outline"}
+                                  className="cursor-pointer"
+                                  onClick={() => toggleContractType(type.value)}
+                                  data-testid={`tag-${type.value}`}
+                                >
+                                  {editContractTypes.includes(type.value) && (
+                                    <CheckSquare className="h-3 w-3 mr-1" />
+                                  )}
+                                  {type.label}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-4">
+                        <h3 className={`mb-2 ${
+                          selectedClause.hierarchy_level <= 2 ? 'font-bold text-lg text-[#1a73e8] uppercase' :
+                          selectedClause.hierarchy_level <= 4 ? 'font-semibold text-[#1a73e8]' :
+                          selectedClause.hierarchy_level === 6 ? 'font-bold uppercase text-amber-600' :
+                          'font-medium'
+                        }`}>
+                          {selectedClause.header_text || "(No Header)"}
+                        </h3>
+                        <div 
+                          className="text-sm text-muted-foreground prose prose-sm dark:prose-invert max-w-none"
+                          dangerouslySetInnerHTML={{ __html: selectedClause.body_html || "(No Content)" }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div
+                  className="h-2 bg-border hover:bg-primary/20 cursor-row-resize flex items-center justify-center transition-colors shrink-0"
+                  onMouseDown={handleVerticalMouseDown}
+                  data-testid="vertical-resize-handle"
+                >
+                  <div className="w-8 h-0.5 bg-muted-foreground/30 rounded-full" />
+                </div>
+
+                <div 
+                  className="flex flex-col min-h-0"
+                  style={{ height: `${100 - editorPanelHeight}%` }}
+                >
+                  <div className="p-2 border-b bg-muted/30 flex-shrink-0">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <h3 className="text-xs font-medium text-muted-foreground flex items-center gap-2">
+                        <Eye className="h-3 w-3" />
+                        HTML Preview
+                      </h3>
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          id="resolve-tables"
+                          checked={resolveTablesPreview}
+                          onCheckedChange={(checked) => setResolveTablesPreview(checked === true)}
+                          className="h-3 w-3"
+                          data-testid="checkbox-resolve-tables"
+                        />
+                        <Label htmlFor="resolve-tables" className="text-xs cursor-pointer">
+                          Resolve Tables
+                        </Label>
+                        {resolveTablesPreview && (
+                          <Select value={previewProjectId} onValueChange={setPreviewProjectId}>
+                            <SelectTrigger className="w-36 h-6 text-xs" data-testid="select-preview-project">
+                              <SelectValue placeholder="Select project..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {projects?.map((p) => (
+                                <SelectItem key={p.id} value={p.id.toString()}>
+                                  {p.project_number} - {p.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex-1 min-h-0 overflow-auto">
+                    <div className="p-4">
+                      {resolveTablesPreview && previewProjectId ? (
+                        isResolvingPreview ? (
+                          <div className="text-center text-muted-foreground py-4">Resolving tables...</div>
+                        ) : (
+                          <div 
+                            className="prose prose-sm dark:prose-invert max-w-none"
+                            dangerouslySetInnerHTML={{ 
+                              __html: resolvedPreviewData?.html || '<p class="text-muted-foreground">No content to preview</p>'
+                            }}
+                            data-testid="resolved-preview"
+                          />
+                        )
+                      ) : (
+                        <div 
+                          className="prose prose-sm dark:prose-invert max-w-none"
+                          dangerouslySetInnerHTML={{ 
+                            __html: editingClause?.id === selectedClause.id 
+                              ? getPreviewHtml({ header_text: editHeaderText, body_html: editBodyHtml, hierarchy_level: editHierarchyLevel })
+                              : getPreviewHtml(selectedClause)
+                          }}
+                          data-testid="standard-preview"
+                        />
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="flex-1 flex items-center justify-center text-muted-foreground">
               <div className="text-center">
-                <p className="text-2xl font-bold">{stats.conditional}</p>
-                <p className="text-xs text-muted-foreground">Conditional</p>
+                <FileText className="h-12 w-12 mx-auto mb-4 opacity-30" />
+                <p className="text-lg">Select a clause from the tree</p>
+                <p className="text-sm mt-1">Click on any clause to view and edit</p>
               </div>
             </div>
           )}
         </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-4">
-            <Card>
-              <CardHeader className="pb-3">
-                <div className="flex flex-col md:flex-row gap-3">
-                  <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Search clauses by name, code, or content..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-9"
-                      data-testid="input-search-clauses"
-                    />
-                  </div>
-                  <Select value={contractType} onValueChange={setContractType}>
-                    <SelectTrigger className="w-full md:w-48" data-testid="select-contract-type">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {CONTRACT_TYPES.map((type) => (
-                        <SelectItem key={type.value} value={type.value}>
-                          {type.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Select value={hierarchyLevel} onValueChange={setHierarchyLevel}>
-                    <SelectTrigger className="w-full md:w-40" data-testid="select-hierarchy">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {HIERARCHY_LEVELS.map((level) => (
-                        <SelectItem key={level.value} value={level.value}>
-                          {level.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {isLoading ? (
-                  <div className="space-y-3">
-                    {[...Array(5)].map((_, i) => (
-                      <Skeleton key={i} className="h-16 w-full" />
-                    ))}
-                  </div>
-                ) : error ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <AlertTriangle className="h-8 w-8 mx-auto mb-2" />
-                    <p>Failed to load clauses</p>
-                  </div>
-                ) : clauses.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <BookOpen className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <p>No clauses found</p>
-                    <p className="text-sm mt-1">Try adjusting your filters or search term</p>
-                  </div>
-                ) : (
-                  <div className="space-y-2 max-h-[600px] overflow-y-auto">
-                    {clauses.map((clause) => (
-                      <Collapsible
-                        key={clause.id}
-                        open={expandedClauses.has(clause.id)}
-                        onOpenChange={() => toggleExpanded(clause.id)}
-                      >
-                        <div
-                          className={`border rounded-lg transition-colors ${
-                            selectedClause?.id === clause.id ? "border-primary bg-primary/5" : "hover:bg-muted/50"
-                          }`}
-                        >
-                          <CollapsibleTrigger className="w-full" asChild>
-                            <div
-                              className="flex items-center gap-3 p-3 cursor-pointer"
-                              onClick={() => {
-                                setSelectedClause(clause);
-                                setIsEditing(false);
-                              }}
-                              data-testid={`clause-row-${clause.id}`}
-                            >
-                              <div className="text-muted-foreground">
-                                {expandedClauses.has(clause.id) ? (
-                                  <ChevronDown className="h-4 w-4" />
-                                ) : (
-                                  <ChevronRight className="h-4 w-4" />
-                                )}
-                              </div>
-                              <div className="flex items-center gap-2 text-muted-foreground">
-                                {getHierarchyIcon(clause.hierarchy_level)}
-                              </div>
-                              <div className="flex-1 text-left min-w-0">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <Badge variant="outline" className="font-mono text-xs">
-                                    {clause.clause_code}
-                                  </Badge>
-                                  <span className="font-medium truncate">{clause.name}</span>
-                                </div>
-                                <div className="flex items-center gap-2 mt-1 flex-wrap">
-                                  <Badge variant="secondary" className="text-xs">
-                                    {clause.contract_type}
-                                  </Badge>
-                                  {clause.category && (
-                                    <span className="text-xs text-muted-foreground">{clause.category}</span>
-                                  )}
-                                  {clause.conditions && (
-                                    <Badge className="text-xs bg-amber-500/20 text-amber-700 dark:text-amber-400 border-amber-500/30">
-                                      <Zap className="h-3 w-3 mr-1" />
-                                      Conditional
-                                    </Badge>
-                                  )}
-                                </div>
-                              </div>
-                              {clause.negotiable && (
-                                <Badge variant="outline" className="text-xs shrink-0">
-                                  Negotiable
-                                </Badge>
-                              )}
-                            </div>
-                          </CollapsibleTrigger>
-                          <CollapsibleContent>
-                            <div className="px-3 pb-3 pt-0">
-                              <Separator className="mb-3" />
-                              <div className="flex items-center justify-end gap-2 mb-2">
-                                {inlineEditingId === clause.id ? (
-                                  <>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        cancelInlineEdit();
-                                      }}
-                                      data-testid={`button-cancel-inline-${clause.id}`}
-                                    >
-                                      <X className="h-4 w-4 mr-1" />
-                                      Cancel
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        saveInlineEdit(clause.id);
-                                      }}
-                                      disabled={inlineUpdateMutation.isPending}
-                                      data-testid={`button-save-inline-${clause.id}`}
-                                    >
-                                      <Save className="h-4 w-4 mr-1" />
-                                      Save
-                                    </Button>
-                                  </>
-                                ) : (
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      startInlineEdit(clause);
-                                    }}
-                                    data-testid={`button-edit-inline-${clause.id}`}
-                                  >
-                                    <Edit className="h-4 w-4 mr-1" />
-                                    Edit Content
-                                  </Button>
-                                )}
-                              </div>
-                              {inlineEditingId === clause.id ? (
-                                <RichTextEditor
-                                  content={inlineEditContent}
-                                  onChange={setInlineEditContent}
-                                  className="min-h-[200px]"
-                                />
-                              ) : (
-                                <div
-                                  className="text-sm max-w-none"
-                                  dangerouslySetInnerHTML={{ __html: formatContent(clause.content || "") }}
-                                />
-                              )}
-                              {clause.variables_used && clause.variables_used.length > 0 && (
-                                <div className="mt-3 flex flex-wrap gap-1">
-                                  {clause.variables_used.map((v) => (
-                                    <Badge key={v} variant="outline" className="font-mono text-xs">
-                                      {v}
-                                    </Badge>
-                                  ))}
-                                </div>
-                              )}
-                              {clause.conditions && (
-                                <div className="mt-3 p-2 bg-amber-500/10 rounded-lg">
-                                  <p className="text-xs font-medium text-amber-700 dark:text-amber-400 flex items-center gap-1">
-                                    <Zap className="h-3 w-3" />
-                                    Conditional Logic
-                                  </p>
-                                  <pre className="text-xs mt-1 font-mono overflow-x-auto">
-                                    {JSON.stringify(clause.conditions, null, 2)}
-                                  </pre>
-                                </div>
-                              )}
-                            </div>
-                          </CollapsibleContent>
-                        </div>
-                      </Collapsible>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="space-y-4">
-            {selectedClause ? (
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-lg">Clause Details</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Badge variant="outline" className="font-mono">
-                      {selectedClause.clause_code}
-                    </Badge>
-                    {getRiskBadge(selectedClause.risk_level)}
-                    {selectedClause.negotiable && (
-                      <Badge variant="secondary">Negotiable</Badge>
-                    )}
-                  </div>
-
-                  <div>
-                    <h4 className="font-medium mb-1">{selectedClause.name}</h4>
-                    <p className="text-sm text-muted-foreground">
-                      {selectedClause.category} | Level {selectedClause.hierarchy_level}
-                    </p>
-                  </div>
-
-                  {selectedClause.variables_used && selectedClause.variables_used.length > 0 && (
-                    <>
-                      <Separator />
-                      <div>
-                        <h5 className="text-sm font-medium mb-2 flex items-center gap-1">
-                          <Code className="h-4 w-4" />
-                          Variables Used ({selectedClause.variables_used.length})
-                        </h5>
-                        <div className="flex flex-wrap gap-1">
-                          {selectedClause.variables_used.map((v) => (
-                            <Badge key={v} variant="outline" className="font-mono text-xs">
-                              {v}
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
-                    </>
-                  )}
-
-                  {selectedClause.conditions && (
-                    <>
-                      <Separator />
-                      <div>
-                        <h5 className="text-sm font-medium mb-2 flex items-center gap-1">
-                          <Zap className="h-4 w-4 text-amber-500" />
-                          Conditional Logic
-                        </h5>
-                        <div className="p-2 bg-amber-500/10 rounded-lg">
-                          <pre className="text-xs font-mono overflow-x-auto">
-                            {JSON.stringify(selectedClause.conditions, null, 2)}
-                          </pre>
-                        </div>
-                      </div>
-                    </>
-                  )}
-                </CardContent>
-              </Card>
-            ) : (
-              <Card>
-                <CardContent className="py-12 text-center text-muted-foreground">
-                  <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>Select a clause to view details</p>
-                  <p className="text-sm mt-1">Click on any clause in the list</p>
-                </CardContent>
-              </Card>
-            )}
-
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm">Quick Stats</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Showing</span>
-                  <span className="font-medium">{clauses.length} clauses</span>
-                </div>
-                {stats && (
-                  <>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Contract Types</span>
-                      <span className="font-medium">{stats.contract_types}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Categories</span>
-                      <span className="font-medium">{stats.categories}</span>
-                    </div>
-                  </>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        </div>
       </div>
+
+      <Dialog open={bulkLevelDialogOpen} onOpenChange={setBulkLevelDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Change Hierarchy Level</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-muted-foreground mb-4">
+              Change the hierarchy level for {selectedClauseIds.size} selected clause(s).
+            </p>
+            <Label>New Hierarchy Level</Label>
+            <Select 
+              value={bulkNewLevel.toString()} 
+              onValueChange={(v) => setBulkNewLevel(parseInt(v))}
+            >
+              <SelectTrigger data-testid="select-bulk-level">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {EDIT_HIERARCHY_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value.toString()}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkLevelDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={applyBulkLevel} data-testid="button-apply-bulk-level">
+              Apply to {selectedClauseIds.size} Clauses
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={bulkConfirmDialogOpen} onOpenChange={setBulkConfirmDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Bulk Edit</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingBulkAction?.type === 'level' && (
+                <>
+                  You are about to change the hierarchy level of {selectedClauseIds.size} clause(s) 
+                  to Level {pendingBulkAction?.data?.level}. This action cannot be easily undone.
+                </>
+              )}
+              {pendingBulkAction?.type === 'reorder' && (
+                <>
+                  You are about to move {selectedClauseIds.size} clause(s) to a new position. 
+                  This will change their order in the contract hierarchy.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-bulk">Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={executeBulkAction} data-testid="button-confirm-bulk">
+              Confirm Changes
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

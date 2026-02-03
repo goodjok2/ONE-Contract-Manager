@@ -2,9 +2,7 @@
 
 ## Overview
 
-Dvele Contract Manager is a full-stack application designed to streamline the management of construction projects and their associated child LLCs for a modular home company. The system facilitates the creation and administration of specific child LLCs for each project (e.g., "Dvele Partners [Project] LLC") and automates contract generation based on these entities.
-
-The project's vision is to provide a comprehensive platform that reduces manual overhead in legal and project administration, ensuring compliance and efficiency in Dvele's construction operations. It aims to integrate project management with legal document generation, offering robust tools for contract and LLC lifecycle management.
+Dvele Contract Manager is a full-stack application designed to streamline the management of construction projects and their associated child LLCs for a modular home company. The system facilitates the creation and administration of specific child LLCs for each project (e.g., "Dvele Partners [Project] LLC") and automates contract generation based on these entities. The project aims to reduce manual overhead in legal and project administration, ensuring compliance and efficiency in construction operations by integrating project management with legal document generation and offering robust tools for contract and LLC lifecycle management.
 
 ## User Preferences
 
@@ -16,63 +14,77 @@ The application is built on a modern full-stack architecture.
 
 **Frontend**:
 - **Framework**: React (Vite)
-- **Styling**: Tailwind CSS for utility-first styling.
-- **UI Components**: Shadcn UI for pre-built, accessible components.
-- **State Management**: TanStack Query v5 for data fetching, caching, and synchronization.
-- **Routing**: `wouter` for a lightweight routing solution.
-- **Forms**: `react-hook-form` with `zod` for schema validation.
+- **Styling**: Tailwind CSS
+- **UI Components**: Shadcn UI
+- **State Management**: TanStack Query v5
+- **Routing**: `wouter`
+- **Forms**: `react-hook-form` with `zod`
 - **UI/UX Decisions**:
-    - **Dashboard**: Features 4 key stat cards (Total Contracts, Drafts, Pending Review, Signed), a Recent Contracts section, Quick Start Templates, and a Contract Value Overview.
-    - **Multi-step Wizard**: A 9-step wizard for contract generation (`/generate-contracts`) with autosave functionality, step validation, and a review/generate final step.
+    - **Dashboard**: Features key stats, recent contracts, quick start templates, and contract value overview.
+    - **Multi-step Wizard**: A 9-step wizard for contract generation with autosave, validation, and review steps.
     - **Theme**: Supports Dark Mode.
     - **LLC Naming**: Automated child LLC naming convention "DP + Project_Address + LLC".
-    - **Phase C UI Updates (Jan 2026)**:
-        - Site Address moved from Step 4 to Step 1 for better workflow
-        - Optional Billing Address with "different from site" checkbox
-        - Step 4 renamed "Home Models" (was "Site & Home")
-        - Step 5 renamed "Company Entity" (was "Child LLC")
-        - "Manufacturing" labels changed to "Offsite (Manufacturing)"
-        - Step 9 enhanced with Project Type, Company Entity display, and "Show Missing" variable toggle
+    - **Wizard Enhancements**: Site Address moved to Step 1, optional Billing Address, renamed steps (e.g., "Home Models", "Company Entity"), enhanced Step 9 with project type and company entity display.
+    - **Admin UI**: CRUD for Exhibit Library.
+    - **LLC Lifecycle Management**: Tabbed edit dialog (General/Corporate/Compliance) with formation date, EIN, registered agent, annual report tracking, and compliance status badges (Overdue=red, Pending=yellow, Filed=green).
 
 **Backend**:
 - **Framework**: Express.js
-- **Language**: TypeScript for type safety.
-- **API**: RESTful API endpoints for managing contracts, projects, LLCs, clauses, variables, and contractor entities.
-- **Modular Route Architecture (Jan 2026)**: Routes split into domain-focused modules for maintainability:
-    - `server/routes/index.ts` - Central router combining all modules
-    - `server/routes/projects.ts` - Projects, clients, units, details, home models, milestones, warranty, contractors
-    - `server/routes/financials.ts` - Pricing engine, financials, pricing summary
-    - `server/routes/contracts.ts` - Contract CRUD, generation, clauses, PDF/DOCX download
-    - `server/routes/llc.ts` - LLC entity management
-    - `server/routes/system.ts` - Dashboard stats, variables, variable mappings, admin endpoints
-    - `server/routes/helpers.ts` - Shared helper functions (getProjectWithRelations)
+- **Language**: TypeScript
+- **API**: RESTful API for managing contracts, projects, LLCs, clauses, variables, contractors, and system data.
+- **Modular Route Architecture**: Routes are organized into domain-focused modules (e.g., `projects.ts`, `contracts.ts`, `llc.ts`).
 
 **Database**:
-- **Primary Database**: PostgreSQL is used for all persistent data including `llcs`, `contracts`, `clauses`, `projects`, `clients`, `financials`, `projectDetails`, `milestones`, `warrantyTerms`, `contractors`, `contractor_entities`, and `contract_variables`.
+- **Primary Database**: PostgreSQL for all persistent data including `contracts`, `clauses`, `projects`, `clients`, `financials`, `projectDetails`, `milestones`, `warrantyTerms`, `contractors`, `contractor_entities`, `contract_variables`.
+- **Phase A (Complete)**: Atomic Clauses Architecture - clauses table refactored to use `slug`, `header_text`, `body_html`, `level`, `parent_id`, `order`, `contract_types` (JSONB), `tags` (JSONB). Database uses snake_case column names.
+- **Phase B (Complete)**: Smart Ingestor with regex-powered hierarchy detection for Roman numeral lists and automatic body paragraph appending.
+- **Phase C (Complete)**: System Restoration - API backward compatibility with `content` field reconstruction from header+body, table_definitions seeded for Variable Library.
+- **Phase D (Complete)**: Atomic UI & HTML Preview Upgrade - Editor UI with separate Header/Body fields, hierarchy-based styling (L1-L4 blue, L6 amber conspicuous, L7-L8 indented). Reorder endpoint fixed to use snake_case columns. All SQL queries use snake_case: `header_text`, `body_html`, `parent_id`, `updated_at`, `contract_types`.
+- **Phase E (Complete)**: Contract Viewer & Preview Logic updated - Endpoints reconstructing legacy `content` field from atomic `header_text`/`body_html` for frontend compatibility. Preview rendering with level-based CSS classes.
+- **Phase F (Complete)**: Smart Merge Ingestion - Heading 5 paragraphs >60 chars without list markers are merged into previous clause's bodyHtml instead of creating new tree nodes. Reduced clause count from 174 to 137. UI cleanup removed debug labels and added title truncation.
+- **Phase F-2 (Complete)**: Aggressive Smart Merge - Extended smart merge logic to H3, H4, H5 tags. Any heading >60 chars without list markers now merges into previous clause. Reduced clause count from 137 to 129 (45 total smart merges).
+- **Phase G (Complete)**: Hydrated table_definitions with column configurations for PRICING_TABLE (3 cols), PAYMENT_SCHEDULE_TABLE (3 cols), SIGNATURE_BLOCK_TABLE (3 cols), EXHIBIT_LIST_TABLE (2 cols). Script: `npx tsx scripts/update_tables.ts`.
 
 **Core Features & Design Patterns**:
-- **Autosave System**: Implemented with a 2-second debounced save mechanism for draft projects, saving on navigation and preserving user input.
-- **Contract Generation Wizard**: A structured, multi-step process for creating contract packages, including dynamic pricing calculation from selected home model units and integration with a pricing engine.
-- **Unit Builder**: Located in Step 4 (Site & Property). Allows adding home models from the database (`project_units` table). Step 1 shows a read-only Total Units count.
-- **Known Issue**: Wizard "Next" button may stay disabled after saving draft - step navigation gating logic needs investigation.
-- **Clause Library**: A comprehensive, searchable library of 276 contract clauses with filtering and editing capabilities.
-- **Variable Mappings**: System to configure and map contract variables, with preparation for Odoo ERP integration.
-- **LLC Administration**: CRUD operations for child LLC entities, including status tracking, member management, and compliance monitoring.
-- **Pricing Engine Integration**: Dynamic injection of pricing data into contract generation, including design fees, manufacturing costs, onsite costs, and payment milestones.
-- **Dynamic HTML Tables (Jan 2026)**: Contract variables `{{PRICING_BREAKDOWN_TABLE}}` and `{{PAYMENT_SCHEDULE_TABLE}}` render as styled HTML tables with inline CSS for PDF compatibility. Use the Clause Library UI to add these placeholders to clauses like ONE-EXHIBIT-C (Payment Schedule) and ONE-RECITAL-A (Pricing). Migration endpoint at POST `/api/debug/migrate-clauses` scans for candidate clauses.
-- **Schedule Duration Variables (Jan 2026)**: Project-level schedule fields (`design_duration`, `permitting_duration`, `production_duration`, `delivery_duration`, `completion_duration`, `estimated_delivery_date`, `estimated_completion_date`) are stored on the `projects` table. These populate contract variables like `{{DESIGN_DURATION}}`, `{{PRODUCTION_DURATION}}`, `{{DELIVERY_DATE}}`, `{{COMPLETION_DATE}}` for Exhibit D schedules. Migration endpoint: POST `/api/debug/migrate-schedule-columns`.
+- **Autosave System**: Debounced 2-second autosave for draft projects.
+- **Contract Generation Wizard**: Structured, multi-step process for creating contract packages with dynamic pricing.
+- **Unit Builder**: Allows adding home models (from `project_units` table) during contract generation.
+- **Clause Library**: Comprehensive, searchable library of contract clauses with filtering and editing.
+- **Variable Mappings**: System for configuring and mapping contract variables.
+- **LLC Administration**: CRUD operations for child LLC entities.
+- **Pricing Engine Integration**: Dynamic injection of pricing data into contracts.
+- **Dynamic HTML Tables**: Contract variables like `{{PRICING_BREAKDOWN_TABLE}}` and `{{PAYMENT_SCHEDULE_TABLE}}` render as styled HTML tables in generated contracts.
+- **Schedule Duration Variables**: Project-level schedule fields populate contract variables for Exhibit D schedules.
+- **Unified Variable Mapping**: `server/lib/mapper.ts` serves as the single source of truth for variable definitions.
+- **Intelligent Discovery-Based Contract Ingestor**: Script (`scripts/ingest_standard_contracts.ts`) automatically ingests .docx contract templates, derives contract types, extracts content based on Word styles, detects patterns, extracts variables, and builds a hierarchical clause structure. Supports single-file ingestion and appending.
+- **State-Specific Provision Filtering**: Ingestor detects state-specific sections (e.g., "CALIFORNIA PROVISIONS") and tags clauses with conditions. The contract generator filters blocks based on `PROJECT_STATE`.
+- **Contract Template Upload & Auto-Ingest**: UI and API for uploading .docx templates with automatic ingestion into the clause library.
+- **Variable Registry Sync**: Script (`scripts/sync_variables.ts`) synchronizes variables used in clauses with a central registry, inferring data types and marking required fields.
+- **8-Level Smart Logic Ingestor**: Maps Word styles to an 8-level hierarchy, detects smart tags like `[STATE_DISCLOSURE:XXXX]`, and handles service model conditions.
+- **State Disclosure Double-Lookup System**: Uses a `state_disclosures` table for dynamic lookup of state-specific content based on `disclosure_code` and `PROJECT_STATE`.
+- **Inline State Disclosure Tag Resolution**: Supports `[STATE_DISCLOSURE:XXXX]` tags embedded in clause content and exhibits. These tags are automatically resolved during contract generation by looking up the disclosure content from the state_disclosures table based on the tag code and project state. Tags are preloaded for performance and replaced with actual disclosure text.
+- **Exhibit Tag Resolution**: Supports `{{EXHIBIT_A}}` through `{{EXHIBIT_G}}` tags in clause content. Exhibits are preloaded from the exhibits table at contract generation start, filtered by contract type (ONE/MANUFACTURING/ONSITE), and resolved with formatted HTML including exhibit letter and title headers.
+- **4-Level Hierarchical Styling**: PDF contracts apply dynamic CSS styling for 4 hierarchy levels based on clause structure.
+- **Exhibit Library**: Manages contract exhibits with CRUD functionality, supporting dynamic content, variable placeholders, and contract type associations.
+- **State Disclosure Library Management**: Full CRUD UI for managing state-specific legal disclosures, with state/code filtering, accessible via Configuration menu. Supports 16 states (AZ, CA, CO, FL, GA, ID, IL, MA, MI, NV, NY, OR, PA, TX, UT, WA).
+- **Universal Template Ingestor**: Enhanced UI for uploading various template types (Contract Agreement, Exhibit Library, State Disclosure Library) with intelligent ingestion logic for each.
+- **Clause Explorer UI (Phase 10)**: Two-pane layout with 35% hierarchical tree panel and 65% editor+preview. Features L1-L8 nesting visualization with position-based numbering (e.g., 1, 1.1, 1.2), multi-select contract type tagging (ONE, CMOS, CRC, ONSITE), live HTML preview with hierarchy-aware styling, and drag-and-drop reordering with cycle detection.
+- **Component Library**: Dedicated page for previewing dynamic TABLE variables (PRICING_BREAKDOWN_TABLE, PAYMENT_SCHEDULE_TABLE, UNIT_SPEC_TABLE) with live project data. Uses Sandbox project (ID: 106) for testing.
+- **Multi-Contract Type Tagging**: Clauses support array of contract_types for flexible many-to-many associations. API filters with `ANY(contract_types)` for backward compatibility.
+- **Admin Variable Mappings**: CRUD admin page at `/admin/variables` for managing contract variable-to-source mappings stored in `variable_mappings` table.
+- **Admin Component Library**: CRUD admin page at `/admin/components` for managing dynamic text blocks stored in `component_library` table. Supports service model variants (CRC/CMOS) and system-protected components. DB-first lookup with hardcoded fallbacks.
 
 ## External Dependencies
 
-- **PostgreSQL**: Primary database for all application data.
+- **PostgreSQL**: Primary database.
 - **Vite**: Frontend build tool.
 - **React**: Frontend library.
-- **Express.js**: Backend web application framework.
-- **Tailwind CSS**: Utility-first CSS framework.
-- **Shadcn UI**: UI component library.
-- **TanStack Query v5**: Data fetching and state management.
-- **wouter**: Frontend router.
-- **react-hook-form**: Form management library.
-- **zod**: Schema declaration and validation library.
-- **JAMS/AAA**: Arbitration providers referenced in warranty terms.
-- **Odoo ERP**: Planned future integration for variable mapping.
+- **Express.js**: Backend framework.
+- **Tailwind CSS**: Styling framework.
+- **Shadcn UI**: UI components.
+- **TanStack Query v5**: Data fetching.
+- **wouter**: Routing.
+- **react-hook-form**: Form management.
+- **zod**: Schema validation.
+- **JAMS/AAA**: Referenced arbitration providers.
+- **Odoo ERP**: Planned future integration.

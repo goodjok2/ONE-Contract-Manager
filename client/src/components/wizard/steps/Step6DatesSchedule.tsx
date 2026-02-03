@@ -22,6 +22,17 @@ export const Step6DatesSchedule: React.FC = () => {
     return new Date(); // Default to today
   }, [projectData.agreementDate]);
   
+  // Auto-set effectiveDate from agreementDate on mount or when agreementDate changes
+  useEffect(() => {
+    if (!projectData.effectiveDate && projectData.agreementDate) {
+      updateProjectData({ effectiveDate: projectData.agreementDate });
+    } else if (!projectData.effectiveDate && !projectData.agreementDate) {
+      // Default to today if no dates are set
+      const today = new Date().toISOString().split('T')[0];
+      updateProjectData({ effectiveDate: today });
+    }
+  }, [projectData.agreementDate, projectData.effectiveDate, updateProjectData]);
+  
   useEffect(() => {
     if (!projectData.onsiteDurationDays) {
       const defaultDays = projectData.serviceModel === 'CRC' ? 90 : 60;
@@ -30,11 +41,15 @@ export const Step6DatesSchedule: React.FC = () => {
   }, [projectData.serviceModel]);
   
   useEffect(() => {
+    const updates: Partial<typeof projectData> = {};
     if (!projectData.designPhaseDays) {
-      updateProjectData({ designPhaseDays: 60 });
+      updates.designPhaseDays = 60;
     }
     if (!projectData.manufacturingDurationDays) {
-      updateProjectData({ manufacturingDurationDays: 120 });
+      updates.manufacturingDurationDays = 120;
+    }
+    if (Object.keys(updates).length > 0) {
+      updateProjectData(updates);
     }
   }, []);
   

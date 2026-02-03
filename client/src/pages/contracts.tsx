@@ -5,7 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { FileCheck, Plus, ChevronDown, ChevronRight, FileText, Package, Pencil } from "lucide-react";
+import { FileCheck, Plus, ChevronDown, ChevronRight, FileText, Package, Pencil, Download, Code, Eye } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
 
 interface ContractInfo {
@@ -35,8 +36,80 @@ export default function Contracts() {
   const { data: packages = [], isLoading } = useQuery<ContractPackage[]>({
     queryKey: ["/api/contracts"],
   });
+  const { toast } = useToast();
   
   const [expandedPackages, setExpandedPackages] = useState<Set<number>>(new Set());
+  const [generatingContract, setGeneratingContract] = useState<number | null>(null);
+
+  const getContractTypeForApi = (type: string): string => {
+    const typeMap: Record<string, string> = {
+      'one_agreement': 'ONE',
+      'manufacturing_sub': 'MANUFACTURING',
+      'onsite_sub': 'ONSITE',
+      'ONE Agreement': 'ONE',
+      'Manufacturing Subcontract': 'MANUFACTURING',
+      'OnSite Subcontract': 'ONSITE',
+      'ONE': 'ONE',
+      'MANUFACTURING': 'MANUFACTURING',
+      'ONSITE': 'ONSITE',
+    };
+    return typeMap[type] || 'ONE';
+  };
+
+  const handleHtmlPreview = async (projectId: number, contractType: string, contractId: number) => {
+    setGeneratingContract(contractId);
+    try {
+      const response = await fetch('/api/contracts/draft-preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contractType: getContractTypeForApi(contractType),
+          projectId,
+        }),
+      });
+      if (!response.ok) throw new Error('Failed to generate preview');
+      const html = await response.text();
+      const newWindow = window.open('', '_blank');
+      if (newWindow) {
+        newWindow.document.write(html);
+        newWindow.document.close();
+      }
+    } catch (error) {
+      console.error('Preview error:', error);
+      toast({ title: "Preview Failed", description: "Failed to generate HTML preview.", variant: "destructive" });
+    } finally {
+      setGeneratingContract(null);
+    }
+  };
+
+  const handleDownloadPdf = async (projectId: number, contractType: string, contractId: number, projectNumber: string) => {
+    setGeneratingContract(contractId);
+    try {
+      const response = await fetch('/api/contracts/download-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contractType: getContractTypeForApi(contractType),
+          projectId,
+        }),
+      });
+      if (!response.ok) throw new Error('Failed to generate PDF');
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${projectNumber}_${formatContractType(contractType).replace(/\s+/g, '_')}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Download error:', error);
+      toast({ title: "Download Failed", description: "Failed to download PDF.", variant: "destructive" });
+    } finally {
+      setGeneratingContract(null);
+    }
+  };
 
   const togglePackage = (packageId: number) => {
     setExpandedPackages(prev => {
@@ -213,9 +286,36 @@ export default function Contracts() {
                                 </div>
                                 <div className="flex items-center gap-2 shrink-0">
                                   <StatusBadge status={contract.status} size="sm" />
-                                  <Link href={`/contracts/${contract.id}`}>
-                                    <Button variant="outline" size="sm" data-testid={`button-view-contract-${contract.id}`}>
-                                      View
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleHtmlPreview(pkg.projectId, contract.contractType, contract.id);
+                                    }}
+                                    disabled={generatingContract === contract.id}
+                                    data-testid={`button-html-preview-${contract.id}`}
+                                    title="View HTML"
+                                  >
+                                    <Code className="h-4 w-4" />
+                                  </Button>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDownloadPdf(pkg.projectId, contract.contractType, contract.id, pkg.projectNumber);
+                                    }}
+                                    disabled={generatingContract === contract.id}
+                                    data-testid={`button-download-${contract.id}`}
+                                    title="Download PDF"
+                                  >
+                                    <Download className="h-4 w-4" />
+                                  </Button>
+                                  <Link href={`/contracts/${contract.id}/edit`}>
+                                    <Button variant="outline" size="sm" data-testid={`button-edit-contract-${contract.id}`}>
+                                      <Pencil className="h-3 w-3 mr-2" />
+                                      Edit
                                     </Button>
                                   </Link>
                                 </div>

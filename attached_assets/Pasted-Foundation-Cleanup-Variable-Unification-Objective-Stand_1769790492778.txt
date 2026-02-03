@@ -1,0 +1,54 @@
+Foundation Cleanup & Variable Unification
+Objective: Standardize the contract generation engine to be 100% database-driven. We are moving away from legacy .docx templates and centralizing all variable logic into a single source of truth to prepare for a Modular Document Schema.
+
+Step 1: Purge Legacy File-Based Templates
+
+Delete the following physical files from the file system:
+
+server/templates/Template_ONE_Agreement.docx
+
+server/templates/Template_Offsite.docx
+
+server/templates/Template_On-Site.docx
+
+Update server/routes/contracts.ts:
+
+Remove the POST /contracts/download-docx route since we are committing to the HTML-to-PDF engine.
+
+Remove any logic in the GET /contracts/download/:fileName route or other handlers that references the server/templates/ directory for template retrieval.
+
+Step 2: Unify Variable Mapping
+
+Refactor server/lib/contractGenerator.ts:
+
+Locate the buildVariableMap function.
+
+Modify it to exclusively use the output from mapProjectToVariables found in server/lib/mapper.ts.
+
+Delete the large block of hardcoded mapping logic (e.g., manual definitions for PROJECT_NAME, SITE_ADDRESS, etc.) inside contractGenerator.ts to ensure mapper.ts is the single source of truth for variable names.
+
+Update server/lib/mapper.ts:
+
+Review the mapProjectToVariables function and ensure it includes every variable used in the current database clauses table (e.g., ensure DESIGN_FEE, TOTAL_UNITS, and AGREEMENT_EXECUTION_DATE are correctly mapped).
+
+Export a new constant SUPPORTED_VARIABLES that lists all keys returned by this function so the UI can eventually show a "Variable Library."
+
+Step 3: Standardize the Generation Flow
+
+Update server/routes/contracts.ts:
+
+Ensure the POST /contracts/download-pdf and POST /contracts/download-all-zip endpoints strictly follow this sequence:
+
+Fetch project data using getProjectWithRelations.
+
+Call calculateProjectPricing to get current financial data.
+
+Pass both to mapProjectToVariables to get the final projectData object.
+
+Pass that object to generateContract in the generator library.
+
+Verification:
+
+Verify that server/lib/contractGenerator.ts no longer contains its own formatting logic for currency or dates, relying instead on the helpers in server/lib/mapper.ts.
+
+Confirm that a test PDF generation successfully pulls clauses from the database and replaces variables using the new unified map.

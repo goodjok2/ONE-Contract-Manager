@@ -17,6 +17,328 @@ interface Clause {
   conditions?: any;
   variables_used?: string[];
   sort_order: number;
+  parent_clause_id?: number | null;
+  block_type?: 'section' | 'clause' | 'paragraph' | 'table' | 'list_item' | 'dynamic_disclosure' | 'conspicuous';
+  disclosure_code?: string;
+  service_model_condition?: string;
+}
+
+// State disclosure cache for performance
+let stateDisclosureCache: Map<string, string> = new Map();
+
+// Current project state for disclosure lookups (set during generation)
+let currentProjectState: string = '';
+
+// Current service model for conditional [IF] tag processing
+let currentServiceModel: string = '';
+
+/**
+ * Process [IF CMOS]/[IF CRC] conditional tags in content
+ * Removes content wrapped in opposite service model tags
+ * Strips the literal [IF ...] and [/IF] tags from output
+ */
+function processConditionalTags(content: string, serviceModel: string): string {
+  if (!content) return '';
+  
+  let result = content;
+  const model = serviceModel.toUpperCase();
+  
+  // Handle verbose conditional format from exhibits FIRST
+  // [IF CLIENT HAS ELECTED 'CLIENT-RETAINED CONTRACTOR (CRC)':] ... content until next [IF or end
+  if (model === 'CRC') {
+    // Remove CMOS verbose blocks (from CMOS header to next [IF or end of content)
+    result = result.replace(
+      /\[IF CLIENT HAS ELECTED ['']COMPANY-MANAGED ON-SITE SERVICES \(CMOS\)['']:?\]([\s\S]*?)(?=\[IF CLIENT HAS ELECTED|$)/gi,
+      ''
+    );
+    // Unwrap CRC verbose blocks (keep content, remove header)
+    result = result.replace(
+      /\[IF CLIENT HAS ELECTED ['']CLIENT-RETAINED CONTRACTOR \(CRC\)['']:?\]\s*/gi,
+      ''
+    );
+  }
+  if (model === 'CMOS') {
+    // Remove CRC verbose blocks
+    result = result.replace(
+      /\[IF CLIENT HAS ELECTED ['']CLIENT-RETAINED CONTRACTOR \(CRC\)['']:?\]([\s\S]*?)(?=\[IF CLIENT HAS ELECTED|$)/gi,
+      ''
+    );
+    // Unwrap CMOS verbose blocks (keep content, remove header)
+    result = result.replace(
+      /\[IF CLIENT HAS ELECTED ['']COMPANY-MANAGED ON-SITE SERVICES \(CMOS\)['']:?\]\s*/gi,
+      ''
+    );
+  }
+  
+  // If CRC project, remove all [IF CMOS]...[/IF] content
+  if (model === 'CRC') {
+    // Remove [IF CMOS]...[/IF] blocks (including nested content)
+    result = result.replace(/\[IF\s+CMOS\][\s\S]*?\[\/IF\]/gi, '');
+    // Also remove [IF COMPANY-MANAGED]...[/IF] blocks
+    result = result.replace(/\[IF\s+COMPANY-MANAGED\][\s\S]*?\[\/IF\]/gi, '');
+  }
+  
+  // If CMOS project, remove all [IF CRC]...[/IF] content
+  if (model === 'CMOS') {
+    // Remove [IF CRC]...[/IF] blocks (including nested content)
+    result = result.replace(/\[IF\s+CRC\][\s\S]*?\[\/IF\]/gi, '');
+    // Also remove [IF CLIENT-RETAINED]...[/IF] blocks
+    result = result.replace(/\[IF\s+CLIENT-RETAINED\][\s\S]*?\[\/IF\]/gi, '');
+  }
+  
+  // Keep and unwrap the matching service model content (remove tags but keep content)
+  if (model === 'CRC') {
+    result = result.replace(/\[IF\s+CRC\]([\s\S]*?)\[\/IF\]/gi, '$1');
+    result = result.replace(/\[IF\s+CLIENT-RETAINED\]([\s\S]*?)\[\/IF\]/gi, '$1');
+  }
+  if (model === 'CMOS') {
+    result = result.replace(/\[IF\s+CMOS\]([\s\S]*?)\[\/IF\]/gi, '$1');
+    result = result.replace(/\[IF\s+COMPANY-MANAGED\]([\s\S]*?)\[\/IF\]/gi, '$1');
+  }
+  
+  // Remove any remaining [IF ...] and [/IF] tags that might have been left over
+  result = result.replace(/\[IF\s+[A-Z_-]+\]/gi, '');
+  result = result.replace(/\[\/IF\]/gi, '');
+  
+  return result.trim();
+}
+
+/**
+ * Resolve dynamic table variables from table_definitions table
+ * Looks for custom table variables (e.g., WHAT_HAPPENS_NEXT_TABLE) and renders them
+ */
+async function resolveDynamicTableVariables(
+  variableMap: Record<string, string>,
+  projectId: number | null
+): Promise<void> {
+  try {
+    const { renderDynamicTable } = await import('./tableBuilders');
+    
+    // List of custom table variable names to resolve from table_definitions
+    const customTableVars = ['WHAT_HAPPENS_NEXT_TABLE'];
+    
+    for (const varName of customTableVars) {
+      // Only resolve if not already set in the variable map
+      if (!variableMap[varName] || variableMap[varName].includes('NOT PROVIDED') || variableMap[varName].includes('MISSING')) {
+        try {
+          const tableHtml = await renderDynamicTable(varName, projectId);
+          // Only set if we got valid HTML (not an error message)
+          if (tableHtml && !tableHtml.includes('[Table not found')) {
+            variableMap[varName] = tableHtml;
+            console.log(`✓ Resolved dynamic table: ${varName}`);
+          }
+        } catch (tableError) {
+          console.log(`   ℹ️ Custom table ${varName} not defined in table_definitions (this is OK)`);
+        }
+      }
+    }
+  } catch (error) {
+    console.warn('⚠️ Could not resolve dynamic table variables:', error);
+  }
+}
+
+/**
+ * Look up state disclosure from the database
+ * Returns content if found, or a missing disclosure warning
+ */
+async function lookupStateDisclosure(disclosureCode: string, state: string): Promise<string> {
+  const cacheKey = `${disclosureCode}:${state}`;
+  
+  // Check cache first
+  if (stateDisclosureCache.has(cacheKey)) {
+    return stateDisclosureCache.get(cacheKey)!;
+  }
+  
+  try {
+    const { db } = await import('../db');
+    const { stateDisclosures } = await import('@shared/schema');
+    const { eq, and } = await import('drizzle-orm');
+    
+    const result = await db.select()
+      .from(stateDisclosures)
+      .where(and(
+        eq(stateDisclosures.code, disclosureCode),
+        eq(stateDisclosures.state, state)
+      ))
+      .limit(1);
+    
+    if (result.length > 0 && result[0].content) {
+      stateDisclosureCache.set(cacheKey, result[0].content);
+      return result[0].content;
+    } else {
+      // Return missing disclosure warning
+      const missing = `<div class="missing-disclosure">[MISSING LEGAL DISCLOSURE: ${disclosureCode} for ${state}]</div>`;
+      stateDisclosureCache.set(cacheKey, missing);
+      return missing;
+    }
+  } catch (error) {
+    console.error(`Error looking up state disclosure ${disclosureCode} for ${state}:`, error);
+    return `<div class="missing-disclosure">[ERROR LOADING DISCLOSURE: ${disclosureCode} for ${state}]</div>`;
+  }
+}
+
+/**
+ * Synchronous version for use in rendering (uses pre-loaded cache)
+ */
+function getStateDisclosureSync(disclosureCode: string, state: string): string {
+  const cacheKey = `${disclosureCode}:${state}`;
+  if (stateDisclosureCache.has(cacheKey)) {
+    return stateDisclosureCache.get(cacheKey)!;
+  }
+  return `<div class="missing-disclosure">[MISSING LEGAL DISCLOSURE: ${disclosureCode} for ${state}]</div>`;
+}
+
+/**
+ * Resolve inline [STATE_DISCLOSURE:XXXX] tags in content by looking up from state_disclosures table
+ * These tags are found in exhibit content and clauses
+ * Returns the content with tags replaced by actual disclosure content
+ */
+async function resolveInlineStateDisclosureTags(content: string, projectState: string): Promise<string> {
+  if (!content || !projectState) return content;
+  
+  // Pattern: [STATE_DISCLOSURE:XXXX] where XXXX is the disclosure code
+  const tagPattern = /\[STATE_DISCLOSURE:([A-Z0-9_]+)\]/g;
+  
+  // Find all unique disclosure codes using exec loop (for ES5 compatibility)
+  const disclosureCodes: string[] = [];
+  let match;
+  while ((match = tagPattern.exec(content)) !== null) {
+    if (!disclosureCodes.includes(match[1])) {
+      disclosureCodes.push(match[1]);
+    }
+  }
+  
+  if (disclosureCodes.length === 0) return content;
+  
+  // Preload all required disclosures
+  console.log(`📜 Resolving ${disclosureCodes.length} inline state disclosure tags for ${projectState}...`);
+  for (let i = 0; i < disclosureCodes.length; i++) {
+    await lookupStateDisclosure(disclosureCodes[i], projectState);
+  }
+  
+  // Replace all tags with actual content
+  let result = content;
+  for (let i = 0; i < disclosureCodes.length; i++) {
+    const code = disclosureCodes[i];
+    const disclosure = getStateDisclosureSync(code, projectState);
+    const pattern = new RegExp(`\\[STATE_DISCLOSURE:${code}\\]`, 'g');
+    result = result.replace(pattern, disclosure);
+  }
+  
+  return result;
+}
+
+/**
+ * Fetch exhibits from database for a given contract type
+ * Returns array of exhibit records ordered by sortOrder and letter
+ */
+async function fetchExhibitsForContract(contractType: string): Promise<any[]> {
+  try {
+    const { db } = await import('../db');
+    const { exhibits } = await import('@shared/schema');
+    const { asc } = await import('drizzle-orm');
+    
+    const allExhibits = await db.select()
+      .from(exhibits)
+      .orderBy(asc(exhibits.letter)); // Primary sort by exhibit_letter (A, B, C, D, E, F, G)
+    
+    // Filter by contract type and active status
+    const filteredExhibits = allExhibits.filter(exhibit => {
+      const types = exhibit.contractTypes as string[] | null;
+      return exhibit.isActive && types?.includes(contractType.toUpperCase());
+    });
+    
+    // Ensure exhibits are sorted by letter ascending (A-G)
+    filteredExhibits.sort((a, b) => {
+      const letterA = (a.letter || '').toUpperCase();
+      const letterB = (b.letter || '').toUpperCase();
+      return letterA.localeCompare(letterB);
+    });
+    
+    console.log(`📎 Found ${filteredExhibits.length} exhibits for ${contractType}, sorted A-G: ${filteredExhibits.map(e => e.letter).join(', ')}`);
+    return filteredExhibits;
+  } catch (error) {
+    console.error('Error fetching exhibits:', error);
+    return [];
+  }
+}
+
+/**
+ * Render exhibits to HTML with page breaks and variable substitution
+ * For dynamic exhibits, looks up state-specific disclosures
+ */
+async function renderExhibitsHTML(
+  exhibits: any[], 
+  variableMap: Record<string, string>,
+  projectState: string
+): Promise<string> {
+  if (exhibits.length === 0) return '';
+  
+  let html = '';
+  
+  for (const exhibit of exhibits) {
+    // Page break before each exhibit
+    html += '<div style="page-break-before: always;"></div>';
+    
+    // Exhibit header
+    html += `
+      <div class="exhibit-header">
+        <div class="level-1 roman-section" style="text-align: center; font-size: 14pt; font-weight: bold; color: #1a73e8;">
+          EXHIBIT ${exhibit.letter}
+        </div>
+        <div class="exhibit-title" style="text-align: center; font-size: 12pt; font-weight: bold; margin-bottom: 20px;">
+          ${exhibit.title}
+        </div>
+      </div>
+    `;
+    
+    // Exhibit content
+    let content = exhibit.content || '';
+    
+    // Resolve inline [STATE_DISCLOSURE:XXXX] tags in exhibit content
+    // These are tags embedded in the content that need to be replaced with actual disclosure text
+    if (projectState && content.includes('[STATE_DISCLOSURE:')) {
+      content = await resolveInlineStateDisclosureTags(content, projectState);
+    }
+    
+    // For dynamic exhibits with a disclosureCode property, also look up that content
+    if (exhibit.isDynamic && exhibit.disclosureCode && projectState) {
+      const disclosureContent = await lookupStateDisclosure(exhibit.disclosureCode, projectState);
+      // If disclosure found, append it to content
+      if (!disclosureContent.includes('MISSING LEGAL DISCLOSURE')) {
+        content += disclosureContent;
+      } else {
+        content += disclosureContent; // Shows the warning
+      }
+    }
+    
+    // Replace variables in exhibit content
+    for (const [key, value] of Object.entries(variableMap)) {
+      const pattern = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
+      content = content.replace(pattern, String(value || ''));
+    }
+    
+    // Process conditional tags for service model (CRC/CMOS) in exhibits
+    if (currentServiceModel && (content.includes('[IF ') || content.includes('[IF]'))) {
+      content = processConditionalTags(content, currentServiceModel);
+    }
+    
+    // Clean debug/placeholder text from exhibits
+    content = content.replace(/_+delete\s*(later|below[^"]*)/gi, '');
+    
+    html += `<div class="exhibit-content">${content}</div>`;
+  }
+  
+  return html;
+}
+
+// Tree node for recursive block structure
+interface BlockNode {
+  clause: Clause;
+  children: BlockNode[];
+  isHidden?: boolean;
+  dynamicNumber?: string; // Computed number (e.g., "1", "1.1", "1.1.1")
+  isInsideConditional?: boolean; // Track if inside [IF] block for Level 2 rendering
 }
 
 export async function generateContract(options: ContractGenerationOptions): Promise<Buffer> {
@@ -24,19 +346,85 @@ export async function generateContract(options: ContractGenerationOptions): Prom
   
   console.log(`\n=== Generating ${contractType} Contract (${format.toUpperCase()}) ===`);
   
+  // Step 1: Fetch and filter clauses
   const clauses = await fetchClausesForContract(contractType, projectData);
   console.log(`✓ Fetched ${clauses.length} clauses`);
   
+  // Extract project state for state-specific filtering
+  const projectState = projectData.PROJECT_STATE || projectData.state || projectData.siteState || '';
+  console.log(`📍 Project state for filtering: ${projectState || '(none)'}`);
+  
+  // Set current project state for disclosure lookups
+  currentProjectState = projectState;
+  
+  // Set current service model for [IF] tag processing
+  currentServiceModel = (projectData.serviceModel || projectData.ON_SITE_SELECTION || 'CRC').toUpperCase();
+  console.log(`📍 Service model for [IF] tag processing: ${currentServiceModel}`);
+  
+  // Clear and preload block components for this service model
+  clearBlockComponentCache();
+  await preloadBlockComponents(projectData.organizationId || 1, currentServiceModel);
+  
+  // Preload exhibit content for {{EXHIBIT_A}} through {{EXHIBIT_G}} tags
+  await preloadExhibits(projectData.organizationId || 1, contractType);
+  
+  // Step 1.5: Preload state disclosures for dynamic_disclosure blocks AND inline tags
+  const disclosureCodes = clauses
+    .filter(c => c.block_type === 'dynamic_disclosure' && c.disclosure_code)
+    .map(c => c.disclosure_code as string);
+  
+  // Also find inline [STATE_DISCLOSURE:XXXX] tags in clause content
+  const inlineTagPattern = /\[STATE_DISCLOSURE:([A-Z0-9_]+)\]/g;
+  for (const clause of clauses) {
+    if (clause.content) {
+      let match;
+      while ((match = inlineTagPattern.exec(clause.content)) !== null) {
+        if (!disclosureCodes.includes(match[1])) {
+          disclosureCodes.push(match[1]);
+        }
+      }
+      inlineTagPattern.lastIndex = 0; // Reset for next clause
+    }
+  }
+  
+  if (disclosureCodes.length > 0 && projectState) {
+    console.log(`📋 Preloading ${disclosureCodes.length} state disclosures for ${projectState}...`);
+    for (const code of disclosureCodes) {
+      await lookupStateDisclosure(code, projectState);
+    }
+    console.log(`✓ Preloaded state disclosures`);
+  }
+  
+  // Step 2: Build recursive block tree with state filtering
+  const blockTree = buildBlockTree(clauses, projectState);
+  console.log(`✓ Built block tree with ${blockTree.length} top-level nodes`);
+  
+  // Step 3: Apply dynamic numbering
+  applyDynamicNumbering(blockTree);
+  console.log(`✓ Applied dynamic numbering`);
+  
+  // Step 4: Build variable map and process
   const variableMap = buildVariableMap(projectData);
   console.log(`✓ Built variable map with ${Object.keys(variableMap).length} variables`);
   
-  const processedClauses = clauses.map(clause => ({
-    ...clause,
-    content: replaceVariables(clause.content, variableMap)
-  }));
-  console.log(`✓ Processed ${processedClauses.length} clauses with variable replacement`);
+  // Step 4.5: Resolve dynamic table variables (e.g., WHAT_HAPPENS_NEXT_TABLE)
+  const projectId = projectData.projectId || projectData.PROJECT_ID || null;
+  await resolveDynamicTableVariables(variableMap, projectId);
   
-  const html = generateHTMLFromClauses(processedClauses, contractType, projectData);
+  // Step 5: Process all clauses with variable replacement (recursive)
+  processBlockTreeVariables(blockTree, variableMap);
+  console.log(`✓ Processed block tree with variable replacement`);
+  
+  // Step 5.5: Fetch and render exhibits for this contract type
+  const exhibitRecords = await fetchExhibitsForContract(contractType);
+  let exhibitsHtml = '';
+  if (exhibitRecords.length > 0) {
+    exhibitsHtml = await renderExhibitsHTML(exhibitRecords, variableMap, projectState);
+    console.log(`✓ Rendered ${exhibitRecords.length} exhibits`);
+  }
+  
+  // Step 6: Generate HTML from tree (including exhibits)
+  const html = generateHTMLFromBlockTree(blockTree, contractType, projectData, exhibitsHtml);
   
   if (format === 'html') {
     return Buffer.from(html, 'utf-8');
@@ -48,15 +436,237 @@ export async function generateContract(options: ContractGenerationOptions): Prom
   return pdfBuffer;
 }
 
+/**
+ * Build a recursive tree structure from flat clause array
+ * Organizes blocks by parent_clause_id into Parent → Children hierarchy
+ * Filters out blocks based on PROJECT_STATE condition
+ * De-duplicates clauses by clause_id to prevent double-rendering
+ */
+function buildBlockTree(clauses: Clause[], projectState?: string): BlockNode[] {
+  // Create a map for quick lookup
+  const clauseMap = new Map<number, BlockNode>();
+  const rootNodes: BlockNode[] = [];
+  
+  // De-duplication: Track seen clause IDs to prevent double-rendering
+  const seenClauseIds = new Set<number>();
+  
+  // First pass: create BlockNode for each clause, checking state conditions
+  for (const clause of clauses) {
+    // De-duplication check
+    if (seenClauseIds.has(clause.id)) {
+      console.log(`   ⚠️ SKIPPED DUPLICATE: [${clause.id}] ${clause.clause_code}`);
+      continue;
+    }
+    seenClauseIds.add(clause.id);
+    // Check PROJECT_STATE condition
+    let shouldInclude = true;
+    if (clause.conditions) {
+      let conditions = clause.conditions;
+      if (typeof conditions === 'string') {
+        try {
+          conditions = JSON.parse(conditions);
+        } catch (e) {
+          // If parsing fails, include the clause
+        }
+      }
+      
+      // Check for PROJECT_STATE condition
+      const requiredState = conditions?.PROJECT_STATE;
+      if (requiredState && projectState) {
+        // Only include if state matches
+        shouldInclude = requiredState === projectState;
+        if (!shouldInclude) {
+          console.log(`   ✗ FILTERED: [${clause.id}] ${clause.clause_code} - state ${requiredState} != project ${projectState}`);
+        }
+      } else if (requiredState && !projectState) {
+        // No project state provided but clause requires one - include it
+        console.log(`   ⚠️  No project state, including state-specific clause: ${clause.clause_code}`);
+      }
+    }
+    
+    if (shouldInclude) {
+      clauseMap.set(clause.id, {
+        clause,
+        children: [],
+        isHidden: false
+      });
+    }
+  }
+  
+  // Second pass: build tree structure
+  for (const clause of clauses) {
+    const node = clauseMap.get(clause.id);
+    if (!node) continue; // Skip filtered-out clauses
+    
+    if (clause.parent_clause_id && clauseMap.has(clause.parent_clause_id)) {
+      // This clause has a parent in the tree
+      const parentNode = clauseMap.get(clause.parent_clause_id)!;
+      parentNode.children.push(node);
+    } else {
+      // This is a root-level node (no parent or parent not in filtered set)
+      rootNodes.push(node);
+    }
+  }
+  
+  // Sort children by sort_order
+  function sortChildren(nodes: BlockNode[]) {
+    nodes.sort((a, b) => (a.clause.sort_order || 0) - (b.clause.sort_order || 0));
+    for (const node of nodes) {
+      sortChildren(node.children);
+    }
+  }
+  
+  sortChildren(rootNodes);
+  rootNodes.sort((a, b) => (a.clause.sort_order || 0) - (b.clause.sort_order || 0));
+  
+  return rootNodes;
+}
+
+// Track section counter for Level 2 sections (resets when Level 1 is encountered)
+let globalSectionCounter = 0;
+
+/**
+ * Apply dynamic numbering to the block tree with absolute hierarchy rules
+ * Uses hierarchy_level from the clause data (not recursion depth) to determine format:
+ * - hierarchy_level 1: Upper Roman (I, II, III) for Agreement Parts - RESETS ALL sub-counters
+ * - hierarchy_level 2: "Section X" for Major Sections (independent counter), OR dot-notation if inside [IF] tag
+ * - hierarchy_level 3: X.X (e.g., 1.1, 2.3) for Clauses - dot-notation
+ * - hierarchy_level 4: X.X.X (e.g., 1.1.1) for Sub-headers - dot-notation
+ * - hierarchy_level 5-6: No numbering (body text and conspicuous)
+ * - hierarchy_level 7: i., ii., iii. (lowercase Roman numerals for list items)
+ * Auto-renumbers when blocks are hidden
+ */
+function applyDynamicNumbering(
+  nodes: BlockNode[], 
+  parentNumber: string = '', 
+  level: number = 0,
+  isInsideConditional: boolean = false
+): void {
+  let visibleIndex = 0;
+  
+  // Reset global section counter at root level
+  if (level === 0) {
+    globalSectionCounter = 0;
+  }
+  
+  for (const node of nodes) {
+    if (node.isHidden) continue;
+    
+    visibleIndex++;
+    
+    // Use hierarchy_level from clause data if available, otherwise fall back to tree depth
+    const hierarchyLevel = node.clause.hierarchy_level ?? (level + 1);
+    const blockType = node.clause.block_type || 'clause';
+    const clauseName = node.clause.name || '';
+    
+    // Check if this is a conditional [IF] block
+    const isConditionalBlock = clauseName.startsWith('[IF') || clauseName.includes('[IF ');
+    
+    // Determine the number format based on hierarchy_level (not tree depth)
+    let number: string;
+    
+    if (hierarchyLevel === 1) {
+      // Level 1: Upper Roman for Agreement Parts (I, II, III)
+      // ABSOLUTE RULE: Reset all sub-counters when Level 1 is encountered
+      globalSectionCounter = 0; // Reset section counter
+      
+      const clauseCode = node.clause.clause_code || '';
+      const isRomanSection = /^[IVX]+\.?\s/.test(clauseCode) || /^[IVX]+\.?\s/.test(clauseName);
+      
+      if (isRomanSection) {
+        number = toRoman(visibleIndex);
+      } else {
+        number = String(visibleIndex);
+      }
+    } else if (hierarchyLevel === 2) {
+      // Level 2: "Section X" for Major Sections, OR dot-notation if inside conditional [IF] tag
+      // ABSOLUTE RULE: If inside an [IF] tag, render as nested dot-notation (e.g., 5.1)
+      if (isInsideConditional || isConditionalBlock) {
+        // Inside conditional block - use dot-notation (parent.child format)
+        number = parentNumber ? `${parentNumber}.${visibleIndex}` : String(visibleIndex);
+      } else {
+        // Regular Level 2 outside [IF] - use independent section numbering (Section 1, 2, 3...)
+        globalSectionCounter++;
+        number = String(globalSectionCounter);
+      }
+    } else if (hierarchyLevel === 5 || hierarchyLevel === 6) {
+      // Levels 5-6: No numbering (body text and conspicuous)
+      number = '';
+    } else if (hierarchyLevel === 7 || blockType === 'list_item') {
+      // Level 7 ONLY: Lowercase Roman numerals for Roman Lists (i., ii., iii.)
+      number = toLowerRoman(visibleIndex);
+    } else {
+      // Levels 3-4: Parent.Child format (e.g., 1.1, 1.1.1)
+      number = parentNumber ? `${parentNumber}.${visibleIndex}` : String(visibleIndex);
+    }
+    
+    node.dynamicNumber = number || undefined;
+    
+    // Mark if this node is inside a conditional block for rendering decisions
+    node.isInsideConditional = isInsideConditional || isConditionalBlock;
+    
+    // Recursively number children
+    // Pass down conditional context so children know they're inside an [IF] block
+    if (node.children.length > 0) {
+      const childConditionalContext = isInsideConditional || isConditionalBlock;
+      applyDynamicNumbering(node.children, number, level + 1, childConditionalContext);
+    }
+  }
+}
+
+/**
+ * Convert integer to uppercase Roman numeral (I, II, III, IV, V...)
+ */
+function toRoman(num: number): string {
+  const romanNumerals: [number, string][] = [
+    [1000, 'M'], [900, 'CM'], [500, 'D'], [400, 'CD'],
+    [100, 'C'], [90, 'XC'], [50, 'L'], [40, 'XL'],
+    [10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I']
+  ];
+  
+  let result = '';
+  for (const [value, numeral] of romanNumerals) {
+    while (num >= value) {
+      result += numeral;
+      num -= value;
+    }
+  }
+  return result;
+}
+
+/**
+ * Convert integer to lowercase Roman numeral (i, ii, iii, iv, v...)
+ * Used for Level 4 list items
+ */
+function toLowerRoman(num: number): string {
+  return toRoman(num).toLowerCase();
+}
+
+/**
+ * Process variable replacement recursively through the block tree
+ */
+function processBlockTreeVariables(nodes: BlockNode[], variableMap: Record<string, string>): void {
+  for (const node of nodes) {
+    node.clause.content = replaceVariables(node.clause.content, variableMap);
+    processBlockTreeVariables(node.children, variableMap);
+  }
+}
+
 async function fetchClausesForContract(
   contractType: string, 
   projectData: Record<string, any>
 ): Promise<Clause[]> {
   try {
+    // Contract types map from user-facing/internal names to database values
+    // Database stores human-readable names: 'ONE Agreement', 'Manufacturing Subcontract', 'OnSite Subcontract'
     const contractTypeMap: Record<string, string> = {
       'ONE': 'ONE Agreement',
-      'MANUFACTURING': 'MANUFACTURING',
-      'ONSITE': 'ONSITE',
+      'ONE_AGREEMENT': 'ONE Agreement',
+      'one_agreement': 'ONE Agreement',
+      'MANUFACTURING': 'Manufacturing Subcontract',
+      'manufacturing_sub': 'Manufacturing Subcontract',
+      'ONSITE': 'OnSite Subcontract',
+      'onsite_sub': 'OnSite Subcontract',
     };
     const mappedType = contractTypeMap[contractType] || contractType;
     
@@ -70,7 +680,26 @@ async function fetchClausesForContract(
     }
     
     const data = await response.json();
-    const allClauses: Clause[] = data.clauses || [];
+    const rawClauses = data.clauses || [];
+    
+    // Map API field names to Clause interface field names
+    // API returns: header_text, body_html | Interface expects: name, content
+    const allClauses: Clause[] = rawClauses.map((c: any) => ({
+      id: c.id,
+      clause_code: c.clause_code,
+      name: c.header_text || '',           // API: header_text → Interface: name
+      content: c.body_html || '',          // API: body_html → Interface: content
+      contract_type: Array.isArray(c.contract_types) ? c.contract_types[0] : c.contract_types,
+      hierarchy_level: c.hierarchy_level,
+      sort_order: c.sort_order,
+      parent_clause_id: c.parent_clause_id,
+      conditions: c.conditions || null,
+      block_type: c.block_type || null,
+      disclosure_code: c.disclosure_code || null,
+      category: c.category || '',
+      variables_used: c.variables_used || [],
+      service_model_condition: c.service_model_condition || null,
+    }));
     
     console.log(`Received ${allClauses.length} total clauses from API`);
     
@@ -189,10 +818,187 @@ const VAR_END = '\u0001/VAR\u0002';
 const PLACEHOLDER_START = '\u0001PH\u0002';
 const PLACEHOLDER_END = '\u0001/PH\u0002';
 
+// Import centralized BLOCK_ tag resolution from component-library
+import { fetchComponentFromDB } from '../services/component-library';
+
+// Cache for resolved block components (cleared per contract generation)
+let blockComponentCache: Map<string, string> = new Map();
+
+// Cache for resolved exhibits (cleared per contract generation)
+let exhibitContentCache: Map<string, string> = new Map();
+
+/**
+ * Clear all component caches (call at start of contract generation)
+ */
+export function clearBlockComponentCache() {
+  blockComponentCache.clear();
+  exhibitContentCache.clear();
+}
+
+/**
+ * Pre-fetch all BLOCK_ components for a service model (call once per contract generation)
+ * This allows synchronous resolution in replaceVariables
+ */
+export async function preloadBlockComponents(organizationId: number, serviceModel: string): Promise<void> {
+  const model = (serviceModel || 'CRC').toUpperCase();
+  
+  // Fetch all components for this organization and service model
+  const { Pool } = await import('pg');
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  
+  try {
+    const result = await pool.query(
+      `SELECT tag_name, content FROM component_library 
+       WHERE organization_id = $1 
+         AND (service_model = $2 OR service_model IS NULL)
+       ORDER BY CASE WHEN service_model = $2 THEN 0 ELSE 1 END`,
+      [organizationId, model]
+    );
+    
+    // Build cache - first match for each tag_name wins (service_model specific takes priority)
+    for (const row of result.rows) {
+      if (!blockComponentCache.has(row.tag_name)) {
+        blockComponentCache.set(row.tag_name, row.content);
+      }
+    }
+    
+    console.log(`Preloaded ${blockComponentCache.size} block components for ${model}`);
+  } finally {
+    await pool.end();
+  }
+}
+
+/**
+ * Pre-fetch all EXHIBIT content for the contract (call once per contract generation)
+ * This allows synchronous resolution of {{EXHIBIT_A}} through {{EXHIBIT_G}} tags
+ * Filters by contract type to ensure correct exhibits for each contract
+ */
+export async function preloadExhibits(organizationId: number, contractType: string): Promise<void> {
+  const { Pool } = await import('pg');
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  const normalizedType = contractType.toUpperCase();
+  
+  try {
+    // Fetch exhibits that match this contract type (stored as ARRAY in contract_types column)
+    const result = await pool.query(
+      `SELECT letter, title, content, contract_types FROM exhibits 
+       WHERE organization_id = $1 
+         AND is_active = true
+         AND letter IS NOT NULL
+       ORDER BY letter`,
+      [organizationId]
+    );
+    
+    // Build cache keyed by EXHIBIT_X format, filtering by contract type
+    for (const row of result.rows) {
+      // Check if this exhibit applies to the current contract type
+      const types = row.contract_types as string[] | null;
+      if (types && !types.includes(normalizedType)) {
+        continue; // Skip exhibits not matching this contract type
+      }
+      
+      const exhibitKey = `EXHIBIT_${row.letter.toUpperCase()}`;
+      const exhibitHtml = `<h2>Exhibit ${row.letter}: ${row.title}</h2>\n${row.content || ''}`;
+      exhibitContentCache.set(exhibitKey, exhibitHtml);
+    }
+    
+    console.log(`Preloaded ${exhibitContentCache.size} exhibits for ${normalizedType}`);
+  } finally {
+    await pool.end();
+  }
+}
+
+/**
+ * Resolve {{EXHIBIT_A}} through {{EXHIBIT_G}} tags using preloaded cache
+ */
+function resolveExhibitTags(content: string): string {
+  let result = content;
+  
+  // Find ALL {{EXHIBIT_*}} tags using regex
+  const exhibitTagRegex = /\{\{(EXHIBIT_[A-G])\}\}/g;
+  const allMatches = Array.from(result.matchAll(exhibitTagRegex));
+  const uniqueTags = Array.from(new Set(allMatches.map(m => m[1])));
+  
+  for (const tagName of uniqueTags) {
+    const exhibitContent = exhibitContentCache.get(tagName);
+    if (exhibitContent) {
+      result = result.replace(new RegExp(`\\{\\{${tagName}\\}\\}`, 'g'), exhibitContent);
+    } else {
+      console.warn(`No cached exhibit for {{${tagName}}} - leaving placeholder`);
+    }
+  }
+  
+  return result;
+}
+
+/**
+ * Resolve BLOCK_ component tags based on service model (CRC vs CMOS)
+ * Uses preloaded cache for synchronous resolution
+ * Generic regex approach - matches ALL {{BLOCK_*}} tags
+ */
+function resolveBlockTags(content: string, serviceModel: string): string {
+  let result = content;
+  
+  // Find ALL {{BLOCK_*}} tags using generic regex
+  const blockTagRegex = /\{\{(BLOCK_[A-Z0-9_.]+)\}\}/g;
+  const allMatches = Array.from(result.matchAll(blockTagRegex));
+  const uniqueTags = Array.from(new Set(allMatches.map(m => m[1])));
+  
+  for (const tagName of uniqueTags) {
+    const blockContent = blockComponentCache.get(tagName);
+    if (blockContent) {
+      // Escape dots in tag name for regex
+      const escapedTagName = tagName.replace(/\./g, '\\.');
+      result = result.replace(new RegExp(`\\{\\{${escapedTagName}\\}\\}`, 'g'), blockContent);
+    } else {
+      console.warn(`No cached component for {{${tagName}}} - leaving placeholder`);
+      // Leave the placeholder in place so it shows up as unresolved
+    }
+  }
+  
+  return result;
+}
+
 function replaceVariables(content: string, variableMap: Record<string, string>): string {
   if (!content) return '';
   
   let result = content;
+  
+  // Process BLOCK_ component tags based on current service model
+  if (result.includes('{{BLOCK_')) {
+    result = resolveBlockTags(result, currentServiceModel);
+  }
+  
+  // Process EXHIBIT_ tags ({{EXHIBIT_A}} through {{EXHIBIT_G}})
+  if (result.includes('{{EXHIBIT_')) {
+    result = resolveExhibitTags(result);
+  }
+  
+  // Process [IF CMOS]/[IF CRC] conditional tags based on current service model
+  if (currentServiceModel && (result.includes('[IF ') || result.includes('[IF]'))) {
+    result = processConditionalTags(result, currentServiceModel);
+  }
+  
+  // Replace [STATE_DISCLOSURE:XXXX] inline tags with cached disclosure content
+  // These should have been preloaded in the generateContract function
+  if (result.includes('[STATE_DISCLOSURE:') && currentProjectState) {
+    // Find all unique disclosure codes first
+    const codePattern = /\[STATE_DISCLOSURE:([A-Z0-9_]+)\]/g;
+    const uniqueCodes: string[] = [];
+    let codeMatch;
+    while ((codeMatch = codePattern.exec(result)) !== null) {
+      if (!uniqueCodes.includes(codeMatch[1])) {
+        uniqueCodes.push(codeMatch[1]);
+      }
+    }
+    // Then replace ALL occurrences of each code with a global replace
+    for (let i = 0; i < uniqueCodes.length; i++) {
+      const code = uniqueCodes[i];
+      const disclosureContent = getStateDisclosureSync(code, currentProjectState);
+      const replacePattern = new RegExp(`\\[STATE_DISCLOSURE:${code}\\]`, 'g');
+      result = result.replace(replacePattern, disclosureContent);
+    }
+  }
   
   // Replace variables with their values using special markers
   // These markers will be converted to HTML spans after formatting
@@ -239,6 +1045,705 @@ function convertVariableMarkersToHtml(html: string): string {
     .replace(new RegExp(PLACEHOLDER_END, 'g'), '</span>');
 }
 
+/**
+ * Generate HTML document from recursive block tree
+ * Uses block_type for styling: section, clause, paragraph
+ * Appends exhibits after signature blocks
+ */
+function generateHTMLFromBlockTree(
+  blockTree: BlockNode[],
+  contractType: string,
+  projectData: Record<string, any>,
+  exhibitsHtml?: string
+): string {
+  const title = getContractTitle(contractType);
+  
+  const rawHtml = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${title}</title>
+  <style>
+    ${getContractStyles()}
+  </style>
+</head>
+<body>
+  <div class="contract-container">
+    ${renderTitlePage(title, projectData)}
+    ${renderBlockTreeHTML(blockTree, projectData, exhibitsHtml)}
+  </div>
+</body>
+</html>
+  `.trim();
+  
+  // Convert variable markers to styled HTML spans
+  return convertVariableMarkersToHtml(rawHtml);
+}
+
+/**
+ * Render block tree to HTML recursively
+ * Uses block_type and dynamic numbering for consistent formatting
+ */
+function renderBlockTreeHTML(nodes: BlockNode[], projectData: Record<string, any>, exhibitsHtml?: string): string {
+  let html = '<div class="contract-body">';
+  
+  for (const node of nodes) {
+    if (node.isHidden) continue;
+    html += renderBlockNode(node);
+  }
+  
+  // Add signature blocks at the end
+  html += renderSignatureBlocks(projectData);
+  
+  // Add exhibits after signature blocks
+  if (exhibitsHtml) {
+    html += exhibitsHtml;
+  }
+  
+  html += '</div>';
+  
+  return html;
+}
+
+/**
+ * Render a single block node and its children recursively
+ * Uses both block_type and hierarchy_level to determine rendering format
+ * Supports 8-level hierarchy: Agreement Parts, Major Sections, Clauses, Sub-headers, Body, Conspicuous, Roman Lists
+ */
+function renderBlockNode(node: BlockNode): string {
+  const { clause, children, dynamicNumber, isInsideConditional } = node;
+  const blockType = clause.block_type || 'clause';
+  const hierarchyLevel = clause.hierarchy_level ?? 1;
+  const rawContent = clause.content || '';
+  const clauseName = clause.name || '';
+  const clauseCode = clause.clause_code || '';
+  const disclosureCode = clause.disclosure_code || '';
+  
+  // Strip duplicate headers and format content
+  const strippedContent = stripDuplicateHeader(rawContent, clauseName, clauseCode);
+  const content = strippedContent ? formatContent(strippedContent) : '';
+  
+  let html = '';
+  
+  // Check for Roman numeral sections
+  const isRomanSection = /^[IVX]+\.?\s/.test(clauseCode) || /^[IVX]+\.?\s/.test(clauseName);
+  
+  // Check for Exhibit sections (add page break)
+  const exhibitMatch = clauseCode.match(/EXHIBIT-([A-G])$/);
+  if (exhibitMatch) {
+    html += `<div style="page-break-before: always;"></div>`;
+  }
+  
+  // Handle dynamic_disclosure blocks - look up content from state_disclosures table
+  if (blockType === 'dynamic_disclosure') {
+    if (disclosureCode && currentProjectState) {
+      const disclosureContent = getStateDisclosureSync(disclosureCode, currentProjectState);
+      html += `<div class="level-${hierarchyLevel}">${disclosureContent}</div>`;
+    } else if (disclosureCode) {
+      html += `<div class="missing-disclosure">[MISSING STATE: Cannot look up disclosure ${disclosureCode} without PROJECT_STATE]</div>`;
+    }
+    // Fall through to render children
+  }
+  // Handle conspicuous blocks - entirely bold legal disclaimers
+  else if (blockType === 'conspicuous') {
+    html += `<div class="level-6 conspicuous">${content}</div>`;
+  }
+  // Render based on block_type and hierarchy_level
+  else if (blockType === 'section') {
+    if (hierarchyLevel === 1 || isRomanSection) {
+      // Level 1: Agreement Parts - Center-aligned, Upper Roman (I, II, III)
+      html += `
+        <div class="level-1 roman-section">
+          ${dynamicNumber ? `${dynamicNumber}. ` : ''}${escapeHtml(clauseName.replace(/^[IVX]+\.?\s*/, '').toUpperCase())}
+        </div>
+        ${content ? `<p>${content}</p>` : ''}
+      `;
+    } else {
+      // Level 2: Major Sections
+      // ABSOLUTE RULE: If inside [IF] tag, use dot-notation (e.g., 5.1) instead of "Section X"
+      const displayName = clauseName.replace(/^Section\s*\d+\.?\s*/i, '');
+      const isConditionalClause = clauseName.startsWith('[IF') || clauseName.includes('[IF ');
+      
+      if (isInsideConditional || isConditionalClause) {
+        // Inside conditional block - use dot-notation, skip "Section" prefix
+        html += `
+          <div class="level-2 subsection-header">
+            ${dynamicNumber ? `${dynamicNumber}. ` : ''}${escapeHtml(displayName)}
+          </div>
+          ${content ? `<p>${content}</p>` : ''}
+        `;
+      } else {
+        // Regular Level 2 - use "Section X" format
+        html += `
+          <div class="level-2 subsection-header">
+            ${dynamicNumber ? `Section ${dynamicNumber}. ` : ''}${escapeHtml(displayName)}
+          </div>
+          ${content ? `<p>${content}</p>` : ''}
+        `;
+      }
+    }
+  } else if (blockType === 'clause') {
+    // Level 3: Clauses - Black, Bold, Dot-notation (1.1, 2.3)
+    const displayName = clauseName.replace(/^\d+\.\d+\.?\s*/i, '');
+    html += `
+      <div class="level-3 clause-header">
+        ${dynamicNumber ? `${dynamicNumber}. ` : ''}${escapeHtml(displayName)}
+      </div>
+      ${content ? `<p>${content}</p>` : ''}
+    `;
+  } else if (blockType === 'paragraph') {
+    // Level 4 or 5 depending on hierarchy
+    if (hierarchyLevel <= 4 && dynamicNumber) {
+      // Level 4: Sub-headers with dot-notation (1.1.1)
+      html += `
+        <div class="level-4 paragraph-numbered">
+          <span class="clause-number">${dynamicNumber}.</span> ${content}
+        </div>
+      `;
+    } else {
+      // Level 5: Body text with hanging indent
+      html += `<div class="level-5">${content}</div>`;
+    }
+  } else if (blockType === 'list_item') {
+    // Level 7: Roman numeral list items - Margin-Left: 60pt
+    html += `
+      <div class="level-7 list-item-roman">
+        <span class="list-marker">${dynamicNumber}.</span>${content}
+      </div>
+    `;
+  } else if (blockType === 'table') {
+    // Table - content should already be HTML
+    html += content;
+  } else {
+    // Default: Use hierarchy_level as fallback for rendering decision
+    if (hierarchyLevel === 1) {
+      html += `<div class="level-1">${dynamicNumber ? `${dynamicNumber}. ` : ''}${escapeHtml(clauseName.toUpperCase())}</div>`;
+      if (content) html += `<p>${content}</p>`;
+    } else if (hierarchyLevel === 2) {
+      // ABSOLUTE RULE: If inside [IF] tag, use dot-notation instead of "Section X"
+      const isConditionalClause = clauseName.startsWith('[IF') || clauseName.includes('[IF ');
+      if (isInsideConditional || isConditionalClause) {
+        html += `<div class="level-2">${dynamicNumber ? `${dynamicNumber}. ` : ''}${escapeHtml(clauseName)}</div>`;
+      } else {
+        html += `<div class="level-2">${dynamicNumber ? `Section ${dynamicNumber}. ` : ''}${escapeHtml(clauseName)}</div>`;
+      }
+      if (content) html += `<p>${content}</p>`;
+    } else if (hierarchyLevel === 3) {
+      html += `<div class="level-3">${dynamicNumber ? `${dynamicNumber}. ` : ''}${escapeHtml(clauseName)}</div>`;
+      if (content) html += `<p>${content}</p>`;
+    } else if (hierarchyLevel === 4) {
+      html += `<div class="level-4 paragraph-numbered"><span class="clause-number">${dynamicNumber}.</span> ${content}</div>`;
+    } else if (hierarchyLevel === 5) {
+      html += `<div class="level-5">${content}</div>`;
+    } else if (hierarchyLevel === 6) {
+      html += `<div class="level-6 conspicuous">${content}</div>`;
+    } else if (hierarchyLevel === 7) {
+      html += `<div class="level-7 list-item-roman"><span class="list-marker">${dynamicNumber}.</span>${content}</div>`;
+    } else if (clauseName && clauseName.trim() && content) {
+      html += `
+        <div class="inline-clause">
+          <span style="font-weight: bold;">${dynamicNumber ? `${dynamicNumber}. ` : ''}${escapeHtml(clauseName)}.</span>
+          ${content}
+        </div>
+      `;
+    } else if (content) {
+      html += `<p class="indented">${content}</p>`;
+    }
+  }
+  
+  // Render children recursively
+  for (const child of children) {
+    if (!child.isHidden) {
+      html += renderBlockNode(child);
+    }
+  }
+  
+  return html;
+}
+
+/**
+ * Extract CSS styles for contracts (shared between old and new generators)
+ */
+function getContractStyles(): string {
+  return `
+    @page {
+      size: letter;
+      margin: 1in 1in 1in 1in;
+      @bottom-center {
+        content: counter(page);
+        font-family: 'Times New Roman', Times, serif;
+        font-size: 10pt;
+      }
+    }
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 11pt;
+      line-height: 1.15;
+      color: #000;
+      background: #fff;
+    }
+    
+    .contract-container {
+      max-width: 6.5in;
+      margin: 0 auto;
+    }
+    
+    /* Title Page Styles */
+    .title-page {
+      text-align: center;
+      padding-top: 1.5in;
+      page-break-after: always;
+      min-height: 8in;
+    }
+    
+    .contract-title {
+      font-size: 24pt;
+      font-weight: bold;
+      margin-bottom: 36pt;
+      color: #1a73e8;
+    }
+    
+    .project-info {
+      font-size: 16pt;
+      margin-bottom: 8pt;
+      line-height: 1.4;
+      color: #333;
+    }
+    
+    .date-line {
+      margin-top: 36pt;
+      font-size: 12pt;
+      color: #666;
+    }
+    
+    .parties-section {
+      margin-top: 48pt;
+      text-align: left;
+      padding: 0 20pt;
+    }
+    
+    .parties-section .party {
+      margin-bottom: 12pt;
+    }
+    
+    /* Contract Body Styles */
+    .contract-body {
+      text-align: left;
+    }
+    
+    /* Document Summary Box */
+    .document-summary {
+      background-color: #e8f0fe;
+      border: 1px solid #1a73e8;
+      border-radius: 4px;
+      padding: 16pt;
+      margin-bottom: 24pt;
+      page-break-inside: avoid;
+    }
+    
+    .document-summary h2 {
+      color: #1a73e8;
+      font-size: 14pt;
+      margin-bottom: 12pt;
+      border-bottom: none;
+    }
+    
+    .document-summary p {
+      text-indent: 0;
+      margin-bottom: 8pt;
+      font-size: 10pt;
+    }
+    
+    /* === 8-LEVEL HIERARCHICAL STYLING === */
+    
+    /* Level 1 (H1): Agreement Parts - Blue, Bold, Center-align, Upper Roman (I, II, III) */
+    .level-1,
+    .roman-section,
+    .section-header {
+      font-size: 14pt;
+      font-weight: bold;
+      color: #1a73e8;
+      text-transform: uppercase;
+      text-align: center;
+      margin-top: 28pt;
+      margin-bottom: 14pt;
+      padding-bottom: 6pt;
+      border-bottom: 2px solid #1a73e8;
+      page-break-after: avoid;
+      text-indent: 0;
+      margin-left: 0;
+    }
+    
+    /* Level 2 (H2): Major Sections - Blue, Bold, Prefix "Section X. " */
+    .level-2,
+    .subsection-header {
+      font-size: 12pt;
+      font-weight: bold;
+      color: #1a73e8;
+      margin-top: 20pt;
+      margin-bottom: 10pt;
+      page-break-after: avoid;
+      text-indent: 0;
+      margin-left: 0;
+    }
+    
+    /* Level 3: Clauses - Blue, Bold, Dot-notation (1.1, 2.3) */
+    .level-3,
+    .clause-header {
+      font-size: 11pt;
+      font-weight: bold;
+      color: #1a73e8;
+      margin-top: 14pt;
+      margin-bottom: 8pt;
+      page-break-after: avoid;
+      text-indent: 0;
+      margin-left: 0;
+    }
+    
+    /* Level 4: Sub-headers - Black, Bold, Dot-notation (1.1.1) */
+    .level-4,
+    .paragraph-numbered {
+      font-size: 11pt;
+      font-weight: bold;
+      color: #1a73e8;
+      margin-bottom: 10pt;
+      line-height: 1.15;
+      margin-left: 0;
+      padding-left: 0.35in;
+      text-indent: -0.35in;
+    }
+    
+    .paragraph-header {
+      font-size: 11pt;
+      font-weight: bold;
+      display: inline;
+    }
+    
+    /* Level 5: Body Text - Left-flush, justified with proper line-height */
+    .level-5 {
+      font-size: 11pt;
+      font-weight: normal;
+      margin-bottom: 10pt;
+      text-align: justify;
+      line-height: 1.5;
+      text-indent: 0;
+      margin-left: 0;
+      padding-left: 0.35in;
+      word-wrap: break-word;
+    }
+    
+    /* Regular paragraphs - Left-justified, no indent */
+    p {
+      margin-bottom: 10pt;
+      text-align: left;
+      line-height: 1.15;
+      text-indent: 0;
+      margin-left: 0;
+    }
+    
+    p.indented {
+      margin-left: 0.25in;
+    }
+    
+    /* Level 6: Conspicuous/Legal Disclaimers - Left-flush, justified, ENTIRELY BOLD */
+    .level-6,
+    .conspicuous {
+      font-size: 11pt;
+      font-weight: bold;
+      margin-bottom: 10pt;
+      text-align: justify;
+      line-height: 1.5;
+      text-indent: 0;
+      margin-left: 0;
+      padding-left: 0.35in;
+      text-transform: none;
+      word-wrap: break-word;
+    }
+    
+    /* Level 7 (H5): Roman Lists - Margin-Left: 60pt, text-indent: -20pt, Lower Roman (i., ii., iii.) */
+    .level-7,
+    .list-item-roman {
+      font-size: 11pt;
+      font-weight: normal;
+      margin-bottom: 8pt;
+      line-height: 1.5;
+      margin-left: 60pt;
+      text-indent: -20pt;
+      list-style-type: lower-roman;
+      word-wrap: break-word;
+    }
+    
+    .list-item-roman .list-marker {
+      display: inline-block;
+      width: 0.35in;
+      text-align: left;
+    }
+    
+    /* Dynamic Disclosure - Missing disclosure warning */
+    .missing-disclosure {
+      color: #cc0000;
+      font-weight: bold;
+      background-color: #fff0f0;
+      padding: 8pt;
+      border: 1px dashed #cc0000;
+      margin: 10pt 0;
+    }
+    
+    /* Clause numbering */
+    .clause-number {
+      font-weight: bold;
+    }
+    
+    .inline-clause {
+      margin-bottom: 10pt;
+      line-height: 1.15;
+      margin-left: 0;
+      padding-left: 0.35in;
+      text-indent: -0.35in;
+    }
+    
+    .inline-clause .clause-number {
+      margin-right: 4pt;
+    }
+    
+    /* Lists */
+    ol, ul {
+      margin: 8pt 0 8pt 0.5in;
+      padding-left: 0;
+    }
+    
+    ol {
+      list-style-type: lower-alpha;
+    }
+    
+    ol ol {
+      list-style-type: lower-roman;
+    }
+    
+    li {
+      margin-bottom: 6pt;
+      line-height: 1.15;
+    }
+    
+    /* Tables - Professional styling matching Google Docs */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12pt 0 16pt 0;
+      font-size: 10pt;
+      page-break-inside: avoid;
+    }
+    
+    table thead {
+      background-color: #1a73e8;
+    }
+    
+    table th {
+      background-color: #1a73e8;
+      color: #fff;
+      font-weight: bold;
+      padding: 8pt 10pt;
+      text-align: left;
+      vertical-align: middle;
+      border: 1px solid #1a73e8;
+    }
+    
+    table td {
+      border: 1px solid #dadce0;
+      padding: 8pt 10pt;
+      text-align: left;
+      vertical-align: top;
+    }
+    
+    table tr:nth-child(even) {
+      background-color: #f8f9fa;
+    }
+    
+    table tr:hover {
+      background-color: #e8f0fe;
+    }
+    
+    /* Financial tables */
+    table.financial td:last-child,
+    table.financial th:last-child {
+      text-align: right;
+    }
+    
+    table.financial td:first-child {
+      font-weight: 500;
+    }
+    
+    /* Compact tables for schedules */
+    table.compact {
+      font-size: 9pt;
+    }
+    
+    table.compact td,
+    table.compact th {
+      padding: 4pt 6pt;
+    }
+    
+    /* Totals row styling */
+    table tr.total-row {
+      background-color: #e8f0fe !important;
+      font-weight: bold;
+    }
+    
+    table tr.total-row td {
+      border-top: 2px solid #1a73e8;
+    }
+    
+    /* Signature Block */
+    .signature-section {
+      margin-top: 36pt;
+      page-break-inside: avoid;
+    }
+    
+    .signature-block {
+      margin-top: 24pt;
+      page-break-inside: avoid;
+    }
+    
+    .signature-line {
+      border-bottom: 1px solid #000;
+      width: 3in;
+      margin-top: 24pt;
+      margin-bottom: 4pt;
+    }
+    
+    .signature-name {
+      font-size: 10pt;
+      margin-top: 4pt;
+    }
+    
+    .signature-title {
+      font-size: 9pt;
+      color: #666;
+    }
+    
+    /* Exhibit/Schedule headers */
+    .exhibit-header {
+      font-size: 16pt;
+      font-weight: bold;
+      text-align: center;
+      color: #1a73e8;
+      margin-top: 24pt;
+      margin-bottom: 16pt;
+      page-break-before: always;
+    }
+    
+    /* Recitals / Whereas clauses */
+    .recitals {
+      margin-top: 16pt;
+      margin-bottom: 16pt;
+      background-color: #f8f9fa;
+      padding: 12pt;
+      border-left: 3px solid #1a73e8;
+    }
+    
+    .recitals-title {
+      font-weight: bold;
+      font-size: 12pt;
+      margin-bottom: 10pt;
+      color: #1a73e8;
+    }
+    
+    .recital {
+      margin-bottom: 8pt;
+      font-size: 10pt;
+    }
+    
+    .recital-label {
+      font-weight: bold;
+    }
+    
+    /* Agreement statement */
+    .agreement-statement {
+      margin-top: 16pt;
+      margin-bottom: 20pt;
+      font-size: 10pt;
+      font-style: italic;
+      text-align: center;
+    }
+    
+    /* Important notices */
+    .notice-box {
+      background-color: #fef7e0;
+      border: 1px solid #f9ab00;
+      border-radius: 4px;
+      padding: 12pt;
+      margin: 12pt 0;
+      font-size: 10pt;
+    }
+    
+    .notice-box strong {
+      color: #e37400;
+    }
+    
+    /* Variable substitutions - display in blue for easy visibility */
+    .variable-value {
+      color: #1a73e8;
+      font-weight: 500;
+    }
+    
+    /* Unsubstituted variables - display in blue with background */
+    .variable-placeholder {
+      color: #1a73e8;
+      background-color: #e8f0fe;
+      padding: 0 2pt;
+      border-radius: 2pt;
+      font-family: monospace;
+      font-size: 10pt;
+    }
+    
+    /* Indentation levels */
+    .indent-1 { margin-left: 0.25in; }
+    .indent-2 { margin-left: 0.5in; }
+    .indent-3 { margin-left: 0.75in; }
+    
+    /* Keep headers with following content */
+    h1, h2, h3, .roman-section, .section-header, .subsection-header {
+      page-break-after: avoid;
+      orphans: 3;
+      widows: 3;
+    }
+    
+    /* Prevent orphaned lines */
+    p {
+      orphans: 2;
+      widows: 2;
+    }
+    
+    /* Page footer */
+    .page-footer {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      text-align: center;
+      font-size: 9pt;
+      color: #666;
+      padding: 8pt;
+    }
+    
+    @media print {
+      .contract-container {
+        max-width: none;
+      }
+    }
+  `;
+}
+
+// Keep the old function for backward compatibility
 function generateHTMLFromClauses(
   clauses: Clause[],
   contractType: string,
@@ -349,54 +1854,139 @@ function generateHTMLFromClauses(
       font-size: 10pt;
     }
     
-    /* Roman numeral sections (I. ATTACHMENTS, II. AGREEMENT) */
-    .roman-section {
+    /* === 8-LEVEL HIERARCHICAL STYLING === */
+    
+    /* Level 1 (H1): Agreement Parts - Blue, Bold, Center-align, Upper Roman (I, II, III) */
+    .level-1,
+    .roman-section,
+    .section-header {
       font-size: 14pt;
       font-weight: bold;
       color: #1a73e8;
-      margin-top: 24pt;
-      margin-bottom: 12pt;
-      padding-bottom: 4pt;
+      text-transform: uppercase;
+      text-align: center;
+      margin-top: 28pt;
+      margin-bottom: 14pt;
+      padding-bottom: 6pt;
       border-bottom: 2px solid #1a73e8;
       page-break-after: avoid;
+      text-indent: 0;
+      margin-left: 0;
     }
     
-    /* Section Headers (Section 1. Scope of Services) */
-    .section-header {
-      font-size: 13pt;
+    /* Level 2 (H2): Major Sections - Blue, Bold, Prefix "Section X. " */
+    .level-2,
+    .subsection-header {
+      font-size: 12pt;
       font-weight: bold;
       color: #1a73e8;
       margin-top: 20pt;
       margin-bottom: 10pt;
       page-break-after: avoid;
+      text-indent: 0;
+      margin-left: 0;
     }
     
-    /* Subsection Headers (1.1. Overview) */
-    .subsection-header {
+    /* Level 3: Clauses - Blue, Bold, Dot-notation (1.1, 2.3) */
+    .level-3,
+    .clause-header {
       font-size: 11pt;
       font-weight: bold;
+      color: #1a73e8;
       margin-top: 14pt;
-      margin-bottom: 6pt;
+      margin-bottom: 8pt;
       page-break-after: avoid;
+      text-indent: 0;
+      margin-left: 0;
     }
     
-    /* Paragraph level (1.1.1) */
+    /* Level 4: Sub-headers - Black, Bold, Dot-notation (1.1.1) */
+    .level-4,
+    .paragraph-numbered {
+      font-size: 11pt;
+      font-weight: bold;
+      color: #1a73e8;
+      margin-bottom: 10pt;
+      line-height: 1.15;
+      margin-left: 0;
+      padding-left: 0.35in;
+      text-indent: -0.35in;
+    }
+    
     .paragraph-header {
       font-size: 11pt;
       font-weight: bold;
       display: inline;
     }
     
-    /* Regular paragraphs */
+    /* Level 5: Body Text - Left-flush, justified with proper line-height */
+    .level-5 {
+      font-size: 11pt;
+      font-weight: normal;
+      margin-bottom: 10pt;
+      text-align: justify;
+      line-height: 1.5;
+      text-indent: 0;
+      margin-left: 0;
+      padding-left: 0.35in;
+      word-wrap: break-word;
+    }
+    
+    /* Regular paragraphs - Left-justified, no indent */
     p {
       margin-bottom: 10pt;
       text-align: left;
       line-height: 1.15;
       text-indent: 0;
+      margin-left: 0;
     }
     
     p.indented {
       margin-left: 0.25in;
+    }
+    
+    /* Level 6: Conspicuous/Legal Disclaimers - Left-flush, justified, ENTIRELY BOLD */
+    .level-6,
+    .conspicuous {
+      font-size: 11pt;
+      font-weight: bold;
+      margin-bottom: 10pt;
+      text-align: justify;
+      line-height: 1.5;
+      text-indent: 0;
+      margin-left: 0;
+      padding-left: 0.35in;
+      text-transform: none;
+      word-wrap: break-word;
+    }
+    
+    /* Level 7 (H5): Roman Lists - Margin-Left: 60pt, text-indent: -20pt, Lower Roman (i., ii., iii.) */
+    .level-7,
+    .list-item-roman {
+      font-size: 11pt;
+      font-weight: normal;
+      margin-bottom: 8pt;
+      line-height: 1.5;
+      margin-left: 60pt;
+      text-indent: -20pt;
+      list-style-type: lower-roman;
+      word-wrap: break-word;
+    }
+    
+    .list-item-roman .list-marker {
+      display: inline-block;
+      width: 0.35in;
+      text-align: left;
+    }
+    
+    /* Dynamic Disclosure - Missing disclosure warning */
+    .missing-disclosure {
+      color: #cc0000;
+      font-weight: bold;
+      background-color: #fff0f0;
+      padding: 8pt;
+      border: 1px dashed #cc0000;
+      margin: 10pt 0;
     }
     
     /* Clause numbering */
@@ -407,7 +1997,9 @@ function generateHTMLFromClauses(
     .inline-clause {
       margin-bottom: 10pt;
       line-height: 1.15;
-      margin-left: 0.25in;
+      margin-left: 0;
+      padding-left: 0.35in;
+      text-indent: -0.35in;
     }
     
     .inline-clause .clause-number {
@@ -1423,10 +3015,27 @@ function getContractTitle(contractType: string): string {
   return titles[contractType] || 'CONTRACT AGREEMENT';
 }
 
+/**
+ * Build variable map for contract clause replacement.
+ * 
+ * SINGLE SOURCE OF TRUTH: All contract generation endpoints should use
+ * mapProjectToVariables() from server/lib/mapper.ts BEFORE calling this function.
+ * This ensures consistent variable mapping and formatting.
+ * 
+ * Standard flow in routes:
+ * 1. getProjectWithRelations(projectId) - Fetch project data
+ * 2. calculateProjectPricing(projectId) - Calculate pricing
+ * 3. mapProjectToVariables(fullProject, pricingSummary) - Map to contract variables
+ * 4. generateContract({ projectData, ... }) - Generate PDF with pre-mapped data
+ * 
+ * The legacy fallback code below is retained for backward compatibility with
+ * any direct API calls that don't use the standard flow.
+ */
 function buildVariableMap(projectData: Record<string, any>): Record<string, string> {
   const map: Record<string, string> = {};
   
   // Check if data is already in UPPERCASE format (from mapper.ts)
+  // This is the PREFERRED path - data should be pre-mapped using mapProjectToVariables
   const isAlreadyMapped = 'PROJECT_NUMBER' in projectData || 'CLIENT_LEGAL_NAME' in projectData;
   
   if (isAlreadyMapped) {
@@ -1435,10 +3044,26 @@ function buildVariableMap(projectData: Record<string, any>): Record<string, stri
         map[key] = String(value);
       }
     }
-    console.log(`Using pre-mapped variables: ${Object.keys(map).length} variables`);
+    console.log(`✓ Using pre-mapped variables from mapper.ts: ${Object.keys(map).length} variables`);
     return map;
   }
   
+  // LEGACY FALLBACK: DEPRECATED - This path should no longer be used
+  // All callers should use mapProjectToVariables() from mapper.ts
+  // Throwing error to enforce the unified mapping standard
+  const errorMessage = 
+    'LEGACY MAPPING ERROR: projectData is not pre-mapped. ' +
+    'All callers must use mapProjectToVariables() from mapper.ts. ' +
+    'Standard flow: getProjectWithRelations() → calculateProjectPricing() → mapProjectToVariables() → generateContract()';
+  
+  console.error('❌ ' + errorMessage);
+  console.error('   Received keys:', Object.keys(projectData).slice(0, 10).join(', '), '...');
+  
+  // STRICT MODE: Throw error to enforce unified mapping
+  // If backward compatibility is needed, this can be changed to a warning
+  throw new Error(errorMessage);
+  
+  /* LEGACY CODE BELOW - Kept for reference but no longer executed
   // ============================================
   // CORE VALUES - Define once, alias automatically
   // ============================================
@@ -1797,6 +3422,7 @@ function buildVariableMap(projectData: Record<string, any>): Record<string, stri
   
   console.log(`Built variable map with ${Object.keys(map).length} variables`);
   return map;
+  // END OF LEGACY CODE */
 }
 
 function formatCurrency(value: string | number | undefined): string {
@@ -1858,15 +3484,17 @@ function calculateEstimatedCompletion(projectData: Record<string, any>): string 
 }
 
 export function getContractFilename(contractType: string, projectData: Record<string, any>, format: 'pdf' | 'docx' = 'pdf'): string {
-  const projectName = (projectData.projectName || 'Contract').replace(/[^a-z0-9]/gi, '_');
-  const projectNumber = (projectData.projectNumber || 'DRAFT').replace(/[^a-z0-9-]/gi, '_');
+  // Support both camelCase (from wizard) and UPPER_CASE (from mapper) formats
+  const projectNumber = (projectData.PROJECT_NUMBER || projectData.projectNumber || 'DRAFT').toString().replace(/[^a-z0-9-]/gi, '_');
+  const projectName = (projectData.PROJECT_NAME || projectData.projectName || 'Contract').toString().replace(/[^a-z0-9\s]/gi, '').replace(/\s+/g, '_');
   
   const typeMap: Record<string, string> = {
-    'ONE': 'one_agreement',
-    'MANUFACTURING': 'manufacturing_sub',
-    'ONSITE': 'onsite_sub'
+    'ONE': 'ONE_Agreement',
+    'MANUFACTURING': 'Manufacturing_Subcontract',
+    'ONSITE': 'OnSite_Subcontract'
   };
   
-  const typeName = typeMap[contractType] || contractType.toLowerCase();
-  return `${projectName}_${typeName}_${projectNumber}.${format}`;
+  const typeName = typeMap[contractType] || contractType;
+  // Format: ProjectNumber_ProjectName_ContractType.pdf
+  return `${projectNumber}_${projectName}_${typeName}.${format}`;
 }

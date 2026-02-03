@@ -6,8 +6,8 @@ import type {
   Milestone,
   WarrantyTerm,
   Contractor,
-} from "../db/schema";
-import { generatePricingTableHtml, generatePaymentScheduleHtml, generateUnitDetailsHtml, UnitDetail } from "./tableGenerators";
+} from "../../shared/schema";
+import { generatePricingTableHtml, generatePaymentScheduleHtml, generateUnitDetailsHtml, UnitDetail, ContractFilterType } from "./tableGenerators";
 
 // =============================================================================
 // TYPE DEFINITIONS
@@ -295,6 +295,8 @@ export const VARIABLE_CATEGORIES = {
     "PRICING_BREAKDOWN_TABLE",
     "PAYMENT_SCHEDULE_TABLE",
     "UNIT_DETAILS_TABLE",
+    "WHAT_HAPPENS_NEXT_TABLE", // Dynamic table from table_definitions
+    "MILESTONE_SCHEDULE_TABLE", // TODO: Generate from milestones data
   ],
   conditional: [
     "IS_CRC",
@@ -307,6 +309,12 @@ export const VARIABLE_CATEGORIES = {
 };
 
 export const ALL_VARIABLES = Object.values(VARIABLE_CATEGORIES).flat();
+
+/**
+ * SUPPORTED_VARIABLES - Exported constant for UI Variable Library
+ * Lists all variable keys that mapProjectToVariables can populate
+ */
+export const SUPPORTED_VARIABLES = ALL_VARIABLES;
 
 // =============================================================================
 // FORMATTING HELPERS
@@ -501,7 +509,8 @@ function buildUnitModelList(units?: ProjectUnit[]): string {
 
 export function mapProjectToVariables(
   data: ProjectWithRelations, 
-  pricingSummary?: PricingSummaryForMapper
+  pricingSummary?: PricingSummaryForMapper,
+  contractType: ContractFilterType = 'ONE'
 ): ContractVariables {
   const { project, client, childLlc, projectDetails, financials, milestones, warrantyTerms, contractors, units } = data;
 
@@ -573,12 +582,31 @@ export function mapProjectToVariables(
     CHILD_LLC_ANNUAL_REPORT_DUE: childLlc?.annualReportDue || "",
 
     // ===================
+    // COMPANY / SIGNATURE BLOCK
+    // ===================
+    COMPANY_NAME: childLlc?.legalName || "Dvele, Inc.",
+    COMPANY_ENTITY_TYPE: childLlc ? "limited liability company" : "corporation",
+    COMPANY_SIGNATORY_NAME: "Authorized Representative",
+    COMPANY_SIGNATORY_TITLE: "VP of Operations",
+    DVELE_LEGAL_NAME: "Dvele, Inc.",
+    DVELE_ADDRESS: "123 Main Street, San Diego, CA 92101",
+    DVELE_STATE: "Delaware",
+    DVELE_ENTITY_TYPE: "corporation",
+
+    // ===================
     // SITE / DELIVERY
     // ===================
     DELIVERY_ADDRESS: projectDetails?.deliveryAddress || "",
     DELIVERY_CITY: projectDetails?.deliveryCity || "",
     DELIVERY_STATE: projectDetails?.deliveryState || "",
     DELIVERY_ZIP: projectDetails?.deliveryZip || "",
+    // SITE_ADDRESS alias - full formatted site address for exhibits
+    SITE_ADDRESS: buildFullAddress(
+      projectDetails?.deliveryAddress,
+      projectDetails?.deliveryCity,
+      projectDetails?.deliveryState,
+      projectDetails?.deliveryZip
+    ),
     DELIVERY_FULL_ADDRESS: buildFullAddress(
       projectDetails?.deliveryAddress,
       projectDetails?.deliveryCity,
@@ -675,8 +703,8 @@ export function mapProjectToVariables(
     
     // Price Lock
     PRICE_IS_LOCKED: financials?.isLocked || false,
-    PRICE_LOCKED_AT: financials?.lockedAt || "",
-    PRICE_LOCKED_AT_WRITTEN: formatDateWritten(financials?.lockedAt),
+    PRICE_LOCKED_AT: financials?.lockedAt ? formatDate(financials.lockedAt) : "",
+    PRICE_LOCKED_AT_WRITTEN: financials?.lockedAt ? formatDateWritten(financials.lockedAt) : "",
     PRICE_LOCKED_BY: financials?.lockedBy || "",
     
     // ===================
@@ -727,8 +755,17 @@ export function mapProjectToVariables(
       });
       return {};
     })()),
-    PRICING_BREAKDOWN_TABLE: generatePricingTableHtml(pricingSummary || null),
-    PAYMENT_SCHEDULE_TABLE: generatePaymentScheduleHtml(pricingSummary?.paymentSchedule || null),
+    PRICING_BREAKDOWN_TABLE: generatePricingTableHtml(pricingSummary || null, contractType),
+    PAYMENT_SCHEDULE_TABLE: generatePaymentScheduleHtml(
+      pricingSummary?.paymentSchedule || null, 
+      contractType,
+      // Pass filtered contract total for accurate milestone amounts
+      contractType === 'MANUFACTURING' 
+        ? (pricingSummary?.breakdown.totalDesignFee || 0) + (pricingSummary?.breakdown.totalOffsite || 0)
+        : contractType === 'ONSITE'
+          ? (pricingSummary?.breakdown.totalOnsite || 0)
+          : undefined
+    ),
     UNIT_DETAILS_TABLE: generateUnitDetailsHtml(
       units?.map(u => ({
         unitLabel: u.unitLabel || `Unit ${u.id}`,
@@ -739,6 +776,8 @@ export function mapProjectToVariables(
         estimatedPrice: (u.basePriceSnapshot || 0) + (u.onsiteEstimateSnapshot || 0),
       })) || null
     ),
+    // TODO: Generate milestone schedule HTML table from milestones data when available
+    MILESTONE_SCHEDULE_TABLE: "",
 
     // ===================
     // MILESTONES (spread in the milestone objects)
@@ -944,6 +983,21 @@ export function mapProjectToVariables(
       : project.onSiteSelection === "CMOS" 
         ? "Company-Managed On-Site Services" 
         : project.onSiteSelection || "CRC",
+    
+    // Alias for DOCX variable naming
+    VAR_ON_SITE_SELECTION_NAME: project.onSiteSelection === "CRC" 
+      ? "Client-Retained Contractor" 
+      : project.onSiteSelection === "CMOS" 
+        ? "Company-Managed On-Site Services" 
+        : "Not Selected",
+    
+    // TODO: Add on-site line-item breakdown fields to financials table
+    // These variables appear in CMOS Exhibit A Phase 2 on-site pricing section
+    SHIPPING_PRELIMINARY_PRICE: "",
+    INSTALLATION_PRELIMINARY_PRICE: "",
+    SITE_PREP_PRELIMINARY_PRICE: "",
+    UTILITIES_PRELIMINARY_PRICE: "",
+    COMPLETION_PRELIMINARY_PRICE: "",
     
     // Pricing aliases to match clause variable names
     PRELIMINARY_CONTRACT_PRICE: formatCentsAsCurrency(financials?.prelimContractPrice),

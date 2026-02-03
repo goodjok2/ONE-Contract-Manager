@@ -1,0 +1,65 @@
+Deep Hierarchical Styling & Roman Numeral Support
+Objective
+Update the contract system to support four levels of hierarchy and apply a specific "clean look" styling. Level 1, 2, and 3 blocks must be left-justified with minimal hanging indents for list markers. Only Level 4 (Roman numeral sublists) should be fully indented.
+
+Step 1: Update Schema & Ingestor
+Schema: Ensure hierarchy_level in the clauses table supports values up to 4.
+
+Ingestor (scripts/ingest_standard_contracts.ts):
+
+Update the parser to detect Roman numeral patterns (i., ii., iii.) at the start of lines.
+
+Assign these blocks block_type: 'list_item' and hierarchy_level: 4.
+
+Ensure they are correctly parented to the preceding Level 3 paragraph.
+
+Step 2: Refine Generator CSS (server/lib/contractGenerator.ts)
+Modify the global styles in the generateHTMLFromClauses function to achieve the "clean look":
+
+Level 1 (Section Headers):
+
+Style: Bold, Blue (#1a73e8), uppercase.
+
+Layout: Left-justified, no indent.
+
+Level 2 (Sub-sections):
+
+Style: Bold, black.
+
+Layout: Left-justified, no indent. Prepend auto-generated numbers (e.g., 1.1).
+
+Level 3 (Body Text/Paragraphs):
+
+Style: Normal weight.
+
+Layout: Left-justified. If it is a numbered list item, use a "hanging indent" (marker is at margin, text starts at a consistent small offset).
+
+Level 4 (Roman Sub-lists):
+
+Style: Normal weight, list-style-type: lower-roman.
+
+Layout: Fully indented (margin-left: 0.5in or 36pt) to visually distinguish it from the body text.
+
+Step 3: Update Recursive Rendering Logic
+Numbering Engine:
+
+Level 1: "SECTION X" or Roman (I, II) based on context.
+
+Level 2: "X.X" (e.g., 1.1).
+
+Level 3: "X.X.X" (e.g., 1.1.1) or "1." if under a Level 2.
+
+Level 4: "i.", "ii.", "iii.".
+
+Hanging Indent Implementation: Use a display: flex or text-indent CSS approach for Level 3 to ensure that multi-line paragraphs align perfectly under the first word of the sentence, not under the number.
+
+Verification Task
+Run the ingestor with your cleaned Word document.
+
+Generate a "ONE Agreement" PDF.
+
+Check Level 3: Ensure paragraphs are flush with the left margin (except for the list number).
+
+Check Level 4: Ensure Roman numeral items (i., ii., iii.) are the only blocks significantly shifted to the right.
+
+Check Colors: Verify all Heading 1 sections are bold and blue.

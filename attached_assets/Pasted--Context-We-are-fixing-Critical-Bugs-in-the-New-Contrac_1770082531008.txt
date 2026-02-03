@@ -1,0 +1,40 @@
+## Context
+We are fixing Critical Bugs in the "New Contract" flow.
+**Priority:** High. The system is currently generating unusable empty contracts and redirecting users to a legacy page.
+
+## Objective
+1. **Fix Backend Hydration:** Ensure `POST /api/contracts` *actually* copies clauses from the Template to the Contract.
+2. **Fix Frontend Routing:** Redirect the wizard to the *Atomic Editor* (`/contracts/:id/edit` or `/contracts/:id`), NOT the old wizard.
+3. **Restore Admin Tools:** Bring back "Clause Library" into the Admin Sidebar.
+
+## Requirements
+
+### 1. Fix `POST /api/contracts` (Server)
+Open `server/routes/contracts.ts` (or wherever the create logic lives).
+**Rewrite the logic to strictly follow this transaction:**
+1.  **Validate:** Ensure `templateId` is present in the request body.
+2.  **Fetch Template Clauses:** `SELECT * FROM template_clauses WHERE template_id = ?`.
+    * *Debug:* Add a `console.log` printing "Found X clauses for template Y".
+3.  **Insert Contract:** Create the contract record.
+4.  **Loop & Insert:** For every template clause found:
+    * Insert a record into `contract_clauses` (contract_id, clause_id, order, condition).
+    * *Crucial:* If `contract_clauses` table doesn't exist yet, ensure it is created in `shared/schema.ts` first.
+5.  **Return:** The full contract object including its ID.
+
+### 2. Fix Redirects (Frontend)
+* **Wizard:** In `client/src/pages/wizard/new.tsx` (or the step container), on success:
+    * Change `Maps('/contracts/' + id + '/wizard')` to `Maps('/contracts/' + id + '/edit')` (or check `app.tsx` for the correct "Editor" route).
+* **Active Contracts List:** In `client/src/pages/contracts/index.tsx`:
+    * Change the "Edit" button link to point to the new Editor route.
+
+### 3. Restore "Clause Library"
+* Open the Sidebar configuration.
+* Add "Clause Library" as a link under the **Admin** section (e.g., `/admin/clauses`).
+* Ensure the route `/admin/clauses` (or `/clauses`) is active and accessible.
+
+## Technical Specifications
+* **Clause Hydration:** We are creating a *snapshot*. If your architecture allows, copy the `custom_content` text from the clause into the `contract_clauses` table so we can edit it later without changing the master library.
+
+## Constraints
+* **Do NOT** rely on "magic" ORM relationships. Write the manual loop to insert the contract clauses to ensure it happens.
+* **Console Logging:** Leave verbose logs in the `POST` route so we can see if it found 0 clauses or 267 clauses in the logs.

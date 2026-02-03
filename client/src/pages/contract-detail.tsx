@@ -18,7 +18,8 @@ import {
   CheckCircle2,
   Clock,
   FileCheck,
-  Edit3
+  Edit3,
+  Code
 } from "lucide-react";
 import { useState, useCallback } from "react";
 import { Eye } from "lucide-react";
@@ -279,6 +280,9 @@ export default function ContractDetail() {
       'MANUFACTURING': 'MANUFACTURING',
       'onsite_sub': 'ONSITE',
       'ONSITE': 'ONSITE',
+      'ONE Agreement': 'ONE',
+      'Manufacturing Subcontract': 'MANUFACTURING',
+      'OnSite Subcontract': 'ONSITE',
     };
     return typeMap[contractType] || 'ONE';
   };
@@ -349,6 +353,53 @@ export default function ContractDetail() {
     }
   };
 
+  const handleHtmlPreview = async () => {
+    if (!contract?.projectId) {
+      toast({
+        title: "Error",
+        description: "Contract or project data not available.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsGenerating(true);
+    try {
+      const response = await fetch('/api/contracts/draft-preview', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contractType: getContractTypeForApi(contract.contractType),
+          projectId: contract.projectId,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate HTML preview');
+      }
+
+      const html = await response.text();
+      
+      // Open HTML in a new tab
+      const newWindow = window.open('', '_blank');
+      if (newWindow) {
+        newWindow.document.write(html);
+        newWindow.document.close();
+      }
+    } catch (error) {
+      console.error('HTML preview error:', error);
+      toast({
+        title: "Preview Failed",
+        description: "Failed to generate HTML preview.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
 
   const handleStatusChange = (newStatus: string) => {
     updateStatusMutation.mutate(newStatus);
@@ -411,12 +462,21 @@ export default function ContractDetail() {
           </Badge>
           <Button 
             variant="outline" 
+            onClick={handleHtmlPreview} 
+            disabled={isGenerating || !contract?.projectId}
+            data-testid="button-html-preview"
+          >
+            <Code className="mr-2 h-4 w-4" />
+            {isGenerating ? 'Generating...' : 'View HTML'}
+          </Button>
+          <Button 
+            variant="outline" 
             onClick={handlePreview} 
             disabled={isGenerating || !contract?.projectId}
             data-testid="button-preview"
           >
             <Eye className="mr-2 h-4 w-4" />
-            {isGenerating ? 'Generating...' : 'Preview'}
+            {isGenerating ? 'Generating...' : 'View PDF'}
           </Button>
           <Button 
             onClick={handleDownload} 

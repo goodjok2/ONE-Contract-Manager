@@ -39,7 +39,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { Search, Plus, Pencil, Trash2, Link2, FileText, ChevronDown, ChevronRight } from "lucide-react";
+import { Search, Plus, Pencil, Trash2, Link2, FileText, ChevronDown, ChevronRight, AlertTriangle } from "lucide-react";
 
 interface ClauseUsage {
   id: number;
@@ -50,7 +50,7 @@ interface ClauseUsage {
 }
 
 interface VariableMapping {
-  id: number;
+  id: number | null;
   variableName: string;
   displayName: string | null;
   category: string | null;
@@ -62,14 +62,17 @@ interface VariableMapping {
   usedInContracts: string[] | null;
   clauseUsage: ClauseUsage[];
   clauseCount: number;
+  isRegistered: boolean;
 }
 
 interface VariableMappingsResponse {
   variables: VariableMapping[];
+  unregisteredVariables: VariableMapping[];
   stats: {
     totalFields: number;
     erpMapped: number;
     required: number;
+    unregistered: number;
   };
 }
 
@@ -96,7 +99,7 @@ export default function VariableMappings() {
   const [searchTerm, setSearchTerm] = useState("");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingVariable, setEditingVariable] = useState<VariableMapping | null>(null);
-  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const { toast } = useToast();
 
   // Form state for add/edit
@@ -192,25 +195,26 @@ export default function VariableMappings() {
   };
 
   const handleSubmit = () => {
-    if (editingVariable) {
+    if (editingVariable && editingVariable.id !== null) {
       updateMutation.mutate({ id: editingVariable.id, data: formData });
     } else {
       createMutation.mutate(formData);
     }
   };
 
-  const toggleRowExpanded = (id: number) => {
+  const toggleRowExpanded = (key: string) => {
     const newExpanded = new Set(expandedRows);
-    if (newExpanded.has(id)) {
-      newExpanded.delete(id);
+    if (newExpanded.has(key)) {
+      newExpanded.delete(key);
     } else {
-      newExpanded.add(id);
+      newExpanded.add(key);
     }
     setExpandedRows(newExpanded);
   };
 
-  const stats = data?.stats || { totalFields: 0, erpMapped: 0, required: 0 };
+  const stats = data?.stats || { totalFields: 0, erpMapped: 0, required: 0, unregistered: 0 };
   const variables = data?.variables || [];
+  const unregisteredVariables = data?.unregisteredVariables || [];
 
   return (
     <div className="flex-1 p-6 md:p-8 space-y-6">
@@ -333,7 +337,7 @@ export default function VariableMappings() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         <Card data-testid="card-total-fields">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Fields</CardTitle>
@@ -385,6 +389,26 @@ export default function VariableMappings() {
             )}
           </CardContent>
         </Card>
+        <Card data-testid="card-unregistered" className={stats.unregistered > 0 ? "border-amber-500" : ""}>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
+              {stats.unregistered > 0 && <AlertTriangle className="h-3 w-3 text-amber-500" />}
+              Unregistered
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <Skeleton className="h-8 w-16" />
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className={`text-2xl font-bold ${stats.unregistered > 0 ? "text-amber-500" : ""}`} data-testid="stat-unregistered">
+                  {stats.unregistered}
+                </span>
+                <span className="text-xs text-muted-foreground">Used in clauses</span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       {/* Search */}
@@ -430,10 +454,12 @@ export default function VariableMappings() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {variables.map((variable) => (
-                  <Collapsible key={variable.id} asChild open={expandedRows.has(variable.id)}>
+                {variables.map((variable) => {
+                  const rowKey = variable.variableName;
+                  return (
+                  <Collapsible key={rowKey} asChild open={expandedRows.has(rowKey)}>
                     <>
-                      <TableRow data-testid={`row-variable-${variable.id}`}>
+                      <TableRow data-testid={`row-variable-${rowKey}`}>
                         <TableCell>
                           <code className={`text-sm font-mono px-1.5 py-0.5 rounded ${variable.isRequired ? 'bg-red-600 text-white font-semibold' : 'bg-muted'}`}>
                             {variable.variableName}
@@ -473,11 +499,11 @@ export default function VariableMappings() {
                                 variant="ghost"
                                 size="sm"
                                 className="h-auto py-1 px-2"
-                                onClick={() => toggleRowExpanded(variable.id)}
-                                data-testid={`button-expand-clauses-${variable.id}`}
+                                onClick={() => toggleRowExpanded(rowKey)}
+                                data-testid={`button-expand-clauses-${rowKey}`}
                               >
                                 <span className="flex items-center gap-1">
-                                  {expandedRows.has(variable.id) ? (
+                                  {expandedRows.has(rowKey) ? (
                                     <ChevronDown className="h-3 w-3" />
                                   ) : (
                                     <ChevronRight className="h-3 w-3" />
@@ -496,7 +522,7 @@ export default function VariableMappings() {
                               variant="ghost"
                               size="icon"
                               onClick={() => handleEdit(variable)}
-                              data-testid={`button-edit-${variable.id}`}
+                              data-testid={`button-edit-${rowKey}`}
                             >
                               <Pencil className="h-4 w-4" />
                             </Button>
@@ -504,11 +530,11 @@ export default function VariableMappings() {
                               variant="ghost"
                               size="icon"
                               onClick={() => {
-                                if (confirm("Are you sure you want to delete this variable?")) {
+                                if (variable.id !== null && confirm("Are you sure you want to delete this variable?")) {
                                   deleteMutation.mutate(variable.id);
                                 }
                               }}
-                              data-testid={`button-delete-${variable.id}`}
+                              data-testid={`button-delete-${rowKey}`}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -534,12 +560,92 @@ export default function VariableMappings() {
                       </CollapsibleContent>
                     </>
                   </Collapsible>
-                ))}
+                  );
+                })}
               </TableBody>
             </Table>
           )}
         </CardContent>
       </Card>
+
+      {/* Unregistered Variables Warning Section */}
+      {unregisteredVariables.length > 0 && (
+        <Card className="border-amber-500">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              Unregistered Variables
+            </CardTitle>
+            <CardDescription>
+              These variables are used in clauses but not defined in the variable registry. 
+              They will not be populated with data during contract generation.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[40px]"></TableHead>
+                  <TableHead className="w-[250px]">Variable Name</TableHead>
+                  <TableHead>Used in Clauses</TableHead>
+                  <TableHead className="w-[100px] text-right">Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {unregisteredVariables.map((variable, index) => (
+                  <TableRow key={`unregistered-${variable.variableName}`} data-testid={`row-unregistered-${index}`}>
+                    <TableCell>
+                      <AlertTriangle className="h-4 w-4 text-amber-500" />
+                    </TableCell>
+                    <TableCell>
+                      <code className="text-sm font-mono px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200">
+                        {variable.variableName}
+                      </code>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        {variable.clauseUsage.slice(0, 5).map((clause) => (
+                          <Badge key={clause.id} variant="outline" className="text-xs">
+                            {clause.clauseCode}
+                          </Badge>
+                        ))}
+                        {variable.clauseUsage.length > 5 && (
+                          <Badge variant="secondary" className="text-xs">
+                            +{variable.clauseUsage.length - 5} more
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setFormData({
+                            variableName: variable.variableName,
+                            displayName: "",
+                            category: "",
+                            dataType: "text",
+                            defaultValue: "",
+                            isRequired: false,
+                            description: "",
+                            erpSource: "",
+                          });
+                          setIsAddDialogOpen(true);
+                        }}
+                        data-testid={`button-register-${index}`}
+                      >
+                        <Plus className="h-3 w-3 mr-1" />
+                        Register
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

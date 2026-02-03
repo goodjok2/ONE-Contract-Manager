@@ -1,14 +1,10 @@
 import { Link, useLocation } from "wouter";
 import { 
   LayoutDashboard, 
-  Library, 
   FileCheck,
-  Files,
-  Building2,
-  Settings,
-  Eye,
-  Wand2,
-  Variable
+  Shield,
+  Plus,
+  Box
 } from "lucide-react";
 import {
   Sidebar,
@@ -31,9 +27,9 @@ const mainNavItems = [
     icon: LayoutDashboard,
   },
   {
-    title: "Generate Contracts",
-    url: "/generate-contracts",
-    icon: Wand2,
+    title: "New Contract",
+    url: "/wizard/new",
+    icon: Plus,
   },
   {
     title: "Active Contracts",
@@ -41,37 +37,17 @@ const mainNavItems = [
     icon: FileCheck,
   },
   {
-    title: "LLC Admin",
-    url: "/llc-admin",
-    icon: Building2,
-  },
-  {
-    title: "Templates",
-    url: "/templates",
-    icon: Files,
+    title: "Component Library",
+    url: "/component-library",
+    icon: Box,
   },
 ];
 
-const configNavItems = [
+const adminNavItems = [
   {
-    title: "Clause Library",
-    url: "/clause-library",
-    icon: Library,
-  },
-  {
-    title: "Variable Mappings",
-    url: "/variable-mappings",
-    icon: Variable,
-  },
-  {
-    title: "Contract Preview",
-    url: "/contract-preview",
-    icon: Eye,
-  },
-  {
-    title: "Settings",
-    url: "/settings",
-    icon: Settings,
+    title: "Admin",
+    url: "/admin",
+    icon: Shield,
   },
 ];
 
@@ -131,13 +107,10 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
         
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Configuration
-          </SidebarGroupLabel>
+        <SidebarGroup className="mt-auto">
           <SidebarGroupContent>
             <SidebarMenu>
-              {configNavItems.map((item) => (
+              {adminNavItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton 
                     asChild 

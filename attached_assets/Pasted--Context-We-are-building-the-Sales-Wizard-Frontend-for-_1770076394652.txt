@@ -1,0 +1,48 @@
+## Context
+We are building the **Sales Wizard** (Frontend) for `ONE-Contract-Manager`.
+**Current State:**
+* **Backend:** Ready. Has `home-models`, `llcs`, and a new "Component Library" that handles CRC/CMOS logic.
+* **Admin:** Populated with data.
+* **Missing:** The actual UI for a salesperson to create a new Project/Contract.
+
+## Objective
+Create a **New Contract Wizard** (`/wizard/new`) that collects Project Info, Construction Type, and Home Model, then generates the contract.
+
+## Requirements
+
+### 1. Wizard Architecture
+* **Route:** `/wizard/new` (Add a "New Contract" button to the Sidebar to link here).
+* **Layout:** A clean, focused layout with a Step Progress Indicator (Step 1 of 3).
+* **State Management:** Use a parent component (`WizardContainer`) to hold the form data across steps.
+
+### 2. Step 1: Project & Client Info
+* **Fields:**
+    * Client Name (First/Last)
+    * Project Name (e.g., "Smith Residence")
+    * **Lot Address:** (Auto-trigger LLC suggestion in background if possible, otherwise just text).
+    * **On-Site Services (Crucial):** A Radio Group or visual Cards to select:
+        * **Option A:** Client-Retained Contractor (CRC)
+        * **Option B:** Company-Managed (CMOS)
+        * *Note:* Save this as `onSiteType` ('CRC' or 'CMOS').
+
+### 3. Step 2: Home Selection
+* **Data Source:** Fetch `GET /api/home-models`.
+* **UI:** Display models as selectable Cards (Name, Price, Bed/Bath).
+* **Selection:** User clicks a card to select the Model.
+
+### 4. Step 3: Review & Generate
+* **UI:** Show a summary: "Smith Residence - Trinity 3BR - CMOS".
+* **Action:** "Generate Contract" button.
+* **API Call:** `POST /api/projects` (creates the project) -> `POST /api/contracts` (generates the PDF/Doc record).
+* **Redirect:** On success, go to the **Contract Preview** page.
+
+## Technical Specifications
+* **Validation:** Use `zod` schema validation for each step (address required, selection required).
+* **Components:** Use Shadcn `Card`, `Input`, `Label`, `RadioGroup`, `Button`.
+* **UX:**
+    * Show a "Loading..." spinner during the Generation step.
+    * If `onSiteType` is "CMOS", show a badge or icon indicating "Full Service".
+
+## Constraints
+* **Simple Flow:** Do not overcomplicate. 3 Steps max.
+* **Data Integrity:** Ensure the `onSiteType` is correctly passed to the backend so the Component Library knows which text block to render.

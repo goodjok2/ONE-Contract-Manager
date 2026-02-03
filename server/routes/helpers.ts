@@ -1,4 +1,5 @@
 import { db } from "../db/index";
+import { pool } from "../db";
 import {
   projects,
   clients,
@@ -7,9 +8,6 @@ import {
   milestones,
   warrantyTerms,
   contractors,
-  llcs,
-  projectUnits,
-  homeModels,
 } from "../../shared/schema";
 import { eq } from "drizzle-orm";
 import type { ProjectWithRelations } from "../lib/mapper";
@@ -19,71 +17,55 @@ export async function getProjectWithRelations(projectId: number): Promise<Projec
   if (!project) return null;
 
   const [client] = await db.select().from(clients).where(eq(clients.projectId, projectId));
-  const [llcRecord] = await db.select().from(llcs).where(eq(llcs.projectId, projectId));
   const [projectDetail] = await db.select().from(projectDetails).where(eq(projectDetails.projectId, projectId));
   const [financial] = await db.select().from(financials).where(eq(financials.projectId, projectId));
   const [warranty] = await db.select().from(warrantyTerms).where(eq(warrantyTerms.projectId, projectId));
   const projectMilestones = await db.select().from(milestones).where(eq(milestones.projectId, projectId));
   const projectContractors = await db.select().from(contractors).where(eq(contractors.projectId, projectId));
-  
-  // Fetch units with their home model details
-  // Transform from DB schema (modelId, name, sqFt) to mapper types (homeModelId, modelName, squareFootage)
-  const unitsRaw = await db.select().from(projectUnits).where(eq(projectUnits.projectId, projectId));
-  
-  const units = await Promise.all(
-    unitsRaw.map(async (unit) => {
-      const [model] = unit.modelId 
-        ? await db.select().from(homeModels).where(eq(homeModels.id, unit.modelId))
-        : [null];
-      // For onsiteEstimateSnapshot: use model's onsiteEstPrice as a fallback since 
-      // project_units doesn't store a separate onsite snapshot
-      return {
-        id: unit.id,
-        projectId: unit.projectId,
-        homeModelId: unit.modelId,
-        unitLabel: unit.unitLabel,
-        basePriceSnapshot: unit.basePriceSnapshot,
-        // Onsite estimate: use home model's current onsite price (no unit-level snapshot exists)
-        onsiteEstimateSnapshot: model?.onsiteEstPrice || 0,
-        // Include customization for total pricing
-        customizationTotal: unit.customizationTotal || 0,
-        homeModel: model ? {
-          id: model.id,
-          modelName: model.name,
-          squareFootage: model.sqFt,
-          bedrooms: model.bedrooms,
-          bathrooms: model.bathrooms,
-        } : undefined,
-      };
-    })
-  );
 
-  const childLlc = llcRecord ? {
-    id: llcRecord.id,
-    projectId: llcRecord.projectId,
-    legalName: llcRecord.name,
-    formationState: llcRecord.stateOfFormation,
-    entityType: 'LLC',
-    ein: llcRecord.einNumber,
-    formationDate: llcRecord.formationDate,
-    registeredAgent: llcRecord.registeredAgent,
-    registeredAgentAddress: llcRecord.registeredAgentAddress,
-    address: llcRecord.address,
-    city: llcRecord.city,
-    state: llcRecord.state,
-    zip: llcRecord.zip,
-    status: llcRecord.status,
-  } : null;
+  // Fetch LLC data if project has llc_id
+  let childLlc = null;
+  if (project.llcId) {
+    const llcResult = await pool.query(
+      `SELECT id, name, project_name, state_of_formation, entity_type, ein, address, city, 
+              state_address, zip, registered_agent, registered_agent_address, formation_date,
+              annual_report_due_date, annual_report_status, is_active
+       FROM llcs WHERE id = $1`,
+      [project.llcId]
+    );
+    if (llcResult.rows.length > 0) {
+      const llc = llcResult.rows[0];
+      childLlc = {
+        id: llc.id,
+        projectId: null,
+        legalName: llc.name,
+        formationState: llc.state_of_formation || 'Delaware',
+        entityType: llc.entity_type || 'LLC',
+        ein: llc.ein || '',
+        address: llc.address || '',
+        city: llc.city || '',
+        state: llc.state_address || '',
+        zip: llc.zip || '',
+        registeredAgent: llc.registered_agent || '',
+        registeredAgentAddress: llc.registered_agent_address || '',
+        formationDate: llc.formation_date || '',
+        annualReportDue: llc.annual_report_due_date || '',
+        status: llc.is_active ? 'active' : 'inactive',
+        insuranceStatus: null,
+        insuranceExpiration: null,
+      };
+    }
+  }
 
   return {
-    project,
+    project: project as any,
     client: client || null,
-    childLlc: childLlc,
+    childLlc,
     projectDetails: projectDetail || null,
-    financials: financial || null,
+    financials: financial as any || null,
     warrantyTerms: warranty || null,
     milestones: projectMilestones,
     contractors: projectContractors,
-    units: units,
+    units: [], // Units table removed in schema refactor
   };
 }
