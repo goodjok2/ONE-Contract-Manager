@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db } from "../db/index";
 import { financials } from "../../shared/schema";
 import { eq } from "drizzle-orm";
+import { calculateProjectPricing } from "../services/pricingEngine";
 
 const router = Router();
 
@@ -86,6 +87,18 @@ router.post("/projects/:projectId/financials/lock", async (req, res) => {
   } catch (error) {
     console.error("Failed to lock pricing:", error);
     res.status(500).json({ error: "Failed to lock pricing" });
+  }
+});
+
+// Get pricing summary (calculated from units, models, and financials)
+router.get("/projects/:projectId/pricing-summary", async (req, res) => {
+  try {
+    const projectId = parseInt(req.params.projectId);
+    const summary = await calculateProjectPricing(projectId);
+    res.json(summary);
+  } catch (error) {
+    console.error("Failed to calculate pricing summary:", error);
+    res.status(500).json({ error: "Failed to calculate pricing summary" });
   }
 });
 
