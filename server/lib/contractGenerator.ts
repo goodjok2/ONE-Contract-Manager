@@ -557,9 +557,9 @@ function applyDynamicNumbering(
     const isConditionalBlock = clauseName.startsWith('[IF') || clauseName.includes('[IF ');
     
     // 8-LEVEL NUMBERING SCHEME:
-    // L1: Sequential integer (1, 2, 3)
-    // L2: Parent.sequential (1.1, 1.2)
-    // L3: Parent.sequential (1.1.1, 1.1.2)
+    // L1: Upper Roman numerals (I, II, III, IV)
+    // L2: Sequential integer, RESTARTS under each L1 (1, 2, 3)
+    // L3: Parent L2 + sequential (1.1, 1.2, 2.1)
     // L4: Lower alpha, resets per L3 parent (a, b, c)
     // L5: Lower roman, resets per L4 parent (i, ii, iii)
     // L6: Integer, resets per L5 parent (1, 2, 3)
@@ -569,15 +569,15 @@ function applyDynamicNumbering(
     
     switch (hierarchyLevel) {
       case 1:
-        // L1: Sequential integer among L1 siblings
-        number = String(visibleIndex);
+        // L1: Upper Roman numerals (I, II, III, IV)
+        number = toRoman(visibleIndex);
         break;
       case 2:
-        // L2: Parent L1 number + "." + sequential
-        number = parentNumber ? `${parentNumber}.${visibleIndex}` : String(visibleIndex);
+        // L2: Sequential integer, no parent prefix (restarts under each L1)
+        number = String(visibleIndex);
         break;
       case 3:
-        // L3: Parent L2 number + "." + sequential
+        // L3: Parent L2 number + "." + sequential (1.1, 1.2)
         number = parentNumber ? `${parentNumber}.${visibleIndex}` : String(visibleIndex);
         break;
       case 4:
@@ -1184,14 +1184,14 @@ function renderBlockNode(node: BlockNode): string {
     
     switch (hierarchyLevel) {
       case 1:
-        // L1 (Article): "1. NAME" uppercase, centered, blue, block element
+        // L1 (Part): "I. NAME" uppercase, centered, blue - Upper Roman numerals
         html += `<div class="level-1${conspicuousClass}">${dynamicNumber}. ${escapeHtml(clauseName.toUpperCase())}</div>`;
         if (content) html += `<div class="level-1-body">${content}</div>`;
         break;
         
       case 2:
-        // L2 (Section): "1.1 Name" blue, block element
-        html += `<div class="level-2${conspicuousClass}">${dynamicNumber} ${escapeHtml(l2DisplayName)}</div>`;
+        // L2 (Section): "1. Name" - Arabic integer, restarts under each L1
+        html += `<div class="level-2${conspicuousClass}">${dynamicNumber}. ${escapeHtml(l2DisplayName)}</div>`;
         if (content) html += `<div class="level-2-body">${content}</div>`;
         break;
         
