@@ -657,20 +657,21 @@ async function fetchClausesForContract(
   projectData: Record<string, any>
 ): Promise<Clause[]> {
   try {
-    // Contract types map from user-facing/internal names to database values
-    // Database stores human-readable names: 'ONE Agreement', 'Manufacturing Subcontract', 'OnSite Subcontract'
-    const contractTypeMap: Record<string, string> = {
-      'ONE': 'ONE Agreement',
-      'ONE_AGREEMENT': 'ONE Agreement',
-      'one_agreement': 'ONE Agreement',
-      'MANUFACTURING': 'Manufacturing Subcontract',
-      'manufacturing_sub': 'Manufacturing Subcontract',
-      'ONSITE': 'OnSite Subcontract',
-      'onsite_sub': 'OnSite Subcontract',
+    // Normalize to the short-form codes that match what's stored in clauses.contract_types
+    // Clauses store: ["ONE"], ["MANUFACTURING"], ["ONSITE"]
+    // Callers may pass various formats, normalize them all to the stored format
+    const contractTypeNormalizer: Record<string, string> = {
+      'ONE Agreement': 'ONE',
+      'ONE_AGREEMENT': 'ONE',
+      'one_agreement': 'ONE',
+      'Manufacturing Subcontract': 'MANUFACTURING',
+      'manufacturing_sub': 'MANUFACTURING',
+      'OnSite Subcontract': 'ONSITE',
+      'onsite_sub': 'ONSITE',
     };
-    const mappedType = contractTypeMap[contractType] || contractType;
+    const normalizedType = contractTypeNormalizer[contractType] || contractType;
     
-    const url = `http://localhost:5000/api/clauses?contractType=${encodeURIComponent(mappedType)}`;
+    const url = `http://localhost:5000/api/clauses?contractType=${encodeURIComponent(normalizedType)}`;
     console.log(`Fetching clauses from: ${url}`);
     
     const response = await fetch(url);
