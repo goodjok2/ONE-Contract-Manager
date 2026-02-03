@@ -1,0 +1,32 @@
+Replit Agent Prompts — Port Multi-Unit & Pricing from v3
+Context for All Prompts
+The v3 codebase (branch: refactor-clause-and-ingest-wizardv3) has a working multi-unit home selection wizard and pricing engine that populates financial tables in Exhibits A and C. The current codebase needs these features ported. The tables, API routes, and server-side engine files all existed in v3 and need to be verified/ported to the current system.
+
+Prompt 1: Verify Schema & Seed Home Models
+Goal: Confirm the home_models, project_units, financials, and milestones tables exist in the current PostgreSQL database. If home_models is empty, seed it with Dvele's standard models.
+Instructions:
+
+Run this SQL to check if the tables exist and have data:
+
+sqlSELECT 'home_models' as tbl, count(*) FROM home_models
+UNION ALL SELECT 'project_units', count(*) FROM project_units
+UNION ALL SELECT 'financials', count(*) FROM financials
+UNION ALL SELECT 'milestones', count(*) FROM milestones;
+
+If home_models has 0 rows, check if there's already a seed endpoint. Look for /api/seed-home-models or similar in server/routes/projects.ts. If it exists, call it. If not, seed the table with this data (prices in cents):
+
+sqlINSERT INTO home_models (name, model_code, bedrooms, bathrooms, sq_ft, design_fee, offsite_base_price, onsite_est_price, is_active)
+VALUES
+  ('S1', 'S1', 1, 1, 500, 1500000, 15000000, 5000000, true),
+  ('S2', 'S2', 2, 1, 750, 2000000, 20000000, 7000000, true),
+  ('M1', 'M1', 2, 2, 1000, 2500000, 27500000, 9000000, true),
+  ('M2', 'M2', 3, 2, 1250, 3000000, 35000000, 11000000, true),
+  ('L1', 'L1', 3, 2, 1500, 3500000, 42500000, 13000000, true),
+  ('L2', 'L2', 4, 3, 2000, 4000000, 55000000, 17000000, true),
+  ('Trinity', 'TRINITY', 3, 2, 1500, 3500000, 45000000, 14000000, true),
+  ('Salt Point', 'SALT-POINT', 4, 3, 2200, 4500000, 60000000, 18000000, true);
+Note: These are placeholder prices. Kirk will update them with actual Dvele pricing later. The important thing is having non-zero values so the pricing engine produces real numbers for testing.
+
+Verify the home_models admin page works by checking /admin/home-models in the UI. If the page doesn't exist, skip — we'll handle that separately.
+
+Do not modify any existing schema definitions. Do not modify any files other than running the seed SQL.
