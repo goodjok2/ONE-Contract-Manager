@@ -164,8 +164,11 @@ export default function ClauseLibrary() {
   const [resolveTablesPreview, setResolveTablesPreview] = useState(false);
   
   const [treePanelWidth, setTreePanelWidth] = useState(35);
+  const [editorPanelHeight, setEditorPanelHeight] = useState(50);
   const [isResizing, setIsResizing] = useState(false);
+  const [isVerticalResizing, setIsVerticalResizing] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const rightPaneRef = useRef<HTMLDivElement>(null);
   
   const [selectedClauseIds, setSelectedClauseIds] = useState<Set<number>>(new Set());
   const [bulkLevelDialogOpen, setBulkLevelDialogOpen] = useState(false);
@@ -180,36 +183,55 @@ export default function ClauseLibrary() {
     setIsResizing(true);
   }, []);
 
+  const handleVerticalMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsVerticalResizing(true);
+  }, []);
+
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      if (!isResizing || !containerRef.current) return;
+      if (isResizing && containerRef.current) {
+        const containerRect = containerRef.current.getBoundingClientRect();
+        const containerWidth = containerRect.width;
+        
+        if (containerWidth <= 0 || !isFinite(containerWidth)) return;
+        
+        const newTreeWidth = ((e.clientX - containerRect.left) / containerWidth) * 100;
+        
+        const minTreePercent = (MIN_TREE_WIDTH / containerWidth) * 100;
+        const maxTreePercent = 100 - (MIN_VIEWER_WIDTH / containerWidth) * 100;
+        
+        if (!isFinite(minTreePercent) || !isFinite(maxTreePercent) || minTreePercent >= maxTreePercent) return;
+        
+        const clampedWidth = Math.min(Math.max(newTreeWidth, minTreePercent), maxTreePercent);
+        if (isFinite(clampedWidth)) {
+          setTreePanelWidth(clampedWidth);
+        }
+      }
       
-      const containerRect = containerRef.current.getBoundingClientRect();
-      const containerWidth = containerRect.width;
-      
-      if (containerWidth <= 0 || !isFinite(containerWidth)) return;
-      
-      const newTreeWidth = ((e.clientX - containerRect.left) / containerWidth) * 100;
-      
-      const minTreePercent = (MIN_TREE_WIDTH / containerWidth) * 100;
-      const maxTreePercent = 100 - (MIN_VIEWER_WIDTH / containerWidth) * 100;
-      
-      if (!isFinite(minTreePercent) || !isFinite(maxTreePercent) || minTreePercent >= maxTreePercent) return;
-      
-      const clampedWidth = Math.min(Math.max(newTreeWidth, minTreePercent), maxTreePercent);
-      if (isFinite(clampedWidth)) {
-        setTreePanelWidth(clampedWidth);
+      if (isVerticalResizing && rightPaneRef.current) {
+        const paneRect = rightPaneRef.current.getBoundingClientRect();
+        const paneHeight = paneRect.height;
+        
+        if (paneHeight <= 0 || !isFinite(paneHeight)) return;
+        
+        const newEditorHeight = ((e.clientY - paneRect.top) / paneHeight) * 100;
+        const clampedHeight = Math.min(Math.max(newEditorHeight, 20), 80);
+        if (isFinite(clampedHeight)) {
+          setEditorPanelHeight(clampedHeight);
+        }
       }
     };
 
     const handleMouseUp = () => {
       setIsResizing(false);
+      setIsVerticalResizing(false);
     };
 
-    if (isResizing) {
+    if (isResizing || isVerticalResizing) {
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
-      document.body.style.cursor = 'col-resize';
+      document.body.style.cursor = isVerticalResizing ? 'row-resize' : 'col-resize';
       document.body.style.userSelect = 'none';
     }
 
@@ -219,7 +241,7 @@ export default function ClauseLibrary() {
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
     };
-  }, [isResizing]);
+  }, [isResizing, isVerticalResizing]);
   
   const toggleClauseSelection = (clauseId: number, e?: React.MouseEvent) => {
     if (e) {
@@ -1009,14 +1031,15 @@ export default function ClauseLibrary() {
         </div>
 
         <div 
+          ref={rightPaneRef}
           className="flex flex-col overflow-hidden flex-1"
           style={{ minWidth: MIN_VIEWER_WIDTH }}
         >
           {selectedClause ? (
             <>
-              <div className="p-4 border-b bg-background flex-shrink-0">
+              <div className="p-3 border-b bg-background flex-shrink-0">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <Badge variant="outline" className="font-mono">
                       {selectedClause.clause_code || `#${selectedClause.id}`}
                     </Badge>
@@ -1069,242 +1092,216 @@ export default function ClauseLibrary() {
                 </div>
               </div>
 
-              <ScrollArea className="flex-1">
-                {editingClause?.id === selectedClause.id ? (
-                  <div className="p-4 space-y-4">
-                    <div>
-                      <Label htmlFor="edit-header" className="flex items-center gap-2">
-                        Header / Title
-                        <Badge variant="outline" className={`text-xs ${getHierarchyColor(editHierarchyLevel)}`}>
-                          Level {editHierarchyLevel}
-                        </Badge>
-                      </Label>
-                      <Input
-                        id="edit-header"
-                        value={editHeaderText}
-                        onChange={(e) => setEditHeaderText(e.target.value)}
-                        placeholder="Clause header..."
-                        className={`mt-1 ${
-                          editHierarchyLevel <= 2 ? 'font-bold text-lg text-[#1a73e8] uppercase' :
-                          editHierarchyLevel <= 4 ? 'font-semibold text-[#1a73e8]' :
-                          editHierarchyLevel === 6 ? 'font-bold uppercase text-amber-600' :
-                          ''
-                        }`}
-                        data-testid="input-edit-header"
-                      />
-                    </div>
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <Label htmlFor="edit-body">Body Content (HTML)</Label>
-                        <Select onValueChange={insertTableVariable}>
-                            <SelectTrigger className="w-48 h-8" data-testid="select-insert-table">
-                              <Table className="h-4 w-4 mr-1" />
-                              <SelectValue placeholder="Insert Table..." />
+              <div className="flex-1 flex flex-col overflow-hidden">
+                <div 
+                  className="overflow-hidden flex flex-col"
+                  style={{ height: `${editorPanelHeight}%` }}
+                >
+                  <div className="p-2 border-b bg-muted/30 flex-shrink-0">
+                    <h3 className="text-xs font-medium text-muted-foreground flex items-center gap-2">
+                      <Code className="h-3 w-3" />
+                      {editingClause?.id === selectedClause.id ? "Editor" : "Content"}
+                    </h3>
+                  </div>
+                  <ScrollArea className="flex-1">
+                    {editingClause?.id === selectedClause.id ? (
+                      <div className="p-4 space-y-4">
+                        <div>
+                          <Label htmlFor="edit-header" className="flex items-center gap-2">
+                            Header / Title
+                            <Badge variant="outline" className={`text-xs ${getHierarchyColor(editHierarchyLevel)}`}>
+                              Level {editHierarchyLevel}
+                            </Badge>
+                          </Label>
+                          <Input
+                            id="edit-header"
+                            value={editHeaderText}
+                            onChange={(e) => setEditHeaderText(e.target.value)}
+                            placeholder="Clause header..."
+                            className={`mt-1 ${
+                              editHierarchyLevel <= 2 ? 'font-bold text-lg text-[#1a73e8] uppercase' :
+                              editHierarchyLevel <= 4 ? 'font-semibold text-[#1a73e8]' :
+                              editHierarchyLevel === 6 ? 'font-bold uppercase text-amber-600' :
+                              ''
+                            }`}
+                            data-testid="input-edit-header"
+                          />
+                        </div>
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <Label htmlFor="edit-body">Body Content (HTML)</Label>
+                            <Select onValueChange={insertTableVariable}>
+                              <SelectTrigger className="w-48 h-8" data-testid="select-insert-table">
+                                <Table className="h-4 w-4 mr-1" />
+                                <SelectValue placeholder="Insert Table..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <div className="px-2 py-1 text-xs font-medium text-muted-foreground">
+                                  Built-in Tables
+                                </div>
+                                <SelectItem value="PRICING_BREAKDOWN_TABLE">Pricing Breakdown</SelectItem>
+                                <SelectItem value="PAYMENT_SCHEDULE_TABLE">Payment Schedule</SelectItem>
+                                <SelectItem value="UNIT_SPEC_TABLE">Unit Spec Table</SelectItem>
+                                {tableDefs && tableDefs.length > 0 && (
+                                  <>
+                                    <Separator className="my-1" />
+                                    <div className="px-2 py-1 text-xs font-medium text-muted-foreground">
+                                      Custom Tables
+                                    </div>
+                                    {tableDefs.map((table) => (
+                                      <SelectItem key={table.id} value={table.variable_name}>
+                                        {table.display_name}
+                                      </SelectItem>
+                                    ))}
+                                  </>
+                                )}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <Textarea
+                            id="edit-body"
+                            value={editBodyHtml}
+                            onChange={(e) => setEditBodyHtml(e.target.value)}
+                            placeholder="Clause body HTML content..."
+                            rows={6}
+                            className="font-mono text-sm"
+                            data-testid="textarea-edit-body"
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <Label>Hierarchy Level</Label>
+                            <Select 
+                              value={editHierarchyLevel.toString()} 
+                              onValueChange={(v) => setEditHierarchyLevel(parseInt(v))}
+                            >
+                              <SelectTrigger data-testid="select-edit-hierarchy">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {EDIT_HIERARCHY_OPTIONS.map((opt) => (
+                                  <SelectItem key={opt.value} value={opt.value.toString()}>
+                                    {opt.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label>Contract Types (Tags)</Label>
+                            <div className="flex flex-wrap gap-2 mt-2">
+                              {CONTRACT_TYPE_OPTIONS.map((type) => (
+                                <Badge
+                                  key={type.value}
+                                  variant={editContractTypes.includes(type.value) ? "default" : "outline"}
+                                  className="cursor-pointer"
+                                  onClick={() => toggleContractType(type.value)}
+                                  data-testid={`tag-${type.value}`}
+                                >
+                                  {editContractTypes.includes(type.value) && (
+                                    <CheckSquare className="h-3 w-3 mr-1" />
+                                  )}
+                                  {type.label}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-4">
+                        <h3 className={`mb-2 ${
+                          selectedClause.hierarchy_level <= 2 ? 'font-bold text-lg text-[#1a73e8] uppercase' :
+                          selectedClause.hierarchy_level <= 4 ? 'font-semibold text-[#1a73e8]' :
+                          selectedClause.hierarchy_level === 6 ? 'font-bold uppercase text-amber-600' :
+                          'font-medium'
+                        }`}>
+                          {selectedClause.header_text || "(No Header)"}
+                        </h3>
+                        <div 
+                          className="text-sm text-muted-foreground prose prose-sm dark:prose-invert max-w-none"
+                          dangerouslySetInnerHTML={{ __html: selectedClause.body_html || "(No Content)" }}
+                        />
+                      </div>
+                    )}
+                  </ScrollArea>
+                </div>
+
+                <div
+                  className="h-2 bg-border hover:bg-primary/20 cursor-row-resize flex items-center justify-center transition-colors shrink-0"
+                  onMouseDown={handleVerticalMouseDown}
+                  data-testid="vertical-resize-handle"
+                >
+                  <div className="w-8 h-0.5 bg-muted-foreground/30 rounded-full" />
+                </div>
+
+                <div 
+                  className="overflow-hidden flex flex-col"
+                  style={{ height: `${100 - editorPanelHeight}%` }}
+                >
+                  <div className="p-2 border-b bg-muted/30 flex-shrink-0">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <h3 className="text-xs font-medium text-muted-foreground flex items-center gap-2">
+                        <Eye className="h-3 w-3" />
+                        HTML Preview
+                      </h3>
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          id="resolve-tables"
+                          checked={resolveTablesPreview}
+                          onCheckedChange={(checked) => setResolveTablesPreview(checked === true)}
+                          className="h-3 w-3"
+                          data-testid="checkbox-resolve-tables"
+                        />
+                        <Label htmlFor="resolve-tables" className="text-xs cursor-pointer">
+                          Resolve Tables
+                        </Label>
+                        {resolveTablesPreview && (
+                          <Select value={previewProjectId} onValueChange={setPreviewProjectId}>
+                            <SelectTrigger className="w-36 h-6 text-xs" data-testid="select-preview-project">
+                              <SelectValue placeholder="Select project..." />
                             </SelectTrigger>
                             <SelectContent>
-                              <div className="px-2 py-1 text-xs font-medium text-muted-foreground">
-                                Built-in Tables
-                              </div>
-                              <SelectItem value="PRICING_BREAKDOWN_TABLE">Pricing Breakdown</SelectItem>
-                              <SelectItem value="PAYMENT_SCHEDULE_TABLE">Payment Schedule</SelectItem>
-                              <SelectItem value="UNIT_SPEC_TABLE">Unit Spec Table</SelectItem>
-                              {tableDefs && tableDefs.length > 0 && (
-                                <>
-                                  <Separator className="my-1" />
-                                  <div className="px-2 py-1 text-xs font-medium text-muted-foreground">
-                                    Custom Tables
-                                  </div>
-                                  {tableDefs.map((table) => (
-                                    <SelectItem key={table.id} value={table.variable_name}>
-                                      {table.display_name}
-                                    </SelectItem>
-                                  ))}
-                                </>
-                              )}
+                              {projects?.map((p) => (
+                                <SelectItem key={p.id} value={p.id.toString()}>
+                                  {p.project_number} - {p.name}
+                                </SelectItem>
+                              ))}
                             </SelectContent>
                           </Select>
-                      </div>
-                      <Textarea
-                        id="edit-body"
-                        value={editBodyHtml}
-                        onChange={(e) => setEditBodyHtml(e.target.value)}
-                        placeholder="Clause body HTML content..."
-                        rows={8}
-                        className="font-mono text-sm"
-                        data-testid="textarea-edit-body"
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label>Hierarchy Level</Label>
-                        <Select 
-                          value={editHierarchyLevel.toString()} 
-                          onValueChange={(v) => setEditHierarchyLevel(parseInt(v))}
-                        >
-                          <SelectTrigger data-testid="select-edit-hierarchy">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {EDIT_HIERARCHY_OPTIONS.map((opt) => (
-                              <SelectItem key={opt.value} value={opt.value.toString()}>
-                                {opt.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div>
-                        <Label>Contract Types (Tags)</Label>
-                        <div className="flex flex-wrap gap-2 mt-2">
-                          {CONTRACT_TYPE_OPTIONS.map((type) => (
-                            <Badge
-                              key={type.value}
-                              variant={editContractTypes.includes(type.value) ? "default" : "outline"}
-                              className="cursor-pointer"
-                              onClick={() => toggleContractType(type.value)}
-                              data-testid={`tag-${type.value}`}
-                            >
-                              {editContractTypes.includes(type.value) && (
-                                <CheckSquare className="h-3 w-3 mr-1" />
-                              )}
-                              {type.label}
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="border-t pt-4 mt-4">
-                      <div className="flex items-center justify-between gap-2 flex-wrap mb-2">
-                        <h3 className="text-sm font-medium flex items-center gap-2">
-                          <Eye className="h-4 w-4" />
-                          Live HTML Preview
-                        </h3>
-                        <div className="flex items-center gap-2">
-                          <Checkbox
-                            id="resolve-tables-edit"
-                            checked={resolveTablesPreview}
-                            onCheckedChange={(checked) => setResolveTablesPreview(checked === true)}
-                            data-testid="checkbox-resolve-tables"
-                          />
-                          <Label htmlFor="resolve-tables-edit" className="text-xs cursor-pointer">
-                            Resolve Tables
-                          </Label>
-                          {resolveTablesPreview && (
-                            <Select value={previewProjectId} onValueChange={setPreviewProjectId}>
-                              <SelectTrigger className="w-44 h-7 text-xs" data-testid="select-preview-project">
-                                <SelectValue placeholder="Select project..." />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {projects?.map((p) => (
-                                  <SelectItem key={p.id} value={p.id.toString()}>
-                                    {p.project_number} - {p.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          )}
-                        </div>
-                      </div>
-                      <div className="border rounded-md p-3 bg-muted/30 max-h-48 overflow-auto">
-                        {resolveTablesPreview && previewProjectId ? (
-                          isResolvingPreview ? (
-                            <div className="text-center text-muted-foreground py-4">Resolving tables...</div>
-                          ) : (
-                            <div 
-                              className="prose prose-sm dark:prose-invert max-w-none"
-                              dangerouslySetInnerHTML={{ 
-                                __html: resolvedPreviewData?.html || '<p class="text-muted-foreground">No content to preview</p>'
-                              }}
-                              data-testid="resolved-preview"
-                            />
-                          )
-                        ) : (
-                          <div 
-                            className="prose prose-sm dark:prose-invert max-w-none"
-                            dangerouslySetInnerHTML={{ 
-                              __html: getPreviewHtml({ header_text: editHeaderText, body_html: editBodyHtml, hierarchy_level: editHierarchyLevel }) 
-                            }}
-                            data-testid="standard-preview"
-                          />
                         )}
                       </div>
                     </div>
                   </div>
-                ) : (
-                  <div className="p-4">
-                    <h3 className={`mb-2 ${
-                      selectedClause.hierarchy_level <= 2 ? 'font-bold text-lg text-[#1a73e8] uppercase' :
-                      selectedClause.hierarchy_level <= 4 ? 'font-semibold text-[#1a73e8]' :
-                      selectedClause.hierarchy_level === 6 ? 'font-bold uppercase text-amber-600' :
-                      'font-medium'
-                    }`}>
-                      {selectedClause.header_text || "(No Header)"}
-                    </h3>
-                    <div 
-                      className="text-sm text-muted-foreground prose prose-sm dark:prose-invert max-w-none mb-4"
-                      dangerouslySetInnerHTML={{ __html: selectedClause.body_html || "(No Content)" }}
-                    />
-                    
-                    <div className="border-t pt-4">
-                      <div className="flex items-center justify-between gap-2 flex-wrap mb-2">
-                        <h3 className="text-sm font-medium flex items-center gap-2">
-                          <Eye className="h-4 w-4" />
-                          Live HTML Preview
-                        </h3>
-                        <div className="flex items-center gap-2">
-                          <Checkbox
-                            id="resolve-tables-view"
-                            checked={resolveTablesPreview}
-                            onCheckedChange={(checked) => setResolveTablesPreview(checked === true)}
-                            data-testid="checkbox-resolve-tables"
-                          />
-                          <Label htmlFor="resolve-tables-view" className="text-xs cursor-pointer">
-                            Resolve Tables
-                          </Label>
-                          {resolveTablesPreview && (
-                            <Select value={previewProjectId} onValueChange={setPreviewProjectId}>
-                              <SelectTrigger className="w-44 h-7 text-xs" data-testid="select-preview-project">
-                                <SelectValue placeholder="Select project..." />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {projects?.map((p) => (
-                                  <SelectItem key={p.id} value={p.id.toString()}>
-                                    {p.project_number} - {p.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          )}
-                        </div>
-                      </div>
-                      <div className="border rounded-md p-3 bg-muted/30 max-h-64 overflow-auto">
-                        {resolveTablesPreview && previewProjectId ? (
-                          isResolvingPreview ? (
-                            <div className="text-center text-muted-foreground py-4">Resolving tables...</div>
-                          ) : (
-                            <div 
-                              className="prose prose-sm dark:prose-invert max-w-none"
-                              dangerouslySetInnerHTML={{ 
-                                __html: resolvedPreviewData?.html || '<p class="text-muted-foreground">No content to preview</p>'
-                              }}
-                              data-testid="resolved-preview"
-                            />
-                          )
+                  <ScrollArea className="flex-1">
+                    <div className="p-4">
+                      {resolveTablesPreview && previewProjectId ? (
+                        isResolvingPreview ? (
+                          <div className="text-center text-muted-foreground py-4">Resolving tables...</div>
                         ) : (
                           <div 
                             className="prose prose-sm dark:prose-invert max-w-none"
                             dangerouslySetInnerHTML={{ 
-                              __html: getPreviewHtml(selectedClause) 
+                              __html: resolvedPreviewData?.html || '<p class="text-muted-foreground">No content to preview</p>'
                             }}
-                            data-testid="standard-preview"
+                            data-testid="resolved-preview"
                           />
-                        )}
-                      </div>
+                        )
+                      ) : (
+                        <div 
+                          className="prose prose-sm dark:prose-invert max-w-none"
+                          dangerouslySetInnerHTML={{ 
+                            __html: editingClause?.id === selectedClause.id 
+                              ? getPreviewHtml({ header_text: editHeaderText, body_html: editBodyHtml, hierarchy_level: editHierarchyLevel })
+                              : getPreviewHtml(selectedClause)
+                          }}
+                          data-testid="standard-preview"
+                        />
+                      )}
                     </div>
-                  </div>
-                )}
-              </ScrollArea>
+                  </ScrollArea>
+                </div>
+              </div>
             </>
           ) : (
             <div className="flex-1 flex items-center justify-center text-muted-foreground">
