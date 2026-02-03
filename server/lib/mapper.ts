@@ -77,6 +77,9 @@ export const VARIABLE_CATEGORIES = {
     "PROJECT_NAME",
     "PROJECT_STATUS",
     "PROJECT_STATE",
+    "PROJECT_STATE_CODE",
+    "PROJECT_COUNTY",
+    "PROJECT_FEDERAL_DISTRICT",
     "ON_SITE_SELECTION", // CRC or CMOS - critical for conditional sections
   ],
   client: [
@@ -297,6 +300,7 @@ export const VARIABLE_CATEGORIES = {
     "UNIT_DETAILS_TABLE",
     "WHAT_HAPPENS_NEXT_TABLE", // Dynamic table from table_definitions
     "MILESTONE_SCHEDULE_TABLE", // TODO: Generate from milestones data
+    "SIGNATURE_BLOCK_TABLE",
   ],
   conditional: [
     "IS_CRC",
@@ -423,6 +427,75 @@ export function formatPercent(value: number | null | undefined): string {
   return `${value}%`;
 }
 
+/**
+ * Get state civil/commercial code reference for contract clauses
+ */
+export function getStateCodeReference(state: string): string {
+  const stateCodes: Record<string, string> = {
+    'CA': 'Cal. Civ. Code § 1797',
+    'California': 'Cal. Civ. Code § 1797',
+    'TX': 'Tex. Prop. Code § 401',
+    'Texas': 'Tex. Prop. Code § 401',
+    'AZ': 'Ariz. Rev. Stat. § 32-1101',
+    'Arizona': 'Ariz. Rev. Stat. § 32-1101',
+    'MT': 'Mont. Code Ann. § 30-2-313',
+    'Montana': 'Mont. Code Ann. § 30-2-313',
+    'CO': 'Colo. Rev. Stat. § 5-1-101',
+    'Colorado': 'Colo. Rev. Stat. § 5-1-101',
+    'NV': 'Nev. Rev. Stat. § 113',
+    'WA': 'Wash. Rev. Code § 64.50',
+    'NM': 'N.M. Stat. § 47-8-1',
+    'UT': 'Utah Code § 57-1-1',
+    'ID': 'Idaho Code § 54-4501',
+    'OR': 'Or. Rev. Stat. § 701.005',
+  };
+  return stateCodes[state] || '';
+}
+
+/**
+ * Get federal district court for state
+ */
+export function getFederalDistrict(state: string): string {
+  const districts: Record<string, string> = {
+    'CA': 'Southern District of California',
+    'California': 'Southern District of California',
+    'TX': 'Western District of Texas',
+    'AZ': 'District of Arizona',
+    'MT': 'District of Montana',
+    'CO': 'District of Colorado',
+    'NV': 'District of Nevada',
+    'WA': 'Western District of Washington',
+    'NM': 'District of New Mexico',
+    'UT': 'District of Utah',
+    'ID': 'District of Idaho',
+    'OR': 'District of Oregon',
+  };
+  return districts[state] || '';
+}
+
+/**
+ * Build signature block HTML for contracts
+ */
+export function buildSignatureBlock(companyName: string, clientName: string, clientTitle: string): string {
+  return `
+<div style="margin-top: 40px;">
+  <p><strong>COMPANY:</strong></p>
+  <p>${companyName}</p>
+  <p style="margin-top: 20px;">Signature: ___________________________</p>
+  <p>Name (Print): ________________________</p>
+  <p>Title: _______________________________</p>
+  <p>Date: ________________________________</p>
+  <br/>
+  <p><strong>CLIENT:</strong></p>
+  <p>${clientName}</p>
+  <p style="margin-top: 20px;">Signature: ___________________________</p>
+  <p>Name (Print): ________________________</p>
+  <p>Title: ${clientTitle || ''}_______________</p>
+  <p>Date: ________________________________</p>
+</div>
+  `.trim();
+}
+
 // =============================================================================
 // MILESTONE HELPERS
 // =============================================================================
@@ -532,6 +605,9 @@ export function mapProjectToVariables(
     PROJECT_NAME: project.name,
     PROJECT_STATUS: project.status,
     PROJECT_STATE: project.state || "",
+    PROJECT_STATE_CODE: getStateCodeReference(project.state || ''),
+    PROJECT_COUNTY: (projectDetails as any)?.county || "",
+    PROJECT_FEDERAL_DISTRICT: getFederalDistrict(project.state || ''),
     ON_SITE_SELECTION: project.onSiteSelection || "CRC",
 
     // ===================
@@ -778,6 +854,11 @@ export function mapProjectToVariables(
     ),
     // TODO: Generate milestone schedule HTML table from milestones data when available
     MILESTONE_SCHEDULE_TABLE: "",
+    SIGNATURE_BLOCK_TABLE: buildSignatureBlock(
+      project.name || '',
+      client?.legalName || '',
+      client?.entityType || ''
+    ),
 
     // ===================
     // MILESTONES (spread in the milestone objects)
@@ -1031,11 +1112,6 @@ export function mapProjectToVariables(
     MILESTONE_5_PERCENT: milestones.find(m => m.milestoneNumber === 5)?.percentage?.toString() || "15",
     RETAINAGE_PERCENT: "5",
     RETAINAGE_DAYS: "60",
-    
-    // Project location aliases
-    PROJECT_COUNTY: projectDetails?.deliveryCounty || "",
-    PROJECT_FEDERAL_DISTRICT: "",
-    PROJECT_STATE_CODE: project.state || "",
     
     // Home model alias
     HOME_MODEL_1: projectDetails?.homeModel || "",
