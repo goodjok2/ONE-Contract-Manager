@@ -277,18 +277,11 @@ async function renderExhibitsHTML(
   let html = '';
   
   for (const exhibit of exhibits) {
-    // Page break before each exhibit
-    html += '<div style="page-break-before: always;"></div>';
-    
-    // Exhibit header
+    // Each exhibit starts on a new page - use exhibit-section class with page-break-before
     html += `
-      <div class="exhibit-header">
-        <div class="level-1 roman-section" style="text-align: center; font-size: 14pt; font-weight: bold; color: #1a73e8;">
-          EXHIBIT ${exhibit.letter}
-        </div>
-        <div class="exhibit-title" style="text-align: center; font-size: 12pt; font-weight: bold; margin-bottom: 20px;">
-          ${exhibit.title}
-        </div>
+      <div class="exhibit-section">
+        <div class="exhibit-letter">EXHIBIT ${exhibit.letter}</div>
+        <div class="exhibit-title">${exhibit.title}</div>
       </div>
     `;
     
@@ -1625,15 +1618,31 @@ function getContractStyles(): string {
       color: #666;
     }
     
-    /* Exhibit/Schedule headers */
-    .exhibit-header {
+    /* Exhibit sections - each exhibit starts on a new page */
+    .exhibit-section {
+      page-break-before: always;
+      text-align: center;
+      margin-bottom: 24pt;
+    }
+    
+    .exhibit-letter {
       font-size: 16pt;
       font-weight: bold;
       text-align: center;
       color: #1a73e8;
-      margin-top: 24pt;
-      margin-bottom: 16pt;
-      page-break-before: always;
+      margin-bottom: 8pt;
+    }
+    
+    .exhibit-title {
+      font-size: 12pt;
+      font-weight: bold;
+      text-align: center;
+      margin-bottom: 20pt;
+    }
+    
+    .exhibit-content {
+      text-align: left;
+      margin-top: 16pt;
     }
     
     /* Recitals / Whereas clauses */
@@ -2128,15 +2137,31 @@ function generateHTMLFromClauses(
       color: #666;
     }
     
-    /* Exhibit/Schedule headers */
-    .exhibit-header {
+    /* Exhibit sections - each exhibit starts on a new page */
+    .exhibit-section {
+      page-break-before: always;
+      text-align: center;
+      margin-bottom: 24pt;
+    }
+    
+    .exhibit-letter {
       font-size: 16pt;
       font-weight: bold;
       text-align: center;
       color: #1a73e8;
-      margin-top: 24pt;
-      margin-bottom: 16pt;
-      page-break-before: always;
+      margin-bottom: 8pt;
+    }
+    
+    .exhibit-title {
+      font-size: 12pt;
+      font-weight: bold;
+      text-align: center;
+      margin-bottom: 20pt;
+    }
+    
+    .exhibit-content {
+      text-align: left;
+      margin-top: 16pt;
     }
     
     /* Recitals / Whereas clauses */
