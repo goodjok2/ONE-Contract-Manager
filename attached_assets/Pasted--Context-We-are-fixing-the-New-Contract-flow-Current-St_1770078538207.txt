@@ -1,0 +1,42 @@
+## Context
+We are fixing the "New Contract" flow.
+**Current State:** The Wizard runs, but generates empty contracts (0 clauses), fails to create LLCs, and redirects to the wrong "Edit" page.
+
+## Objective
+Repair the `POST /api/contracts` logic and the Frontend Routing to ensure a fully populated contract is created and editable.
+
+## Requirements
+
+### 1. Fix Contract Hydration (Backend)
+Update `server/routes/contracts.ts` (specifically the `POST /` create route):
+* **Current Behavior:** It creates a contract record but creates no clauses.
+* **Required Behavior:**
+    1.  Look up the `templateId` passed in the body.
+    2.  Fetch all clauses linked to that template (via `template_clauses`).
+    3.  **Transaction:**
+        * Create the `contracts` record.
+        * **Crucial:** Loop through the template's clauses and insert records into the `contract_clauses` table (or whichever table holds the specific clauses for a contract instance).
+        * Preserve the `order` and `condition` (CRC/CMOS) fields.
+* **Verification:** Ensure `contract_clauses` table exists in `shared/schema.ts`. If not, create it (linking `contractId` and `clauseId`).
+
+### 2. Fix Auto-LLC Generation (Backend)
+Update `server/routes/projects.ts` (specifically `POST /`):
+* **Logic:** When creating a project, check if `llcId` is provided.
+* **If missing:**
+    * Take the `siteAddress`.
+    * Run the "Generate Name" logic (e.g., "Main St Project, LLC").
+    * Insert a new record into `llcs`.
+    * Link this new `llc.id` to the Project.
+
+### 3. Fix Frontend Routing
+* **Wizard Redirect:** Upon success, the Wizard should redirect to `/contracts/:id/edit` (or the specific route for the Atomic Editor), NOT the old wizard.
+* **Active Contracts List:** Update `client/src/pages/contracts/index.tsx` (or similar list view).
+    * Change the "Edit" / "View" link to point to the Atomic Editor route.
+
+## Technical Specifications
+* **Data Integrity:** When copying clauses, copy the *current content* of the clause into the contract instance so that future changes to the "Library" don't break signed contracts. (Or link them, depending on existing architecture—stick to the existing Atomic pattern).
+* **Tables:** Ensure `contract_clauses` has `id`, `contract_id`, `clause_id`, `order`, `custom_content` (optional override).
+
+## Constraints
+* **Do NOT** delete any data.
+* **Focus:** Make the "Generate" button actually produce a full contract.

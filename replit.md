@@ -26,6 +26,7 @@ The application is built on a modern full-stack architecture.
     - **LLC Naming**: Automated child LLC naming convention "DP + Project_Address + LLC".
     - **Wizard Enhancements**: Site Address moved to Step 1, optional Billing Address, renamed steps (e.g., "Home Models", "Company Entity"), enhanced Step 9 with project type and company entity display.
     - **Admin UI**: CRUD for Exhibit Library.
+    - **LLC Lifecycle Management**: Tabbed edit dialog (General/Corporate/Compliance) with formation date, EIN, registered agent, annual report tracking, and compliance status badges (Overdue=red, Pending=yellow, Filed=green).
 
 **Backend**:
 - **Framework**: Express.js
