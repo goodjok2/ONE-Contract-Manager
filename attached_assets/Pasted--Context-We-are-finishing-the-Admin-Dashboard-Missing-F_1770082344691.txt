@@ -1,0 +1,51 @@
+## Context
+We are finishing the Admin Dashboard.
+**Missing Features:** The "Variable Manager" and "Component Library" exist as backend services but lack a Frontend UI.
+**Goal:** Create Admin pages to manage these dynamic assets so we don't need to redeploy code to change a variable mapping or a text block.
+
+## Objective
+Build two new Admin Pages: **Variable Mappings** and **Component Library**.
+
+## Requirements
+
+### 1. Database Updates (`shared/schema.ts`)
+Ensure these tables exist (create if missing):
+* `variable_mappings`:
+    * `id`, `organization_id`
+    * `variable_name` (text, e.g., "Client_Address")
+    * `source_path` (text, e.g., "project.client.address")
+    * `description` (text)
+* `component_library`:
+    * `id`, `organization_id`
+    * `tag_name` (text, e.g., "BLOCK_ON_SITE_SCOPE")
+    * `content` (text, huge text block)
+    * `description` (text)
+
+### 2. Admin UI: Variable Mappings (`/admin/variables`)
+* **Route:** Add to Admin Sidebar as "Variables".
+* **UI:** A Data Table listing all variables.
+* **Actions:** "Add Variable" / "Edit" / "Delete".
+* **Form:** Simple inputs for Name, Source Path (dot notation), and Description.
+
+### 3. Admin UI: Component Library (`/admin/components`)
+* **Route:** Add to Admin Sidebar as "Components".
+* **UI:** A List/Grid of components.
+* **Actions:** "Add Component" / "Edit".
+* **Form:**
+    * **Tag Name:** Text input (read-only for system blocks).
+    * **Content:** A Large Textarea (or simple Rich Text Editor if available) to edit the HTML content.
+    * *Tip:* This is where the user will paste the "Option A" or "Option B" text.
+
+### 4. Backend Wiring
+* Create `server/routes/variables.ts` (CRUD).
+* Create `server/routes/components.ts` (CRUD).
+* **Crucial:** Update the `variable-mapper.ts` and `component-library.ts` services to **Fetch from DB** instead of using hardcoded strings.
+    * *Fallback:* If DB is empty, use the existing hardcoded defaults (so nothing breaks), but prioritize DB values.
+
+## Technical Specifications
+* **Validation:** Ensure `variable_name` starts with `{{` and ends with `}}` (or enforce consistent styling).
+* **Security:** Filter all queries by `req.organizationId`.
+
+## Constraints
+* **Keep it Simple:** Standard Shadcn Table and Dialog patterns.
+* **Migration:** If there are hardcoded variables in the code right now, write a **Seed Script** (`scripts/seed_internals.ts`) to dump them into the database so the user sees them immediately.

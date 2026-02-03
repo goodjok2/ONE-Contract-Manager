@@ -586,6 +586,40 @@ export const tableDefinitions = pgTable("table_definitions", {
 });
 
 // =============================================================================
+// VARIABLE MAPPINGS (Multi-Tenant - Dynamic Variable Configuration)
+// =============================================================================
+
+export const variableMappings = pgTable("variable_mappings", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id")
+    .references(() => organizations.id)
+    .notNull(),
+  variableName: text("variable_name").notNull(), // e.g., "{{CLIENT_ADDRESS}}"
+  sourcePath: text("source_path").notNull(), // e.g., "project.client.address"
+  description: text("description"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at"),
+});
+
+// =============================================================================
+// COMPONENT LIBRARY (Multi-Tenant - Dynamic Text Blocks)
+// =============================================================================
+
+export const componentLibrary = pgTable("component_library", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id")
+    .references(() => organizations.id)
+    .notNull(),
+  tagName: text("tag_name").notNull(), // e.g., "BLOCK_ON_SITE_SCOPE"
+  content: text("content").notNull(), // The HTML content block
+  description: text("description"),
+  serviceModel: text("service_model"), // "CRC", "CMOS", or null for all
+  isSystem: boolean("is_system").default(false), // True for system-managed blocks
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at"),
+});
+
+// =============================================================================
 // RELATIONS
 // =============================================================================
 
@@ -828,6 +862,12 @@ export type NewClause = typeof clauses.$inferInsert;
 export type TableDefinition = typeof tableDefinitions.$inferSelect;
 export type NewTableDefinition = typeof tableDefinitions.$inferInsert;
 
+export type VariableMapping = typeof variableMappings.$inferSelect;
+export type NewVariableMapping = typeof variableMappings.$inferInsert;
+
+export type ComponentLibraryItem = typeof componentLibrary.$inferSelect;
+export type NewComponentLibraryItem = typeof componentLibrary.$inferInsert;
+
 // =============================================================================
 // INSERT SCHEMAS
 // =============================================================================
@@ -964,3 +1004,17 @@ export const tableColumnSchema = z.object({
   value: z.string(),
 });
 export type TableColumn = z.infer<typeof tableColumnSchema>;
+
+export const insertVariableMappingSchema = createInsertSchema(variableMappings).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertVariableMapping = z.infer<typeof insertVariableMappingSchema>;
+
+export const insertComponentLibraryItemSchema = createInsertSchema(componentLibrary).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertComponentLibraryItem = z.infer<typeof insertComponentLibraryItemSchema>;
