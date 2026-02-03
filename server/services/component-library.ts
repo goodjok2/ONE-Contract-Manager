@@ -86,29 +86,95 @@ export interface ComponentRenderContext {
 }
 
 // =============================================================================
-// RENDER COMPONENT FUNCTION
+// HARDCODED FALLBACKS (used when DB is empty)
 // =============================================================================
+
+const HARDCODED_COMPONENTS: Record<string, Record<string, string>> = {
+  'BLOCK_ON_SITE_SCOPE': {
+    'CRC': BLOCK_ON_SITE_SCOPE_CRC,
+    'CMOS': BLOCK_ON_SITE_SCOPE_CMOS,
+  },
+  'BLOCK_WARRANTY_SECTION': {
+    'CRC': BLOCK_WARRANTY_SECTION_CRC,
+    'CMOS': BLOCK_WARRANTY_SECTION_CMOS,
+  },
+};
+
+// =============================================================================
+// FETCH COMPONENT FROM DB (with fallback)
+// =============================================================================
+
+export async function fetchComponentFromDB(
+  tagName: string,
+  organizationId: number,
+  serviceModel: string
+): Promise<string | null> {
+  try {
+    const result = await pool.query(
+      `SELECT content FROM component_library 
+       WHERE organization_id = $1 
+         AND tag_name = $2 
+         AND (service_model = $3 OR service_model IS NULL)
+       ORDER BY CASE WHEN service_model = $3 THEN 0 ELSE 1 END
+       LIMIT 1`,
+      [organizationId, tagName, serviceModel]
+    );
+    
+    if (result.rows.length > 0) {
+      return result.rows[0].content;
+    }
+    return null;
+  } catch (error) {
+    console.warn(`Error fetching component ${tagName} from DB:`, error);
+    return null;
+  }
+}
+
+// =============================================================================
+// RENDER COMPONENT FUNCTION (DB-first with fallback)
+// =============================================================================
+
+export async function renderComponentAsync(tagName: string, projectContext: ProjectContext): Promise<string> {
+  const onSiteType = projectContext.onSiteType || 'CRC';
+  
+  const dbContent = await fetchComponentFromDB(tagName, projectContext.organizationId, onSiteType);
+  if (dbContent) {
+    return dbContent;
+  }
+  
+  const fallback = HARDCODED_COMPONENTS[tagName];
+  if (fallback) {
+    return fallback[onSiteType] || fallback['CRC'] || '';
+  }
+  
+  if (tagName === 'TABLE_PAYMENT_SCHEDULE') {
+    if (projectContext.pricingSummary) {
+      return renderPaymentSchedule(projectContext.pricingSummary, 'ONE');
+    }
+    return '<p>Payment schedule not available.</p>';
+  }
+  
+  console.warn(`Unknown component tag: ${tagName}`);
+  return `<!-- Unknown component: ${tagName} -->`;
+}
 
 export function renderComponent(tagName: string, projectContext: ProjectContext): string {
   const onSiteType = projectContext.onSiteType || 'CRC';
   
-  switch (tagName) {
-    case 'BLOCK_ON_SITE_SCOPE':
-      return onSiteType === 'CMOS' ? BLOCK_ON_SITE_SCOPE_CMOS : BLOCK_ON_SITE_SCOPE_CRC;
-    
-    case 'BLOCK_WARRANTY_SECTION':
-      return onSiteType === 'CMOS' ? BLOCK_WARRANTY_SECTION_CMOS : BLOCK_WARRANTY_SECTION_CRC;
-    
-    case 'TABLE_PAYMENT_SCHEDULE':
-      if (projectContext.pricingSummary) {
-        return renderPaymentSchedule(projectContext.pricingSummary, 'ONE');
-      }
-      return '<p>Payment schedule not available.</p>';
-    
-    default:
-      console.warn(`Unknown component tag: ${tagName}`);
-      return `<!-- Unknown component: ${tagName} -->`;
+  const fallback = HARDCODED_COMPONENTS[tagName];
+  if (fallback) {
+    return fallback[onSiteType] || fallback['CRC'] || '';
   }
+  
+  if (tagName === 'TABLE_PAYMENT_SCHEDULE') {
+    if (projectContext.pricingSummary) {
+      return renderPaymentSchedule(projectContext.pricingSummary, 'ONE');
+    }
+    return '<p>Payment schedule not available.</p>';
+  }
+  
+  console.warn(`Unknown component tag: ${tagName}`);
+  return `<!-- Unknown component: ${tagName} -->`;
 }
 
 export function renderPaymentSchedule(
@@ -256,9 +322,9 @@ export async function resolveComponentTags(
   let result = content;
   const onSiteType = context.onSiteType || 'CRC';
 
-  // Handle BLOCK_ tags (CRC vs CMOS dynamic content)
+  // Handle BLOCK_ tags (CRC vs CMOS dynamic content) - now fetches from DB first
   if (result.includes('{{BLOCK_ON_SITE_SCOPE}}')) {
-    const blockContent = renderComponent('BLOCK_ON_SITE_SCOPE', {
+    const blockContent = await renderComponentAsync('BLOCK_ON_SITE_SCOPE', {
       projectId: context.projectId,
       organizationId: context.organizationId,
       onSiteType,
@@ -268,7 +334,7 @@ export async function resolveComponentTags(
   }
 
   if (result.includes('{{BLOCK_WARRANTY_SECTION}}')) {
-    const blockContent = renderComponent('BLOCK_WARRANTY_SECTION', {
+    const blockContent = await renderComponentAsync('BLOCK_WARRANTY_SECTION', {
       projectId: context.projectId,
       organizationId: context.organizationId,
       onSiteType,
