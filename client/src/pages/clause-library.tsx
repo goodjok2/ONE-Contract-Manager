@@ -963,9 +963,9 @@ export default function ClauseLibrary() {
         </div>
       </div>
 
-      <div className="flex-1 flex min-h-0" ref={containerRef}>
+      <div className="flex-1 flex min-h-0 overflow-hidden" ref={containerRef}>
         <div 
-          className="border-r flex flex-col bg-muted/30 min-h-0"
+          className="border-r flex flex-col bg-muted/30 min-h-0 overflow-hidden"
           style={{ width: `${treePanelWidth}%`, minWidth: MIN_TREE_WIDTH }}
         >
           <div className="p-2 border-b bg-background flex-shrink-0">
