@@ -974,6 +974,21 @@ export function mapProjectToVariables(
         ? "Company-Managed On-Site Services" 
         : project.onSiteSelection || "CRC",
     
+    // Alias for DOCX variable naming
+    VAR_ON_SITE_SELECTION_NAME: project.onSiteSelection === "CRC" 
+      ? "Client-Retained Contractor" 
+      : project.onSiteSelection === "CMOS" 
+        ? "Company-Managed On-Site Services" 
+        : "Not Selected",
+    
+    // TODO: Add on-site line-item breakdown fields to financials table
+    // These variables appear in CMOS Exhibit A Phase 2 on-site pricing section
+    SHIPPING_PRELIMINARY_PRICE: "",
+    INSTALLATION_PRELIMINARY_PRICE: "",
+    SITE_PREP_PRELIMINARY_PRICE: "",
+    UTILITIES_PRELIMINARY_PRICE: "",
+    COMPLETION_PRELIMINARY_PRICE: "",
+    
     // Pricing aliases to match clause variable names
     PRELIMINARY_CONTRACT_PRICE: formatCentsAsCurrency(financials?.prelimContractPrice),
     PRELIMINARY_OFFSITE_PRICE: formatCentsAsCurrency(financials?.prelimOffsite),

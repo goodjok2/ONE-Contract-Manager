@@ -216,10 +216,10 @@ async function fetchExhibitsForContract(contractType: string): Promise<any[]> {
       .orderBy(asc(exhibits.letter)); // Primary sort by exhibit_letter (A, B, C, D, E, F, G)
     
     // Filter by contract type and active status
-    const filteredExhibits = allExhibits.filter(exhibit => 
-      exhibit.isActive && 
-      exhibit.contractTypes?.includes(contractType.toUpperCase())
-    );
+    const filteredExhibits = allExhibits.filter(exhibit => {
+      const types = exhibit.contractTypes as string[] | null;
+      return exhibit.isActive && types?.includes(contractType.toUpperCase());
+    });
     
     // Ensure exhibits are sorted by letter ascending (A-G)
     filteredExhibits.sort((a, b) => {
@@ -329,6 +329,9 @@ export async function generateContract(options: ContractGenerationOptions): Prom
   // Clear and preload block components for this service model
   clearBlockComponentCache();
   await preloadBlockComponents(projectData.organizationId || 1, currentServiceModel);
+  
+  // Preload exhibit content for {{EXHIBIT_A}} through {{EXHIBIT_G}} tags
+  await preloadExhibits(projectData.organizationId || 1, contractType);
   
   // Step 1.5: Preload state disclosures for dynamic_disclosure blocks AND inline tags
   const disclosureCodes = clauses
@@ -767,11 +770,15 @@ import { fetchComponentFromDB } from '../services/component-library';
 // Cache for resolved block components (cleared per contract generation)
 let blockComponentCache: Map<string, string> = new Map();
 
+// Cache for resolved exhibits (cleared per contract generation)
+let exhibitContentCache: Map<string, string> = new Map();
+
 /**
- * Clear the block component cache (call at start of contract generation)
+ * Clear all component caches (call at start of contract generation)
  */
 export function clearBlockComponentCache() {
   blockComponentCache.clear();
+  exhibitContentCache.clear();
 }
 
 /**
@@ -805,6 +812,69 @@ export async function preloadBlockComponents(organizationId: number, serviceMode
   } finally {
     await pool.end();
   }
+}
+
+/**
+ * Pre-fetch all EXHIBIT content for the contract (call once per contract generation)
+ * This allows synchronous resolution of {{EXHIBIT_A}} through {{EXHIBIT_G}} tags
+ * Filters by contract type to ensure correct exhibits for each contract
+ */
+export async function preloadExhibits(organizationId: number, contractType: string): Promise<void> {
+  const { Pool } = await import('pg');
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  const normalizedType = contractType.toUpperCase();
+  
+  try {
+    // Fetch exhibits that match this contract type (stored as ARRAY in contract_types column)
+    const result = await pool.query(
+      `SELECT letter, title, content, contract_types FROM exhibits 
+       WHERE organization_id = $1 
+         AND is_active = true
+         AND letter IS NOT NULL
+       ORDER BY letter`,
+      [organizationId]
+    );
+    
+    // Build cache keyed by EXHIBIT_X format, filtering by contract type
+    for (const row of result.rows) {
+      // Check if this exhibit applies to the current contract type
+      const types = row.contract_types as string[] | null;
+      if (types && !types.includes(normalizedType)) {
+        continue; // Skip exhibits not matching this contract type
+      }
+      
+      const exhibitKey = `EXHIBIT_${row.letter.toUpperCase()}`;
+      const exhibitHtml = `<h2>Exhibit ${row.letter}: ${row.title}</h2>\n${row.content || ''}`;
+      exhibitContentCache.set(exhibitKey, exhibitHtml);
+    }
+    
+    console.log(`Preloaded ${exhibitContentCache.size} exhibits for ${normalizedType}`);
+  } finally {
+    await pool.end();
+  }
+}
+
+/**
+ * Resolve {{EXHIBIT_A}} through {{EXHIBIT_G}} tags using preloaded cache
+ */
+function resolveExhibitTags(content: string): string {
+  let result = content;
+  
+  // Find ALL {{EXHIBIT_*}} tags using regex
+  const exhibitTagRegex = /\{\{(EXHIBIT_[A-G])\}\}/g;
+  const allMatches = Array.from(result.matchAll(exhibitTagRegex));
+  const uniqueTags = Array.from(new Set(allMatches.map(m => m[1])));
+  
+  for (const tagName of uniqueTags) {
+    const exhibitContent = exhibitContentCache.get(tagName);
+    if (exhibitContent) {
+      result = result.replace(new RegExp(`\\{\\{${tagName}\\}\\}`, 'g'), exhibitContent);
+    } else {
+      console.warn(`No cached exhibit for {{${tagName}}} - leaving placeholder`);
+    }
+  }
+  
+  return result;
 }
 
 /**
@@ -843,6 +913,11 @@ function replaceVariables(content: string, variableMap: Record<string, string>):
   // Process BLOCK_ component tags based on current service model
   if (result.includes('{{BLOCK_')) {
     result = resolveBlockTags(result, currentServiceModel);
+  }
+  
+  // Process EXHIBIT_ tags ({{EXHIBIT_A}} through {{EXHIBIT_G}})
+  if (result.includes('{{EXHIBIT_')) {
+    result = resolveExhibitTags(result);
   }
   
   // Process [IF CMOS]/[IF CRC] conditional tags based on current service model

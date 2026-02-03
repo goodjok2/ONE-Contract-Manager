@@ -113,12 +113,34 @@ export const contractTemplates = pgTable("contract_templates", {
     .references(() => organizations.id)
     .notNull(),
   name: text("name").notNull(),
+  displayName: text("display_name"),
   contractType: text("contract_type").notNull(), // one_agreement, manufacturing_sub, onsite_sub
   version: text("version").default("1.0"),
+  status: text("status").default("active"),
   content: text("content"), // HTML/template content
+  baseClauseIds: jsonb("base_clause_ids"), // integer[] stored as jsonb
+  conditionalRules: jsonb("conditional_rules"),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at"),
+});
+
+// =============================================================================
+// TEMPLATE CLAUSES (Junction table linking templates to clauses)
+// =============================================================================
+
+export const templateClauses = pgTable("template_clauses", {
+  id: serial("id").primaryKey(),
+  templateId: integer("template_id")
+    .references(() => contractTemplates.id)
+    .notNull(),
+  clauseId: integer("clause_id")
+    .references(() => clauses.id)
+    .notNull(),
+  orderIndex: integer("order_index").notNull(),
+  organizationId: integer("organization_id")
+    .references(() => organizations.id),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 // =============================================================================
@@ -147,13 +169,17 @@ export const contractVariables = pgTable("contract_variables", {
 export const exhibits = pgTable("exhibits", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id")
-    .references(() => organizations.id)
-    .notNull(),
-  exhibitCode: text("exhibit_code").notNull(), // EXHIBIT_A, EXHIBIT_B
-  name: text("name").notNull(),
+    .references(() => organizations.id),
+  letter: text("letter"), // A, B, C, D, E, F, G
+  title: text("title"),
+  exhibitCode: text("exhibit_code"), // EXHIBIT_A, EXHIBIT_B (legacy)
+  name: text("name"),
   description: text("description"),
   content: text("content"), // HTML content
+  isDynamic: boolean("is_dynamic").default(false),
+  disclosureCode: text("disclosure_code"),
   contractTypes: jsonb("contract_types"), // Array of applicable contract types
+  sortOrder: integer("sort_order"),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at"),
@@ -166,13 +192,10 @@ export const exhibits = pgTable("exhibits", {
 export const stateDisclosures = pgTable("state_disclosures", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id")
-    .references(() => organizations.id)
-    .notNull(),
-  state: text("state").notNull(), // CA, TX, AZ
-  disclosureType: text("disclosure_type").notNull(), // warranty_waiver, arbitration, etc.
-  title: text("title").notNull(),
+    .references(() => organizations.id),
+  code: text("code"), // Disclosure code identifier
+  state: text("state"), // CA, TX, AZ
   content: text("content"), // HTML content
-  requiresInitials: boolean("requires_initials").default(false),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at"),
@@ -521,6 +544,8 @@ export const contracts = pgTable("contracts", {
 
 export const clauses = pgTable("clauses", {
   id: serial("id").primaryKey(),
+  organizationId: integer("organization_id")
+    .references(() => organizations.id),
   
   // Identification
   slug: text("slug").unique(), // Optional: Human readable ID (e.g. OFFSITE_SERVICES_HEADER)
@@ -819,6 +844,9 @@ export type NewLlc = typeof llcs.$inferInsert;
 
 export type ContractTemplate = typeof contractTemplates.$inferSelect;
 export type NewContractTemplate = typeof contractTemplates.$inferInsert;
+
+export type TemplateClause = typeof templateClauses.$inferSelect;
+export type NewTemplateClause = typeof templateClauses.$inferInsert;
 
 export type ContractVariable = typeof contractVariables.$inferSelect;
 export type NewContractVariable = typeof contractVariables.$inferInsert;
