@@ -43,6 +43,33 @@ function processConditionalTags(content: string, serviceModel: string): string {
   let result = content;
   const model = serviceModel.toUpperCase();
   
+  // Handle verbose conditional format from exhibits FIRST
+  // [IF CLIENT HAS ELECTED 'CLIENT-RETAINED CONTRACTOR (CRC)':] ... content until next [IF or end
+  if (model === 'CRC') {
+    // Remove CMOS verbose blocks (from CMOS header to next [IF or end of content)
+    result = result.replace(
+      /\[IF CLIENT HAS ELECTED ['']COMPANY-MANAGED ON-SITE SERVICES \(CMOS\)['']:?\]([\s\S]*?)(?=\[IF CLIENT HAS ELECTED|$)/gi,
+      ''
+    );
+    // Unwrap CRC verbose blocks (keep content, remove header)
+    result = result.replace(
+      /\[IF CLIENT HAS ELECTED ['']CLIENT-RETAINED CONTRACTOR \(CRC\)['']:?\]\s*/gi,
+      ''
+    );
+  }
+  if (model === 'CMOS') {
+    // Remove CRC verbose blocks
+    result = result.replace(
+      /\[IF CLIENT HAS ELECTED ['']CLIENT-RETAINED CONTRACTOR \(CRC\)['']:?\]([\s\S]*?)(?=\[IF CLIENT HAS ELECTED|$)/gi,
+      ''
+    );
+    // Unwrap CMOS verbose blocks (keep content, remove header)
+    result = result.replace(
+      /\[IF CLIENT HAS ELECTED ['']COMPANY-MANAGED ON-SITE SERVICES \(CMOS\)['']:?\]\s*/gi,
+      ''
+    );
+  }
+  
   // If CRC project, remove all [IF CMOS]...[/IF] content
   if (model === 'CRC') {
     // Remove [IF CMOS]...[/IF] blocks (including nested content)
@@ -290,6 +317,14 @@ async function renderExhibitsHTML(
       const pattern = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
       content = content.replace(pattern, String(value || ''));
     }
+    
+    // Process conditional tags for service model (CRC/CMOS) in exhibits
+    if (currentServiceModel && (content.includes('[IF ') || content.includes('[IF]'))) {
+      content = processConditionalTags(content, currentServiceModel);
+    }
+    
+    // Clean debug/placeholder text from exhibits
+    content = content.replace(/_+delete\s*(later|below[^"]*)/gi, '');
     
     html += `<div class="exhibit-content">${content}</div>`;
   }
@@ -645,7 +680,26 @@ async function fetchClausesForContract(
     }
     
     const data = await response.json();
-    const allClauses: Clause[] = data.clauses || [];
+    const rawClauses = data.clauses || [];
+    
+    // Map API field names to Clause interface field names
+    // API returns: header_text, body_html | Interface expects: name, content
+    const allClauses: Clause[] = rawClauses.map((c: any) => ({
+      id: c.id,
+      clause_code: c.clause_code,
+      name: c.header_text || '',           // API: header_text → Interface: name
+      content: c.body_html || '',          // API: body_html → Interface: content
+      contract_type: Array.isArray(c.contract_types) ? c.contract_types[0] : c.contract_types,
+      hierarchy_level: c.hierarchy_level,
+      sort_order: c.sort_order,
+      parent_clause_id: c.parent_clause_id,
+      conditions: c.conditions || null,
+      block_type: c.block_type || null,
+      disclosure_code: c.disclosure_code || null,
+      category: c.category || '',
+      variables_used: c.variables_used || [],
+      service_model_condition: c.service_model_condition || null,
+    }));
     
     console.log(`Received ${allClauses.length} total clauses from API`);
     

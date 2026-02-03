@@ -296,6 +296,7 @@ export const VARIABLE_CATEGORIES = {
     "PAYMENT_SCHEDULE_TABLE",
     "UNIT_DETAILS_TABLE",
     "WHAT_HAPPENS_NEXT_TABLE", // Dynamic table from table_definitions
+    "MILESTONE_SCHEDULE_TABLE", // TODO: Generate from milestones data
   ],
   conditional: [
     "IS_CRC",
@@ -599,6 +600,13 @@ export function mapProjectToVariables(
     DELIVERY_CITY: projectDetails?.deliveryCity || "",
     DELIVERY_STATE: projectDetails?.deliveryState || "",
     DELIVERY_ZIP: projectDetails?.deliveryZip || "",
+    // SITE_ADDRESS alias - full formatted site address for exhibits
+    SITE_ADDRESS: buildFullAddress(
+      projectDetails?.deliveryAddress,
+      projectDetails?.deliveryCity,
+      projectDetails?.deliveryState,
+      projectDetails?.deliveryZip
+    ),
     DELIVERY_FULL_ADDRESS: buildFullAddress(
       projectDetails?.deliveryAddress,
       projectDetails?.deliveryCity,
@@ -768,6 +776,8 @@ export function mapProjectToVariables(
         estimatedPrice: (u.basePriceSnapshot || 0) + (u.onsiteEstimateSnapshot || 0),
       })) || null
     ),
+    // TODO: Generate milestone schedule HTML table from milestones data when available
+    MILESTONE_SCHEDULE_TABLE: "",
 
     // ===================
     // MILESTONES (spread in the milestone objects)
