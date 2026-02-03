@@ -366,7 +366,7 @@ async function parseExhibitsFromDocument(docxPath: string): Promise<ParsedExhibi
         content: '',
         isDynamic: false,
         disclosureCode: null,
-        contractTypes: ['ONE', 'MANUFACTURING', 'ONSITE'],
+        contractTypes: ['ONE'],
         sortOrder: sortOrder++,
       };
       contentBuilder = [];
@@ -461,6 +461,7 @@ async function ingestExhibits(docxPath: string, clearExisting: boolean = true): 
   
   for (const exhibit of parsedExhibits) {
     await db.insert(exhibits).values({
+      organizationId: 1,
       letter: exhibit.letter,
       title: exhibit.title,
       content: exhibit.content,

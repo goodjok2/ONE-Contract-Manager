@@ -46,8 +46,6 @@ interface ParsedClause {
 
 const CONTRACT_TYPES = [
   { value: "ONE", label: "ONE Agreement" },
-  { value: "CMOS", label: "CMOS Contract" },
-  { value: "CRC", label: "CRC Contract" },
   { value: "ONSITE", label: "Onsite Sub" },
   { value: "MFG", label: "Manufacturing Sub" },
 ];
