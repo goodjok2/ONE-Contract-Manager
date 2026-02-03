@@ -3,8 +3,11 @@ import { db } from "../db/index";
 import { pool } from "../db";
 import { contracts, financials, projects } from "../../shared/schema";
 import { eq, or, count, countDistinct, sql } from "drizzle-orm";
+import multer from "multer";
+import mammoth from "mammoth";
 
 const router = Router();
+const upload = multer({ storage: multer.memoryStorage() });
 
 // ---------------------------------------------------------------------------
 // DASHBOARD
@@ -936,6 +939,325 @@ router.get("/system/diagnose-templates", async (req, res) => {
       error: "Template diagnostics failed",
       details: error?.message 
     });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// DOCX INGESTION ENDPOINTS
+// ---------------------------------------------------------------------------
+
+interface ParsedClause {
+  slug: string;
+  headerText: string;
+  bodyHtml: string;
+  level: number;
+  parentSlug: string | null;
+  order: number;
+  contractTypes: string[];
+  variablesUsed: string[];
+}
+
+function decodeHtmlEntities(html: string): string {
+  return html
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, ' ');
+}
+
+function slugify(text: string, contractType: string, index: number): string {
+  const base = text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .substring(0, 50);
+  return `${contractType.toLowerCase()}-${base}-${index}`;
+}
+
+function cleanHeaderText(html: string): string {
+  return html
+    .replace(/<a[^>]*id="[^"]*"[^>]*><\/a>/g, '')
+    .replace(/<[^>]+>/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function getHeadingLevel(tag: string): number | null {
+  const match = tag.match(/<h([1-6])/i);
+  return match ? parseInt(match[1]) : null;
+}
+
+function isContentElement(element: string): boolean {
+  return /^<(p|ul|ol|table|blockquote)/i.test(element.trim());
+}
+
+function extractVariables(html: string): string[] {
+  const regex = /\{\{([A-Z_0-9]+)\}\}/g;
+  const variables = new Set<string>();
+  let match;
+  while ((match = regex.exec(html)) !== null) {
+    variables.add(match[1]);
+  }
+  return Array.from(variables);
+}
+
+function parseDocxHtml(html: string, contractType: string): ParsedClause[] {
+  const clauses: ParsedClause[] = [];
+  let globalOrder = 100;
+  
+  const decoded = decodeHtmlEntities(html);
+  const elements = decoded.split(/(?=<h[1-6]|<p(?:\s|>)|<ul|<ol|<table|<blockquote)/i).filter(el => el.trim());
+  
+  let currentL1: ParsedClause | null = null;
+  let currentL2: ParsedClause | null = null;
+  let currentL3: ParsedClause | null = null;
+  let bodyBuffer: string[] = [];
+  
+  const hasTOC = decoded.includes('<a href="#');
+  let skipTOC = hasTOC;
+  
+  function flushBody() {
+    if (bodyBuffer.length > 0) {
+      const body = bodyBuffer.join('\n');
+      if (currentL3) {
+        currentL3.bodyHtml += (currentL3.bodyHtml ? '\n' : '') + body;
+        currentL3.variablesUsed = extractVariables(currentL3.bodyHtml);
+      } else if (currentL2) {
+        currentL2.bodyHtml += (currentL2.bodyHtml ? '\n' : '') + body;
+        currentL2.variablesUsed = extractVariables(currentL2.bodyHtml);
+      } else if (currentL1) {
+        currentL1.bodyHtml += (currentL1.bodyHtml ? '\n' : '') + body;
+        currentL1.variablesUsed = extractVariables(currentL1.bodyHtml);
+      }
+      bodyBuffer = [];
+    }
+  }
+  
+  for (const element of elements) {
+    if (hasTOC && element.includes('<a href="#')) continue;
+    if (hasTOC && element.includes('<a id="')) skipTOC = false;
+    if (skipTOC) continue;
+    
+    const level = getHeadingLevel(element);
+    
+    if (level !== null) {
+      const headerText = cleanHeaderText(element);
+      if (!headerText || headerText.length < 2) continue;
+      
+      flushBody();
+      
+      if (level === 1) {
+        currentL1 = {
+          slug: slugify(headerText, contractType, globalOrder),
+          headerText,
+          bodyHtml: '',
+          level: 1,
+          parentSlug: null,
+          order: globalOrder,
+          contractTypes: [contractType],
+          variablesUsed: [],
+        };
+        clauses.push(currentL1);
+        currentL2 = null;
+        currentL3 = null;
+        globalOrder += 100;
+      } else if (level === 2) {
+        currentL2 = {
+          slug: slugify(headerText, contractType, globalOrder),
+          headerText,
+          bodyHtml: '',
+          level: 2,
+          parentSlug: currentL1?.slug || null,
+          order: globalOrder,
+          contractTypes: [contractType],
+          variablesUsed: [],
+        };
+        clauses.push(currentL2);
+        currentL3 = null;
+        globalOrder += 10;
+      } else if (level >= 3) {
+        currentL3 = {
+          slug: slugify(headerText, contractType, globalOrder),
+          headerText,
+          bodyHtml: '',
+          level: 3,
+          parentSlug: currentL2?.slug || currentL1?.slug || null,
+          order: globalOrder,
+          contractTypes: [contractType],
+          variablesUsed: [],
+        };
+        clauses.push(currentL3);
+        globalOrder += 5;
+      }
+    } else if (isContentElement(element)) {
+      bodyBuffer.push(element.trim());
+    }
+  }
+  
+  flushBody();
+  return clauses;
+}
+
+router.post("/system/ingest-docx/preview", upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: "No file uploaded" });
+    }
+    
+    const contractType = req.body.contractType || 'ONE';
+    
+    console.log(`📖 Parsing uploaded DOCX for ${contractType}...`);
+    
+    const result = await mammoth.convertToHtml({ buffer: req.file.buffer });
+    const clauses = parseDocxHtml(result.value, contractType);
+    
+    const withContent = clauses.filter(c => c.bodyHtml.length > 0);
+    console.log(`  ✅ Parsed ${clauses.length} clauses (${withContent.length} with body content)`);
+    
+    const preview = clauses.slice(0, 20).map(c => ({
+      slug: c.slug,
+      headerText: c.headerText.substring(0, 80),
+      level: c.level,
+      bodyLength: c.bodyHtml.length,
+      variablesCount: c.variablesUsed.length,
+      bodyPreview: c.bodyHtml.substring(0, 150) + (c.bodyHtml.length > 150 ? '...' : ''),
+    }));
+    
+    res.json({
+      success: true,
+      contractType,
+      totalClauses: clauses.length,
+      clausesWithContent: withContent.length,
+      preview,
+      mammothWarnings: result.messages.length,
+    });
+  } catch (error: any) {
+    console.error("DOCX preview failed:", error);
+    res.status(500).json({ error: "Failed to parse DOCX file", details: error?.message });
+  }
+});
+
+router.post("/system/ingest-docx/import", upload.single('file'), async (req, res) => {
+  const client = await pool.connect();
+  
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: "No file uploaded" });
+    }
+    
+    const contractType = req.body.contractType || 'ONE';
+    const purgeExisting = req.body.purgeExisting === 'true';
+    
+    console.log(`📖 Importing DOCX for ${contractType} (purge: ${purgeExisting})...`);
+    
+    await client.query('BEGIN');
+    
+    if (purgeExisting) {
+      await client.query(`DELETE FROM template_clauses WHERE template_id IN (SELECT id FROM contract_templates WHERE contract_type = $1)`, [contractType]);
+      await client.query(`DELETE FROM contract_templates WHERE contract_type = $1`, [contractType]);
+      await client.query(`DELETE FROM clauses WHERE contract_types @> $1::jsonb`, [JSON.stringify([contractType])]);
+      console.log(`  🗑️ Purged existing ${contractType} clauses and templates`);
+    }
+    
+    const result = await mammoth.convertToHtml({ buffer: req.file.buffer });
+    const clauses = parseDocxHtml(result.value, contractType);
+    
+    const slugToId = new Map<string, number>();
+    for (const clause of clauses) {
+      const insertResult = await client.query(
+        `INSERT INTO clauses (slug, header_text, body_html, level, parent_id, "order", contract_types, tags)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         RETURNING id`,
+        [
+          clause.slug,
+          clause.headerText,
+          clause.bodyHtml,
+          clause.level,
+          clause.parentSlug ? slugToId.get(clause.parentSlug) || null : null,
+          clause.order,
+          JSON.stringify(clause.contractTypes),
+          JSON.stringify([]),
+        ]
+      );
+      slugToId.set(clause.slug, insertResult.rows[0].id);
+    }
+    
+    const clauseIds = Array.from(slugToId.values());
+    
+    await client.query(
+      `INSERT INTO contract_templates (name, display_name, contract_type, base_clause_ids, conditional_rules, is_active, organization_id, version, status, created_at, updated_at)
+       VALUES ($1, $2, $3, $4::integer[], $5, true, 1, '1.0', 'active', NOW(), NOW())
+       ON CONFLICT (contract_type) DO UPDATE SET base_clause_ids = $4::integer[], updated_at = NOW()`,
+      [
+        `Master ${contractType} Agreement`,
+        `${contractType} Agreement`,
+        contractType,
+        clauseIds,
+        JSON.stringify({}),
+      ]
+    );
+    
+    const templateResult = await client.query(`SELECT id FROM contract_templates WHERE contract_type = $1`, [contractType]);
+    const templateId = templateResult.rows[0].id;
+    
+    for (let i = 0; i < clauseIds.length; i++) {
+      await client.query(
+        `INSERT INTO template_clauses (template_id, clause_id, order_index, organization_id) VALUES ($1, $2, $3, 1)`,
+        [templateId, clauseIds[i], i * 10]
+      );
+    }
+    
+    await client.query('COMMIT');
+    
+    console.log(`  ✅ Imported ${clauses.length} clauses for ${contractType}`);
+    
+    res.json({
+      success: true,
+      contractType,
+      clausesImported: clauses.length,
+      clausesWithContent: clauses.filter(c => c.bodyHtml.length > 0).length,
+      templateId,
+    });
+  } catch (error: any) {
+    await client.query('ROLLBACK');
+    console.error("DOCX import failed:", error);
+    res.status(500).json({ error: "Failed to import DOCX file", details: error?.message });
+  } finally {
+    client.release();
+  }
+});
+
+router.delete("/system/purge-clauses/:contractType", async (req, res) => {
+  const client = await pool.connect();
+  
+  try {
+    const contractType = req.params.contractType;
+    
+    console.log(`🗑️ Purging clauses for ${contractType}...`);
+    
+    await client.query('BEGIN');
+    
+    await client.query(`DELETE FROM template_clauses WHERE template_id IN (SELECT id FROM contract_templates WHERE contract_type = $1)`, [contractType]);
+    await client.query(`DELETE FROM contract_templates WHERE contract_type = $1`, [contractType]);
+    const result = await client.query(`DELETE FROM clauses WHERE contract_types @> $1::jsonb`, [JSON.stringify([contractType])]);
+    
+    await client.query('COMMIT');
+    
+    console.log(`  ✅ Purged ${result.rowCount} clauses for ${contractType}`);
+    
+    res.json({
+      success: true,
+      contractType,
+      clausesPurged: result.rowCount,
+    });
+  } catch (error: any) {
+    await client.query('ROLLBACK');
+    console.error("Purge failed:", error);
+    res.status(500).json({ error: "Failed to purge clauses", details: error?.message });
+  } finally {
+    client.release();
   }
 });
 
