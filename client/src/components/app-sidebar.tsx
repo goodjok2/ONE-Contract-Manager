@@ -3,7 +3,8 @@ import {
   LayoutDashboard, 
   FileCheck,
   Shield,
-  Plus
+  Plus,
+  Box
 } from "lucide-react";
 import {
   Sidebar,
@@ -34,6 +35,11 @@ const mainNavItems = [
     title: "Active Contracts",
     url: "/contracts",
     icon: FileCheck,
+  },
+  {
+    title: "Component Library",
+    url: "/component-library",
+    icon: Box,
   },
 ];
 

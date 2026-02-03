@@ -326,6 +326,10 @@ export async function generateContract(options: ContractGenerationOptions): Prom
   currentServiceModel = (projectData.serviceModel || projectData.ON_SITE_SELECTION || 'CRC').toUpperCase();
   console.log(`📍 Service model for [IF] tag processing: ${currentServiceModel}`);
   
+  // Clear and preload block components for this service model
+  clearBlockComponentCache();
+  await preloadBlockComponents(projectData.organizationId || 1, currentServiceModel);
+  
   // Step 1.5: Preload state disclosures for dynamic_disclosure blocks AND inline tags
   const disclosureCodes = clauses
     .filter(c => c.block_type === 'dynamic_disclosure' && c.disclosure_code)
@@ -758,35 +762,74 @@ const PLACEHOLDER_START = '\u0001PH\u0002';
 const PLACEHOLDER_END = '\u0001/PH\u0002';
 
 // Import centralized BLOCK_ tag resolution from component-library
-import { renderComponent } from '../services/component-library';
+import { fetchComponentFromDB } from '../services/component-library';
+
+// Cache for resolved block components (cleared per contract generation)
+let blockComponentCache: Map<string, string> = new Map();
+
+/**
+ * Clear the block component cache (call at start of contract generation)
+ */
+export function clearBlockComponentCache() {
+  blockComponentCache.clear();
+}
+
+/**
+ * Pre-fetch all BLOCK_ components for a service model (call once per contract generation)
+ * This allows synchronous resolution in replaceVariables
+ */
+export async function preloadBlockComponents(organizationId: number, serviceModel: string): Promise<void> {
+  const model = (serviceModel || 'CRC').toUpperCase();
+  
+  // Fetch all components for this organization and service model
+  const { Pool } = await import('pg');
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  
+  try {
+    const result = await pool.query(
+      `SELECT tag_name, content FROM component_library 
+       WHERE organization_id = $1 
+         AND (service_model = $2 OR service_model IS NULL)
+       ORDER BY CASE WHEN service_model = $2 THEN 0 ELSE 1 END`,
+      [organizationId, model]
+    );
+    
+    // Build cache - first match for each tag_name wins (service_model specific takes priority)
+    for (const row of result.rows) {
+      if (!blockComponentCache.has(row.tag_name)) {
+        blockComponentCache.set(row.tag_name, row.content);
+      }
+    }
+    
+    console.log(`Preloaded ${blockComponentCache.size} block components for ${model}`);
+  } finally {
+    await pool.end();
+  }
+}
 
 /**
  * Resolve BLOCK_ component tags based on service model (CRC vs CMOS)
- * Uses centralized component-library for consistency
- * Defaults to CRC if service model is not specified
+ * Uses preloaded cache for synchronous resolution
+ * Generic regex approach - matches ALL {{BLOCK_*}} tags
  */
 function resolveBlockTags(content: string, serviceModel: string): string {
   let result = content;
-  const model = (serviceModel || 'CRC').toUpperCase();
   
-  // Replace BLOCK_ON_SITE_SCOPE using centralized component library
-  if (result.includes('{{BLOCK_ON_SITE_SCOPE}}')) {
-    const blockContent = renderComponent('BLOCK_ON_SITE_SCOPE', {
-      projectId: 0,
-      organizationId: 1,
-      onSiteType: model
-    });
-    result = result.replace(/\{\{BLOCK_ON_SITE_SCOPE\}\}/g, blockContent);
-  }
+  // Find ALL {{BLOCK_*}} tags using generic regex
+  const blockTagRegex = /\{\{(BLOCK_[A-Z0-9_.]+)\}\}/g;
+  const allMatches = Array.from(result.matchAll(blockTagRegex));
+  const uniqueTags = Array.from(new Set(allMatches.map(m => m[1])));
   
-  // Replace BLOCK_WARRANTY_SECTION using centralized component library
-  if (result.includes('{{BLOCK_WARRANTY_SECTION}}')) {
-    const blockContent = renderComponent('BLOCK_WARRANTY_SECTION', {
-      projectId: 0,
-      organizationId: 1,
-      onSiteType: model
-    });
-    result = result.replace(/\{\{BLOCK_WARRANTY_SECTION\}\}/g, blockContent);
+  for (const tagName of uniqueTags) {
+    const blockContent = blockComponentCache.get(tagName);
+    if (blockContent) {
+      // Escape dots in tag name for regex
+      const escapedTagName = tagName.replace(/\./g, '\\.');
+      result = result.replace(new RegExp(`\\{\\{${escapedTagName}\\}\\}`, 'g'), blockContent);
+    } else {
+      console.warn(`No cached component for {{${tagName}}} - leaving placeholder`);
+      // Leave the placeholder in place so it shows up as unresolved
+    }
   }
   
   return result;

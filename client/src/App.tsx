@@ -34,7 +34,6 @@ import AdminContractorEntities from "@/pages/admin/contractor-entities";
 import AdminProjectUnits from "@/pages/admin/project-units";
 import AdminImportTemplates from "@/pages/admin/import-templates";
 import AdminVariables from "@/pages/admin/variables";
-import AdminComponents from "@/pages/admin/components";
 import NewContractWizard from "@/pages/wizard/new";
 
 function Router() {
@@ -67,7 +66,6 @@ function Router() {
       <Route path="/admin/project-units" component={AdminProjectUnits} />
       <Route path="/admin/import-templates" component={AdminImportTemplates} />
       <Route path="/admin/variables" component={AdminVariables} />
-      <Route path="/admin/components" component={AdminComponents} />
       <Route path="/wizard/new" component={NewContractWizard} />
       <Route component={NotFound} />
     </Switch>
