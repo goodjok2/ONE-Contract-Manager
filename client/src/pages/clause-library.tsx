@@ -963,12 +963,12 @@ export default function ClauseLibrary() {
         </div>
       </div>
 
-      <div className="flex-1 flex overflow-hidden" ref={containerRef}>
+      <div className="flex-1 flex min-h-0" ref={containerRef}>
         <div 
-          className="border-r flex flex-col bg-muted/30 overflow-hidden"
+          className="border-r flex flex-col bg-muted/30 min-h-0"
           style={{ width: `${treePanelWidth}%`, minWidth: MIN_TREE_WIDTH }}
         >
-          <div className="p-2 border-b bg-background">
+          <div className="p-2 border-b bg-background flex-shrink-0">
             <div className="flex items-center justify-between gap-2">
               <h2 className="text-sm font-medium flex items-center gap-2">
                 <FolderTree className="h-4 w-4" />
@@ -1002,7 +1002,7 @@ export default function ClauseLibrary() {
               )}
             </div>
           </div>
-          <ScrollArea className="flex-1">
+          <div className="flex-1 min-h-0 overflow-auto">
             <div className="p-2">
               {isLoading ? (
                 <div className="space-y-2">
@@ -1019,7 +1019,7 @@ export default function ClauseLibrary() {
                 buildTree.map((node, idx) => renderTreeNode(node, 0, idx))
               )}
             </div>
-          </ScrollArea>
+          </div>
         </div>
 
         <div
@@ -1032,7 +1032,7 @@ export default function ClauseLibrary() {
 
         <div 
           ref={rightPaneRef}
-          className="flex flex-col overflow-hidden flex-1"
+          className="flex flex-col min-h-0 flex-1"
           style={{ minWidth: MIN_VIEWER_WIDTH }}
         >
           {selectedClause ? (
@@ -1092,9 +1092,9 @@ export default function ClauseLibrary() {
                 </div>
               </div>
 
-              <div className="flex-1 flex flex-col overflow-hidden">
+              <div className="flex-1 flex flex-col min-h-0">
                 <div 
-                  className="overflow-hidden flex flex-col"
+                  className="flex flex-col min-h-0"
                   style={{ height: `${editorPanelHeight}%` }}
                 >
                   <div className="p-2 border-b bg-muted/30 flex-shrink-0">
@@ -1103,7 +1103,7 @@ export default function ClauseLibrary() {
                       {editingClause?.id === selectedClause.id ? "Editor" : "Content"}
                     </h3>
                   </div>
-                  <ScrollArea className="flex-1">
+                  <div className="flex-1 min-h-0 overflow-auto">
                     {editingClause?.id === selectedClause.id ? (
                       <div className="p-4 space-y-4">
                         <div>
@@ -1224,7 +1224,7 @@ export default function ClauseLibrary() {
                         />
                       </div>
                     )}
-                  </ScrollArea>
+                  </div>
                 </div>
 
                 <div
@@ -1236,7 +1236,7 @@ export default function ClauseLibrary() {
                 </div>
 
                 <div 
-                  className="overflow-hidden flex flex-col"
+                  className="flex flex-col min-h-0"
                   style={{ height: `${100 - editorPanelHeight}%` }}
                 >
                   <div className="p-2 border-b bg-muted/30 flex-shrink-0">
@@ -1273,7 +1273,7 @@ export default function ClauseLibrary() {
                       </div>
                     </div>
                   </div>
-                  <ScrollArea className="flex-1">
+                  <div className="flex-1 min-h-0 overflow-auto">
                     <div className="p-4">
                       {resolveTablesPreview && previewProjectId ? (
                         isResolvingPreview ? (
@@ -1299,7 +1299,7 @@ export default function ClauseLibrary() {
                         />
                       )}
                     </div>
-                  </ScrollArea>
+                  </div>
                 </div>
               </div>
             </>
