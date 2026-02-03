@@ -36,6 +36,32 @@ router.get("/contractor-entities", async (req: Request, res: Response) => {
   }
 });
 
+router.get("/contractor-entities/type/:type", async (req: Request, res: Response) => {
+  try {
+    const contractorType = req.params.type;
+    const result = await pool.query(
+      `SELECT id, contractor_type as "contractorType", legal_name as "legalName",
+              formation_state as "formationState", entity_type as "entityType",
+              address, city, state, zip,
+              license_number as "licenseNumber", license_state as "licenseState",
+              license_expiration as "licenseExpiration",
+              contact_name as "contactName", contact_email as "contactEmail",
+              contact_phone as "contactPhone",
+              bond_amount as "bondAmount", insurance_amount as "insuranceAmount",
+              insurance_expiration as "insuranceExpiration", insurance_carrier as "insuranceCarrier",
+              is_active as "isActive"
+       FROM contractor_entities 
+       WHERE contractor_type = $1 AND is_active = true
+       ORDER BY legal_name`,
+      [contractorType]
+    );
+    res.json(result.rows);
+  } catch (error: any) {
+    console.error("Error fetching contractor entities by type:", error);
+    res.status(500).json({ error: "Failed to fetch contractor entities" });
+  }
+});
+
 router.get("/contractor-entities/:id", async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
@@ -59,20 +85,29 @@ router.get("/contractor-entities/:id", async (req: Request, res: Response) => {
 router.post("/contractor-entities", async (req: Request, res: Response) => {
   try {
     const { 
-      legalName, contractorType, entityType, state, address, city, stateAddress, zip,
+      legalName, contractorType, entityType, formationState, state, address, city, zip,
       licenseNumber, licenseState, licenseExpiration, contactName, contactEmail, contactPhone,
       bondAmount, insuranceAmount, insuranceExpiration, insuranceCarrier
     } = req.body;
     
     const result = await pool.query(
       `INSERT INTO contractor_entities (
-        organization_id, legal_name, contractor_type, entity_type, state, address, city, state_address, zip,
+        organization_id, legal_name, contractor_type, entity_type, formation_state, state, address, city, zip,
         license_number, license_state, license_expiration, contact_name, contact_email, contact_phone,
         bond_amount, insurance_amount, insurance_expiration, insurance_carrier
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
-       RETURNING *`,
+       RETURNING id, contractor_type as "contractorType", legal_name as "legalName",
+                 formation_state as "formationState", entity_type as "entityType",
+                 address, city, state, zip,
+                 license_number as "licenseNumber", license_state as "licenseState",
+                 license_expiration as "licenseExpiration",
+                 contact_name as "contactName", contact_email as "contactEmail",
+                 contact_phone as "contactPhone",
+                 bond_amount as "bondAmount", insurance_amount as "insuranceAmount",
+                 insurance_expiration as "insuranceExpiration", insurance_carrier as "insuranceCarrier",
+                 is_active as "isActive"`,
       [
-        req.organizationId, legalName, contractorType, entityType, state, address, city, stateAddress, zip,
+        req.organizationId, legalName, contractorType, entityType, formationState, state, address, city, zip,
         licenseNumber, licenseState, licenseExpiration, contactName, contactEmail, contactPhone,
         bondAmount, insuranceAmount, insuranceExpiration, insuranceCarrier
       ]
@@ -89,7 +124,7 @@ router.patch("/contractor-entities/:id", async (req: Request, res: Response) => 
   try {
     const { id } = req.params;
     const { 
-      legalName, contractorType, entityType, state, address, city, stateAddress, zip,
+      legalName, contractorType, entityType, formationState, state, address, city, zip,
       licenseNumber, licenseState, licenseExpiration, contactName, contactEmail, contactPhone,
       bondAmount, insuranceAmount, insuranceExpiration, insuranceCarrier, isActive
     } = req.body;
@@ -99,10 +134,10 @@ router.patch("/contractor-entities/:id", async (req: Request, res: Response) => 
        legal_name = COALESCE($3, legal_name),
        contractor_type = COALESCE($4, contractor_type),
        entity_type = COALESCE($5, entity_type),
-       state = COALESCE($6, state),
-       address = COALESCE($7, address),
-       city = COALESCE($8, city),
-       state_address = COALESCE($9, state_address),
+       formation_state = COALESCE($6, formation_state),
+       state = COALESCE($7, state),
+       address = COALESCE($8, address),
+       city = COALESCE($9, city),
        zip = COALESCE($10, zip),
        license_number = COALESCE($11, license_number),
        license_state = COALESCE($12, license_state),
@@ -117,9 +152,18 @@ router.patch("/contractor-entities/:id", async (req: Request, res: Response) => 
        is_active = COALESCE($21, is_active),
        updated_at = NOW()
        WHERE id = $1 AND organization_id = $2
-       RETURNING *`,
+       RETURNING id, contractor_type as "contractorType", legal_name as "legalName",
+                 formation_state as "formationState", entity_type as "entityType",
+                 address, city, state, zip,
+                 license_number as "licenseNumber", license_state as "licenseState",
+                 license_expiration as "licenseExpiration",
+                 contact_name as "contactName", contact_email as "contactEmail",
+                 contact_phone as "contactPhone",
+                 bond_amount as "bondAmount", insurance_amount as "insuranceAmount",
+                 insurance_expiration as "insuranceExpiration", insurance_carrier as "insuranceCarrier",
+                 is_active as "isActive"`,
       [
-        id, req.organizationId, legalName, contractorType, entityType, state, address, city, stateAddress, zip,
+        id, req.organizationId, legalName, contractorType, entityType, formationState, state, address, city, zip,
         licenseNumber, licenseState, licenseExpiration, contactName, contactEmail, contactPhone,
         bondAmount, insuranceAmount, insuranceExpiration, insuranceCarrier, isActive
       ]
