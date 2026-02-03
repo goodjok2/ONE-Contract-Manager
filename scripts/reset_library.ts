@@ -1,15 +1,20 @@
 import { db } from "../server/db";
-import { clauses, contractTemplates } from "../shared/schema";
+// We need to import the junction table to delete from it first
+import { clauses, contractTemplates, templateClauses } from "../shared/schema"; 
 
 async function resetLibrary() {
   console.log("Starting cleanup...");
 
   try {
-    // 1. Delete all clauses
+    // 1. Delete the LINKS first (The junction table)
+    console.log("Deleting template links...");
+    await db.delete(templateClauses);
+
+    // 2. NOW it is safe to delete the CLAUSES
     console.log("Deleting clauses...");
     await db.delete(clauses);
 
-    // 2. Delete all contract templates (Optional - strictly ensures no bad links)
+    // 3. Finally, delete the TEMPLATES
     console.log("Deleting contract templates...");
     await db.delete(contractTemplates);
 
