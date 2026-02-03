@@ -277,7 +277,8 @@ async function rebuildTemplates(slugToId: Map<string, number>, contractType: str
 async function main() {
   console.log('\n🚀 DOCX CLAUSE INGESTION STARTING (ONE Agreement only)...\n');
   
-  const oneFile = 'attached_assets/7._26-00X_Project_Name_-_Dvele_ONE_Agreement_1769049836636.docx';
+  // Use the canonical template file location - NOT attached_assets
+  const oneFile = 'server/templates/ONE_Agreement_Master.docx';
   
   try {
     console.log('📋 Step 1: Parsing ONE Agreement DOCX...\n');
