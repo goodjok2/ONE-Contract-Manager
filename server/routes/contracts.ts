@@ -833,32 +833,49 @@ router.post("/contracts", async (req, res) => {
       
       const newContract = insertResult.rows[0];
       
-      // HYDRATE CONTRACT: Copy clauses from library to contract_clauses
-      // Fetch all clauses that match the contract type
-      const clausesResult = await client.query(
-        `SELECT id, header_text, body_html, level, "order"
-         FROM clauses 
-         WHERE contract_types @> $1::jsonb
-         ORDER BY "order" ASC`,
-        [JSON.stringify([contractType])]
+      // HYDRATE CONTRACT: Copy clauses from template_clauses junction table
+      // First, find the template by contract_type
+      const templateResult = await client.query(
+        `SELECT id FROM contract_templates WHERE contract_type = $1 LIMIT 1`,
+        [contractType]
       );
       
-      console.log(`📋 Hydrating contract ${newContract.id} with ${clausesResult.rows.length} clauses for type ${contractType}`);
+      let clauseCount = 0;
       
-      // Insert clauses into contract_clauses
-      for (const clause of clausesResult.rows) {
-        await client.query(
-          `INSERT INTO contract_clauses (contract_id, clause_id, header_text, body_html, level, "order")
-           VALUES ($1, $2, $3, $4, $5, $6)`,
-          [
-            newContract.id,
-            clause.id,
-            clause.header_text,
-            clause.body_html,
-            clause.level,
-            clause.order
-          ]
+      if (templateResult.rows.length > 0) {
+        const templateId = templateResult.rows[0].id;
+        
+        // Fetch clauses via template_clauses junction, ordered by order_index
+        const clausesResult = await client.query(
+          `SELECT c.id, c.header_text, c.body_html, c.level, tc.order_index
+           FROM template_clauses tc
+           JOIN clauses c ON c.id = tc.clause_id
+           WHERE tc.template_id = $1
+           ORDER BY tc.order_index ASC`,
+          [templateId]
         );
+        
+        console.log(`📋 Found ${clausesResult.rows.length} relational clauses for Template ID ${templateId}`);
+        
+        // Insert clauses into contract_clauses
+        for (const clause of clausesResult.rows) {
+          await client.query(
+            `INSERT INTO contract_clauses (contract_id, clause_id, header_text, body_html, level, "order")
+             VALUES ($1, $2, $3, $4, $5, $6)`,
+            [
+              newContract.id,
+              clause.id,
+              clause.header_text,
+              clause.body_html,
+              clause.level,
+              clause.order_index
+            ]
+          );
+        }
+        
+        clauseCount = clausesResult.rows.length;
+      } else {
+        console.log(`⚠️ No template found for contract type ${contractType}`);
       }
       
       await client.query('COMMIT');
@@ -866,7 +883,7 @@ router.post("/contracts", async (req, res) => {
       // Return contract with clause count
       res.json({
         ...newContract,
-        clauseCount: clausesResult.rows.length
+        clauseCount
       });
     } catch (txError) {
       await client.query('ROLLBACK');
