@@ -28,7 +28,7 @@ const mainNavItems = [
   },
   {
     title: "New Contract",
-    url: "/wizard/new",
+    url: "/generate-contracts",
     icon: Plus,
   },
   {
