@@ -11,6 +11,7 @@ import {
   Settings,
   Variable,
   Blocks,
+  ScrollText,
 } from "lucide-react";
 
 const adminNavItems = [
@@ -18,6 +19,7 @@ const adminNavItems = [
   { href: "/admin/home-models", label: "Home Models", icon: Home },
   { href: "/admin/project-units", label: "Project Units", icon: Warehouse },
   { href: "/admin/llcs", label: "LLCs", icon: Building2 },
+  { href: "/clause-library", label: "Clause Library", icon: ScrollText },
   { href: "/admin/exhibits", label: "Exhibits", icon: FileText },
   { href: "/admin/state-disclosures", label: "State Disclosures", icon: MapPin },
   { href: "/admin/contract-templates", label: "Contract Templates", icon: FileCheck },
