@@ -275,14 +275,12 @@ async function rebuildTemplates(slugToId: Map<string, number>, contractType: str
 }
 
 async function main() {
-  console.log('\n🚀 DOCX CLAUSE INGESTION STARTING...\n');
+  console.log('\n🚀 DOCX CLAUSE INGESTION STARTING (ONE Agreement only)...\n');
   
   const oneFile = 'attached_assets/7._26-00X_Project_Name_-_Dvele_ONE_Agreement_1769049836636.docx';
-  const mfgFile = 'attached_assets/8._Manufacturing_Subcontractor_Agreement_-_Company_to_Dvele_M_1769052367912.docx';
-  const onsiteFile = 'attached_assets/9._On-Site_Installation_Subcontractor_Agreement_-_Company_to__1769052367913.docx';
   
   try {
-    console.log('📋 Step 1: Parsing DOCX files...\n');
+    console.log('📋 Step 1: Parsing ONE Agreement DOCX...\n');
     
     const allClauses: ParsedClause[] = [];
     
@@ -291,32 +289,17 @@ async function main() {
       allClauses.push(...oneClauses);
     } else {
       console.log(`  ⚠️ ONE Agreement file not found: ${oneFile}`);
+      throw new Error('ONE Agreement file not found');
     }
     
-    if (fs.existsSync(mfgFile)) {
-      const mfgClauses = await parseDocxFile(mfgFile, 'MANUFACTURING');
-      allClauses.push(...mfgClauses);
-    } else {
-      console.log(`  ⚠️ Manufacturing file not found: ${mfgFile}`);
-    }
-    
-    if (fs.existsSync(onsiteFile)) {
-      const onsiteClauses = await parseDocxFile(onsiteFile, 'ONSITE');
-      allClauses.push(...onsiteClauses);
-    } else {
-      console.log(`  ⚠️ OnSite file not found: ${onsiteFile}`);
-    }
-    
-    console.log(`\n📊 Total clauses parsed: ${allClauses.length}\n`);
+    console.log(`\n📊 Total ONE clauses parsed: ${allClauses.length}\n`);
     
     console.log('📋 Step 2: Inserting clauses into database...\n');
     const slugToId = await insertClauses(allClauses);
     console.log(`  ✅ Inserted ${slugToId.size} clauses\n`);
     
-    console.log('📋 Step 3: Rebuilding contract templates...\n');
+    console.log('📋 Step 3: Rebuilding ONE template...\n');
     await rebuildTemplates(slugToId, 'ONE');
-    await rebuildTemplates(slugToId, 'MANUFACTURING');
-    await rebuildTemplates(slugToId, 'ONSITE');
     
     console.log('\n✅ INGESTION COMPLETE!\n');
     
