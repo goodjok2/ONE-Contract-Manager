@@ -115,7 +115,7 @@ async function resolveDynamicTableVariables(
     const { renderDynamicTable } = await import('./tableBuilders');
     
     // List of custom table variable names to resolve from table_definitions
-    const customTableVars = ['WHAT_HAPPENS_NEXT_TABLE'];
+    const customTableVars = ['WHAT_HAPPENS_NEXT_TABLE', 'CUSTOMER_ACKNOWLEDGE_TABLE'];
     
     for (const varName of customTableVars) {
       // Only resolve if not already set in the variable map
