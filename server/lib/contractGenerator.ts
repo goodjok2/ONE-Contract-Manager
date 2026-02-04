@@ -316,6 +316,11 @@ async function renderExhibitsHTML(
       content = processConditionalTags(content, currentServiceModel);
     }
     
+    // Resolve BLOCK_ component tags in exhibits (CRC/CMOS variants)
+    if (currentServiceModel && content.includes('{{BLOCK_')) {
+      content = resolveBlockTags(content, currentServiceModel);
+    }
+    
     // Clean debug/placeholder text from exhibits
     content = content.replace(/_+delete\s*(later|below[^"]*)/gi, '');
     
