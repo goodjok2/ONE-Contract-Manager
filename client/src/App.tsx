@@ -23,7 +23,7 @@ import VariableMappings from "@/pages/variable-mappings";
 import TemplatesUpload from "@/pages/templates-upload";
 import Exhibits from "@/pages/exhibits";
 import StateDisclosures from "@/pages/state-disclosures";
-import ComponentLibrary from "@/pages/component-library";
+import AdminComponents from "@/pages/admin/components";
 import AdminGeneral from "@/pages/admin/index";
 import AdminHomeModels from "@/pages/admin/home-models";
 import AdminLLCs from "@/pages/admin/llcs";
@@ -41,7 +41,7 @@ function Router() {
       <Route path="/" component={Dashboard} />
       <Route path="/agreements/new" component={AgreementsNew} />
       <Route path="/clause-library" component={ClauseLibrary} />
-      <Route path="/component-library" component={ComponentLibrary} />
+      <Route path="/admin/components" component={AdminComponents} />
       <Route path="/exhibits" component={Exhibits} />
       <Route path="/state-disclosures" component={StateDisclosures} />
       <Route path="/contract-preview" component={ContractPreview} />
