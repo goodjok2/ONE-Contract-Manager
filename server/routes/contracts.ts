@@ -2549,17 +2549,17 @@ router.get("/table-definitions/:id", async (req, res) => {
 
 router.post("/table-definitions", async (req, res) => {
   try {
-    const { variable_name, display_name, description, columns } = req.body;
+    const { variable_name, display_name, description, columns, rows } = req.body;
     
     if (!variable_name || !display_name || !columns) {
       return res.status(400).json({ error: "variable_name, display_name, and columns are required" });
     }
     
     const result = await pool.query(
-      `INSERT INTO table_definitions (variable_name, display_name, description, columns)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO table_definitions (variable_name, display_name, description, columns, rows)
+       VALUES ($1, $2, $3, $4, $5)
        RETURNING *`,
-      [variable_name, display_name, description, JSON.stringify(columns)]
+      [variable_name, display_name, description, JSON.stringify(columns), rows ? JSON.stringify(rows) : null]
     );
     
     res.status(201).json(result.rows[0]);
@@ -2594,6 +2594,11 @@ router.patch("/table-definitions/:id", async (req, res) => {
     if (columns !== undefined) {
       updateFields.push(`columns = $${paramCount}`);
       values.push(JSON.stringify(columns));
+      paramCount++;
+    }
+    if (req.body.rows !== undefined) {
+      updateFields.push(`rows = $${paramCount}`);
+      values.push(req.body.rows ? JSON.stringify(req.body.rows) : null);
       paramCount++;
     }
     

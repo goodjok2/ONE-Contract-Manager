@@ -81,12 +81,17 @@ interface TableColumn {
   value: string;
 }
 
+interface TableRow {
+  values: Record<string, string>;
+}
+
 interface TableDefinition {
   id: number;
   variable_name: string;
   display_name: string;
   description: string | null;
   columns: TableColumn[];
+  rows?: TableRow[];
   is_active: boolean;
 }
 
@@ -224,6 +229,7 @@ export default function ComponentLibrary() {
   
   const [newTableName, setNewTableName] = useState("");
   const [newTableDescription, setNewTableDescription] = useState("");
+  const [newTableRows, setNewTableRows] = useState<TableRow[]>([]);
   const [newTableColumns, setNewTableColumns] = useState<TableColumn[]>([
     { header: "Column 1", type: "text", value: "", width: "" }
   ]);
@@ -321,7 +327,7 @@ export default function ComponentLibrary() {
   // =============================================================================
 
   const createTableMutation = useMutation({
-    mutationFn: async (data: { variable_name: string; display_name: string; description: string; columns: TableColumn[] }) => {
+    mutationFn: async (data: { variable_name: string; display_name: string; description: string; columns: TableColumn[]; rows?: TableRow[] }) => {
       return apiRequest("POST", "/api/table-definitions", data);
     },
     onSuccess: () => {
@@ -430,6 +436,7 @@ export default function ComponentLibrary() {
     setNewTableName("");
     setNewTableDescription("");
     setNewTableColumns([{ header: "Column 1", type: "text", value: "", width: "" }]);
+    setNewTableRows([]);
   };
 
   const openCreateBlockDialog = () => {
@@ -481,6 +488,7 @@ export default function ComponentLibrary() {
       display_name: newTableName,
       description: newTableDescription,
       columns: newTableColumns,
+      rows: newTableRows.length > 0 ? newTableRows : undefined,
     });
   };
 
@@ -492,6 +500,7 @@ export default function ComponentLibrary() {
         display_name: editingTable.display_name,
         description: editingTable.description,
         columns: editingTable.columns,
+        rows: editingTable.rows && editingTable.rows.length > 0 ? editingTable.rows : undefined,
       },
     });
   };
@@ -514,6 +523,46 @@ export default function ComponentLibrary() {
       setEditingTable({ ...editingTable, columns: updated });
     } else {
       setNewTableColumns(updated);
+    }
+  };
+
+  const addRow = () => {
+    const cols = isEditMode && editingTable ? editingTable.columns : newTableColumns;
+    const emptyRow: TableRow = { values: {} };
+    cols.forEach(col => { emptyRow.values[col.header] = ""; });
+    
+    if (isEditMode && editingTable) {
+      setEditingTable({ ...editingTable, rows: [...(editingTable.rows || []), emptyRow] });
+    } else {
+      setNewTableRows([...newTableRows, emptyRow]);
+    }
+  };
+
+  const removeRow = (rowIndex: number) => {
+    if (isEditMode && editingTable) {
+      const rows = [...(editingTable.rows || [])];
+      rows.splice(rowIndex, 1);
+      setEditingTable({ ...editingTable, rows });
+    } else {
+      const rows = [...newTableRows];
+      rows.splice(rowIndex, 1);
+      setNewTableRows(rows);
+    }
+  };
+
+  const updateRowValue = (rowIndex: number, columnHeader: string, value: string) => {
+    if (isEditMode && editingTable) {
+      const rows = [...(editingTable.rows || [])];
+      if (rows[rowIndex]) {
+        rows[rowIndex] = { ...rows[rowIndex], values: { ...rows[rowIndex].values, [columnHeader]: value } };
+      }
+      setEditingTable({ ...editingTable, rows });
+    } else {
+      const rows = [...newTableRows];
+      if (rows[rowIndex]) {
+        rows[rowIndex] = { ...rows[rowIndex], values: { ...rows[rowIndex].values, [columnHeader]: value } };
+      }
+      setNewTableRows(rows);
     }
   };
 
@@ -1009,6 +1058,42 @@ export default function ComponentLibrary() {
                                 ))}
                               </div>
                             </div>
+                            <div>
+                              <div className="flex items-center justify-between mb-2">
+                                <Label>Row Data <span className="text-xs text-muted-foreground font-normal">(optional)</span></Label>
+                                <Button variant="outline" size="sm" onClick={addRow}>
+                                  <Plus className="h-3 w-3 mr-1" />
+                                  Add Row
+                                </Button>
+                              </div>
+                              {(editingTable.rows || []).length > 0 && (
+                                <div className="space-y-2 max-h-48 overflow-y-auto">
+                                  {(editingTable.rows || []).map((row, rowIdx) => (
+                                    <div key={rowIdx} className="p-2 border rounded bg-background space-y-1">
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-xs font-medium text-muted-foreground">Row {rowIdx + 1}</span>
+                                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeRow(rowIdx)}>
+                                          <Trash2 className="h-3 w-3" />
+                                        </Button>
+                                      </div>
+                                      <div className="grid gap-1">
+                                        {editingTable.columns.map((col) => (
+                                          <div key={col.header} className="flex items-center gap-2">
+                                            <span className="text-xs text-muted-foreground w-24 truncate" title={col.header}>{col.header}:</span>
+                                            <Input
+                                              value={row.values[col.header] || ""}
+                                              onChange={(e) => updateRowValue(rowIdx, col.header, e.target.value)}
+                                              placeholder={`Value for ${col.header}`}
+                                              className="h-7 text-xs flex-1"
+                                            />
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
                           </div>
                         ) : (
                           <div className="space-y-4">
@@ -1030,6 +1115,18 @@ export default function ComponentLibrary() {
                                 ))}
                               </div>
                             </div>
+                            {selectedItem.data.rows && selectedItem.data.rows.length > 0 && (
+                              <div>
+                                <Label className="text-xs text-muted-foreground">Row Data ({selectedItem.data.rows.length} rows)</Label>
+                                <div className="mt-2 space-y-1">
+                                  {selectedItem.data.rows.map((row: TableRow, idx: number) => (
+                                    <div key={idx} className="text-xs p-1.5 bg-muted rounded font-mono">
+                                      {Object.entries(row.values).map(([k, v]) => `${k}: ${v}`).join(" | ")}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -1242,6 +1339,42 @@ export default function ComponentLibrary() {
                   </div>
                 ))}
               </div>
+            </div>
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <Label>Row Data <span className="text-xs text-muted-foreground font-normal">(optional — leave empty for single-row tables using column values)</span></Label>
+                <Button variant="outline" size="sm" onClick={addRow}>
+                  <Plus className="h-3 w-3 mr-1" />
+                  Add Row
+                </Button>
+              </div>
+              {newTableRows.length > 0 && (
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {newTableRows.map((row, rowIdx) => (
+                    <div key={rowIdx} className="p-2 border rounded bg-background space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium text-muted-foreground">Row {rowIdx + 1}</span>
+                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeRow(rowIdx)}>
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                      <div className="grid gap-1">
+                        {newTableColumns.map((col) => (
+                          <div key={col.header} className="flex items-center gap-2">
+                            <span className="text-xs text-muted-foreground w-24 truncate" title={col.header}>{col.header}:</span>
+                            <Input
+                              value={row.values[col.header] || ""}
+                              onChange={(e) => updateRowValue(rowIdx, col.header, e.target.value)}
+                              placeholder={`Value for ${col.header}`}
+                              className="h-7 text-xs flex-1"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
           <DialogFooter>
