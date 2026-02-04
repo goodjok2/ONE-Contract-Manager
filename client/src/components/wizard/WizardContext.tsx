@@ -688,11 +688,11 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
           loadedData.totalUnits = totalUnits;
         }
         
-        // Load warranty terms
+        // Load warranty terms - API uses dvele* field names
         if (warranty) {
-          loadedData.warrantyFitFinishMonths = warranty.warrantyFitFinishMonths || 12;
-          loadedData.warrantyBuildingEnvelopeMonths = warranty.warrantyBuildingEnvelopeMonths || 24;
-          loadedData.warrantyStructuralMonths = warranty.warrantyStructuralMonths || 120;
+          loadedData.warrantyFitFinishMonths = warranty.dveleFitFinishMonths || warranty.warrantyFitFinishMonths || 24;
+          loadedData.warrantyBuildingEnvelopeMonths = warranty.dveleBuildingEnvelopeMonths || warranty.warrantyBuildingEnvelopeMonths || 60;
+          loadedData.warrantyStructuralMonths = warranty.dveleStructuralMonths || warranty.warrantyStructuralMonths || 120;
           loadedData.warrantyStartDate = warranty.warrantyStartDate || '';
           loadedData.arbitrationProvider = warranty.arbitrationProvider || 'JAMS';
         }
@@ -721,6 +721,66 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
           loadedData.targetDeliveryDate = details.estimatedDeliveryDate || '';
           loadedData.manufacturingStartDate = details.productionStartDate || '';
           loadedData.projectState = details.governingLawState || '';
+        }
+        
+        // Load schedule durations from project table
+        // Map database field names to wizard field names
+        if (project.designDuration) {
+          loadedData.designPhaseDays = project.designDuration;
+        }
+        if (project.productionDuration) {
+          loadedData.manufacturingDurationDays = project.productionDuration;
+        }
+        if (project.deliveryDuration) {
+          loadedData.onsiteDurationDays = project.deliveryDuration;
+        }
+        
+        // Ensure Step 8 validation fields have defaults if not loaded
+        if (!loadedData.designPhaseDays) {
+          loadedData.designPhaseDays = 60;
+        }
+        if (!loadedData.manufacturingDurationDays) {
+          loadedData.manufacturingDurationDays = 120;
+        }
+        if (!loadedData.onsiteDurationDays) {
+          loadedData.onsiteDurationDays = loadedData.serviceModel === 'CRC' ? 90 : 60;
+        }
+        if (!loadedData.estimatedCompletionMonths) {
+          loadedData.estimatedCompletionMonths = 12;
+        }
+        if (!loadedData.estimatedCompletionUnit) {
+          loadedData.estimatedCompletionUnit = 'months';
+        }
+        if (!loadedData.warrantyFitFinishMonths) {
+          loadedData.warrantyFitFinishMonths = 24;
+        }
+        if (!loadedData.warrantyBuildingEnvelopeMonths) {
+          loadedData.warrantyBuildingEnvelopeMonths = 60;
+        }
+        if (!loadedData.warrantyStructuralMonths) {
+          loadedData.warrantyStructuralMonths = 120;
+        }
+        if (!loadedData.arbitrationProvider) {
+          loadedData.arbitrationProvider = 'JAMS';
+        }
+        
+        // Set projectCounty from siteCounty if not set
+        if (!loadedData.projectCounty && loadedData.siteCounty) {
+          loadedData.projectCounty = loadedData.siteCounty;
+        }
+        
+        // Set projectState from siteState if not set
+        if (!loadedData.projectState && loadedData.siteState) {
+          loadedData.projectState = loadedData.siteState;
+        }
+        
+        // Auto-set federal district based on state
+        if (!loadedData.projectFederalDistrict) {
+          const state = loadedData.projectState || loadedData.siteState || '';
+          const districts = FEDERAL_DISTRICTS[state] || [];
+          if (districts.length > 0) {
+            loadedData.projectFederalDistrict = districts[0];
+          }
         }
         
         // For any resumed draft, mark all steps 1-8 as accessible
