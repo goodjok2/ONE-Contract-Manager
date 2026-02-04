@@ -256,7 +256,7 @@ async function ingestExhibitsFromDocument(filePath: string): Promise<number> {
       transformDocument: (document: any) => {
         const stack: any[] = [document];
         while (stack.length > 0) {
-          const node = stack.pop();
+          const node = stack.shift();
           if (node.type === "paragraph") {
             const styleName = node.styleName || "Normal";
             const textContent = extractTextFromElement(node);
@@ -395,7 +395,7 @@ async function ingestStateDisclosuresFromDocument(filePath: string): Promise<num
       transformDocument: (document: any) => {
         const stack: any[] = [document];
         while (stack.length > 0) {
-          const node = stack.pop();
+          const node = stack.shift();
           if (node.type === "paragraph") {
             const styleName = node.styleName || "Normal";
             const textContent = extractTextFromElement(node);

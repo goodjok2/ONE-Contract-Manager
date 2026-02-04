@@ -1172,10 +1172,15 @@ function renderBlockNode(node: BlockNode): string {
     const isConspicuous = blockType === 'conspicuous';
     const conspicuousClass = isConspicuous ? ' conspicuous' : '';
     
-    // Strip existing "Section X." prefix to avoid doubling
-    const l2DisplayName = clauseName.replace(/^Section\s*\d+\.?\s*/i, '').trim();
-    
-    switch (hierarchyLevel) {
+    // Headerless clause: if no name, render body content only without numbering
+    if (!clauseName.trim() && content) {
+      html += `<div class="level-${hierarchyLevel}-body${conspicuousClass}">${content}</div>`;
+    }
+    else {
+      // Strip existing "Section X." prefix to avoid doubling
+      const l2DisplayName = clauseName.replace(/^Section\s*\d+\.?\s*/i, '').trim();
+      
+      switch (hierarchyLevel) {
       case 1:
         // L1 (Part): "I. NAME" uppercase, centered, blue - Upper Roman numerals
         html += `<div class="level-1${conspicuousClass}">${dynamicNumber}. ${escapeHtml(clauseName.toUpperCase())}</div>`;
@@ -1226,7 +1231,8 @@ function renderBlockNode(node: BlockNode): string {
         } else if (content) {
           html += `<div class="level-${hierarchyLevel}${conspicuousClass}">${content}</div>`;
         }
-    }
+      }
+    } // Close the else block for headerless check
   }
   
   // Render children recursively
