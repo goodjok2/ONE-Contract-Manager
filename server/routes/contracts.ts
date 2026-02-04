@@ -478,11 +478,25 @@ async function ingestStateDisclosuresFromDocument(filePath: string): Promise<num
     return 0;
   }
   
-  // TODO: State disclosures table temporarily removed in Phase A refactoring
-  // This functionality will be restored when state_disclosures table is re-added
-  console.log(`   ⚠️ State disclosure ingestion temporarily disabled (Phase A refactoring)`);
-  console.log(`   Found ${disclosuresList.length} disclosures but table is not available`);
-  return 0;
+  // Insert or update state disclosures
+  let insertedCount = 0;
+  for (const disclosure of disclosuresList) {
+    try {
+      await pool.query(
+        `INSERT INTO state_disclosures (state, code, content, organization_id)
+         VALUES ($1, $2, $3, 1)
+         ON CONFLICT (state, code) DO UPDATE SET content = $3, updated_at = NOW()`,
+        [disclosure.state, disclosure.code, disclosure.content]
+      );
+      console.log(`   ✓ Saved ${disclosure.code} for ${disclosure.state} (${disclosure.content.length} chars)`);
+      insertedCount++;
+    } catch (err) {
+      console.error(`   ✗ Failed to save ${disclosure.code} for ${disclosure.state}:`, err);
+    }
+  }
+  
+  console.log(`   Inserted/updated ${insertedCount} state disclosures`);
+  return insertedCount;
 }
 
 // Get list of existing templates
