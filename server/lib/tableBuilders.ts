@@ -23,7 +23,12 @@ interface TableDefinition {
   display_name: string;
   description: string | null;
   columns: TableColumn[];
+  rows?: TableRow[];
   is_active: boolean;
+}
+
+interface TableRow {
+  values: Record<string, string>;  // column header -> value
 }
 
 interface ProjectData {
@@ -138,13 +143,38 @@ export async function renderDynamicTable(
     })
     .join("");
 
-  const dataRow = columns
-    .map(col => {
-      const width = col.width ? `width: ${escapeHtml(col.width)};` : (col.type === "signature" ? "width: 120px;" : "");
-      const value = resolveColumnValue(col, projectData);
-      return `<td style="${width}">${value}</td>`;
-    })
-    .join("");
+  // Support multi-row tables via optional rows array
+  const tableRows: TableRow[] = Array.isArray(tableDef.rows)
+    ? tableDef.rows
+    : typeof tableDef.rows === 'string'
+      ? JSON.parse(tableDef.rows)
+      : [];
+
+  let bodyRows: string;
+
+  if (tableRows.length > 0) {
+    // Multi-row mode: each row provides its own values
+    bodyRows = tableRows.map((row, rowIdx) => {
+      const bgColor = rowIdx % 2 === 0 ? '' : 'background-color: #f8f9fa;';
+      const cells = columns.map(col => {
+        const width = col.width ? `width: ${escapeHtml(col.width)};` : (col.type === "signature" ? "width: 120px;" : "");
+        // Look up value by column header, fall back to resolveColumnValue
+        const value = row.values?.[col.header] ?? resolveColumnValue(col, projectData);
+        return `<td style="${width} ${bgColor}">${value}</td>`;
+      }).join("");
+      return `<tr>${cells}</tr>`;
+    }).join("");
+  } else {
+    // Single-row fallback (existing behavior)
+    const dataRow = columns
+      .map(col => {
+        const width = col.width ? `width: ${escapeHtml(col.width)};` : (col.type === "signature" ? "width: 120px;" : "");
+        const value = resolveColumnValue(col, projectData);
+        return `<td style="${width}">${value}</td>`;
+      })
+      .join("");
+    bodyRows = `<tr>${dataRow}</tr>`;
+  }
 
   return `
     <table class="contract-table" style="width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 14px;">
@@ -152,7 +182,7 @@ export async function renderDynamicTable(
         <tr style="background-color: #f2f2f2;">${headerRow}</tr>
       </thead>
       <tbody>
-        <tr>${dataRow}</tr>
+        ${bodyRows}
       </tbody>
     </table>
     <style>
