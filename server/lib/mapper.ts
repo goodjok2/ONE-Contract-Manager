@@ -608,6 +608,7 @@ export function mapProjectToVariables(
     PROJECT_STATE_CODE: getStateCodeReference(project.state || ''),
     PROJECT_COUNTY: (projectDetails as any)?.county || "",
     PROJECT_FEDERAL_DISTRICT: getFederalDistrict(project.state || ''),
+    LIEN_LAW_STATE: project.state || "",
     ON_SITE_SELECTION: project.onSiteSelection || "CRC",
 
     // ===================
