@@ -1,0 +1,58 @@
+# FIX: Pricing Dashboard shows $0 for Offsite and wrong values for Onsite/Design
+
+## Problem
+The Pricing Dashboard on the wizard's Pricing step shows:
+- Offsite Manufacturing: $0 (should be $1,600,000)
+- Onsite Estimate: $25,000 (should be $530,000)
+- Total Design Fee: $5,000 (should be ~$120,000 for 4 units)
+- Grand Total: $30,000 (should be $2,130,000+)
+
+The Home Models step correctly shows 4 units totaling $2,130,000, so the
+units are saved. The pricing engine is not reading them correctly.
+
+## What to Investigate
+
+### 1. Find the pricing calculation endpoint
+grep -rn "pricing\|pricingSummary\|calculatePricing" server/
+
+### 2. Check pricingEngine.ts
+Open server/services/pricingEngine.ts and find where it reads unit data.
+Check what field names it expects vs what project_units actually has.
+
+The project_units records look like this (confirmed from API):
+{
+  "basePriceSnapshot": 55000000,  // offsite price in cents
+  "modelId": 15,
+  "modelName": "Carmel"
+  // NOTE: no onsiteEstPrice or designFee on the unit record
+}
+
+The home_models records have the full breakdown:
+{
+  "offsiteBasePrice": 55000000,
+  "onsiteEstPrice": 18000000,
+  "designFee": 3000000
+}
+
+The pricing engine probably needs to JOIN project_units with home_models
+to get offsiteBasePrice, onsiteEstPrice, and designFee per unit, then
+sum across all units.
+
+### 3. Check for cents display issues
+All prices are stored in cents. The dashboard should divide by 100
+before display. If Design Fee shows $5,000 but should be $120,000,
+check if it's reading one unit's designFee (3000000 cents = $30,000)
+and also dividing wrong.
+
+### 4. Also check
+- Is the pricing engine doing its own raw SQL query? If so, it may
+  still get snake_case results even though the API routes were fixed.
+- Does it use the financials table instead of calculating from units?
+  If so, the financials table may not have been updated when units
+  were added.
+
+## Do Not
+- Do NOT modify the Home Models step or unit saving logic (that works)
+- Do NOT modify the pricing dashboard UI layout
+- Do NOT change how prices are stored (cents is correct)
+- ONLY fix the pricing calculation so it correctly sums from units + models
