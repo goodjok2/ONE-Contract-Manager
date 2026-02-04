@@ -735,10 +735,10 @@ router.post('/projects/:projectId/units', async (req, res) => {
     const unitLabel = `Unit ${String.fromCharCode(64 + unitCount)}`;
     
     const insertResult = await pool.query(
-      `INSERT INTO project_units (project_id, model_id, unit_label, base_price_snapshot, onsite_estimate_snapshot)
+      `INSERT INTO project_units (project_id, model_id, unit_label, base_price_snapshot, organization_id)
        VALUES ($1, $2, $3, $4, $5)
        RETURNING *`,
-      [projectId, modelId, unitLabel, model.offsite_base_price, model.onsite_est_price]
+      [projectId, modelId, unitLabel, model.offsite_base_price, req.organizationId]
     );
     
     const newUnit = insertResult.rows[0];
