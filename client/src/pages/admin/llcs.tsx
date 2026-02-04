@@ -47,7 +47,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { Plus, Pencil, Trash2, CalendarIcon, Building2 } from "lucide-react";
+import { Plus, Pencil, Trash2, CalendarIcon, Building2, Search, X } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { queryClient, apiRequest } from "@/lib/queryClient";
