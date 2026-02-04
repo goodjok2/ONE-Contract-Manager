@@ -4,7 +4,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { AdminLayout } from "@/components/admin-layout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -45,6 +44,8 @@ import {
   Code,
   Box,
   Layers,
+  DollarSign,
+  Calendar,
   Plus,
   Trash2,
   GripVertical,
@@ -97,24 +98,58 @@ interface BlockComponent {
   is_system: boolean;
 }
 
+interface BuiltinComponent {
+  id: string;
+  variableName: string;
+  displayName: string;
+  description: string;
+  category: string;
+  columns: string[];
+  icon: React.ReactNode;
+  isBuiltin: true;
+}
+
 type SelectedItem = 
   | { type: "block"; data: BlockComponent }
+  | { type: "builtin"; data: BuiltinComponent }
   | { type: "table"; data: TableDefinition };
 
 // =============================================================================
 // CONSTANTS
 // =============================================================================
 
-const CORE_TABLE_NAMES = [
-  "PRICING_TABLE",
-  "PAYMENT_SCHEDULE_TABLE", 
-  "SIGNATURE_BLOCK_TABLE",
-  "EXHIBIT_LIST_TABLE",
+const BUILTIN_COMPONENTS: BuiltinComponent[] = [
+  {
+    id: "pricing_breakdown",
+    variableName: "{{PRICING_BREAKDOWN_TABLE}}",
+    displayName: "Pricing Breakdown Table",
+    description: "Displays the itemized pricing breakdown including base price, customizations, and totals.",
+    category: "Financial",
+    columns: ["Item", "Description", "Amount"],
+    icon: <DollarSign className="h-4 w-4" />,
+    isBuiltin: true,
+  },
+  {
+    id: "payment_schedule",
+    variableName: "{{PAYMENT_SCHEDULE_TABLE}}",
+    displayName: "Payment Schedule Table",
+    description: "Shows the milestone-based payment schedule with dates and amounts.",
+    category: "Financial",
+    columns: ["Milestone", "Due Date", "Percentage", "Amount"],
+    icon: <Calendar className="h-4 w-4" />,
+    isBuiltin: true,
+  },
+  {
+    id: "unit_spec",
+    variableName: "{{UNIT_SPEC_TABLE}}",
+    displayName: "Unit Specification Table",
+    description: "Lists all home units with their model, specifications, and pricing.",
+    category: "Project",
+    columns: ["Unit", "Model", "Bed/Bath", "Sq Ft", "Base Price", "Customizations", "Total"],
+    icon: <Layers className="h-4 w-4" />,
+    isBuiltin: true,
+  },
 ];
-
-function isCoreTable(variableName: string): boolean {
-  return CORE_TABLE_NAMES.includes(variableName);
-}
 
 const COLUMN_TYPES = [
   { value: "text", label: "Static Text", icon: Type, description: "Fixed text content" },
@@ -171,7 +206,8 @@ export default function ComponentLibrary() {
   
   // Sidebar expansion state
   const [blocksExpanded, setBlocksExpanded] = useState(true);
-  const [tablesExpanded, setTablesExpanded] = useState(true);
+  const [builtinExpanded, setBuiltinExpanded] = useState(true);
+  const [customExpanded, setCustomExpanded] = useState(true);
   
   // Block component dialog state
   const [isBlockDialogOpen, setIsBlockDialogOpen] = useState(false);
@@ -339,6 +375,9 @@ export default function ComponentLibrary() {
     if (selectedItem.type === "block") {
       return ["block-preview", selectedItem.data.id];
     }
+    if (selectedItem.type === "builtin") {
+      return ["/api/components/preview", selectedItem.data.id, selectedProjectId];
+    }
     if (selectedItem.type === "table") {
       const cols = isEditMode && editingTable ? editingTable.columns : selectedItem.data.columns;
       return ["/api/components/preview", `custom_${selectedItem.data.id}`, selectedProjectId, JSON.stringify(cols)];
@@ -358,6 +397,12 @@ export default function ComponentLibrary() {
       
       if (!selectedProjectId) {
         return { html: "<p class='text-muted-foreground text-center py-8'>Select a project to preview live data</p>" };
+      }
+      
+      if (selectedItem.type === "builtin") {
+        const response = await fetch(`/api/components/preview/${selectedItem.data.id}?projectId=${selectedProjectId}`);
+        if (!response.ok) throw new Error("Failed to fetch preview");
+        return response.json();
       }
       
       if (selectedItem.type === "table") {
@@ -520,19 +565,18 @@ export default function ComponentLibrary() {
   // =============================================================================
 
   return (
-    <AdminLayout>
-      <div className="flex h-full" data-testid="component-library-page">
-        {/* Sidebar */}
-        <div className="w-80 border-r flex flex-col bg-muted/30">
-          <div className="p-4 border-b bg-background">
-            <h1 className="text-lg font-semibold flex items-center gap-2">
-              <Box className="h-5 w-5" />
-              Component Library
-            </h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Manage block components and table templates
-            </p>
-          </div>
+    <div className="flex h-full" data-testid="component-library-page">
+      {/* Sidebar */}
+      <div className="w-80 border-r flex flex-col bg-muted/30">
+        <div className="p-4 border-b bg-background">
+          <h1 className="text-lg font-semibold flex items-center gap-2">
+            <Box className="h-5 w-5" />
+            Component Library
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Manage block components and table templates
+          </p>
+        </div>
         
         <ScrollArea className="flex-1">
           <div className="p-2">
@@ -604,24 +648,64 @@ export default function ComponentLibrary() {
             
             <Separator className="my-2" />
             
-            {/* Tables Section */}
-            <div>
+            {/* Built-in Tables Section */}
+            <div className="mb-4">
               <button
-                onClick={() => setTablesExpanded(!tablesExpanded)}
+                onClick={() => setBuiltinExpanded(!builtinExpanded)}
                 className="flex items-center justify-between w-full p-2 rounded hover-elevate"
-                data-testid="toggle-tables-section"
+                data-testid="toggle-builtin-section"
               >
                 <span className="flex items-center gap-2 font-medium text-sm">
-                  {tablesExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                  {builtinExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                  <Table className="h-4 w-4" />
+                  Built-in Tables
+                </span>
+                <Badge variant="outline" className="text-xs">
+                  {BUILTIN_COMPONENTS.length}
+                </Badge>
+              </button>
+              
+              {builtinExpanded && (
+                <div className="ml-4 mt-1 space-y-1">
+                  {BUILTIN_COMPONENTS.map((comp) => (
+                    <button
+                      key={comp.id}
+                      onClick={() => setSelectedItem({ type: "builtin", data: comp })}
+                      className={`w-full text-left p-2 rounded text-sm flex items-center gap-2 ${
+                        selectedItem?.type === "builtin" && selectedItem.data.id === comp.id
+                          ? "bg-primary/10 text-primary"
+                          : "hover-elevate"
+                      }`}
+                      data-testid={`builtin-${comp.id}`}
+                    >
+                      {comp.icon}
+                      <span className="truncate">{comp.displayName}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            
+            <Separator className="my-2" />
+            
+            {/* Custom Tables Section */}
+            <div>
+              <button
+                onClick={() => setCustomExpanded(!customExpanded)}
+                className="flex items-center justify-between w-full p-2 rounded hover-elevate"
+                data-testid="toggle-custom-section"
+              >
+                <span className="flex items-center gap-2 font-medium text-sm">
+                  {customExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                   <Layers className="h-4 w-4" />
-                  Table Components
+                  Custom Tables
                 </span>
                 <Badge variant="secondary" className="text-xs">
                   {customTables?.length || 0}
                 </Badge>
               </button>
               
-              {tablesExpanded && (
+              {customExpanded && (
                 <div className="ml-4 mt-1 space-y-1">
                   {tablesLoading ? (
                     <div className="space-y-2 p-2">
@@ -633,20 +717,15 @@ export default function ComponentLibrary() {
                         <button
                           key={table.id}
                           onClick={() => setSelectedItem({ type: "table", data: table })}
-                          className={`w-full text-left p-2 rounded text-sm flex items-center justify-between gap-2 ${
+                          className={`w-full text-left p-2 rounded text-sm flex items-center gap-2 ${
                             selectedItem?.type === "table" && selectedItem.data.id === table.id
                               ? "bg-primary/10 text-primary"
                               : "hover-elevate"
                           }`}
                           data-testid={`table-${table.id}`}
                         >
-                          <div className="flex items-center gap-2 min-w-0">
-                            <Table className="h-4 w-4 shrink-0" />
-                            <span className="truncate">{table.display_name}</span>
-                          </div>
-                          {isCoreTable(table.variable_name) && (
-                            <Badge variant="outline" className="text-xs shrink-0" data-testid={`badge-core-${table.id}`}>Core</Badge>
-                          )}
+                          <Table className="h-4 w-4 shrink-0" />
+                          <span className="truncate">{table.display_name}</span>
                         </button>
                       ))}
                       <Button
@@ -737,18 +816,16 @@ export default function ComponentLibrary() {
                 <Edit className="h-4 w-4 mr-2" />
                 Edit
               </Button>
-              {!isCoreTable(selectedItem.data.variable_name) && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setDeleteTable(selectedItem.data)}
-                  className="text-destructive hover:text-destructive"
-                  data-testid="button-delete-table"
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete
-                </Button>
-              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setDeleteTable(selectedItem.data)}
+                className="text-destructive hover:text-destructive"
+                data-testid="button-delete-table"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete
+              </Button>
             </div>
           )}
           
@@ -782,7 +859,7 @@ export default function ComponentLibrary() {
                 <div className="p-2 border-b bg-muted/30 flex-shrink-0">
                   <h3 className="text-xs font-medium text-muted-foreground flex items-center gap-2">
                     <Code className="h-3 w-3" />
-                    {selectedItem.type === "block" ? "Block Content" : "Column Editor"}
+                    {selectedItem.type === "block" ? "Block Content" : selectedItem.type === "builtin" ? "Table Info" : "Column Editor"}
                   </h3>
                 </div>
                 <ScrollArea className="flex-1">
@@ -818,24 +895,40 @@ export default function ComponentLibrary() {
                       </div>
                     )}
                     
+                    {selectedItem.type === "builtin" && (
+                      <div className="space-y-4">
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Variable Name</Label>
+                          <div className="font-mono text-sm mt-1 p-2 bg-muted rounded">
+                            {selectedItem.data.variableName}
+                          </div>
+                        </div>
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Description</Label>
+                          <p className="text-sm mt-1">{selectedItem.data.description}</p>
+                        </div>
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Columns</Label>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {selectedItem.data.columns.map((col) => (
+                              <Badge key={col} variant="outline">{col}</Badge>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="text-xs text-muted-foreground italic">
+                          This is a built-in table component and cannot be edited.
+                        </div>
+                      </div>
+                    )}
+                    
                     {selectedItem.type === "table" && (
                       <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1">
-                            <Label className="text-xs text-muted-foreground">Variable Name</Label>
-                            <div className="font-mono text-sm mt-1 p-2 bg-muted rounded">
-                              {`{{${selectedItem.data.variable_name}}}`}
-                            </div>
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Variable Name</Label>
+                          <div className="font-mono text-sm mt-1 p-2 bg-muted rounded">
+                            {`{{${selectedItem.data.variable_name}}}`}
                           </div>
-                          {isCoreTable(selectedItem.data.variable_name) && (
-                            <Badge variant="outline" className="ml-2 shrink-0" data-testid="badge-core-table">Core Table</Badge>
-                          )}
                         </div>
-                        {isCoreTable(selectedItem.data.variable_name) && !isEditMode && (
-                          <p className="text-xs text-muted-foreground italic" data-testid="text-core-table-note">
-                            This is a core system table. You can edit its columns but cannot delete it.
-                          </p>
-                        )}
                         {isEditMode && editingTable ? (
                           <div className="space-y-4">
                             <div>
@@ -1199,7 +1292,6 @@ export default function ComponentLibrary() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      </div>
-    </AdminLayout>
+    </div>
   );
 }

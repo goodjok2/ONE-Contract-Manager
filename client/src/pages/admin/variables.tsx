@@ -54,12 +54,6 @@ interface VariableMapping {
   description?: string;
 }
 
-interface VariableMappingsResponse {
-  variables: VariableMapping[];
-  unregisteredVariables: any[];
-  stats: any;
-}
-
 const variableSchema = z.object({
   variableName: z.string().min(1, "Variable name is required"),
   sourcePath: z.string().min(1, "Source path is required"),
@@ -74,11 +68,9 @@ export default function AdminVariables() {
   const [deleteVariable, setDeleteVariable] = useState<VariableMapping | null>(null);
   const { toast } = useToast();
 
-  const { data: response, isLoading } = useQuery<VariableMappingsResponse>({
+  const { data: variables, isLoading } = useQuery<VariableMapping[]>({
     queryKey: ["/api/variable-mappings"],
   });
-  
-  const variables = response?.variables || [];
 
   const form = useForm<VariableFormValues>({
     resolver: zodResolver(variableSchema),
