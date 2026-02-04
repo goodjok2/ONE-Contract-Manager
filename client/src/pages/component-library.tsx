@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -565,20 +566,21 @@ export default function ComponentLibrary() {
   // =============================================================================
 
   return (
-    <div className="flex h-full" data-testid="component-library-page">
-      {/* Sidebar */}
-      <div className="w-80 border-r flex flex-col bg-muted/30">
-        <div className="p-4 border-b bg-background">
-          <h1 className="text-lg font-semibold flex items-center gap-2">
-            <Box className="h-5 w-5" />
-            Component Library
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Manage block components and table templates
-          </p>
-        </div>
-        
-        <ScrollArea className="flex-1">
+    <ResizablePanelGroup direction="horizontal" className="h-full" data-testid="component-library-page">
+      {/* Sidebar Panel */}
+      <ResizablePanel defaultSize={25} minSize={15} maxSize={40}>
+        <div className="h-full flex flex-col bg-muted/30">
+          <div className="p-4 border-b bg-background">
+            <h1 className="text-lg font-semibold flex items-center gap-2">
+              <Box className="h-5 w-5" />
+              Component Library
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Manage block components and table templates
+            </p>
+          </div>
+          
+          <ScrollArea className="flex-1">
           <div className="p-2">
             {/* Block Components Section */}
             <div className="mb-4">
@@ -745,10 +747,14 @@ export default function ComponentLibrary() {
             </div>
           </div>
         </ScrollArea>
-      </div>
+        </div>
+      </ResizablePanel>
       
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col min-h-0">
+      <ResizableHandle withHandle />
+      
+      {/* Main Content Panel */}
+      <ResizablePanel defaultSize={75} minSize={50}>
+        <div className="h-full flex flex-col min-h-0">
         {/* Header with project selector */}
         <div className="p-4 border-b bg-background flex items-center justify-between gap-4">
           <div className="flex items-center gap-4">
@@ -1292,6 +1298,7 @@ export default function ComponentLibrary() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+      </ResizablePanel>
+    </ResizablePanelGroup>
   );
 }
