@@ -38,6 +38,15 @@ export async function calculateProjectPricing(projectId: number): Promise<Pricin
   // Determine service model (CRC or CMOS)
   const serviceModel: 'CRC' | 'CMOS' = (project.onSiteSelection === 'CMOS') ? 'CMOS' : 'CRC';
 
+  // Always fetch financials to get additional site work / buffer
+  const [financial] = await db
+    .select()
+    .from(financials)
+    .where(eq(financials.projectId, projectId));
+  
+  // Additional site work (stored in financials.prelimOnsite)
+  const additionalSiteWork = financial?.prelimOnsite || 0;
+
   // STEP 1: Query project_units + home_models to calculate pricing from units
   const unitsResult = await pool.query(
     `SELECT 
@@ -85,14 +94,12 @@ export async function calculateProjectPricing(projectId: number): Promise<Pricin
       .map(([name, count]) => `${count}x ${name}`)
       .join(', ');
 
-    console.log(`[PricingEngine] Project ${projectId}: Calculated from ${unitCount} units - designFee=${totalDesignFee}, offsite=${totalOffsite}, onsite=${totalOnsite}`);
-  } else {
-    // FALLBACK: No units, try to get pricing from financials table
-    const [financial] = await db
-      .select()
-      .from(financials)
-      .where(eq(financials.projectId, projectId));
+    // Add additional site work / buffer from financials
+    totalOnsite += additionalSiteWork;
 
+    console.log(`[PricingEngine] Project ${projectId}: Calculated from ${unitCount} units - designFee=${totalDesignFee}, offsite=${totalOffsite}, onsite=${totalOnsite} (includes ${additionalSiteWork} additional site work)`);
+  } else {
+    // FALLBACK: No units, use financials table (financial already fetched above)
     const [details] = await db
       .select()
       .from(projectDetails)
