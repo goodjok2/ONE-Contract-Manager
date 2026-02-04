@@ -855,6 +855,41 @@ export function mapProjectToVariables(
     ),
     // TODO: Generate milestone schedule HTML table from milestones data when available
     MILESTONE_SCHEDULE_TABLE: "",
+    
+    // Static "What Happens Next" table for Document Summary section
+    WHAT_HAPPENS_NEXT_TABLE: `
+<table style="width: 100%; border-collapse: collapse; font-family: Arial, sans-serif; font-size: 11pt; margin: 16px 0;">
+  <thead>
+    <tr>
+      <th style="background-color: #2c3e50; color: white; padding: 12px 16px; text-align: left; font-weight: bold; border: 1px solid #2c3e50; width: 20%;">Phase</th>
+      <th style="background-color: #2c3e50; color: white; padding: 12px 16px; text-align: left; font-weight: bold; border: 1px solid #2c3e50; width: 55%;">Description</th>
+      <th style="background-color: #2c3e50; color: white; padding: 12px 16px; text-align: left; font-weight: bold; border: 1px solid #2c3e50; width: 25%;">Buyer Pays</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="padding: 10px 16px; border: 1px solid #ddd; text-align: left; font-weight: bold;">Design</td>
+      <td style="padding: 10px 16px; border: 1px solid #ddd; text-align: left;">Work starts after execution of this agreement and subsequent payment of the Design Fee. Buyer will collaborate on the project layout and aesthetics.</td>
+      <td style="padding: 10px 16px; border: 1px solid #ddd; text-align: left;">Paid at Signing</td>
+    </tr>
+    <tr>
+      <td style="padding: 10px 16px; border: 1px solid #ddd; text-align: left; font-weight: bold;">Mid-Design Review</td>
+      <td style="padding: 10px 16px; border: 1px solid #ddd; text-align: left;">Buyer receives a refined estimate for production and site work.</td>
+      <td style="padding: 10px 16px; border: 1px solid #ddd; text-align: left;">No payment due</td>
+    </tr>
+    <tr>
+      <td style="padding: 10px 16px; border: 1px solid #ddd; text-align: left; font-weight: bold;">Purchase Decision</td>
+      <td style="padding: 10px 16px; border: 1px solid #ddd; text-align: left;">The buyer decides whether to proceed into manufacturing.</td>
+      <td style="padding: 10px 16px; border: 1px solid #ddd; text-align: left;">Production Deposit (Milestone 1)</td>
+    </tr>
+    <tr>
+      <td style="padding: 10px 16px; border: 1px solid #ddd; text-align: left; font-weight: bold;">Site &amp; Factory Milestones</td>
+      <td style="padding: 10px 16px; border: 1px solid #ddd; text-align: left;">Payments are made at key points: procurement, factory start, completion, and delivery.</td>
+      <td style="padding: 10px 16px; border: 1px solid #ddd; text-align: left;">See Payment Schedule</td>
+    </tr>
+  </tbody>
+</table>`.trim(),
+
     SIGNATURE_BLOCK_TABLE: buildSignatureBlock(
       project.name || '',
       client?.legalName || '',
