@@ -2051,6 +2051,26 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
         contractTypes.push('onsite_sub');
       }
       
+      // Fetch available templates to get the templateId
+      let templateId: number | null = null;
+      try {
+        const templatesResponse = await fetch('/api/contract-templates');
+        if (templatesResponse.ok) {
+          const templates = await templatesResponse.json();
+          // Get the first available template (typically "Master ONE Agreement")
+          if (templates && templates.length > 0) {
+            templateId = templates[0].id;
+          }
+        }
+      } catch (templateError) {
+        console.warn('Could not fetch templates, using default:', templateError);
+      }
+      
+      // Fallback to known template ID if fetch fails
+      if (!templateId) {
+        templateId = 24; // "Master ONE Agreement" template
+      }
+      
       const generatedContractsList: GeneratedContract[] = [];
       const timestamp = new Date().toISOString();
       
@@ -2058,6 +2078,7 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
         const contractPayload = {
           projectId,
           contractType,
+          templateId,
           status: 'Draft',
           generatedBy: 'wizard',
           templateVersion: '1.0',
