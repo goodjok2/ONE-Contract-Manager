@@ -1019,6 +1019,11 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
       projectName: pd.projectName,
       projectNumber: pd.projectNumber,
       serviceModel: pd.serviceModel,
+      contractType: pd.contractType,
+      buyerType: pd.buyerType,
+      storageFeePerDay: pd.storageFeePerDay,
+      storageFreedays: pd.storageFreedays,
+      adminFeePercent: pd.adminFeePercent,
       // Site info (saved to project details)
       siteAddress: pd.siteAddress,
       siteCity: pd.siteCity,
