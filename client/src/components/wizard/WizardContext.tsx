@@ -2081,14 +2081,18 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
       // Step 4: Generate contract documents and save to database
       setCurrentGenerationStep(4);
       
+      console.log('🎯 Contract Generation - pd.contractType:', pd.contractType);
+      
       let contractTypes: string[];
       if (pd.contractType === 'MASTER_EF') {
         contractTypes = ['master_ef'];
+        console.log('✅ Using MASTER_EF contract types:', contractTypes);
       } else {
         contractTypes = ['one_agreement', 'manufacturing_sub'];
         if (pd.serviceModel === 'CMOS') {
           contractTypes.push('onsite_sub');
         }
+        console.log('📋 Using ONE contract types:', contractTypes);
       }
       
       // Fetch available templates and map to contract types

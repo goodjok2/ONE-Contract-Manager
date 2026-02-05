@@ -806,7 +806,7 @@ router.post("/contracts", async (req, res) => {
       return res.status(400).json({ error: "Missing templateId" });
     }
     
-    console.log("🚀 STARTING GENERATION. TemplateID:", templateId, "ProjectID:", projectId);
+    console.log("🚀 STARTING GENERATION. TemplateID:", templateId, "ProjectID:", projectId, "ContractType:", contractType);
     
     // Normalize status to ensure consistency
     const normalizedStatus = status === "draft" ? "Draft" : status;
