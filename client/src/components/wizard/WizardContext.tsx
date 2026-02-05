@@ -247,6 +247,7 @@ export interface GeneratedContract {
   downloadUrl: string;
   size: number;
   generatedAt: string;
+  clauseCount?: number;
 }
 
 // LLC data interface
@@ -2145,11 +2146,12 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
           const contract = await contractResponse.json();
           generatedContractsList.push({
             id: String(contract.id),
-            type: contractType === 'one_agreement' ? 'ONE' : contractType === 'manufacturing_sub' ? 'MANUFACTURING' : contractType === 'master_ef' ? 'MASTER_EF' : 'ONSITE',
-            filename: contract.fileName || contractPayload.fileName,
+            type: contractType,
+            filename: contract.fileName || contract.file_name || contractPayload.fileName,
             downloadUrl: `/api/contracts/${contract.id}/download`,
             size: 200000,
             generatedAt: timestamp,
+            clauseCount: contract.clauseCount || 0,
           });
         }
       }
