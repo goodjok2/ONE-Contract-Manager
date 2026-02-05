@@ -258,6 +258,12 @@ export const projects = pgTable("projects", {
   completionDuration: integer("completion_duration").default(0),
   estimatedDeliveryDate: text("estimated_delivery_date"),
   estimatedCompletionDate: text("estimated_completion_date"),
+  // MASTER_EF Agreement Fields
+  contractType: text("contract_type").default("ONE"), // 'ONE' | 'MASTER_EF'
+  buyerType: text("buyer_type"), // 'end_customer' | 'developer'
+  storageFeePerDay: integer("storage_fee_per_day"), // cents per day
+  storageFreedays: integer("storage_free_days"), // number of free days
+  adminFeePercent: integer("admin_fee_percent"), // percentage (5 = 5%)
 });
 
 export const clients = pgTable("clients", {
