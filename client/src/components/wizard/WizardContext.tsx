@@ -121,6 +121,11 @@ export interface ProjectData {
   totalUnits: number;
   agreementDate: string;
   serviceModel: 'CRC' | 'CMOS';
+  contractType: 'ONE' | 'MASTER_EF';
+  buyerType: 'end_customer' | 'developer';
+  storageFeePerDay: number;
+  storageFreedays: number;
+  adminFeePercent: number;
   clientLegalName: string;
   clientState: string;
   clientEntityType: string;
@@ -332,6 +337,11 @@ export const initialProjectData: ProjectData = {
   totalUnits: 1,
   agreementDate: new Date().toISOString().split('T')[0],
   serviceModel: 'CRC',
+  contractType: 'ONE',
+  buyerType: 'end_customer',
+  storageFeePerDay: 15000,
+  storageFreedays: 14,
+  adminFeePercent: 10,
   clientLegalName: '',
   clientState: '',
   clientEntityType: 'Individual',
@@ -1086,6 +1096,11 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
           status: 'Draft',
           state: pd.siteState || null,
           onSiteSelection: pd.serviceModel || 'CRC',
+          contractType: pd.contractType || 'ONE',
+          buyerType: pd.buyerType || 'end_customer',
+          storageFeePerDay: pd.storageFeePerDay || 15000,
+          storageFreedays: pd.storageFreedays || 14,
+          adminFeePercent: pd.adminFeePercent || 10,
           // Schedule durations (will be 0 initially, updated in Step 6)
           designDuration: pd.designPhaseDays || 0,
           permittingDuration: pd.permittingDurationDays || 0,
@@ -1108,6 +1123,11 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
           name: pd.projectName,
           state: pd.siteState || null,
           onSiteSelection: pd.serviceModel || 'CRC',
+          contractType: pd.contractType || 'ONE',
+          buyerType: pd.buyerType || 'end_customer',
+          storageFeePerDay: pd.storageFeePerDay || 15000,
+          storageFreedays: pd.storageFreedays || 14,
+          adminFeePercent: pd.adminFeePercent || 10,
           // Schedule durations on project level
           designDuration: pd.designPhaseDays || 0,
           permittingDuration: pd.permittingDurationDays || 0,
@@ -1640,6 +1660,11 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
         status: 'Draft',
         state: pd.siteState || null,
         onSiteSelection: pd.serviceModel || 'CRC',
+        contractType: pd.contractType || 'ONE',
+        buyerType: pd.buyerType || 'end_customer',
+        storageFeePerDay: pd.storageFeePerDay || 15000,
+        storageFreedays: pd.storageFreedays || 14,
+        adminFeePercent: pd.adminFeePercent || 10,
       };
       
       const projectResponse = await apiRequest('POST', '/api/projects', projectPayload);
@@ -1851,6 +1876,11 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
           status: 'Draft',
           state: pd.siteState,
           onSiteSelection: pd.serviceModel || 'CRC',
+          contractType: pd.contractType || 'ONE',
+          buyerType: pd.buyerType || 'end_customer',
+          storageFeePerDay: pd.storageFeePerDay || 15000,
+          storageFreedays: pd.storageFreedays || 14,
+          adminFeePercent: pd.adminFeePercent || 10,
         };
         
         const projectResponse = await apiRequest('PATCH', `/api/projects/${draftProjectId}`, projectPayload);
@@ -1866,6 +1896,11 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
           status: 'Draft',
           state: pd.siteState,
           onSiteSelection: pd.serviceModel || 'CRC',
+          contractType: pd.contractType || 'ONE',
+          buyerType: pd.buyerType || 'end_customer',
+          storageFeePerDay: pd.storageFeePerDay || 15000,
+          storageFreedays: pd.storageFreedays || 14,
+          adminFeePercent: pd.adminFeePercent || 10,
         };
         
         const projectResponse = await apiRequest('POST', '/api/projects', projectPayload);
@@ -2046,9 +2081,14 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
       // Step 4: Generate contract documents and save to database
       setCurrentGenerationStep(4);
       
-      const contractTypes = ['one_agreement', 'manufacturing_sub'];
-      if (pd.serviceModel === 'CMOS') {
-        contractTypes.push('onsite_sub');
+      let contractTypes: string[];
+      if (pd.contractType === 'MASTER_EF') {
+        contractTypes = ['master_ef'];
+      } else {
+        contractTypes = ['one_agreement', 'manufacturing_sub'];
+        if (pd.serviceModel === 'CMOS') {
+          contractTypes.push('onsite_sub');
+        }
       }
       
       // Fetch available templates to get the templateId
@@ -2090,7 +2130,7 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
           const contract = await contractResponse.json();
           generatedContractsList.push({
             id: String(contract.id),
-            type: contractType === 'one_agreement' ? 'ONE' : contractType === 'manufacturing_sub' ? 'MANUFACTURING' : 'ONSITE',
+            type: contractType === 'one_agreement' ? 'ONE' : contractType === 'manufacturing_sub' ? 'MANUFACTURING' : contractType === 'master_ef' ? 'MASTER_EF' : 'ONSITE',
             filename: contract.fileName || contractPayload.fileName,
             downloadUrl: `/api/contracts/${contract.id}/download`,
             size: 200000,
