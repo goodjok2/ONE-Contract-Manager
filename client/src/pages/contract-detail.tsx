@@ -280,11 +280,14 @@ export default function ContractDetail() {
       'MANUFACTURING': 'MANUFACTURING',
       'onsite_sub': 'ONSITE',
       'ONSITE': 'ONSITE',
+      'master_ef': 'MASTER_EF',
+      'MASTER_EF': 'MASTER_EF',
+      'Master Ef': 'MASTER_EF',
       'ONE Agreement': 'ONE',
       'Manufacturing Subcontract': 'MANUFACTURING',
       'OnSite Subcontract': 'ONSITE',
     };
-    return typeMap[contractType] || 'ONE';
+    return typeMap[contractType] || contractType.toUpperCase();
   };
 
   const generatePdf = useCallback(async (): Promise<Blob | null> => {
