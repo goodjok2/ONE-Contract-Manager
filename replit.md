@@ -73,6 +73,15 @@ The application is built on a modern full-stack architecture.
 - **Multi-Contract Type Tagging**: Clauses support array of contract_types for flexible many-to-many associations. API filters with `ANY(contract_types)` for backward compatibility.
 - **Admin Variable Mappings**: CRUD admin page at `/admin/variables` for managing contract variable-to-source mappings stored in `variable_mappings` table.
 - **Admin Component Library**: CRUD admin page at `/admin/components` for managing dynamic text blocks stored in `component_library` table. Supports service model variants (CRC/CMOS) and system-protected components. DB-first lookup with hardcoded fallbacks.
+- **Multi-Contract Type Support**: System now supports multiple contract types: ONE (standard agreement), MANUFACTURING, ONSITE, and MASTER_EF (exhibit-first master purchase agreement). Each contract type has its own clause library, exhibits, and state disclosures.
+- **MASTER_EF Agreement (Feb 2026)**: New exhibit-first master purchase agreement with 138 clauses and 6 exhibits (A-F). Ingestion script: `scripts/ingest_master_ef.ts`. Features:
+    - Exhibit A: Project Scope and Commercial Terms (pricing, schedule, buyer type)
+    - Exhibit B: Home Plans, Specifications & Finishes
+    - Exhibit C: GC/On-Site Scope & Responsibility Matrix (with BLOCK_GC_INFO_SECTION for CRC/CMOS variants)
+    - Exhibit D: Milestones & Schedule
+    - Exhibit E: Limited Warranty
+    - Exhibit F: State-Specific Provisions (with [STATE_DISCLOSURE:MASTER_EF_NOTICES])
+    - 14 new variables in mapper.ts: BUYER_TYPE, PROJECT_TYPE, PRODUCTION_PRICE, LOGISTICS_PRICE, ONSITE_PRICE, TOTAL_PROJECT_PRICE, AD_FEE, STORAGE_FEE_PER_DAY, STORAGE_FREE_DAYS, CLIENT_PRIMARY_CONTACT, COMPANY_CONTACT, COMPANY_EMAIL, XREF_FEES_PAYMENT_SECTION, XREF_BANKABILITY_SUBSECTIONS
 
 ## External Dependencies
 

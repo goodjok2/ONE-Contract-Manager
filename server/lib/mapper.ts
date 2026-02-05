@@ -820,6 +820,39 @@ export function mapProjectToVariables(
       ? formatCurrency(pricingSummary.breakdown.totalOnsite / 100)
       : formatCentsAsCurrency(financials?.prelimOnsite),
 
+    // =========================
+    // MASTER_EF SPECIFIC VARIABLES
+    // =========================
+    // Buyer and project classification
+    BUYER_TYPE: project.buyerType === 'developer' ? 'Developer' : 'End Customer',
+    PROJECT_TYPE: (units?.length || 1) === 1 ? 'Single' : 'Multiple',
+    
+    // Pricing aliases for MASTER_EF naming convention
+    PRODUCTION_PRICE: pricingSummary 
+      ? formatCurrency(pricingSummary.breakdown.totalOffsite / 100)
+      : formatCentsAsCurrency(financials?.prelimOffsite),
+    LOGISTICS_PRICE: formatCurrency(0), // Placeholder - logistics portion TBD
+    ONSITE_PRICE: pricingSummary 
+      ? formatCurrency(pricingSummary.breakdown.totalOnsite / 100)
+      : formatCentsAsCurrency(financials?.prelimOnsite),
+    TOTAL_PROJECT_PRICE: pricingSummary 
+      ? formatCurrency(pricingSummary.contractValue / 100)
+      : formatCentsAsCurrency(financials?.prelimContractPrice),
+    
+    // Admin and storage fees
+    AD_FEE: project.adminFeePercent ? `${project.adminFeePercent}%` : 'none',
+    STORAGE_FEE_PER_DAY: formatCurrency((project.storageFeePerDay || 0) / 100),
+    STORAGE_FREE_DAYS: String(project.storageFreedays || 14),
+    
+    // Contact information
+    CLIENT_PRIMARY_CONTACT: client?.trusteeName || client?.legalName?.split(' ')[0] || '[Contact Name]',
+    COMPANY_CONTACT: 'Dvele Project Manager',
+    COMPANY_EMAIL: 'contracts@dvele.com',
+    
+    // Cross-reference placeholders (resolved during contract generation)
+    XREF_FEES_PAYMENT_SECTION: 'Section 3',
+    XREF_BANKABILITY_SUBSECTIONS: 'Sections 3.4–3.9',
+
     // ===================
     // DYNAMIC HTML TABLES
     // ===================

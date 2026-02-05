@@ -685,6 +685,9 @@ async function fetchClausesForContract(
       'manufacturing_sub': 'MANUFACTURING',
       'OnSite Subcontract': 'ONSITE',
       'onsite_sub': 'ONSITE',
+      'Master EF Agreement': 'MASTER_EF',
+      'master_ef': 'MASTER_EF',
+      'MASTER_EF_AGREEMENT': 'MASTER_EF',
     };
     const normalizedType = contractTypeNormalizer[contractType] || contractType;
     
