@@ -603,6 +603,11 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
           projectName: project?.name || '',
           projectNumber: project?.projectNumber || '',
           serviceModel: project?.onSiteSelection || 'CRC',
+          contractType: project?.contractType || 'ONE',
+          buyerType: project?.buyerType || 'end_customer',
+          storageFeePerDay: project?.storageFeePerDay || 15000,
+          storageFreedays: project?.storageFreedays || 14,
+          adminFeePercent: project?.adminFeePercent || 10,
         };
         
         // Add client data if available
