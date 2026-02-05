@@ -2091,30 +2091,41 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
         }
       }
       
-      // Fetch available templates to get the templateId
-      let templateId: number | null = null;
+      // Fetch available templates and map to contract types
+      const templateMap: Record<string, number> = {};
       try {
         const templatesResponse = await fetch('/api/contract-templates');
         if (templatesResponse.ok) {
           const templates = await templatesResponse.json();
-          // Get the first available template (typically "Master ONE Agreement")
-          if (templates && templates.length > 0) {
-            templateId = templates[0].id;
+          // Build a map of contract_type -> template_id
+          for (const t of templates) {
+            if (t.contract_type && t.id) {
+              templateMap[t.contract_type.toUpperCase()] = t.id;
+              // Also map lowercase variants
+              templateMap[t.contract_type.toLowerCase()] = t.id;
+            }
           }
         }
       } catch (templateError) {
-        console.warn('Could not fetch templates, using default:', templateError);
+        console.warn('Could not fetch templates, using defaults:', templateError);
       }
       
-      // Fallback to known template ID if fetch fails
-      if (!templateId) {
-        templateId = 24; // "Master ONE Agreement" template
-      }
+      // Fallback template IDs if fetch fails
+      if (!templateMap['ONE']) templateMap['ONE'] = 24;
+      if (!templateMap['MASTER_EF']) templateMap['MASTER_EF'] = 26;
+      // Map lowercase contract type codes to their template IDs
+      templateMap['one_agreement'] = templateMap['ONE'];
+      templateMap['manufacturing_sub'] = templateMap['ONE'];
+      templateMap['onsite_sub'] = templateMap['ONE'];
+      templateMap['master_ef'] = templateMap['MASTER_EF'];
       
       const generatedContractsList: GeneratedContract[] = [];
       const timestamp = new Date().toISOString();
       
       for (const contractType of contractTypes) {
+        // Get correct template based on contract type
+        const templateId = templateMap[contractType] || templateMap['ONE'] || 24;
+        
         const contractPayload = {
           projectId,
           contractType,
