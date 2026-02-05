@@ -2342,11 +2342,10 @@ function stripDuplicateHeader(content: string, clauseName: string, clauseCode: s
     
     const normalizedLine = normalizeForCompare(line);
     
-    // If line matches clause name or code (or is very similar), skip it
     if (normalizedLine === normalizedName || 
         normalizedLine === normalizedCode ||
-        normalizedName.includes(normalizedLine) ||
-        normalizedLine.includes(normalizedName)) {
+        (normalizedName.length > 3 && normalizedName.includes(normalizedLine)) ||
+        (normalizedName.length > 3 && normalizedLine.includes(normalizedName) && normalizedLine.length <= normalizedName.length * 2)) {
       startIndex = i + 1;
       break;
     }
