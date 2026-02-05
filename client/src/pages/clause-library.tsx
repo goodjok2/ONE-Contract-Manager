@@ -115,9 +115,10 @@ const CONTRACT_TYPE_OPTIONS = [
 
 const CONTRACT_TYPES = [
   { value: "ALL", label: "All Contract Types" },
-  { value: "ONE Agreement", label: "ONE Agreement" },
+  { value: "ONE", label: "ONE Agreement" },
   { value: "MANUFACTURING", label: "Manufacturing Subcontract" },
   { value: "ONSITE", label: "OnSite Subcontract" },
+  { value: "MASTER_EF", label: "Master EF Agreement" },
 ];
 
 const HIERARCHY_LEVELS = [
