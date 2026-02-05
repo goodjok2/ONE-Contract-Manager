@@ -1690,7 +1690,7 @@ router.post("/contracts/download-pdf", async (req, res) => {
       
       // Now call mapProjectToVariables WITH the pricingSummary and contractType so tables are filtered correctly
       // Contract type filtering: ONE shows all, MANUFACTURING shows offsite only, ONSITE shows onsite only
-      const contractFilterType = contractType as 'ONE' | 'MANUFACTURING' | 'ONSITE';
+      const contractFilterType = contractType as 'ONE' | 'MANUFACTURING' | 'ONSITE' | 'MASTER_EF';
       projectData = mapProjectToVariables(fullProject, pricingSummary || undefined, contractFilterType);
       
       console.log(`\n=== Generating ${contractType} contract for project ${projectId} ===`);
@@ -1792,7 +1792,7 @@ router.post("/contracts/download-pdf", async (req, res) => {
     const { generateContract, getContractFilename } = await import('../lib/contractGenerator');
     
     const buffer = await generateContract({
-      contractType: contractType as 'ONE' | 'MANUFACTURING' | 'ONSITE',
+      contractType: contractType as 'ONE' | 'MANUFACTURING' | 'ONSITE' | 'MASTER_EF',
       projectData,
       format: 'pdf'
     });
@@ -1848,7 +1848,7 @@ router.post("/contracts/draft-preview", async (req, res) => {
     
     // Map project to variables WITH pricingSummary and contractType (same as PDF route)
     // Contract type filtering: ONE shows all, MANUFACTURING shows offsite only, ONSITE shows onsite only
-    const contractFilterType = contractType as 'ONE' | 'MANUFACTURING' | 'ONSITE';
+    const contractFilterType = contractType as 'ONE' | 'MANUFACTURING' | 'ONSITE' | 'MASTER_EF';
     const projectData = mapProjectToVariables(fullProject, pricingSummary || undefined, contractFilterType);
     
     console.log(`\n=== Generating ${contractType} DRAFT PREVIEW for project ${projectId} ===`);
@@ -1941,7 +1941,7 @@ router.post("/contracts/draft-preview", async (req, res) => {
     const { generateContract } = await import('../lib/contractGenerator');
     
     const buffer = await generateContract({
-      contractType: contractType as 'ONE' | 'MANUFACTURING' | 'ONSITE',
+      contractType: contractType as 'ONE' | 'MANUFACTURING' | 'ONSITE' | 'MASTER_EF',
       projectData,
       format: 'html'
     });

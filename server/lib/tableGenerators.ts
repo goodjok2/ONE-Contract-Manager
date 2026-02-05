@@ -9,7 +9,7 @@
  */
 
 // Contract type for filtering pricing data
-export type ContractFilterType = 'ONE' | 'MANUFACTURING' | 'ONSITE';
+export type ContractFilterType = 'ONE' | 'MANUFACTURING' | 'ONSITE' | 'MASTER_EF';
 
 interface PricingBreakdown {
   totalDesignFee: number;

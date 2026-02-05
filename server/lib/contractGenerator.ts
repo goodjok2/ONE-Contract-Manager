@@ -1,7 +1,7 @@
 import puppeteer from 'puppeteer-core';
 
 interface ContractGenerationOptions {
-  contractType: 'ONE' | 'MANUFACTURING' | 'ONSITE';
+  contractType: 'ONE' | 'MANUFACTURING' | 'ONSITE' | 'MASTER_EF';
   projectData: Record<string, any>;
   format?: 'pdf' | 'html';
 }

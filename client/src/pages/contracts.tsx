@@ -46,14 +46,17 @@ export default function Contracts() {
       'one_agreement': 'ONE',
       'manufacturing_sub': 'MANUFACTURING',
       'onsite_sub': 'ONSITE',
+      'master_ef': 'MASTER_EF',
       'ONE Agreement': 'ONE',
       'Manufacturing Subcontract': 'MANUFACTURING',
       'OnSite Subcontract': 'ONSITE',
+      'Master Ef': 'MASTER_EF',
       'ONE': 'ONE',
       'MANUFACTURING': 'MANUFACTURING',
       'ONSITE': 'ONSITE',
+      'MASTER_EF': 'MASTER_EF',
     };
-    return typeMap[type] || 'ONE';
+    return typeMap[type] || type.toUpperCase();
   };
 
   const handleHtmlPreview = async (projectId: number, contractType: string, contractId: number) => {
@@ -138,6 +141,8 @@ export default function Contracts() {
       'one_agreement': 'ONE Agreement',
       'manufacturing_sub': 'Manufacturing Subcontract',
       'onsite_sub': 'OnSite Subcontract',
+      'master_ef': 'Master EF',
+      'MASTER_EF': 'Master EF',
     };
     return typeMap[type] || type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
   };
