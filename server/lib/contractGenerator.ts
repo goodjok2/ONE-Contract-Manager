@@ -1213,8 +1213,8 @@ function renderBlockNode(node: BlockNode): string {
         break;
         
       case 5:
-        // L5 (Paragraph): "(i) Name content" black, inline
-        html += `<div class="level-5${conspicuousClass}">(${dynamicNumber}) ${clauseName ? escapeHtml(clauseName) : ''}${content ? ' ' + content : ''}</div>`;
+        // L5 (Normal Text): No numbering - just body content
+        html += `<div class="level-5${conspicuousClass}">${clauseName ? escapeHtml(clauseName) + ' ' : ''}${content || ''}</div>`;
         break;
         
       case 6:
