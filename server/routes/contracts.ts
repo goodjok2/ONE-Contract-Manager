@@ -839,18 +839,25 @@ router.post("/contracts", async (req, res) => {
       
       // Delete existing drafts for same project/type (version control)
       if (projectId && contractType && normalizedStatus === "Draft") {
-        const deleteResult = await client.query(
-          `DELETE FROM contracts 
-           WHERE project_id = $1 AND contract_type = $2 AND status = 'Draft'
-           RETURNING id`,
+        // First, find existing drafts
+        const findResult = await client.query(
+          `SELECT id FROM contracts 
+           WHERE project_id = $1 AND contract_type = $2 AND status = 'Draft'`,
           [projectId, contractType]
         );
         
-        if (deleteResult.rowCount && deleteResult.rowCount > 0) {
-          console.log(`🔄 Version control: Replacing ${deleteResult.rowCount} existing draft(s) for project ${projectId}, type ${contractType}`);
-          for (const row of deleteResult.rows) {
+        if (findResult.rowCount && findResult.rowCount > 0) {
+          console.log(`🔄 Version control: Replacing ${findResult.rowCount} existing draft(s) for project ${projectId}, type ${contractType}`);
+          // Delete contract_clauses FIRST (child records)
+          for (const row of findResult.rows) {
             await client.query('DELETE FROM contract_clauses WHERE contract_id = $1', [row.id]);
           }
+          // Then delete the contracts (parent records)
+          await client.query(
+            `DELETE FROM contracts 
+             WHERE project_id = $1 AND contract_type = $2 AND status = 'Draft'`,
+            [projectId, contractType]
+          );
         }
       }
       

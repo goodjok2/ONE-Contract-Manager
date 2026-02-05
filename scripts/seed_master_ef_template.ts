@@ -23,8 +23,8 @@ async function seedMasterEFTemplate() {
     } else {
       console.log('Creating MASTER_EF template...');
       const insertResult = await client.query(
-        `INSERT INTO contract_templates (name, display_name, contract_type, status, version, is_active)
-         VALUES ('Master EF Agreement', 'Master EF Agreement', 'MASTER_EF', 'active', '1.0', true)
+        `INSERT INTO contract_templates (name, display_name, contract_type, status, version, is_active, organization_id)
+         VALUES ('Master EF Agreement', 'Master EF Agreement', 'MASTER_EF', 'active', '1.0', true, 1)
          RETURNING id`
       );
       templateId = insertResult.rows[0].id;
