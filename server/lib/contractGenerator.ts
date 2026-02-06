@@ -32,6 +32,9 @@ let currentProjectState: string = '';
 // Current service model for conditional [IF] tag processing
 let currentServiceModel: string = '';
 
+// Current contract type for rendering/numbering decisions
+let currentContractType: string = '';
+
 /**
  * Process [IF CMOS]/[IF CRC] conditional tags in content
  * Removes content wrapped in opposite service model tags
@@ -355,6 +358,9 @@ export async function generateContract(options: ContractGenerationOptions): Prom
   // Set current project state for disclosure lookups
   currentProjectState = projectState;
   
+  // Set current contract type for numbering/rendering decisions
+  currentContractType = contractType;
+  
   // Set current service model for [IF] tag processing
   currentServiceModel = (projectData.serviceModel || projectData.ON_SITE_SELECTION || 'CRC').toUpperCase();
   console.log(`📍 Service model for [IF] tag processing: ${currentServiceModel}`);
@@ -540,6 +546,11 @@ function applyDynamicNumbering(
   level: number = 0,
   isInsideConditional: boolean = false
 ): void {
+  if (currentContractType === 'MASTER_EF') {
+    applyMasterEFNumbering(nodes);
+    return;
+  }
+  
   let visibleIndex = 0;
   
   for (const node of nodes) {
@@ -547,55 +558,35 @@ function applyDynamicNumbering(
     
     visibleIndex++;
     
-    // Use hierarchy_level from clause data if available, otherwise fall back to tree depth
     const hierarchyLevel = node.clause.hierarchy_level ?? (level + 1);
     const clauseName = node.clause.name || '';
-    
-    // Check if this is a conditional [IF] block
     const isConditionalBlock = clauseName.startsWith('[IF') || clauseName.includes('[IF ');
     
-    // 8-LEVEL NUMBERING SCHEME:
-    // L1: Upper Roman numerals (I, II, III, IV)
-    // L2: Sequential integer, RESTARTS under each L1 (1, 2, 3)
-    // L3: Parent L2 + sequential (1.1, 1.2, 2.1)
-    // L4: Lower alpha, resets per L3 parent (a, b, c)
-    // L5: Lower roman, resets per L4 parent (i, ii, iii)
-    // L6: Integer, resets per L5 parent (1, 2, 3)
-    // L7: Upper alpha, resets per parent (A, B, C)
-    // L8: Dash (-)
     let number: string;
     
     switch (hierarchyLevel) {
       case 1:
-        // L1: Upper Roman numerals (I, II, III, IV)
         number = toRoman(visibleIndex);
         break;
       case 2:
-        // L2: Sequential integer, no parent prefix (restarts under each L1)
         number = String(visibleIndex);
         break;
       case 3:
-        // L3: Parent L2 number + "." + sequential (1.1, 1.2)
         number = parentNumber ? `${parentNumber}.${visibleIndex}` : String(visibleIndex);
         break;
       case 4:
-        // L4: Lower alpha, resets per L3 parent (a, b, c)
         number = toAlpha(visibleIndex);
         break;
       case 5:
-        // L5: Lower roman, resets per L4 parent (i, ii, iii)
         number = toLowerRoman(visibleIndex);
         break;
       case 6:
-        // L6: Integer, resets per L5 parent (1, 2, 3)
         number = String(visibleIndex);
         break;
       case 7:
-        // L7: Upper alpha, resets per parent (A, B, C)
         number = toUpperAlpha(visibleIndex);
         break;
       case 8:
-        // L8: Dash (no sequence)
         number = '-';
         break;
       default:
@@ -603,14 +594,67 @@ function applyDynamicNumbering(
     }
     
     node.dynamicNumber = number || undefined;
-    
-    // Mark if this node is inside a conditional block for rendering decisions
     node.isInsideConditional = isInsideConditional || isConditionalBlock;
     
-    // Recursively number children with current node's number as parent prefix
     if (node.children.length > 0) {
       const childConditionalContext = isInsideConditional || isConditionalBlock;
       applyDynamicNumbering(node.children, number, level + 1, childConditionalContext);
+    }
+  }
+}
+
+function applyMasterEFNumbering(nodes: BlockNode[]): void {
+  let sectionCounter = 0;
+  
+  for (const node of nodes) {
+    if (node.isHidden) continue;
+    
+    const clauseCode = node.clause.clause_code || '';
+    
+    const isPreamble = clauseCode === 'MASTER_EF_PREAMBLE';
+    const isRecitals = clauseCode === 'MASTER_EF_RECITALS';
+    
+    if (isPreamble || isRecitals) {
+      node.dynamicNumber = '';
+      if (node.children.length > 0) {
+        assignMasterEFNoNumbers(node.children);
+      }
+    } else {
+      sectionCounter++;
+      node.dynamicNumber = `${sectionCounter})`;
+      if (node.children.length > 0) {
+        assignMasterEFChildNumbers(node.children);
+      }
+    }
+  }
+}
+
+function assignMasterEFChildNumbers(siblings: BlockNode[]): void {
+  let counter = 0;
+  for (const node of siblings) {
+    if (node.isHidden) continue;
+    counter++;
+    const hierarchyLevel = node.clause.hierarchy_level ?? 2;
+    
+    if (hierarchyLevel === 2) {
+      node.dynamicNumber = `${toAlpha(counter)}.`;
+    } else if (hierarchyLevel === 3) {
+      node.dynamicNumber = `${toLowerRoman(counter)}.`;
+    } else {
+      node.dynamicNumber = '';
+    }
+    
+    if (node.children.length > 0) {
+      assignMasterEFChildNumbers(node.children);
+    }
+  }
+}
+
+function assignMasterEFNoNumbers(nodes: BlockNode[]): void {
+  for (const node of nodes) {
+    node.dynamicNumber = '';
+    if (node.children.length > 0) {
+      assignMasterEFNoNumbers(node.children);
     }
   }
 }
@@ -1174,73 +1218,101 @@ function renderBlockNode(node: BlockNode): string {
   else if (blockType === 'table') {
     html += content;
   }
-  // Handle all hierarchy levels per the 8-Level spec
+  // MASTER_EF: Use 3-level numbering scheme with special RECITALS handling
+  else if (currentContractType === 'MASTER_EF') {
+    const isConspicuous = blockType === 'conspicuous';
+    const conspicuousClass = isConspicuous ? ' conspicuous' : '';
+    const isPreamble = clauseCode === 'MASTER_EF_PREAMBLE';
+    const isRecitals = clauseCode === 'MASTER_EF_RECITALS';
+    const isRecitalChild = clauseCode.startsWith('MASTER_EF_RECITAL_') && clauseCode !== 'MASTER_EF_RECITAL_THEREFORE';
+    const isNowTherefore = clauseCode === 'MASTER_EF_RECITAL_THEREFORE';
+    
+    if (isPreamble) {
+      if (content) html += `<div class="mef-preamble${conspicuousClass}">${content}</div>`;
+    } else if (isRecitals) {
+      html += `<div class="recitals-header">RECITALS</div>`;
+    } else if (isRecitalChild) {
+      if (content) html += `<div class="whereas-clause${conspicuousClass}">${content}</div>`;
+    } else if (isNowTherefore) {
+      if (content) html += `<div class="now-therefore${conspicuousClass}">${content}</div>`;
+    } else if (hierarchyLevel === 1) {
+      html += `<div class="mef-level-1${conspicuousClass}">${dynamicNumber} ${escapeHtml(clauseName.toUpperCase())}</div>`;
+      if (content) html += `<div class="mef-level-1-body">${content}</div>`;
+    } else if (hierarchyLevel === 2) {
+      html += `<div class="mef-level-2${conspicuousClass}">`;
+      html += `<span class="mef-level-2-marker">${dynamicNumber}</span> `;
+      if (clauseName) html += `${escapeHtml(clauseName)}.`;
+      if (content) html += ` ${content}`;
+      html += `</div>`;
+    } else if (hierarchyLevel === 3) {
+      html += `<div class="mef-level-3${conspicuousClass}">`;
+      html += `<span class="mef-level-3-marker">${dynamicNumber}</span> `;
+      if (clauseName) html += `${escapeHtml(clauseName)}.`;
+      if (content) html += ` ${content}`;
+      html += `</div>`;
+    } else {
+      if (clauseName && content) {
+        html += `<div class="mef-body${conspicuousClass}">${escapeHtml(clauseName)} ${content}</div>`;
+      } else if (content) {
+        html += `<div class="mef-body${conspicuousClass}">${content}</div>`;
+      }
+    }
+  }
+  // Handle all hierarchy levels per the 8-Level spec (ONE, MANUFACTURING, ONSITE)
   else {
-    // Determine if this is a conspicuous block (adds bold styling)
     const isConspicuous = blockType === 'conspicuous';
     const conspicuousClass = isConspicuous ? ' conspicuous' : '';
     
-    // Headerless clause: if no name, render body content only without numbering
     if (!clauseName.trim() && content) {
       html += `<div class="level-${hierarchyLevel}-body${conspicuousClass}">${content}</div>`;
     }
     else {
-      // Strip existing "Section X." prefix to avoid doubling
       const l2DisplayName = clauseName.replace(/^Section\s*\d+\.?\s*/i, '').trim();
       
       switch (hierarchyLevel) {
       case 1:
-        // L1 (Part): "I. NAME" uppercase, centered, blue - Upper Roman numerals
         html += `<div class="level-1${conspicuousClass}">${dynamicNumber}. ${escapeHtml(clauseName.toUpperCase())}</div>`;
         if (content) html += `<div class="level-1-body">${content}</div>`;
         break;
         
       case 2:
-        // L2 (Section): "1. Name" - Arabic integer, restarts under each L1
         html += `<div class="level-2${conspicuousClass}">${dynamicNumber}. ${escapeHtml(l2DisplayName)}</div>`;
         if (content) html += `<div class="level-2-body">${content}</div>`;
         break;
         
       case 3:
-        // L3 (Clause): "1.1.1 Name" blue, block element
         html += `<div class="level-3${conspicuousClass}">${dynamicNumber} ${escapeHtml(clauseName)}</div>`;
         if (content) html += `<div class="level-3-body">${content}</div>`;
         break;
         
       case 4:
-        // L4 (Sub-Clause): "(a) Name content" black, inline
         html += `<div class="level-4${conspicuousClass}">(${dynamicNumber}) ${clauseName ? escapeHtml(clauseName) : ''}${content ? ' ' + content : ''}</div>`;
         break;
         
       case 5:
-        // L5 (Normal Text): No numbering - just body content
         html += `<div class="level-5${conspicuousClass}">${clauseName ? escapeHtml(clauseName) + ' ' : ''}${content || ''}</div>`;
         break;
         
       case 6:
-        // L6 (Sub-Paragraph): "1. Name content" black, inline
         html += `<div class="level-6${conspicuousClass}">${dynamicNumber}. ${clauseName ? escapeHtml(clauseName) : ''}${content ? ' ' + content : ''}</div>`;
         break;
         
       case 7:
-        // L7 (Item): "(A) Name content" black, inline
         html += `<div class="level-7${conspicuousClass}">(${dynamicNumber}) ${clauseName ? escapeHtml(clauseName) : ''}${content ? ' ' + content : ''}</div>`;
         break;
         
       case 8:
-        // L8 (Sub-Item): "- Name content" black, inline
         html += `<div class="level-8${conspicuousClass}">- ${clauseName ? escapeHtml(clauseName) : ''}${content ? ' ' + content : ''}</div>`;
         break;
         
       default:
-        // Fallback for any other levels
         if (clauseName && content) {
           html += `<div class="level-${hierarchyLevel}${conspicuousClass}">${dynamicNumber ? dynamicNumber + '. ' : ''}${escapeHtml(clauseName)} ${content}</div>`;
         } else if (content) {
           html += `<div class="level-${hierarchyLevel}${conspicuousClass}">${content}</div>`;
         }
       }
-    } // Close the else block for headerless check
+    }
   }
   
   // Render children recursively
@@ -1475,6 +1547,88 @@ function getContractStyles(): string {
     /* Conspicuous: Bold legal disclaimers - applied in addition to level class */
     .conspicuous {
       font-weight: bold !important;
+    }
+    
+    /* === MASTER_EF 3-LEVEL STYLES === */
+    .mef-preamble {
+      font-size: 11pt;
+      font-weight: normal;
+      color: #000000;
+      margin-bottom: 12pt;
+      line-height: 1.4;
+    }
+    .recitals-header {
+      font-size: 12pt;
+      font-weight: bold;
+      color: #000000;
+      margin-top: 18pt;
+      margin-bottom: 8pt;
+    }
+    .whereas-clause {
+      font-size: 11pt;
+      font-weight: normal;
+      color: #000000;
+      margin-bottom: 8pt;
+      margin-left: 0.5in;
+      line-height: 1.4;
+    }
+    .now-therefore {
+      font-size: 11pt;
+      font-weight: bold;
+      color: #000000;
+      margin-top: 12pt;
+      margin-bottom: 12pt;
+      line-height: 1.4;
+    }
+    .mef-level-1 {
+      font-size: 12pt;
+      font-weight: bold;
+      color: #000000;
+      margin-top: 18pt;
+      margin-bottom: 8pt;
+      page-break-after: avoid;
+    }
+    .mef-level-1-body {
+      font-size: 11pt;
+      font-weight: normal;
+      color: #000000;
+      margin-bottom: 8pt;
+      margin-left: 0.5in;
+      line-height: 1.4;
+    }
+    .mef-level-2 {
+      font-size: 11pt;
+      font-weight: normal;
+      color: #000000;
+      margin-bottom: 8pt;
+      margin-left: 0.5in;
+      padding-left: 0.3in;
+      text-indent: -0.3in;
+      line-height: 1.4;
+    }
+    .mef-level-2-marker {
+      font-weight: normal;
+    }
+    .mef-level-3 {
+      font-size: 11pt;
+      font-weight: normal;
+      color: #000000;
+      margin-bottom: 6pt;
+      margin-left: 1.0in;
+      padding-left: 0.4in;
+      text-indent: -0.4in;
+      line-height: 1.4;
+    }
+    .mef-level-3-marker {
+      font-weight: normal;
+    }
+    .mef-body {
+      font-size: 11pt;
+      font-weight: normal;
+      color: #000000;
+      margin-bottom: 8pt;
+      margin-left: 0.5in;
+      line-height: 1.4;
     }
     
     /* Regular paragraphs - Left-justified, no indent */
@@ -1996,6 +2150,88 @@ function generateHTMLFromClauses(
       font-weight: bold !important;
     }
     
+    /* === MASTER_EF 3-LEVEL STYLES === */
+    .mef-preamble {
+      font-size: 11pt;
+      font-weight: normal;
+      color: #000000;
+      margin-bottom: 12pt;
+      line-height: 1.4;
+    }
+    .recitals-header {
+      font-size: 12pt;
+      font-weight: bold;
+      color: #000000;
+      margin-top: 18pt;
+      margin-bottom: 8pt;
+    }
+    .whereas-clause {
+      font-size: 11pt;
+      font-weight: normal;
+      color: #000000;
+      margin-bottom: 8pt;
+      margin-left: 0.5in;
+      line-height: 1.4;
+    }
+    .now-therefore {
+      font-size: 11pt;
+      font-weight: bold;
+      color: #000000;
+      margin-top: 12pt;
+      margin-bottom: 12pt;
+      line-height: 1.4;
+    }
+    .mef-level-1 {
+      font-size: 12pt;
+      font-weight: bold;
+      color: #000000;
+      margin-top: 18pt;
+      margin-bottom: 8pt;
+      page-break-after: avoid;
+    }
+    .mef-level-1-body {
+      font-size: 11pt;
+      font-weight: normal;
+      color: #000000;
+      margin-bottom: 8pt;
+      margin-left: 0.5in;
+      line-height: 1.4;
+    }
+    .mef-level-2 {
+      font-size: 11pt;
+      font-weight: normal;
+      color: #000000;
+      margin-bottom: 8pt;
+      margin-left: 0.5in;
+      padding-left: 0.3in;
+      text-indent: -0.3in;
+      line-height: 1.4;
+    }
+    .mef-level-2-marker {
+      font-weight: normal;
+    }
+    .mef-level-3 {
+      font-size: 11pt;
+      font-weight: normal;
+      color: #000000;
+      margin-bottom: 6pt;
+      margin-left: 1.0in;
+      padding-left: 0.4in;
+      text-indent: -0.4in;
+      line-height: 1.4;
+    }
+    .mef-level-3-marker {
+      font-weight: normal;
+    }
+    .mef-body {
+      font-size: 11pt;
+      font-weight: normal;
+      color: #000000;
+      margin-bottom: 8pt;
+      margin-left: 0.5in;
+      line-height: 1.4;
+    }
+    
     /* Regular paragraphs - Left-justified, no indent */
     p {
       margin-bottom: 10pt;
@@ -2293,9 +2529,24 @@ function generateHTMLFromClauses(
 }
 
 function renderTitlePage(title: string, projectData: Record<string, any>): string {
-  // Support both uppercase (from mapper) and camelCase (legacy) variable names
   const projectNumber = projectData.PROJECT_NUMBER || projectData.projectNumber || '[NUMBER]';
   const projectName = projectData.PROJECT_NAME || projectData.projectName || '[PROJECT NAME]';
+  
+  if (currentContractType === 'MASTER_EF') {
+    return `
+      <div class="title-page">
+        <div class="contract-title">
+          ${escapeHtml(title)} - ${escapeHtml(projectNumber)} - ${escapeHtml(projectName)}
+        </div>
+        
+        ${(projectData.AGREEMENT_EXECUTION_DATE || projectData.agreementDate) ? `
+          <div class="date-line">
+            ${formatDate(projectData.AGREEMENT_EXECUTION_DATE || projectData.agreementDate)}
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }
   
   return `
     <div class="title-page">
@@ -3055,7 +3306,8 @@ function getContractTitle(contractType: string): string {
   const titles: Record<string, string> = {
     'ONE': 'MASTER PURCHASE AGREEMENT',
     'MANUFACTURING': 'MANUFACTURING SUBCONTRACTOR AGREEMENT',
-    'ONSITE': 'ON-SITE INSTALLATION SUBCONTRACTOR AGREEMENT'
+    'ONSITE': 'ON-SITE INSTALLATION SUBCONTRACTOR AGREEMENT',
+    'MASTER_EF': 'Master Purchase Agreement'
   };
   return titles[contractType] || 'CONTRACT AGREEMENT';
 }

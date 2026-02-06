@@ -851,7 +851,7 @@ export function mapProjectToVariables(
     
     // Cross-reference placeholders (resolved during contract generation)
     XREF_FEES_PAYMENT_SECTION: 'Section 3',
-    XREF_BANKABILITY_SUBSECTIONS: 'Sections 3.4–3.9',
+    XREF_BANKABILITY_SUBSECTIONS: 'Section 3.h',
 
     // ===================
     // DYNAMIC HTML TABLES
