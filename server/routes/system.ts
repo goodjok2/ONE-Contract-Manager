@@ -29,7 +29,7 @@ router.get("/dashboard/stats", async (req, res) => {
     
     const packagesByProject = new Map<number, { status: string }>();
     allContracts.forEach(c => {
-      if (c.projectId && c.contractType === 'one_agreement') {
+      if (c.projectId && (c.contractType === 'master_ef' || c.contractType === 'one_agreement')) {
         packagesByProject.set(c.projectId, { status: c.status || 'Draft' });
       }
     });
@@ -865,7 +865,7 @@ router.get("/system/diagnose-templates", async (req, res) => {
       }
 
       // 5. Check if we need to create missing templates
-      const requiredTypes = ['ONE', 'MANUFACTURING', 'ONSITE'];
+      const requiredTypes = ['MASTER_EF', 'ONE', 'MANUFACTURING', 'ONSITE'];
       const existingTypes = templatesResult.rows.map((r: any) => r.contract_type);
       
       for (const type of requiredTypes) {

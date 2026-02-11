@@ -583,7 +583,7 @@ function buildUnitModelList(units?: ProjectUnit[]): string {
 export function mapProjectToVariables(
   data: ProjectWithRelations, 
   pricingSummary?: PricingSummaryForMapper,
-  contractType: ContractFilterType = 'ONE'
+  contractType: ContractFilterType = 'MASTER_EF'
 ): ContractVariables {
   const { project, client, childLlc, projectDetails, financials, milestones, warrantyTerms, contractors, units } = data;
 

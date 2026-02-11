@@ -196,12 +196,14 @@ function getStatusIndex(status: string): number {
 
 function getContractTypeName(type: string): string {
   const typeMap: Record<string, string> = {
-    'ONE': 'ONE Agreement',
-    'one_agreement': 'ONE Agreement',
-    'MANUFACTURING': 'Manufacturing Subcontract',
-    'manufacturing_sub': 'Manufacturing Subcontract',
-    'ONSITE': 'OnSite Subcontract',
-    'onsite_sub': 'OnSite Subcontract',
+    'master_ef': 'Master Purchase Agreement',
+    'MASTER_EF': 'Master Purchase Agreement',
+    'ONE': 'ONE Agreement (Archived)',
+    'one_agreement': 'ONE Agreement (Archived)',
+    'MANUFACTURING': 'Manufacturing Subcontract (Archived)',
+    'manufacturing_sub': 'Manufacturing Subcontract (Archived)',
+    'ONSITE': 'OnSite Subcontract (Archived)',
+    'onsite_sub': 'OnSite Subcontract (Archived)',
   };
   return typeMap[type] || type;
 }
@@ -274,18 +276,15 @@ export default function ContractDetail() {
   // Map contract type from stored format to API format
   const getContractTypeForApi = (contractType: string): string => {
     const typeMap: Record<string, string> = {
+      'master_ef': 'MASTER_EF',
+      'MASTER_EF': 'MASTER_EF',
+      'Master Ef': 'MASTER_EF',
       'one_agreement': 'ONE',
       'ONE': 'ONE',
       'manufacturing_sub': 'MANUFACTURING',
       'MANUFACTURING': 'MANUFACTURING',
       'onsite_sub': 'ONSITE',
       'ONSITE': 'ONSITE',
-      'master_ef': 'MASTER_EF',
-      'MASTER_EF': 'MASTER_EF',
-      'Master Ef': 'MASTER_EF',
-      'ONE Agreement': 'ONE',
-      'Manufacturing Subcontract': 'MANUFACTURING',
-      'OnSite Subcontract': 'ONSITE',
     };
     return typeMap[contractType] || contractType.toUpperCase();
   };

@@ -1,7 +1,7 @@
 import puppeteer from 'puppeteer-core';
 
 interface ContractGenerationOptions {
-  contractType: 'ONE' | 'MANUFACTURING' | 'ONSITE' | 'MASTER_EF';
+  contractType: 'MASTER_EF' | 'ONE' | 'MANUFACTURING' | 'ONSITE';
   projectData: Record<string, any>;
   format?: 'pdf' | 'html';
 }
@@ -3786,6 +3786,7 @@ export function getContractFilename(contractType: string, projectData: Record<st
   const projectName = (projectData.PROJECT_NAME || projectData.projectName || 'Contract').toString().replace(/[^a-z0-9\s]/gi, '').replace(/\s+/g, '_');
   
   const typeMap: Record<string, string> = {
+    'MASTER_EF': 'Master_Purchase_Agreement',
     'ONE': 'ONE_Agreement',
     'MANUFACTURING': 'Manufacturing_Subcontract',
     'ONSITE': 'OnSite_Subcontract'

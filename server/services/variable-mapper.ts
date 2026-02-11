@@ -175,7 +175,7 @@ export async function getContractVariables(
   organizationId: number,
   options: GetContractVariablesOptions = {}
 ): Promise<ContractVariables> {
-  const { contractType = 'ONE', includePricing = true } = options;
+  const { contractType = 'MASTER_EF', includePricing = true } = options;
 
   const projectData = await getProjectWithRelations(projectId, organizationId);
 
@@ -210,7 +210,7 @@ export async function getContractVariables(
 export async function getVariableMap(
   projectId: number,
   organizationId: number,
-  contractType: ContractFilterType = 'ONE'
+  contractType: ContractFilterType = 'MASTER_EF'
 ): Promise<Record<string, string>> {
   const variables = await getContractVariables(projectId, organizationId, { contractType });
 

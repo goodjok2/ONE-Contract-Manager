@@ -63,9 +63,10 @@ interface Exhibit {
 }
 
 const CONTRACT_TYPES = [
-  { value: "ONE", label: "ONE Agreement" },
-  { value: "MANUFACTURING", label: "Manufacturing" },
-  { value: "ONSITE", label: "OnSite" },
+  { value: "MASTER_EF", label: "Master Purchase Agreement" },
+  { value: "ONE", label: "ONE Agreement (Archived)" },
+  { value: "MANUFACTURING", label: "Manufacturing (Archived)" },
+  { value: "ONSITE", label: "OnSite (Archived)" },
 ];
 
 const EXHIBIT_LETTERS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"];
@@ -156,7 +157,7 @@ export default function ExhibitsPage() {
       content: editData.content || "",
       isDynamic: editData.isDynamic || false,
       disclosureCode: editData.disclosureCode || null,
-      contractTypes: editData.contractTypes || ["ONE"],
+      contractTypes: editData.contractTypes || ["MASTER_EF"],
       sortOrder: editData.sortOrder || (exhibits?.length || 0) + 1,
       isActive: editData.isActive !== false,
     });

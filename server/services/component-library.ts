@@ -85,7 +85,7 @@ export async function renderComponentAsync(tagName: string, projectContext: Proj
 
 export function renderPaymentSchedule(
   pricingSummary: PricingSummary | null,
-  contractType: ContractFilterType = 'ONE'
+  contractType: ContractFilterType = 'MASTER_EF'
 ): string {
   if (!pricingSummary || !pricingSummary.paymentSchedule) {
     return '<p>No payment schedule available.</p>';
@@ -107,7 +107,7 @@ export function renderPaymentSchedule(
 
 export function renderPricingBreakdown(
   pricingSummary: PricingSummary | null,
-  contractType: ContractFilterType = 'ONE'
+  contractType: ContractFilterType = 'MASTER_EF'
 ): string {
   if (!pricingSummary) {
     return '<p>No pricing data available.</p>';

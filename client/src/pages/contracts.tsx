@@ -43,18 +43,15 @@ export default function Contracts() {
 
   const getContractTypeForApi = (type: string): string => {
     const typeMap: Record<string, string> = {
+      'master_ef': 'MASTER_EF',
+      'MASTER_EF': 'MASTER_EF',
+      'Master Ef': 'MASTER_EF',
       'one_agreement': 'ONE',
       'manufacturing_sub': 'MANUFACTURING',
       'onsite_sub': 'ONSITE',
-      'master_ef': 'MASTER_EF',
-      'ONE Agreement': 'ONE',
-      'Manufacturing Subcontract': 'MANUFACTURING',
-      'OnSite Subcontract': 'ONSITE',
-      'Master Ef': 'MASTER_EF',
       'ONE': 'ONE',
       'MANUFACTURING': 'MANUFACTURING',
       'ONSITE': 'ONSITE',
-      'MASTER_EF': 'MASTER_EF',
     };
     return typeMap[type] || type.toUpperCase();
   };
@@ -138,11 +135,11 @@ export default function Contracts() {
   
   const formatContractType = (type: string) => {
     const typeMap: Record<string, string> = {
-      'one_agreement': 'ONE Agreement',
-      'manufacturing_sub': 'Manufacturing Subcontract',
-      'onsite_sub': 'OnSite Subcontract',
-      'master_ef': 'Master EF',
-      'MASTER_EF': 'Master EF',
+      'master_ef': 'Master Purchase Agreement',
+      'MASTER_EF': 'Master Purchase Agreement',
+      'one_agreement': 'ONE Agreement (Archived)',
+      'manufacturing_sub': 'Manufacturing Subcontract (Archived)',
+      'onsite_sub': 'OnSite Subcontract (Archived)',
     };
     return typeMap[type] || type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
   };

@@ -107,7 +107,7 @@ interface TreeNode {
 }
 
 const CONTRACT_TYPE_OPTIONS = [
-  { value: "ONE", label: "ONE Agreement" },
+  { value: "MASTER_EF", label: "Master Purchase Agreement" },
   { value: "CMOS", label: "CMOS" },
   { value: "CRC", label: "CRC" },
   { value: "ONSITE", label: "OnSite" },
@@ -115,10 +115,10 @@ const CONTRACT_TYPE_OPTIONS = [
 
 const CONTRACT_TYPES = [
   { value: "ALL", label: "All Contract Types" },
-  { value: "ONE", label: "ONE Agreement" },
-  { value: "MANUFACTURING", label: "Manufacturing Subcontract" },
-  { value: "ONSITE", label: "OnSite Subcontract" },
-  { value: "MASTER_EF", label: "Master EF Agreement" },
+  { value: "MASTER_EF", label: "Master Purchase Agreement" },
+  { value: "ONE", label: "ONE Agreement (Archived)" },
+  { value: "MANUFACTURING", label: "Manufacturing Subcontract (Archived)" },
+  { value: "ONSITE", label: "OnSite Subcontract (Archived)" },
 ];
 
 const HIERARCHY_LEVELS = [

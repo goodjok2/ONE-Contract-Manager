@@ -56,7 +56,8 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
 const CONTRACT_TYPES = [
-  { value: "one_agreement", label: "ONE Agreement" },
+  { value: "master_ef", label: "Master Purchase Agreement" },
+  { value: "one_agreement", label: "ONE Agreement (Archived)" },
   { value: "cmos", label: "CMOS" },
   { value: "crc", label: "CRC" },
   { value: "onsite", label: "Onsite" },

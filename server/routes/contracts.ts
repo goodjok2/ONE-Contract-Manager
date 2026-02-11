@@ -2480,7 +2480,7 @@ router.get("/components/preview/:componentId", async (req, res) => {
     
     switch (componentId) {
       case "pricing_breakdown":
-        html = generatePricingTableHtml(pricingSummary, 'ONE');
+        html = generatePricingTableHtml(pricingSummary, 'MASTER_EF');
         break;
         
       case "payment_schedule":
@@ -2710,7 +2710,7 @@ router.post("/resolve-clause-tables", async (req, res) => {
       if (resolvedContent.includes("{{PRICING_BREAKDOWN_TABLE}}")) {
         try {
           const pricing = await calculateProjectPricing(pid);
-          const pricingHtml = generatePricingTableHtml(pricing, 'ONE');
+          const pricingHtml = generatePricingTableHtml(pricing, 'MASTER_EF');
           resolvedContent = resolvedContent.replace(/\{\{PRICING_BREAKDOWN_TABLE\}\}/g, pricingHtml);
         } catch {
           resolvedContent = resolvedContent.replace(/\{\{PRICING_BREAKDOWN_TABLE\}\}/g, '<p class="text-muted-foreground">[Pricing - No data available]</p>');

@@ -121,7 +121,7 @@ export interface ProjectData {
   totalUnits: number;
   agreementDate: string;
   serviceModel: 'CRC' | 'CMOS';
-  contractType: 'ONE' | 'MASTER_EF';
+  contractType: 'MASTER_EF';
   buyerType: 'end_customer' | 'developer';
   storageFeePerDay: number;
   storageFreedays: number;
@@ -338,7 +338,7 @@ export const initialProjectData: ProjectData = {
   totalUnits: 1,
   agreementDate: new Date().toISOString().split('T')[0],
   serviceModel: 'CRC',
-  contractType: 'ONE',
+  contractType: 'MASTER_EF',
   buyerType: 'end_customer',
   storageFeePerDay: 15000,
   storageFreedays: 14,
@@ -603,7 +603,7 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
           projectName: project?.name || '',
           projectNumber: project?.projectNumber || '',
           serviceModel: project?.onSiteSelection || 'CRC',
-          contractType: project?.contractType || 'ONE',
+          contractType: project?.contractType === 'MASTER_EF' ? 'MASTER_EF' : 'MASTER_EF',
           buyerType: project?.buyerType || 'end_customer',
           storageFeePerDay: project?.storageFeePerDay || 15000,
           storageFreedays: project?.storageFreedays || 14,
@@ -1887,7 +1887,7 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
           status: 'Draft',
           state: pd.siteState,
           onSiteSelection: pd.serviceModel || 'CRC',
-          contractType: pd.contractType || 'ONE',
+          contractType: pd.contractType || 'MASTER_EF',
           buyerType: pd.buyerType || 'end_customer',
           storageFeePerDay: pd.storageFeePerDay || 15000,
           storageFreedays: pd.storageFreedays || 14,
@@ -1907,7 +1907,7 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
           status: 'Draft',
           state: pd.siteState,
           onSiteSelection: pd.serviceModel || 'CRC',
-          contractType: pd.contractType || 'ONE',
+          contractType: pd.contractType || 'MASTER_EF',
           buyerType: pd.buyerType || 'end_customer',
           storageFeePerDay: pd.storageFeePerDay || 15000,
           storageFreedays: pd.storageFreedays || 14,
@@ -2092,19 +2092,9 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
       // Step 4: Generate contract documents and save to database
       setCurrentGenerationStep(4);
       
-      console.log('🎯 Contract Generation - pd.contractType:', pd.contractType);
+      console.log('Contract Generation - contractType:', pd.contractType);
       
-      let contractTypes: string[];
-      if (pd.contractType === 'MASTER_EF') {
-        contractTypes = ['master_ef'];
-        console.log('✅ Using MASTER_EF contract types:', contractTypes);
-      } else {
-        contractTypes = ['one_agreement', 'manufacturing_sub'];
-        if (pd.serviceModel === 'CMOS') {
-          contractTypes.push('onsite_sub');
-        }
-        console.log('📋 Using ONE contract types:', contractTypes);
-      }
+      const contractTypes: string[] = ['master_ef'];
       
       // Fetch available templates and map to contract types
       const templateMap: Record<string, number> = {};
@@ -2125,13 +2115,7 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
         console.warn('Could not fetch templates, using defaults:', templateError);
       }
       
-      // Fallback template IDs if fetch fails
-      if (!templateMap['ONE']) templateMap['ONE'] = 24;
       if (!templateMap['MASTER_EF']) templateMap['MASTER_EF'] = 26;
-      // Map lowercase contract type codes to their template IDs
-      templateMap['one_agreement'] = templateMap['ONE'];
-      templateMap['manufacturing_sub'] = templateMap['ONE'];
-      templateMap['onsite_sub'] = templateMap['ONE'];
       templateMap['master_ef'] = templateMap['MASTER_EF'];
       
       const generatedContractsList: GeneratedContract[] = [];
@@ -2139,7 +2123,7 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
       
       for (const contractType of contractTypes) {
         // Get correct template based on contract type
-        const templateId = templateMap[contractType] || templateMap['ONE'] || 24;
+        const templateId = templateMap[contractType] || templateMap['MASTER_EF'] || 26;
         
         const contractPayload = {
           projectId,
