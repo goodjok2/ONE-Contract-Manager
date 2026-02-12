@@ -336,7 +336,7 @@ export default function ContractDetail() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${contract?.projectNumber || 'Contract'}_${getContractTypeName(contract?.contractType || 'ONE').replace(/\s+/g, '_')}.pdf`;
+      a.download = `${contract?.projectNumber || 'Contract'}_${getContractTypeName(contract?.contractType || 'MASTER_EF').replace(/\s+/g, '_')}.pdf`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);

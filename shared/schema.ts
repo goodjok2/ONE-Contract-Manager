@@ -259,7 +259,7 @@ export const projects = pgTable("projects", {
   estimatedDeliveryDate: text("estimated_delivery_date"),
   estimatedCompletionDate: text("estimated_completion_date"),
   // MASTER_EF Agreement Fields
-  contractType: text("contract_type").default("ONE"), // 'ONE' | 'MASTER_EF'
+  contractType: text("contract_type").default("MASTER_EF"), // 'MASTER_EF' (primary) | 'ONE' (archived)
   buyerType: text("buyer_type"), // 'end_customer' | 'developer'
   storageFeePerDay: integer("storage_fee_per_day"), // cents per day
   storageFreedays: integer("storage_free_days"), // number of free days
