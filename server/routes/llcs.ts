@@ -138,6 +138,10 @@ router.post("/llcs", async (req: Request, res: Response) => {
         annual_report_due_date,
         annual_report_status
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+      ON CONFLICT (name) DO UPDATE SET
+        project_name = COALESCE(EXCLUDED.project_name, llcs.project_name),
+        project_address = COALESCE(EXCLUDED.project_address, llcs.project_address),
+        updated_at = NOW()
       RETURNING 
         id,
         organization_id,

@@ -9,7 +9,7 @@ import {
   milestones,
   warrantyTerms,
 } from "../../shared/schema";
-import { eq, and, sql, desc } from "drizzle-orm";
+import { eq, ne, and, sql, desc } from "drizzle-orm";
 
 const router = Router();
 
@@ -271,9 +271,26 @@ router.post("/projects", async (req, res) => {
 router.patch("/projects/:id", async (req, res) => {
   try {
     const projectId = parseInt(req.params.id);
+    const updateData = { ...req.body };
+
+    if (updateData.projectNumber) {
+      const existing = await db
+        .select({ id: projects.id })
+        .from(projects)
+        .where(
+          and(
+            eq(projects.projectNumber, updateData.projectNumber),
+            ne(projects.id, projectId)
+          )
+        );
+      if (existing.length > 0) {
+        delete updateData.projectNumber;
+      }
+    }
+
     const [result] = await db
       .update(projects)
-      .set(req.body)
+      .set(updateData)
       .where(eq(projects.id, projectId))
       .returning();
     res.json(result);
