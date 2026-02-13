@@ -2,6 +2,7 @@ import type { Express } from "express";
 import type { Server } from "http";
 import apiRouter from "./routes/index";
 import { pool } from "./db";
+import { seedProductionData } from "./seed";
 
 // =============================================================================
 // REGISTER ALL API ROUTES
@@ -46,6 +47,7 @@ async function seedDefaults() {
 
 export async function registerRoutes(server: Server, app: Express) {
   await seedDefaults();
+  await seedProductionData();
 
   app.use("/api", apiRouter);
   
