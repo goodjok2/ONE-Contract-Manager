@@ -1594,29 +1594,24 @@ router.post("/contracts/download-all-zip", async (req, res) => {
     const { generateContract, getContractFilename } = await import('../lib/contractGenerator');
     const archiver = (await import('archiver')).default;
     
-    const contractTypes: Array<'ONE' | 'MANUFACTURING' | 'ONSITE'> = ['ONE', 'MANUFACTURING', 'ONSITE'];
+    const projectContractType = ((fullProject as any).contractType || (fullProject as any).contract_type || 'MASTER_EF').toUpperCase();
+    const contractTypes: string[] = projectContractType === 'MASTER_EF' 
+      ? ['MASTER_EF'] 
+      : ['ONE', 'MANUFACTURING', 'ONSITE'];
+    
+    console.log(`Contract type for project: ${projectContractType}, generating: ${contractTypes.join(', ')}`);
     
     const generatedContracts: Array<{ buffer: Buffer; filename: string }> = [];
     
     for (const contractType of contractTypes) {
       try {
-        // Generate separate projectData for each contract type with filtered tables
-        const contractProjectData = mapProjectToVariables(fullProject, pricingSummary || undefined, contractType);
-        
-        // Apply the same enrichments as the main projectData
-        if (pricingSummary && pricingSummary.unitCount > 0) {
-          contractProjectData.DESIGN_FEE = centsToDollars(pricingSummary.breakdown.totalDesignFee);
-          contractProjectData.DESIGN_FEE_WRITTEN = formatCentsAsCurrency(pricingSummary.breakdown.totalDesignFee);
-          contractProjectData.PRELIM_OFFSITE = centsToDollars(pricingSummary.breakdown.totalOffsite);
-          contractProjectData.PRELIM_OFFSITE_WRITTEN = formatCentsAsCurrency(pricingSummary.breakdown.totalOffsite);
-          contractProjectData.PRELIMINARY_OFFSITE_PRICE = formatCentsAsCurrency(pricingSummary.breakdown.totalOffsite);
-          contractProjectData.PRELIM_ONSITE = centsToDollars(pricingSummary.breakdown.totalOnsite);
-          contractProjectData.PRELIM_ONSITE_WRITTEN = formatCentsAsCurrency(pricingSummary.breakdown.totalOnsite);
-          contractProjectData.PRELIMINARY_ONSITE_PRICE = formatCentsAsCurrency(pricingSummary.breakdown.totalOnsite);
-        }
+        const contractFilterType = contractType as 'ONE' | 'MANUFACTURING' | 'ONSITE' | 'MASTER_EF';
+        const contractProjectData = contractTypes.length === 1
+          ? projectData
+          : mapProjectToVariables(fullProject, pricingSummary || undefined, contractFilterType);
         
         const buffer = await generateContract({
-          contractType,
+          contractType: contractFilterType,
           projectData: contractProjectData,
           format: 'pdf'
         });
