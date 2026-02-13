@@ -1814,6 +1814,117 @@ router.post("/contracts/download-pdf", async (req, res) => {
   }
 });
 
+// GET endpoint for mobile-friendly PDF download (browser navigates directly)
+router.get("/contracts/download-pdf/:projectId/:contractType", async (req, res) => {
+  try {
+    const projectId = parseInt(req.params.projectId);
+    const contractType = req.params.contractType;
+
+    if (!projectId || isNaN(projectId)) {
+      return res.status(400).json({ error: "Valid projectId is required" });
+    }
+    if (!contractType) {
+      return res.status(400).json({ error: "contractType is required" });
+    }
+
+    const fullProject = await getProjectWithRelations(projectId);
+    if (!fullProject) {
+      return res.status(404).json({ error: "Project not found" });
+    }
+
+    const { mapProjectToVariables, formatCentsAsCurrency, centsToDollars } = await import('../lib/mapper');
+    const { calculateProjectPricing } = await import('../services/pricingEngine');
+
+    let pricingSummary: any = null;
+    try {
+      pricingSummary = await calculateProjectPricing(projectId);
+    } catch (pricingError) {
+      console.warn(`⚠️ Pricing engine error (using fallback):`, pricingError);
+    }
+
+    const contractFilterType = contractType as 'ONE' | 'MANUFACTURING' | 'ONSITE' | 'MASTER_EF';
+    const projectData = mapProjectToVariables(fullProject, pricingSummary || undefined, contractFilterType);
+
+    try {
+      const projectUnitsData = await db
+        .select({
+          unitLabel: projectUnits.unitLabel,
+          modelName: homeModels.name,
+        })
+        .from(projectUnits)
+        .innerJoin(homeModels, eq(projectUnits.modelId, homeModels.id))
+        .where(eq(projectUnits.projectId, projectId));
+
+      if (pricingSummary && pricingSummary.unitCount > 0) {
+        projectData.DESIGN_FEE = centsToDollars(pricingSummary.breakdown.totalDesignFee);
+        projectData.DESIGN_FEE_WRITTEN = formatCentsAsCurrency(pricingSummary.breakdown.totalDesignFee);
+        projectData.PRELIM_OFFSITE = centsToDollars(pricingSummary.breakdown.totalOffsite);
+        projectData.PRELIM_OFFSITE_WRITTEN = formatCentsAsCurrency(pricingSummary.breakdown.totalOffsite);
+        projectData.PRELIMINARY_OFFSITE_PRICE = formatCentsAsCurrency(pricingSummary.breakdown.totalOffsite);
+        projectData.PRELIM_ONSITE = centsToDollars(pricingSummary.breakdown.totalOnsite);
+        projectData.PRELIM_ONSITE_WRITTEN = formatCentsAsCurrency(pricingSummary.breakdown.totalOnsite);
+        projectData.PRELIMINARY_ONSITE_PRICE = formatCentsAsCurrency(pricingSummary.breakdown.totalOnsite);
+        projectData.CONTRACT_PRICE = formatCentsAsCurrency(pricingSummary.contractValue);
+        projectData.PRELIM_CONTRACT_PRICE = centsToDollars(pricingSummary.contractValue);
+        projectData.PRELIM_CONTRACT_PRICE_WRITTEN = formatCentsAsCurrency(pricingSummary.contractValue);
+        projectData.PRELIMINARY_CONTRACT_PRICE = formatCentsAsCurrency(pricingSummary.contractValue);
+        projectData.PRELIMINARY_TOTAL_PRICE = formatCentsAsCurrency(pricingSummary.contractValue);
+        projectData.FINAL_CONTRACT_PRICE = centsToDollars(pricingSummary.contractValue);
+        projectData.FINAL_CONTRACT_PRICE_WRITTEN = formatCentsAsCurrency(pricingSummary.contractValue);
+        projectData.TOTAL_CONTRACT_PRICE = centsToDollars(pricingSummary.contractValue);
+        projectData.TOTAL_CONTRACT_PRICE_WRITTEN = formatCentsAsCurrency(pricingSummary.contractValue);
+        projectData.TOTAL_PROJECT_BUDGET = centsToDollars(pricingSummary.projectBudget);
+        projectData.TOTAL_PROJECT_BUDGET_WRITTEN = formatCentsAsCurrency(pricingSummary.projectBudget);
+
+        pricingSummary.paymentSchedule.forEach((milestone: { name: string; percentage: number; amount: number; phase?: string }, index: number) => {
+          const num = index + 1;
+          projectData[`MILESTONE_${num}_NAME`] = milestone.name;
+          projectData[`MILESTONE_${num}_PERCENT`] = `${milestone.percentage}%`;
+          projectData[`MILESTONE_${num}_AMOUNT`] = formatCentsAsCurrency(milestone.amount);
+          projectData[`MILESTONE_${num}_PHASE`] = milestone.phase;
+        });
+
+        const unitCounts: Record<string, { count: number; labels: string[] }> = {};
+        projectUnitsData.forEach(unit => {
+          if (!unitCounts[unit.modelName]) {
+            unitCounts[unit.modelName] = { count: 0, labels: [] };
+          }
+          unitCounts[unit.modelName].count++;
+          unitCounts[unit.modelName].labels.push(unit.unitLabel);
+        });
+        const unitSummaryParts = Object.entries(unitCounts).map(([model, data]) =>
+          `${data.count}x ${model} (${data.labels.join(', ')})`
+        );
+        projectData.HOME_MODEL = `${pricingSummary.unitCount} Unit${pricingSummary.unitCount !== 1 ? 's' : ''}: ${unitSummaryParts.join(', ')}`;
+        projectData.UNIT_MODEL_LIST = pricingSummary.unitModelSummary || projectData.HOME_MODEL;
+        projectData.TOTAL_UNITS = pricingSummary.unitCount;
+        projectData.PRICING_SERVICE_MODEL = pricingSummary.serviceModel;
+      }
+    } catch (pricingError) {
+      console.warn('Pricing enrichment failed for GET download:', pricingError);
+    }
+
+    const { generateContract, getContractFilename } = await import('../lib/contractGenerator');
+
+    const buffer = await generateContract({
+      contractType: contractFilterType,
+      projectData,
+      format: 'pdf'
+    });
+
+    const filename = getContractFilename(contractType, projectData, 'pdf');
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+    res.setHeader('Content-Length', buffer.length.toString());
+    res.send(buffer);
+
+  } catch (error) {
+    console.error("Error generating PDF (GET):", error);
+    res.status(500).send('Failed to generate PDF. Please try again.');
+  }
+});
+
 // Draft Preview - Generate HTML preview of contract without PDF conversion
 // Uses the same data enrichment as the PDF route to ensure parity
 router.post("/contracts/draft-preview", async (req, res) => {

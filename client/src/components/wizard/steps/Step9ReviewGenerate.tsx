@@ -176,48 +176,17 @@ export const Step9ReviewGenerate: React.FC = () => {
   const [isDownloading, setIsDownloading] = useState<string | null>(null);
   
   const handleDownload = async (contractType: string, contractName: string) => {
+    if (!draftProjectId) {
+      console.error('No project ID available for download');
+      return;
+    }
     try {
       setIsDownloading(contractType);
-      
-      const response = await fetch('/api/contracts/download-pdf', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          contractType,
-          projectId: draftProjectId,
-          projectData
-        }),
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to generate document');
-      }
-      
-      // Get filename from Content-Disposition header if available
-      const contentDisposition = response.headers.get('Content-Disposition');
-      let filename = `${projectData.projectNumber || 'DRAFT'}_${projectData.projectName?.replace(/\s+/g, '_') || 'Contract'}_${contractName.replace(/\s+/g, '_')}.pdf`;
-      if (contentDisposition) {
-        const match = contentDisposition.match(/filename="(.+)"/);
-        if (match) {
-          filename = match[1];
-        }
-      }
-      
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      window.open(`/api/contracts/download-pdf/${draftProjectId}/${contractType}`, '_blank');
     } catch (error) {
       console.error('Download error:', error);
     } finally {
-      setIsDownloading(null);
+      setTimeout(() => setIsDownloading(null), 2000);
     }
   };
   

@@ -85,29 +85,13 @@ export default function Contracts() {
   const handleDownloadPdf = async (projectId: number, contractType: string, contractId: number, projectNumber: string) => {
     setGeneratingContract(contractId);
     try {
-      const response = await fetch('/api/contracts/download-pdf', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contractType: getContractTypeForApi(contractType),
-          projectId,
-        }),
-      });
-      if (!response.ok) throw new Error('Failed to generate PDF');
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${projectNumber}_${formatContractType(contractType).replace(/\s+/g, '_')}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      const apiType = getContractTypeForApi(contractType);
+      window.open(`/api/contracts/download-pdf/${projectId}/${apiType}`, '_blank');
     } catch (error) {
       console.error('Download error:', error);
       toast({ title: "Download Failed", description: "Failed to download PDF.", variant: "destructive" });
     } finally {
-      setGeneratingContract(null);
+      setTimeout(() => setGeneratingContract(null), 2000);
     }
   };
 
