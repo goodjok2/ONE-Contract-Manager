@@ -358,8 +358,14 @@ export async function generateContract(options: ContractGenerationOptions): Prom
   // Set current project state for disclosure lookups
   currentProjectState = projectState;
   
-  // Set current contract type for numbering/rendering decisions
-  currentContractType = contractType;
+  // Set current contract type for numbering/rendering decisions (normalize to uppercase)
+  const contractTypeNormMap: Record<string, string> = {
+    'master_ef': 'MASTER_EF',
+    'one_agreement': 'ONE',
+    'manufacturing_sub': 'MANUFACTURING',
+    'onsite_sub': 'ONSITE',
+  };
+  currentContractType = contractTypeNormMap[contractType] || contractType.toUpperCase();
   
   // Set current service model for [IF] tag processing
   currentServiceModel = (projectData.serviceModel || projectData.ON_SITE_SELECTION || 'CRC').toUpperCase();
