@@ -237,10 +237,10 @@ router.post("/projects", async (req, res) => {
       
       console.log(`🏢 Auto-generating LLC: ${llcName} for project: ${projectData.name}`);
       
-      // Insert new LLC
       const llcResult = await pool.query(
         `INSERT INTO llcs (organization_id, name, project_name, project_address, status, state_of_formation)
          VALUES ($1, $2, $3, $4, 'forming', $5)
+         ON CONFLICT (name) DO UPDATE SET project_name = EXCLUDED.project_name
          RETURNING id`,
         [
           projectData.organizationId || 1,
@@ -252,7 +252,7 @@ router.post("/projects", async (req, res) => {
       );
       
       llcId = llcResult.rows[0].id;
-      console.log(`✅ Created LLC id: ${llcId}`);
+      console.log(`✅ LLC id: ${llcId} for "${llcName}"`);
     }
     
     // Insert project with LLC reference
