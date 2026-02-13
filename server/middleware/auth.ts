@@ -14,32 +14,40 @@ declare global {
 }
 
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
-  const isDev = process.env.NODE_ENV !== "production";
-  const skipAuth = isDev && process.env.SKIP_AUTH !== "false";
-  
+  const skipAuth = process.env.SKIP_AUTH === "true" || process.env.NODE_ENV !== "production";
+
+  const authHeader = req.headers.authorization;
+
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    const token = authHeader.slice(7);
+    try {
+      // TODO: validate JWT token and extract org/user when real auth is added
+    } catch (error) {
+      return res.status(401).json({ error: "Unauthorized - Invalid token" });
+    }
+  }
+
   if (skipAuth) {
-    req.organizationId = 1;
-    req.user = {
+    req.organizationId = req.organizationId || 1;
+    req.user = req.user || {
       id: 1,
       email: "admin@dvele.com",
       role: "admin",
     };
     return next();
   }
-  
-  const authHeader = req.headers.authorization;
-  
+
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return res.status(401).json({ error: "Unauthorized - No token provided" });
   }
-  
-  const token = authHeader.slice(7);
-  
-  try {
-    next();
-  } catch (error) {
-    return res.status(401).json({ error: "Unauthorized - Invalid token" });
-  }
+
+  req.organizationId = req.organizationId || 1;
+  req.user = req.user || {
+    id: 1,
+    email: "admin@dvele.com",
+    role: "admin",
+  };
+  return next();
 }
 
 export function requireAdmin(req: Request, res: Response, next: NextFunction) {

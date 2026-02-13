@@ -7,6 +7,16 @@ const JSONB_COLUMNS: Record<string, Set<string>> = {
   table_definitions: new Set(["columns", "rows"]),
 };
 
+const SQL_RESERVED_WORDS = new Set([
+  "order", "level", "column", "group", "table", "type", "user", "select",
+  "where", "from", "to", "index", "check", "default", "key", "limit",
+  "offset", "position", "row", "rows", "values", "references",
+]);
+
+function quoteCol(col: string): string {
+  return SQL_RESERVED_WORDS.has(col.toLowerCase()) ? `"${col}"` : col;
+}
+
 export async function seedProductionData() {
   const tables = [
     { name: "contractor_entities", data: seedData.contractor_entities },
@@ -47,8 +57,9 @@ export async function seedProductionData() {
           return val;
         });
 
+        const quotedCols = cols.map(quoteCol).join(", ");
         await client.query(
-          `INSERT INTO ${table.name} (${cols.join(", ")}) VALUES (${placeholders}) ON CONFLICT DO NOTHING`,
+          `INSERT INTO ${table.name} (${quotedCols}) VALUES (${placeholders}) ON CONFLICT DO NOTHING`,
           values
         );
       }
