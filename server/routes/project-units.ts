@@ -124,7 +124,7 @@ router.delete("/project-units/:id", async (req: Request, res: Response) => {
     
     const result = await pool.query(
       `DELETE FROM project_units 
-       WHERE id = $1 AND organization_id = $2
+       WHERE id = $1 AND (organization_id = $2 OR organization_id IS NULL)
        RETURNING id`,
       [id, req.organizationId]
     );
