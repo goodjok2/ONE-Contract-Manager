@@ -7,7 +7,7 @@ import type {
   WarrantyTerm,
   Contractor,
 } from "../../shared/schema";
-import { generatePricingTableHtml, generatePaymentScheduleHtml, generateUnitDetailsHtml, UnitDetail, ContractFilterType } from "./tableGenerators";
+import { generatePricingTableHtml, generatePaymentScheduleHtml, generateUnitDetailsHtml, UnitDetail, ContractFilterType, generateExhibitA2TableHtml, generateExhibitA4TableHtml, generateExhibitA5TableHtml, generateExhibitB1TableHtml, type ProjectUnit as TGProjectUnit } from "./tableGenerators";
 
 // =============================================================================
 // TYPE DEFINITIONS
@@ -677,6 +677,10 @@ export function mapProjectToVariables(
     DELIVERY_CITY: projectDetails?.deliveryCity || "",
     DELIVERY_STATE: projectDetails?.deliveryState || "",
     DELIVERY_ZIP: projectDetails?.deliveryZip || "",
+    SITE_CITY: projectDetails?.deliveryCity || "",
+    SITE_STATE: projectDetails?.deliveryState || "",
+    SITE_ZIP: projectDetails?.deliveryZip || "",
+    SITE_STREET: projectDetails?.deliveryAddress || "",
     // SITE_ADDRESS alias - full formatted site address for exhibits
     SITE_ADDRESS: buildFullAddress(
       projectDetails?.deliveryAddress,
@@ -850,8 +854,9 @@ export function mapProjectToVariables(
     COMPANY_EMAIL: 'contracts@dvele.com',
     
     // Cross-reference placeholders (resolved during contract generation)
-    XREF_FEES_PAYMENT_SECTION: 'Section 3',
-    XREF_BANKABILITY_SUBSECTIONS: 'Section 3.h',
+    XREF_FEES_PAYMENT_SECTION: '3',
+    XREF_BANKABILITY_SUBSECTIONS: '3.d through 3.i',
+    XREF_ASSIGNMENT_SECTION: '3.h',
 
     // ===================
     // DYNAMIC HTML TABLES
@@ -886,8 +891,33 @@ export function mapProjectToVariables(
         estimatedPrice: (u.basePriceSnapshot || 0) + (u.onsiteEstimateSnapshot || 0),
       })) || null
     ),
-    // TODO: Generate milestone schedule HTML table from milestones data when available
     MILESTONE_SCHEDULE_TABLE: "",
+    
+    EXHIBIT_A2_TABLE: generateExhibitA2TableHtml(
+      units?.map(u => ({
+        modelName: u.homeModel?.modelName || 'Unknown Model',
+      })) || null,
+      buildFullAddress(
+        projectDetails?.deliveryAddress,
+        projectDetails?.deliveryCity,
+        projectDetails?.deliveryState,
+        projectDetails?.deliveryZip
+      )
+    ),
+    EXHIBIT_A4_TABLE: generateExhibitA4TableHtml(
+      pricingSummary || null,
+      (project as any).serviceModel || 'CRC'
+    ),
+    EXHIBIT_A5_TABLE: generateExhibitA5TableHtml(
+      pricingSummary?.paymentSchedule || null,
+      pricingSummary || null,
+      (project as any).serviceModel || 'CRC'
+    ),
+    EXHIBIT_B1_TABLE: generateExhibitB1TableHtml(
+      units?.map(u => ({
+        modelName: u.homeModel?.modelName || 'Unknown Model',
+      })) || null
+    ),
     
     // Static "What Happens Next" table for Document Summary section
     WHAT_HAPPENS_NEXT_TABLE: `

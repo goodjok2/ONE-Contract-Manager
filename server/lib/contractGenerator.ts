@@ -1200,7 +1200,17 @@ function renderBlockNode(node: BlockNode): string {
   const disclosureCode = clause.disclosure_code || '';
   
   // Strip duplicate headers and format content
-  const strippedContent = stripDuplicateHeader(rawContent, clauseName, clauseCode);
+  let strippedContent = stripDuplicateHeader(rawContent, clauseName, clauseCode);
+  
+  // Strip raw underscore-based signature blocks from clause content (Fix 3)
+  // These get replaced by the formatted renderSignatureBlocks() output
+  if (strippedContent && /_{3,}/.test(strippedContent)) {
+    strippedContent = strippedContent
+      .replace(/^.*(?:Signature|By|Name\s*\(?Print\)?|Title|Date)\s*[:]\s*_{3,}.*$/gm, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  }
+  
   const content = strippedContent ? formatContent(strippedContent) : '';
   
   let html = '';
@@ -1247,14 +1257,26 @@ function renderBlockNode(node: BlockNode): string {
     } else if (hierarchyLevel === 2) {
       html += `<div class="mef-level-2${conspicuousClass}">`;
       html += `<span class="mef-level-2-marker">${dynamicNumber}</span> `;
-      if (clauseName) html += `${escapeHtml(clauseName)}.`;
-      if (content) html += ` ${content}`;
+      if (clauseName && content) {
+        html += `<span class="mef-level-2-header">${escapeHtml(clauseName)}.</span>`;
+        html += `<span class="mef-level-2-content"> ${content}</span>`;
+      } else if (clauseName) {
+        html += `<span class="mef-level-2-header">${escapeHtml(clauseName)}.</span>`;
+      } else if (content) {
+        html += `<span class="mef-level-2-content">${content}</span>`;
+      }
       html += `</div>`;
     } else if (hierarchyLevel === 3) {
       html += `<div class="mef-level-3${conspicuousClass}">`;
       html += `<span class="mef-level-3-marker">${dynamicNumber}</span> `;
-      if (clauseName) html += `${escapeHtml(clauseName)}.`;
-      if (content) html += ` ${content}`;
+      if (clauseName && content) {
+        html += `<span class="mef-level-3-header">${escapeHtml(clauseName)}.</span>`;
+        html += `<span class="mef-level-3-content"> ${content}</span>`;
+      } else if (clauseName) {
+        html += `<span class="mef-level-3-header">${escapeHtml(clauseName)}.</span>`;
+      } else if (content) {
+        html += `<span class="mef-level-3-content">${content}</span>`;
+      }
       html += `</div>`;
     } else {
       if (clauseName && content) {
@@ -1615,6 +1637,16 @@ function getContractStyles(): string {
     .mef-level-2-marker {
       font-weight: normal;
     }
+    .mef-level-2-header {
+      text-decoration: underline;
+      font-weight: normal;
+    }
+    .mef-level-2-content {
+      font-weight: normal;
+    }
+    .mef-level-2.conspicuous .mef-level-2-content {
+      font-weight: bold;
+    }
     .mef-level-3 {
       font-size: 11pt;
       font-weight: normal;
@@ -1627,6 +1659,16 @@ function getContractStyles(): string {
     }
     .mef-level-3-marker {
       font-weight: normal;
+    }
+    .mef-level-3-header {
+      text-decoration: underline;
+      font-weight: normal;
+    }
+    .mef-level-3-content {
+      font-weight: normal;
+    }
+    .mef-level-3.conspicuous .mef-level-3-content {
+      font-weight: bold;
     }
     .mef-body {
       font-size: 11pt;
@@ -2216,6 +2258,16 @@ function generateHTMLFromClauses(
     .mef-level-2-marker {
       font-weight: normal;
     }
+    .mef-level-2-header {
+      text-decoration: underline;
+      font-weight: normal;
+    }
+    .mef-level-2-content {
+      font-weight: normal;
+    }
+    .mef-level-2.conspicuous .mef-level-2-content {
+      font-weight: bold;
+    }
     .mef-level-3 {
       font-size: 11pt;
       font-weight: normal;
@@ -2228,6 +2280,16 @@ function generateHTMLFromClauses(
     }
     .mef-level-3-marker {
       font-weight: normal;
+    }
+    .mef-level-3-header {
+      text-decoration: underline;
+      font-weight: normal;
+    }
+    .mef-level-3-content {
+      font-weight: normal;
+    }
+    .mef-level-3.conspicuous .mef-level-3-content {
+      font-weight: bold;
     }
     .mef-body {
       font-size: 11pt;
@@ -2542,7 +2604,12 @@ function renderTitlePage(title: string, projectData: Record<string, any>): strin
     return `
       <div class="title-page">
         <div class="contract-title">
-          ${escapeHtml(title)} - ${escapeHtml(projectNumber)} - ${escapeHtml(projectName)}
+          ${escapeHtml(title)}
+        </div>
+        <div class="project-info">
+          <div style="font-size: 16pt; color: #333; margin-bottom: 8pt;">
+            ${escapeHtml(projectNumber)} - ${escapeHtml(projectName)}
+          </div>
         </div>
         
         ${(projectData.AGREEMENT_EXECUTION_DATE || projectData.agreementDate) ? `
@@ -2781,7 +2848,7 @@ function renderRecitals(projectData: Record<string, any>): string {
 function renderSignatureBlocks(projectData: Record<string, any>): string {
   // Support both uppercase (from mapper) and camelCase (legacy) variable names
   const clientName = projectData.CLIENT_LEGAL_NAME || projectData.clientLegalName || projectData.clientFullName || '[CLIENT NAME]';
-  const llcName = projectData.CHILD_LLC_LEGAL_NAME || projectData.childLlcName || 'Dvele Partners LLC';
+  const companyName = projectData.DVELE_LEGAL_NAME || projectData.COMPANY_NAME || 'Dvele, Inc.';
   const clientSignerName = projectData.CLIENT_SIGNER_NAME || projectData.clientSignerName || '';
   const clientTitle = projectData.CLIENT_TITLE || projectData.clientTitle || '';
   
@@ -2795,7 +2862,7 @@ function renderSignatureBlocks(projectData: Record<string, any>): string {
         <tr>
           <td style="width: 48%; border: none; vertical-align: top; padding-right: 20pt;">
             <div style="font-weight: bold; color: #1a73e8; margin-bottom: 8pt;">COMPANY:</div>
-            <div style="font-weight: bold; margin-bottom: 24pt;">${escapeHtml(llcName)}</div>
+            <div style="font-weight: bold; margin-bottom: 24pt;">${escapeHtml(companyName)}</div>
             <div style="border-bottom: 1px solid #000; margin-bottom: 4pt; height: 24pt;"></div>
             <div style="font-size: 9pt; color: #666;">Signature</div>
             <div style="margin-top: 16pt; border-bottom: 1px solid #000; margin-bottom: 4pt; height: 18pt;"></div>
