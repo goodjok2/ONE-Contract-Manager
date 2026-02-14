@@ -32,6 +32,7 @@ let currentProjectState: string = '';
 
 // Current service model for conditional [IF] tag processing
 let currentServiceModel: string = '';
+let signatureComponentResolved: boolean = false;
 
 // Current contract type for rendering/numbering decisions
 let currentContractType: string = '';
@@ -374,6 +375,7 @@ export async function generateContract(options: ContractGenerationOptions): Prom
   
   // Clear and preload block components for this service model
   clearBlockComponentCache();
+  signatureComponentResolved = false;
   await preloadBlockComponents(projectData.organizationId || 1, currentServiceModel);
   
   // Preload exhibit content for {{EXHIBIT_A}} through {{EXHIBIT_G}} tags
@@ -1011,20 +1013,21 @@ function resolveExhibitTags(content: string): string {
 function resolveBlockTags(content: string, serviceModel: string): string {
   let result = content;
   
-  // Find ALL {{BLOCK_*}} tags using generic regex
-  const blockTagRegex = /\{\{(BLOCK_[A-Z0-9_.]+)\}\}/g;
-  const allMatches = Array.from(result.matchAll(blockTagRegex));
+  // Find ALL {{BLOCK_*}} and {{TABLE_*}} tags using generic regex
+  const componentTagRegex = /\{\{((?:BLOCK|TABLE)_[A-Z0-9_.]+)\}\}/g;
+  const allMatches = Array.from(result.matchAll(componentTagRegex));
   const uniqueTags = Array.from(new Set(allMatches.map(m => m[1])));
   
   for (const tagName of uniqueTags) {
     const blockContent = blockComponentCache.get(tagName);
     if (blockContent) {
-      // Escape dots in tag name for regex
       const escapedTagName = tagName.replace(/\./g, '\\.');
       result = result.replace(new RegExp(`\\{\\{${escapedTagName}\\}\\}`, 'g'), blockContent);
+      if (tagName.startsWith('TABLE_SIGNATURE')) {
+        signatureComponentResolved = true;
+      }
     } else {
       console.warn(`No cached component for {{${tagName}}} - leaving placeholder`);
-      // Leave the placeholder in place so it shows up as unresolved
     }
   }
   
@@ -1036,8 +1039,8 @@ function replaceVariables(content: string, variableMap: Record<string, string>):
   
   let result = content;
   
-  // Process BLOCK_ component tags based on current service model
-  if (result.includes('{{BLOCK_')) {
+  // Process BLOCK_ and TABLE_ component tags based on current service model
+  if (result.includes('{{BLOCK_') || result.includes('{{TABLE_')) {
     result = resolveBlockTags(result, currentServiceModel);
   }
   
@@ -1166,8 +1169,10 @@ function renderBlockTreeHTML(nodes: BlockNode[], projectData: Record<string, any
     html += renderBlockNode(node);
   }
   
-  // Add signature blocks at the end
-  html += renderSignatureBlocks(projectData);
+  // Add signature blocks at the end only if no component-based signature was resolved
+  if (!signatureComponentResolved) {
+    html += renderSignatureBlocks(projectData);
+  }
   
   // Add exhibits after signature blocks
   if (exhibitsHtml) {
@@ -2820,8 +2825,10 @@ function renderClausesHTML(clauses: Clause[], projectData: Record<string, any>):
     }
   }
   
-  // Add signature blocks
-  html += renderSignatureBlocks(projectData);
+  // Add signature blocks only if no component-based signature was resolved
+  if (!signatureComponentResolved) {
+    html += renderSignatureBlocks(projectData);
+  }
   
   html += '</div>';
   return html;
