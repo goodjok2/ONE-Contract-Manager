@@ -1256,27 +1256,29 @@ function renderBlockNode(node: BlockNode): string {
       html += `<div class="mef-level-1${conspicuousClass}">${dynamicNumber} ${escapeHtml(clauseName.toUpperCase())}</div>`;
       if (content) html += `<div class="mef-level-1-body">${content}</div>`;
     } else if (hierarchyLevel === 2) {
+      const inlineContent = stripBlockWrappers(content);
       html += `<div class="mef-level-2${conspicuousClass}">`;
-      html += `<span class="mef-level-2-marker">${dynamicNumber}</span> `;
-      if (clauseName && content) {
+      html += `<span class="mef-level-2-marker">${dynamicNumber} </span>`;
+      if (clauseName) {
         html += `<span class="mef-level-2-header">${escapeHtml(clauseName)}.</span>`;
-        html += `<span class="mef-level-2-content"> ${content}</span>`;
-      } else if (clauseName) {
-        html += `<span class="mef-level-2-header">${escapeHtml(clauseName)}.</span>`;
-      } else if (content) {
-        html += `<span class="mef-level-2-content">${content}</span>`;
+        if (inlineContent) {
+          html += ` ${inlineContent}`;
+        }
+      } else if (inlineContent) {
+        html += inlineContent;
       }
       html += `</div>`;
     } else if (hierarchyLevel === 3) {
+      const inlineContent = stripBlockWrappers(content);
       html += `<div class="mef-level-3${conspicuousClass}">`;
-      html += `<span class="mef-level-3-marker">${dynamicNumber}</span> `;
-      if (clauseName && content) {
+      html += `<span class="mef-level-3-marker">${dynamicNumber} </span>`;
+      if (clauseName) {
         html += `<span class="mef-level-3-header">${escapeHtml(clauseName)}.</span>`;
-        html += `<span class="mef-level-3-content"> ${content}</span>`;
-      } else if (clauseName) {
-        html += `<span class="mef-level-3-header">${escapeHtml(clauseName)}.</span>`;
-      } else if (content) {
-        html += `<span class="mef-level-3-content">${content}</span>`;
+        if (inlineContent) {
+          html += ` ${inlineContent}`;
+        }
+      } else if (inlineContent) {
+        html += inlineContent;
       }
       html += `</div>`;
     } else {
@@ -1293,7 +1295,15 @@ function renderBlockNode(node: BlockNode): string {
     const conspicuousClass = isConspicuous ? ' conspicuous' : '';
     
     if (!clauseName.trim() && content) {
-      html += `<div class="level-${hierarchyLevel}-body${conspicuousClass}">${content}</div>`;
+      if (hierarchyLevel === 2) {
+        const inlineContentNoName = stripBlockWrappers(content);
+        html += `<div class="level-2${conspicuousClass}"><span class="level-2-marker">${dynamicNumber}. </span>${inlineContentNoName}</div>`;
+      } else if (hierarchyLevel === 3) {
+        const inlineContentNoName = stripBlockWrappers(content);
+        html += `<div class="level-3${conspicuousClass}"><span class="level-3-marker">${dynamicNumber} </span>${inlineContentNoName}</div>`;
+      } else {
+        html += `<div class="level-${hierarchyLevel}-body${conspicuousClass}">${content}</div>`;
+      }
     }
     else {
       const l2DisplayName = clauseName.replace(/^Section\s*\d+\.?\s*/i, '').trim();
@@ -1304,15 +1314,33 @@ function renderBlockNode(node: BlockNode): string {
         if (content) html += `<div class="level-1-body">${content}</div>`;
         break;
         
-      case 2:
-        html += `<div class="level-2${conspicuousClass}">${dynamicNumber}. ${escapeHtml(l2DisplayName)}</div>`;
-        if (content) html += `<div class="level-2-body">${content}</div>`;
+      case 2: {
+        const inlineContent2 = stripBlockWrappers(content);
+        html += `<div class="level-2${conspicuousClass}">`;
+        html += `<span class="level-2-marker">${dynamicNumber}. </span>`;
+        html += `<span class="level-2-header">${escapeHtml(l2DisplayName)}</span>`;
+        if (inlineContent2) {
+          html += ` ${inlineContent2}`;
+        }
+        html += `</div>`;
         break;
+      }
         
-      case 3:
-        html += `<div class="level-3${conspicuousClass}">${dynamicNumber} ${escapeHtml(clauseName)}</div>`;
-        if (content) html += `<div class="level-3-body">${content}</div>`;
+      case 3: {
+        const inlineContent3 = stripBlockWrappers(content);
+        html += `<div class="level-3${conspicuousClass}">`;
+        html += `<span class="level-3-marker">${dynamicNumber} </span>`;
+        if (clauseName) {
+          html += `<span class="level-3-header">${escapeHtml(clauseName)}</span>`;
+          if (inlineContent3) {
+            html += ` ${inlineContent3}`;
+          }
+        } else if (inlineContent3) {
+          html += inlineContent3;
+        }
+        html += `</div>`;
         break;
+      }
         
       case 4:
         html += `<div class="level-4${conspicuousClass}">(${dynamicNumber}) ${clauseName ? escapeHtml(clauseName) : ''}${content ? ' ' + content : ''}</div>`;
@@ -1478,40 +1506,43 @@ function getContractStyles(): string {
       line-height: 1.4;
     }
     
-    /* Level 2 (Section): Bold, blue, left-aligned */
+    /* Level 2 (Section): Inline header+body with hanging indent */
     .level-2 {
-      font-size: 12pt;
-      font-weight: bold;
-      color: #1a73e8;
+      font-size: 11pt;
+      font-weight: normal;
+      color: #000000;
       margin-top: 20pt;
       margin-bottom: 10pt;
-      page-break-after: avoid;
+      margin-left: 0.5in;
+      padding-left: 0.3in;
+      text-indent: -0.3in;
+      line-height: 1.5;
     }
-    
-    .level-2-body {
-      font-size: 11pt;
+    .level-2-marker {
       font-weight: normal;
-      color: #000000;
-      margin-bottom: 10pt;
-      line-height: 1.4;
+    }
+    .level-2-header {
+      text-decoration: underline;
+      font-weight: normal;
     }
     
-    /* Level 3 (Clause): Bold, blue, smaller */
+    /* Level 3 (Clause): Inline header+body with deeper hanging indent */
     .level-3 {
       font-size: 11pt;
-      font-weight: bold;
-      color: #1a73e8;
-      margin-top: 14pt;
-      margin-bottom: 8pt;
-      page-break-after: avoid;
-    }
-    
-    .level-3-body {
-      font-size: 11pt;
       font-weight: normal;
       color: #000000;
       margin-bottom: 8pt;
-      line-height: 1.4;
+      margin-left: 1.0in;
+      padding-left: 0.4in;
+      text-indent: -0.4in;
+      line-height: 1.5;
+    }
+    .level-3-marker {
+      font-weight: normal;
+    }
+    .level-3-header {
+      text-decoration: underline;
+      font-weight: normal;
     }
     
     /* Level 4 (Sub-Clause): Bold, BLACK, indented with hanging indent */
@@ -1642,10 +1673,7 @@ function getContractStyles(): string {
       text-decoration: underline;
       font-weight: normal;
     }
-    .mef-level-2-content {
-      font-weight: normal;
-    }
-    .mef-level-2.conspicuous .mef-level-2-content {
+    .mef-level-2.conspicuous {
       font-weight: bold;
     }
     .mef-level-3 {
@@ -1665,10 +1693,7 @@ function getContractStyles(): string {
       text-decoration: underline;
       font-weight: normal;
     }
-    .mef-level-3-content {
-      font-weight: normal;
-    }
-    .mef-level-3.conspicuous .mef-level-3-content {
+    .mef-level-3.conspicuous {
       font-weight: bold;
     }
     .mef-body {
@@ -2099,40 +2124,43 @@ function generateHTMLFromClauses(
       line-height: 1.4;
     }
     
-    /* Level 2 (Section): Bold, blue, left-aligned */
+    /* Level 2 (Section): Inline header+body with hanging indent */
     .level-2 {
-      font-size: 12pt;
-      font-weight: bold;
-      color: #1a73e8;
+      font-size: 11pt;
+      font-weight: normal;
+      color: #000000;
       margin-top: 20pt;
       margin-bottom: 10pt;
-      page-break-after: avoid;
+      margin-left: 0.5in;
+      padding-left: 0.3in;
+      text-indent: -0.3in;
+      line-height: 1.5;
     }
-    
-    .level-2-body {
-      font-size: 11pt;
+    .level-2-marker {
       font-weight: normal;
-      color: #000000;
-      margin-bottom: 10pt;
-      line-height: 1.4;
+    }
+    .level-2-header {
+      text-decoration: underline;
+      font-weight: normal;
     }
     
-    /* Level 3 (Clause): Bold, blue, smaller */
+    /* Level 3 (Clause): Inline header+body with deeper hanging indent */
     .level-3 {
       font-size: 11pt;
-      font-weight: bold;
-      color: #1a73e8;
-      margin-top: 14pt;
-      margin-bottom: 8pt;
-      page-break-after: avoid;
-    }
-    
-    .level-3-body {
-      font-size: 11pt;
       font-weight: normal;
       color: #000000;
       margin-bottom: 8pt;
-      line-height: 1.4;
+      margin-left: 1.0in;
+      padding-left: 0.4in;
+      text-indent: -0.4in;
+      line-height: 1.5;
+    }
+    .level-3-marker {
+      font-weight: normal;
+    }
+    .level-3-header {
+      text-decoration: underline;
+      font-weight: normal;
     }
     
     /* Level 4 (Sub-Clause): Bold, BLACK, indented with hanging indent */
@@ -2263,10 +2291,7 @@ function generateHTMLFromClauses(
       text-decoration: underline;
       font-weight: normal;
     }
-    .mef-level-2-content {
-      font-weight: normal;
-    }
-    .mef-level-2.conspicuous .mef-level-2-content {
+    .mef-level-2.conspicuous {
       font-weight: bold;
     }
     .mef-level-3 {
@@ -2286,10 +2311,7 @@ function generateHTMLFromClauses(
       text-decoration: underline;
       font-weight: normal;
     }
-    .mef-level-3-content {
-      font-weight: normal;
-    }
-    .mef-level-3.conspicuous .mef-level-3-content {
+    .mef-level-3.conspicuous {
       font-weight: bold;
     }
     .mef-body {
@@ -3052,6 +3074,14 @@ function formatContent(content: string): string {
   }
   
   return html;
+}
+
+function stripBlockWrappers(html: string): string {
+  if (!html) return '';
+  let result = html.trim();
+  result = result.replace(/^<p[^>]*>([\s\S]*)<\/p>$/i, '$1');
+  result = result.replace(/^<div[^>]*>([\s\S]*)<\/div>$/i, '$1');
+  return result.trim();
 }
 
 function formatInlineStyles(text: string): string {
