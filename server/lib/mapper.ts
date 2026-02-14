@@ -953,11 +953,7 @@ export function mapProjectToVariables(
   </tbody>
 </table>`.trim(),
 
-    SIGNATURE_BLOCK_TABLE: buildSignatureBlock(
-      project.name || '',
-      client?.legalName || '',
-      client?.entityType || ''
-    ),
+    SIGNATURE_BLOCK_TABLE: '',
 
     // ===================
     // MILESTONES (spread in the milestone objects)
