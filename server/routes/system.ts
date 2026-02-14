@@ -351,9 +351,9 @@ router.delete("/variable-mappings/:id", async (req, res) => {
 // ADMIN ENDPOINTS
 // ---------------------------------------------------------------------------
 
-router.post("/admin/sync-library-data", async (req, res) => {
+const syncLibraryHandler = async (req: any, res: any) => {
   try {
-    const syncKey = req.headers["x-sync-key"] || req.body?.syncKey;
+    const syncKey = req.headers["x-sync-key"] || req.query?.key || req.body?.syncKey;
     const expectedKey = process.env.ADMIN_SYNC_KEY || "dvele-sync-2026";
     if (syncKey !== expectedKey) {
       return res.status(403).json({ error: "Unauthorized. Provide x-sync-key header." });
@@ -383,7 +383,9 @@ router.post("/admin/sync-library-data", async (req, res) => {
     console.error("Sync error:", error);
     res.status(500).json({ error: "Sync failed", details: error.message });
   }
-});
+};
+router.post("/admin/sync-library-data", syncLibraryHandler);
+router.get("/admin/sync-library-data", syncLibraryHandler);
 
 router.post("/admin/cleanup-duplicate-drafts", async (req, res) => {
   try {
