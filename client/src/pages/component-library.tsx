@@ -252,6 +252,18 @@ export default function ComponentLibrary() {
     enabled: selectedItem?.type === "builtin" && !!selectedProjectId,
   });
 
+  const isDbComponent = selectedItem?.type === "table" || selectedItem?.type === "block";
+  const { data: resolvedPreview, isLoading: resolvedPreviewLoading } = useQuery<{ html: string }>({
+    queryKey: ["/api/components/preview-resolved", isDbComponent ? selectedItem.data.id : "", selectedProjectId],
+    queryFn: async () => {
+      if (!isDbComponent || !selectedProjectId) return { html: "" };
+      const response = await fetch(`/api/components/preview-resolved/${selectedItem.data.id}?projectId=${selectedProjectId}`);
+      if (!response.ok) throw new Error("Failed to fetch resolved preview");
+      return response.json();
+    },
+    enabled: isDbComponent && !!selectedProjectId,
+  });
+
   const openCreateDialog = (prefix: "BLOCK" | "TABLE") => {
     setEditingComponent(null);
     form.reset({ tagName: `${prefix}_`, content: "", description: "", serviceModel: "" });
@@ -381,11 +393,21 @@ export default function ComponentLibrary() {
                   <Eye className="h-4 w-4 text-muted-foreground" />
                   <Label className="text-xs text-muted-foreground">Rendered Preview</Label>
                 </div>
-                <div
-                  className="border rounded-md p-4 bg-white"
-                  data-testid="detail-preview"
-                  dangerouslySetInnerHTML={{ __html: comp.content }}
-                />
+                {selectedProjectId && resolvedPreviewLoading ? (
+                  <Skeleton className="h-40 w-full" />
+                ) : selectedProjectId && resolvedPreview?.html ? (
+                  <div
+                    className="border rounded-md p-4 bg-white"
+                    data-testid="detail-preview"
+                    dangerouslySetInnerHTML={{ __html: resolvedPreview.html }}
+                  />
+                ) : (
+                  <div
+                    className="border rounded-md p-4 bg-white"
+                    data-testid="detail-preview"
+                    dangerouslySetInnerHTML={{ __html: comp.content }}
+                  />
+                )}
               </div>
             </div>
           </ScrollArea>
@@ -461,11 +483,27 @@ export default function ComponentLibrary() {
                   <Eye className="h-4 w-4 text-muted-foreground" />
                   <Label className="text-xs text-muted-foreground">Rendered Preview</Label>
                 </div>
-                <div
-                  className="border rounded-md p-4 bg-white"
-                  data-testid="detail-preview"
-                  dangerouslySetInnerHTML={{ __html: freshComp.content }}
-                />
+                {!selectedProjectId ? (
+                  <div
+                    className="border rounded-md p-4 bg-white"
+                    data-testid="detail-preview"
+                    dangerouslySetInnerHTML={{ __html: freshComp.content }}
+                  />
+                ) : resolvedPreviewLoading ? (
+                  <Skeleton className="h-40 w-full" />
+                ) : resolvedPreview?.html ? (
+                  <div
+                    className="border rounded-md p-4 bg-white"
+                    data-testid="detail-preview"
+                    dangerouslySetInnerHTML={{ __html: resolvedPreview.html }}
+                  />
+                ) : (
+                  <div
+                    className="border rounded-md p-4 bg-white"
+                    data-testid="detail-preview"
+                    dangerouslySetInnerHTML={{ __html: freshComp.content }}
+                  />
+                )}
               </div>
             </div>
           </ScrollArea>

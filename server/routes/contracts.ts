@@ -2627,6 +2627,44 @@ router.get("/components/preview/:componentId", async (req, res) => {
   }
 });
 
+router.get("/components/preview-resolved/:componentId", async (req, res) => {
+  try {
+    const componentId = parseInt(req.params.componentId);
+    const { projectId } = req.query;
+
+    if (!projectId) {
+      return res.json({ html: "<p class='text-center text-gray-500 py-4'>Select a project to see live data</p>" });
+    }
+
+    const compResult = await pool.query("SELECT * FROM component_library WHERE id = $1", [componentId]);
+    if (compResult.rows.length === 0) {
+      return res.json({ html: "<p class='text-center text-red-500 py-4'>Component not found</p>" });
+    }
+
+    const component = compResult.rows[0];
+    let html = component.content || "";
+
+    const variables = html.match(/\{\{[A-Z_]+\}\}/g);
+    if (variables && variables.length > 0) {
+      const fullProject = await getProjectWithRelations(parseInt(projectId as string));
+      if (fullProject) {
+        const { mapProjectToVariables } = await import("../lib/mapper");
+        const projectData = mapProjectToVariables(fullProject);
+        for (const varTag of variables) {
+          const varName = varTag.replace(/\{\{|\}\}/g, "");
+          const value = (projectData as any)[varName] || `[${varName}]`;
+          html = html.replace(new RegExp(varTag.replace(/[{}]/g, '\\$&'), 'g'), value);
+        }
+      }
+    }
+
+    res.json({ html });
+  } catch (error: any) {
+    console.error("Component resolved preview error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ---------------------------------------------------------------------------
 // TABLE DEFINITIONS CRUD
 // ---------------------------------------------------------------------------
