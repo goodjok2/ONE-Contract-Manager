@@ -1010,7 +1010,7 @@ function resolveExhibitTags(content: string): string {
  * Uses preloaded cache for synchronous resolution
  * Generic regex approach - matches ALL {{BLOCK_*}} tags
  */
-function resolveBlockTags(content: string, serviceModel: string): string {
+function resolveBlockTags(content: string, serviceModel: string, variableMap?: Record<string, string>): string {
   let result = content;
   
   // Find ALL {{BLOCK_*}} and {{TABLE_*}} tags using generic regex
@@ -1019,8 +1019,14 @@ function resolveBlockTags(content: string, serviceModel: string): string {
   const uniqueTags = Array.from(new Set(allMatches.map(m => m[1])));
   
   for (const tagName of uniqueTags) {
-    const blockContent = blockComponentCache.get(tagName);
+    let blockContent = blockComponentCache.get(tagName);
     if (blockContent) {
+      if (variableMap) {
+        Object.entries(variableMap).forEach(([key, value]) => {
+          const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
+          blockContent = blockContent!.replace(regex, value || '');
+        });
+      }
       const escapedTagName = tagName.replace(/\./g, '\\.');
       result = result.replace(new RegExp(`\\{\\{${escapedTagName}\\}\\}`, 'g'), blockContent);
       if (tagName.startsWith('TABLE_SIGNATURE')) {
@@ -1040,8 +1046,9 @@ function replaceVariables(content: string, variableMap: Record<string, string>):
   let result = content;
   
   // Process BLOCK_ and TABLE_ component tags based on current service model
+  // Pass variableMap so variables inside components are resolved without blue highlight markers
   if (result.includes('{{BLOCK_') || result.includes('{{TABLE_')) {
-    result = resolveBlockTags(result, currentServiceModel);
+    result = resolveBlockTags(result, currentServiceModel, variableMap);
   }
   
   // Process EXHIBIT_ tags ({{EXHIBIT_A}} through {{EXHIBIT_G}})
