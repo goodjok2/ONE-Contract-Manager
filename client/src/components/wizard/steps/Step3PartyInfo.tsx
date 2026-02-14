@@ -476,8 +476,8 @@ export const Step3PartyInfo: React.FC = () => {
               </Label>
               <Input
                 id="clientTitle"
-                value={projectData.clientTitle}
-                onChange={(e) => updateProjectData({ clientTitle: e.target.value })}
+                value={projectData.clientSignerTitle}
+                onChange={(e) => updateProjectData({ clientSignerTitle: e.target.value })}
                 placeholder={
                   projectData.clientEntityType === 'LLC' ? 'e.g., Managing Member' : 
                   projectData.clientEntityType === 'Corporation' ? 'e.g., President, CEO' :

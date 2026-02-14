@@ -1166,7 +1166,7 @@ export function mapProjectToVariables(
     
     // Client signer info - use existing fields
     CLIENT_FULL_NAME: client?.legalName || "",
-    CLIENT_TITLE: client?.entityType || "",
+    CLIENT_TITLE: client?.trusteeTitle || "",
     
     // Milestone percent aliases - get from milestones array
     MILESTONE_1_PERCENT: milestones.find(m => m.milestoneNumber === 1)?.percentage?.toString() || "20",
