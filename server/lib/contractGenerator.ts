@@ -1519,6 +1519,9 @@ function getContractStyles(): string {
       line-height: 1.5;
     }
     .level-2-marker {
+      display: inline-block;
+      width: 0.3in;
+      text-indent: 0;
       font-weight: normal;
     }
     .level-2-header {
@@ -1538,6 +1541,9 @@ function getContractStyles(): string {
       line-height: 1.5;
     }
     .level-3-marker {
+      display: inline-block;
+      width: 0.4in;
+      text-indent: 0;
       font-weight: normal;
     }
     .level-3-header {
@@ -1667,6 +1673,9 @@ function getContractStyles(): string {
       line-height: 1.4;
     }
     .mef-level-2-marker {
+      display: inline-block;
+      width: 0.3in;
+      text-indent: 0;
       font-weight: normal;
     }
     .mef-level-2-header {
@@ -1687,6 +1696,9 @@ function getContractStyles(): string {
       line-height: 1.4;
     }
     .mef-level-3-marker {
+      display: inline-block;
+      width: 0.4in;
+      text-indent: 0;
       font-weight: normal;
     }
     .mef-level-3-header {
@@ -2137,6 +2149,9 @@ function generateHTMLFromClauses(
       line-height: 1.5;
     }
     .level-2-marker {
+      display: inline-block;
+      width: 0.3in;
+      text-indent: 0;
       font-weight: normal;
     }
     .level-2-header {
@@ -2156,6 +2171,9 @@ function generateHTMLFromClauses(
       line-height: 1.5;
     }
     .level-3-marker {
+      display: inline-block;
+      width: 0.4in;
+      text-indent: 0;
       font-weight: normal;
     }
     .level-3-header {
@@ -2285,6 +2303,9 @@ function generateHTMLFromClauses(
       line-height: 1.4;
     }
     .mef-level-2-marker {
+      display: inline-block;
+      width: 0.3in;
+      text-indent: 0;
       font-weight: normal;
     }
     .mef-level-2-header {
@@ -2305,6 +2326,9 @@ function generateHTMLFromClauses(
       line-height: 1.4;
     }
     .mef-level-3-marker {
+      display: inline-block;
+      width: 0.4in;
+      text-indent: 0;
       font-weight: normal;
     }
     .mef-level-3-header {
