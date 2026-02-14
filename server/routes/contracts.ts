@@ -2842,72 +2842,34 @@ router.post("/resolve-clause-tables", async (req, res) => {
       return res.json({ html: "" });
     }
     
-    const { renderDynamicTable, getAllTableDefinitions } = await import("../lib/tableBuilders");
-    const { generatePricingTableHtml, generatePaymentScheduleHtml, generateUnitDetailsHtml } = await import("../lib/tableGenerators");
-    const { calculateProjectPricing } = await import("../services/pricingEngine");
-    
     let resolvedContent = content;
     
     if (projectId) {
       const pid = parseInt(projectId);
-      
-      if (resolvedContent.includes("{{PRICING_BREAKDOWN_TABLE}}")) {
-        try {
-          const pricing = await calculateProjectPricing(pid);
-          const pricingHtml = generatePricingTableHtml(pricing, 'MASTER_EF');
-          resolvedContent = resolvedContent.replace(/\{\{PRICING_BREAKDOWN_TABLE\}\}/g, pricingHtml);
-        } catch {
-          resolvedContent = resolvedContent.replace(/\{\{PRICING_BREAKDOWN_TABLE\}\}/g, '<p class="text-muted-foreground">[Pricing - No data available]</p>');
-        }
-      }
-      
-      if (resolvedContent.includes("{{PAYMENT_SCHEDULE_TABLE}}")) {
-        try {
-          const pricing = await calculateProjectPricing(pid);
-          const milestones = [
-            { name: "Design Agreement Signing", percentage: 10, amount: pricing ? pricing.contractValue * 0.10 : 0, phase: "Design" },
-            { name: "Green Light / Production Start", percentage: 40, amount: pricing ? pricing.contractValue * 0.40 : 0, phase: "Production" },
-            { name: "Module Delivery", percentage: 40, amount: pricing ? pricing.contractValue * 0.40 : 0, phase: "Delivery" },
-            { name: "Final Completion", percentage: 10, amount: pricing ? pricing.contractValue * 0.10 : 0, phase: "Completion" },
-          ];
-          const scheduleHtml = generatePaymentScheduleHtml(milestones);
-          resolvedContent = resolvedContent.replace(/\{\{PAYMENT_SCHEDULE_TABLE\}\}/g, scheduleHtml);
-        } catch {
-          resolvedContent = resolvedContent.replace(/\{\{PAYMENT_SCHEDULE_TABLE\}\}/g, '<p class="text-muted-foreground">[Payment Schedule - No data available]</p>');
-        }
-      }
-      
-      if (resolvedContent.includes("{{UNIT_SPEC_TABLE}}")) {
-        try {
-          const unitsResult = await pool.query(
-            `SELECT pu.*, hm.name as model_name, hm.model_code, hm.bedrooms, hm.bathrooms, hm.sq_ft
-             FROM project_units pu
-             JOIN home_models hm ON hm.id = pu.model_id
-             WHERE pu.project_id = $1
-             ORDER BY pu.unit_label`,
-            [pid]
-          );
-          const formattedUnits = unitsResult.rows.map(u => ({
-            unitLabel: u.unit_label,
-            modelName: u.model_name,
-            bedrooms: u.bedrooms,
-            bathrooms: u.bathrooms,
-            squareFootage: u.sq_ft,
-            estimatedPrice: (u.base_price_snapshot || 0) + (u.customization_total || 0),
-          }));
-          const unitHtml = generateUnitDetailsHtml(formattedUnits);
-          resolvedContent = resolvedContent.replace(/\{\{UNIT_SPEC_TABLE\}\}/g, unitHtml);
-        } catch {
-          resolvedContent = resolvedContent.replace(/\{\{UNIT_SPEC_TABLE\}\}/g, '<p class="text-muted-foreground">[Unit Spec - No data available]</p>');
-        }
-      }
-      
-      const tableDefs = await getAllTableDefinitions();
-      for (const table of tableDefs) {
-        const pattern = new RegExp(`\\{\\{${table.variable_name}\\}\\}`, 'g');
-        if (pattern.test(resolvedContent)) {
-          const tableHtml = await renderDynamicTable(table.id, pid);
-          resolvedContent = resolvedContent.replace(pattern, tableHtml);
+      const { resolveComponentTags } = await import("../services/component-library");
+
+      resolvedContent = await resolveComponentTags(resolvedContent, {
+        projectId: pid,
+        organizationId: 1,
+        contractType: 'MASTER_EF',
+        onSiteType: 'CRC',
+      });
+
+      const remainingVars = resolvedContent.match(/\{\{[A-Z_]+\}\}/g);
+      if (remainingVars && remainingVars.length > 0) {
+        const fullProject = await getProjectWithRelations(pid);
+        if (fullProject) {
+          const { mapProjectToVariables } = await import("../lib/mapper");
+          const projectData = mapProjectToVariables(fullProject);
+          const uniqueVars = Array.from(new Set(remainingVars));
+          for (const varTag of uniqueVars) {
+            const varName = varTag.replace(/\{\{|\}\}/g, "");
+            const value = (projectData as any)[varName];
+            const replacement = (value !== undefined && value !== null && value !== '') 
+              ? String(value) 
+              : `[${varName}]`;
+            resolvedContent = resolvedContent.replace(new RegExp(varTag.replace(/[{}]/g, '\\$&'), 'g'), replacement);
+          }
         }
       }
     }
