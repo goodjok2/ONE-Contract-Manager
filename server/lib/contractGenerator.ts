@@ -2898,11 +2898,7 @@ function renderSignatureBlocks(projectData: Record<string, any>): string {
   const clientSignerName = projectData.CLIENT_SIGNER_NAME || projectData.clientSignerName || '';
   const clientTitle = projectData.CLIENT_TITLE || projectData.clientTitle || '';
   
-  const witnessClause = `<p style="font-weight: bold; margin-bottom: 24pt;">
-    IN WITNESS WHEREOF, the parties hereto have executed this Agreement as of the date first written above.
-  </p>`;
-
-  return witnessClause + buildSignatureBlock({
+  return buildSignatureBlock({
     leftTitle: 'COMPANY:',
     rightTitle: 'CLIENT:',
     companyName: escapeHtml(companyName),
