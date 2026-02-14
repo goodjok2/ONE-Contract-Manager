@@ -632,6 +632,7 @@ export function mapProjectToVariables(
     CLIENT_TRUST_DATE: client?.trustDate || "",
     CLIENT_TRUST_DATE_WRITTEN: formatDateWritten(client?.trustDate),
     CLIENT_TRUSTEE_NAME: client?.trusteeName || "",
+    CLIENT_SIGNER_NAME: client?.trusteeName || "",
     CLIENT2_LEGAL_NAME: client?.client2LegalName || "",
     CLIENT2_ENTITY_TYPE: client?.client2EntityType || "",
     OWNERSHIP_SPLIT: client?.ownershipSplit || "",
