@@ -1,4 +1,5 @@
 import puppeteer from 'puppeteer-core';
+import { buildSignatureBlock } from './tableStyles';
 
 interface ContractGenerationOptions {
   contractType: 'MASTER_EF' | 'ONE' | 'MANUFACTURING' | 'ONSITE';
@@ -2846,49 +2847,23 @@ function renderRecitals(projectData: Record<string, any>): string {
 }
 
 function renderSignatureBlocks(projectData: Record<string, any>): string {
-  // Support both uppercase (from mapper) and camelCase (legacy) variable names
   const clientName = projectData.CLIENT_LEGAL_NAME || projectData.clientLegalName || projectData.clientFullName || '[CLIENT NAME]';
   const companyName = projectData.DVELE_LEGAL_NAME || projectData.COMPANY_NAME || 'Dvele, Inc.';
   const clientSignerName = projectData.CLIENT_SIGNER_NAME || projectData.clientSignerName || '';
   const clientTitle = projectData.CLIENT_TITLE || projectData.clientTitle || '';
   
-  return `
-    <div class="signature-section" style="margin-top: 48pt; page-break-inside: avoid;">
-      <p style="font-weight: bold; margin-bottom: 24pt;">
-        IN WITNESS WHEREOF, the parties hereto have executed this Agreement as of the date first written above.
-      </p>
-      
-      <table style="width: 100%; border: none; margin-top: 24pt;">
-        <tr>
-          <td style="width: 48%; border: none; vertical-align: top; padding-right: 20pt;">
-            <div style="font-weight: bold; color: #1a73e8; margin-bottom: 8pt;">COMPANY:</div>
-            <div style="font-weight: bold; margin-bottom: 24pt;">${escapeHtml(companyName)}</div>
-            <div style="border-bottom: 1px solid #000; margin-bottom: 4pt; height: 24pt;"></div>
-            <div style="font-size: 9pt; color: #666;">Signature</div>
-            <div style="margin-top: 16pt; border-bottom: 1px solid #000; margin-bottom: 4pt; height: 18pt;"></div>
-            <div style="font-size: 9pt; color: #666;">Name (Print)</div>
-            <div style="margin-top: 16pt; border-bottom: 1px solid #000; margin-bottom: 4pt; height: 18pt;"></div>
-            <div style="font-size: 9pt; color: #666;">Title</div>
-            <div style="margin-top: 16pt; border-bottom: 1px solid #000; margin-bottom: 4pt; height: 18pt;"></div>
-            <div style="font-size: 9pt; color: #666;">Date</div>
-          </td>
-          <td style="width: 4%; border: none;"></td>
-          <td style="width: 48%; border: none; vertical-align: top;">
-            <div style="font-weight: bold; color: #1a73e8; margin-bottom: 8pt;">CLIENT:</div>
-            <div style="font-weight: bold; margin-bottom: 24pt;">${escapeHtml(clientName)}</div>
-            <div style="border-bottom: 1px solid #000; margin-bottom: 4pt; height: 24pt;"></div>
-            <div style="font-size: 9pt; color: #666;">Signature</div>
-            <div style="margin-top: 16pt; border-bottom: 1px solid #000; margin-bottom: 4pt; height: 18pt;"></div>
-            <div style="font-size: 9pt; color: #666;">Name (Print): ${clientSignerName ? escapeHtml(clientSignerName) : ''}</div>
-            <div style="margin-top: 16pt; border-bottom: 1px solid #000; margin-bottom: 4pt; height: 18pt;"></div>
-            <div style="font-size: 9pt; color: #666;">Title: ${clientTitle ? escapeHtml(clientTitle) : ''}</div>
-            <div style="margin-top: 16pt; border-bottom: 1px solid #000; margin-bottom: 4pt; height: 18pt;"></div>
-            <div style="font-size: 9pt; color: #666;">Date</div>
-          </td>
-        </tr>
-      </table>
-    </div>
-  `;
+  const witnessClause = `<p style="font-weight: bold; margin-bottom: 24pt;">
+    IN WITNESS WHEREOF, the parties hereto have executed this Agreement as of the date first written above.
+  </p>`;
+
+  return witnessClause + buildSignatureBlock({
+    leftTitle: 'COMPANY:',
+    rightTitle: 'CLIENT:',
+    companyName: escapeHtml(companyName),
+    clientName: escapeHtml(clientName),
+    clientSignerName: clientSignerName ? escapeHtml(clientSignerName) : undefined,
+    clientTitle: clientTitle ? escapeHtml(clientTitle) : undefined,
+  });
 }
 
 function formatContent(content: string): string {

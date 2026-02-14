@@ -48,6 +48,7 @@ export async function fetchComponentFromDB(
        WHERE organization_id = $1 
          AND tag_name = $2 
          AND (service_model = $3 OR service_model IS NULL)
+         AND (is_active = true OR is_active IS NULL)
        ORDER BY CASE WHEN service_model = $3 THEN 0 ELSE 1 END
        LIMIT 1`,
       [organizationId, tagName, serviceModel]
@@ -170,55 +171,17 @@ export async function renderExhibitsList(
     return '<p>No exhibits available for this contract type.</p>';
   }
 
-  const tableStyle = `
-    width: 100%;
-    border-collapse: collapse;
-    font-family: Arial, sans-serif;
-    font-size: 11pt;
-    margin: 16px 0;
-  `.trim().replace(/\s+/g, ' ');
-
-  const headerCellStyle = `
-    background-color: #2c3e50;
-    color: white;
-    padding: 12px 16px;
-    text-align: left;
-    font-weight: bold;
-    border: 1px solid #2c3e50;
-  `.trim().replace(/\s+/g, ' ');
-
-  const rows = result.rows.map((exhibit: Exhibit, index: number) => {
-    const isEven = index % 2 === 0;
-    const rowBg = isEven ? 'background-color: #ffffff;' : 'background-color: #f8f9fa;';
-
-    const cellStyle = `
-      padding: 10px 16px;
-      border: 1px solid #ddd;
-      text-align: left;
-      ${rowBg}
-    `.trim().replace(/\s+/g, ' ');
-
-    return `
-    <tr>
-      <td style="${cellStyle}">${exhibit.name}</td>
-      <td style="${cellStyle}">${exhibit.title || exhibit.description || '-'}</td>
-    </tr>
-    `;
-  }).join('');
-
-  return `
-<table style="${tableStyle}">
-  <thead>
-    <tr>
-      <th style="${headerCellStyle}">Exhibit</th>
-      <th style="${headerCellStyle}">Description</th>
-    </tr>
-  </thead>
-  <tbody>
-    ${rows}
-  </tbody>
-</table>
-  `.trim();
+  const { buildStyledTable } = await import('../lib/tableStyles');
+  
+  return buildStyledTable({
+    columns: [
+      { header: 'Exhibit', align: 'left' },
+      { header: 'Description', align: 'left' },
+    ],
+    rows: result.rows.map((exhibit: Exhibit) => ({
+      cells: [exhibit.name, exhibit.title || exhibit.description || '-'],
+    })),
+  });
 }
 
 // =============================================================================
@@ -232,25 +195,23 @@ export async function resolveComponentTags(
   let result = content;
   const onSiteType = context.onSiteType || 'CRC';
 
-  // Step 1: Handle ALL {{BLOCK_*}} tags using generic regex (DB lookup)
-  const blockTagRegex = /\{\{(BLOCK_[A-Z0-9_.]+)\}\}/g;
-  const allMatches = Array.from(result.matchAll(blockTagRegex));
-  const blockMatches = Array.from(new Set(allMatches.map(m => m[1])));
+  // Step 1: Handle ALL {{BLOCK_*}} and {{TABLE_*}} tags using generic regex (DB lookup)
+  const componentTagRegex = /\{\{((?:BLOCK|TABLE)_[A-Z0-9_.]+)\}\}/g;
+  const allMatches = Array.from(result.matchAll(componentTagRegex));
+  const componentMatches = Array.from(new Set(allMatches.map(m => m[1])));
 
-  for (const tagName of blockMatches) {
-    const blockContent = await fetchComponentFromDB(tagName, context.organizationId, onSiteType);
-    if (blockContent) {
-      // Escape dots in tag name for regex
+  for (const tagName of componentMatches) {
+    const dbContent = await fetchComponentFromDB(tagName, context.organizationId, onSiteType);
+    if (dbContent) {
       const escapedTagName = tagName.replace(/\./g, '\\.');
-      result = result.replace(new RegExp(`\\{\\{${escapedTagName}\\}\\}`, 'g'), blockContent);
+      result = result.replace(new RegExp(`\\{\\{${escapedTagName}\\}\\}`, 'g'), dbContent);
     } else {
       console.warn(`No component found for {{${tagName}}} with service_model=${onSiteType}`);
-      // Leave the placeholder in place so it shows up as unresolved in preview
     }
   }
 
-  // Step 2: Handle TABLE_ tags (computed components, not DB lookups)
-  // These come AFTER BLOCK_ resolution so blocks can contain table variables
+  // Step 2: Handle data-driven tables (computed components, NOT DB lookups)
+  // These OVERRIDE any DB content because they need live project data
   
   if (result.includes('{{PRICING_BREAKDOWN_TABLE}}')) {
     const pricingSummary = context.pricingSummary || await calculateProjectPricing(context.projectId);
