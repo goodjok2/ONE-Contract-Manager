@@ -351,6 +351,40 @@ router.delete("/variable-mappings/:id", async (req, res) => {
 // ADMIN ENDPOINTS
 // ---------------------------------------------------------------------------
 
+router.post("/admin/sync-library-data", async (req, res) => {
+  try {
+    const syncKey = req.headers["x-sync-key"] || req.body?.syncKey;
+    const expectedKey = process.env.ADMIN_SYNC_KEY || "dvele-sync-2026";
+    if (syncKey !== expectedKey) {
+      return res.status(403).json({ error: "Unauthorized. Provide x-sync-key header." });
+    }
+
+    const fs = await import("fs");
+    const path = await import("path");
+    const sqlFilePath = path.resolve("scripts/prod-sync.sql");
+
+    if (!fs.existsSync(sqlFilePath)) {
+      return res.status(404).json({ error: "Sync SQL file not found. Run: npx tsx scripts/sync-to-production.ts" });
+    }
+
+    const sqlContent = fs.readFileSync(sqlFilePath, "utf-8");
+    await pool.query(sqlContent);
+
+    const clauseCount = await pool.query("SELECT COUNT(*) FROM clauses");
+    const componentCount = await pool.query("SELECT COUNT(*) FROM component_library");
+
+    res.json({
+      success: true,
+      message: "Library data synced successfully",
+      clauses: parseInt(clauseCount.rows[0].count),
+      components: parseInt(componentCount.rows[0].count),
+    });
+  } catch (error: any) {
+    console.error("Sync error:", error);
+    res.status(500).json({ error: "Sync failed", details: error.message });
+  }
+});
+
 router.post("/admin/cleanup-duplicate-drafts", async (req, res) => {
   try {
     const duplicatesQuery = `
