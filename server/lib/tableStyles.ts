@@ -1,5 +1,5 @@
 export const TABLE_STYLES = {
-  headerBg: '#2c3e50',
+  headerBg: '#3b82f6',
   headerText: '#ffffff',
   headerFont: 'font-weight: bold; font-size: 10pt; font-family: Arial, sans-serif;',
 
@@ -7,7 +7,7 @@ export const TABLE_STYLES = {
   oddRowBg: '#f8f9fa',
 
   border: '1px solid #dee2e6',
-  headerBorder: '1px solid #2c3e50',
+  headerBorder: '1px solid #3b82f6',
 
   cellPadding: 'padding: 8px 12px;',
 
