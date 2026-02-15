@@ -1,0 +1,51 @@
+# VARIABLE REGISTRY AUDIT: Canonical Variable Names & Clause Correction
+
+## Goal
+Establish a single source of truth for all contract template variables, then fix every clause that uses a non-canonical variable name. This eliminates unreplaced `{{VARIABLE}}` tags in generated contracts at the root cause — mismatched names between what the mapper produces and what the clauses reference.
+
+## Background
+The contract generator resolves `{{VARIABLE}}` tags in clause content by looking them up in a variable map built by `server/lib/mapper.ts`. If a clause uses `{{DELIVERY_ADDRESS}}` but the mapper only produces `SITE_ADDRESS`, the tag stays unreplaced in the final PDF. Right now there are 8+ unreplaced variables in generated contracts caused by exactly this kind of mismatch.
+
+We do NOT want to add aliases in the mapper. We want to fix the clause content to use the correct variable names.
+
+---
+
+## Phase 1: Extract the Canonical Variable Registry
+
+### Step 1A: Extract all variable keys from mapper.ts
+
+```bash
+grep -oP '^\s*[A-Z][A-Z0-9_]+(?=\s*:)' server/lib/mapper.ts | sort | uniq > /tmp/mapper_variables.txt
+```
+
+If that regex doesn't capture everything, open `server/lib/mapper.ts` and manually list every key in the returned object. The mapper builds a key-value map — every key is a canonical variable name.
+
+### Step 1B: Extract all variable keys from tableGenerators.ts
+
+```bash
+grep -oP '[A-Z][A-Z0-9_]+_TABLE' server/lib/tableGenerators.ts | sort | uniq >> /tmp/mapper_variables.txt
+```
+
+These are the built-in table variables like `PRICING_BREAKDOWN_TABLE`, `PAYMENT_SCHEDULE_TABLE`, `UNIT_SPECIFICATION_TABLE`.
+
+### Step 1C: Extract all BLOCK component variable names
+
+```bash
+grep -oP 'BLOCK_[A-Z0-9_]+' server/lib/contractGenerator.ts | sort | uniq >> /tmp/mapper_variables.txt
+```
+
+Also check the components table:
+```sql
+SELECT DISTINCT variable_name FROM components WHERE is_active = true;
+```
+
+### Step 1D: Deduplicate and sort
+
+```bash
+sort /tmp/mapper_variables.txt | uniq > /tmp/canonical_variables.txt
+cat /tmp/canonical_variables.txt
+```
+
+**Report:** Print the full canonical variable list with a count. This is the source of truth.
+
+---

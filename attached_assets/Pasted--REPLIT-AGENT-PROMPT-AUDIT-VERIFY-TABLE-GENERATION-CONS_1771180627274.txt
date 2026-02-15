@@ -1,0 +1,169 @@
+# REPLIT AGENT PROMPT — AUDIT & VERIFY TABLE GENERATION CONSOLIDATION
+
+## GOAL
+
+We need to confirm that ALL table HTML in the contract generator flows through ONE styling system. Run this audit, report the findings, then fix any tables that are still generating their own inline styles instead of using the shared `tableStyles.ts`.
+
+## STEP 1: FIND EVERY TABLE GENERATOR
+
+Run these searches and report the results:
+
+```bash
+echo "=== 1. Files containing <table HTML generation ==="
+grep -rln "<table" server/lib/ server/services/ server/routes/
+
+echo ""
+echo "=== 2. Files importing from tableStyles.ts ==="
+grep -rln "tableStyles\|buildStyledTable\|TABLE_STYLES" server/lib/ server/services/
+
+echo ""
+echo "=== 3. Files with hardcoded header background colors ==="
+grep -rn "background-color.*#\|background:#\|headerBg\|header.*bg" server/lib/ server/services/ | grep -v node_modules | grep -v ".map"
+
+echo ""
+echo "=== 4. Files with inline table styles NOT from tableStyles ==="
+grep -rn "border-collapse\|<table style\|<th style\|<thead" server/lib/ server/services/ | grep -v node_modules | grep -v ".map"
+
+echo ""
+echo "=== 5. Component library entries with inline table HTML ==="
+# Run this SQL query
+psql -c "SELECT id, tag_name, LEFT(content, 100) FROM component_library WHERE content LIKE '%<table%';"
+
+echo ""
+echo "=== 6. Table definitions with inline styles ==="
+psql -c "SELECT id, variable_name FROM table_definitions WHERE columns::text LIKE '%style%' OR rows::text LIKE '%style%';"
+
+echo ""
+echo "=== 7. Mapper variables that contain HTML tables ==="
+grep -n "TABLE\|_table\|Table" server/lib/mapper.ts | grep -v "import\|//\|console"
+```
+
+## STEP 2: CLASSIFY EACH TABLE SOURCE
+
+After running the searches, classify every file that generates `<table` HTML into one of these categories:
+
+### Category A: Already using `buildStyledTable()` from `tableStyles.ts`
+These are correctly consolidated. No changes needed.
+
+### Category B: Generating table HTML with their own inline styles
+These need to be refactored to use `buildStyledTable()`.
+
+### Category C: Storing pre-rendered HTML in the database
+These need their stored HTML updated to use the correct blue (#3b82f6) header color.
+
+### Category D: Generating tables that CAN'T use `buildStyledTable()` 
+(e.g., signature blocks, the A.1 key/value overview table, or other non-standard table layouts)
+These should at least import `TABLE_STYLES` constants for colors/borders even if they can't use `buildStyledTable()`.
+
+## STEP 3: REPORT THE AUDIT
+
+Create a summary like this:
+
+```
+TABLE GENERATION AUDIT RESULTS
+================================
+
+CONSOLIDATED (using tableStyles.ts):
+- [ ] server/lib/tableGenerators.ts — generatePricingTableHtml()
+- [ ] server/lib/tableGenerators.ts — generatePaymentScheduleHtml()  
+- [ ] server/lib/tableGenerators.ts — generateUnitDetailsHtml()
+- [ ] server/lib/tableBuilders.ts — renderDynamicTable()
+
+NOT CONSOLIDATED (own inline styles):
+- [ ] server/lib/contractGenerator.ts line XXX — A.1 overview table
+- [ ] server/lib/contractGenerator.ts line XXX — A.2 property matrix
+- [ ] server/lib/contractGenerator.ts line XXX — signature block
+- [ ] server/lib/mapper.ts line XXX — WHAT_HAPPENS_NEXT_TABLE
+- [ ] component_library row ID XX — TABLE_SIGNATURE_SECTION14
+
+DATABASE ENTRIES WITH INLINE STYLES:
+- [ ] component_library ID XX — tag: TABLE_XXX — has #2c3e50
+- [ ] component_library ID XX — tag: BLOCK_XXX — has #f2f2f2
+```
+
+## STEP 4: FIX EVERY NON-CONSOLIDATED TABLE
+
+For each item in the "NOT CONSOLIDATED" list:
+
+### If the table CAN use `buildStyledTable()`:
+Refactor to import and call it:
+```typescript
+import { buildStyledTable } from './tableStyles';
+
+// Replace the inline HTML with:
+const tableHtml = buildStyledTable({
+  columns: [
+    { header: 'Column 1', width: '30%' },
+    { header: 'Column 2', width: '70%' },
+  ],
+  rows: data.map(item => ({
+    cells: [item.label, item.value],
+  })),
+});
+```
+
+### If the table has a non-standard layout (key/value, signature block, etc.):
+Import the style CONSTANTS and use them for colors/borders:
+```typescript
+import { TABLE_STYLES } from './tableStyles';
+
+// Use the constants instead of hardcoded values:
+const html = `<table style="width: 100%; border-collapse: collapse;">
+  <tr>
+    <td style="background-color: ${TABLE_STYLES.headerBg}; color: ${TABLE_STYLES.headerText}; ${TABLE_STYLES.cellPadding} font-weight: bold;">Label</td>
+    <td style="${TABLE_STYLES.cellPadding} border-bottom: ${TABLE_STYLES.border};">Value</td>
+  </tr>
+</table>`;
+```
+
+This way, even non-standard tables use the same color constants, and changing the color in ONE place (`tableStyles.ts`) changes it everywhere.
+
+### If the table HTML is stored in the database:
+Update via SQL:
+```sql
+-- Replace any old colors with the standard blue
+UPDATE component_library 
+SET content = REPLACE(REPLACE(content, '#2c3e50', '#3b82f6'), '#f2f2f2', '#3b82f6')
+WHERE content LIKE '%<table%' AND (content LIKE '%2c3e50%' OR content LIKE '%f2f2f2%');
+```
+
+### If the table HTML is hardcoded in mapper.ts:
+Move it to the `component_library` database table as a `TABLE_*` entry, using `buildStyledTable()` to generate the initial HTML content. Then replace the mapper.ts hardcode with just the variable name assignment (the resolver will pull the content from the DB).
+
+## STEP 5: VERIFY NO TABLE GENERATES ITS OWN STYLES
+
+After all fixes, run the audit again:
+
+```bash
+echo "=== VERIFY: No files generate table HTML outside tableStyles ==="
+
+# Every file that has <table should ALSO import tableStyles
+for file in $(grep -rln "<table" server/lib/ server/services/ | grep -v node_modules); do
+  if grep -q "tableStyles\|TABLE_STYLES\|buildStyledTable" "$file"; then
+    echo "✅ $file — uses tableStyles"
+  else
+    echo "❌ $file — DOES NOT use tableStyles"
+  fi
+done
+
+echo ""
+echo "=== VERIFY: No hardcoded header colors remain ==="
+grep -rn "#2c3e50\|#f2f2f2" server/lib/ server/services/ | grep -v "node_modules\|.map\|tableStyles.ts"
+```
+
+The only file that should contain a color hex value is `tableStyles.ts` itself. Every other file should reference `TABLE_STYLES.headerBg` instead.
+
+## STEP 6: FINAL VERIFICATION
+
+Generate a contract and visually confirm:
+1. ✅ Every table in the entire contract has blue (#3b82f6) headers
+2. ✅ No gray (#f2f2f2) headers anywhere
+3. ✅ No dark navy (#2c3e50) headers anywhere
+4. ✅ All tables have alternating row striping (#ffffff / #f8f9fa)
+5. ✅ Signature blocks look clean (not affected by table color changes)
+
+Then confirm the code audit:
+6. ✅ `tableStyles.ts` is the ONLY file containing `#3b82f6` as a literal
+7. ✅ Every file that generates `<table` HTML imports from `tableStyles`
+8. ✅ Zero hardcoded table colors remain in any server file
+9. ✅ Zero component_library DB entries have hardcoded table colors

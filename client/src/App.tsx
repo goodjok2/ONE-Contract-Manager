@@ -1,4 +1,4 @@
-import { Switch, Route, useLocation } from "wouter";
+import { Switch, Route } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -34,7 +34,6 @@ import AdminContractorEntities from "@/pages/admin/contractor-entities";
 import AdminProjectUnits from "@/pages/admin/project-units";
 import AdminImportTemplates from "@/pages/admin/import-templates";
 import AdminVariables from "@/pages/admin/variables";
-import NewContractWizard from "@/pages/wizard/new";
 
 function Router() {
   return (
@@ -66,23 +65,16 @@ function Router() {
       <Route path="/admin/project-units" component={AdminProjectUnits} />
       <Route path="/admin/import-templates" component={AdminImportTemplates} />
       <Route path="/admin/variables" component={AdminVariables} />
-      <Route path="/wizard/new" component={NewContractWizard} />
       <Route component={NotFound} />
     </Switch>
   );
 }
 
 function AppContent() {
-  const [location] = useLocation();
-  
   const sidebarStyle = {
     "--sidebar-width": "16rem",
     "--sidebar-width-icon": "3rem",
   };
-
-  if (location.startsWith("/wizard")) {
-    return <Router />;
-  }
 
   return (
     <SidebarProvider style={sidebarStyle as React.CSSProperties}>

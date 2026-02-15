@@ -16,7 +16,7 @@ export default function Settings() {
   const [diagnosing, setDiagnosing] = useState(false);
   const [diagnosticResult, setDiagnosticResult] = useState<any>(null);
   
-  const [selectedContractType, setSelectedContractType] = useState("ONE");
+  const [selectedContractType, setSelectedContractType] = useState("MASTER_EF");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
   const [importPreview, setImportPreview] = useState<any>(null);
@@ -367,9 +367,10 @@ export default function Settings() {
                     <SelectValue placeholder="Select contract type" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="ONE">ONE Agreement</SelectItem>
-                    <SelectItem value="MANUFACTURING">Manufacturing Subcontract</SelectItem>
-                    <SelectItem value="ONSITE">On-Site Subcontract</SelectItem>
+                    <SelectItem value="MASTER_EF">Master Purchase Agreement</SelectItem>
+                    <SelectItem value="ONE">ONE Agreement (Archived)</SelectItem>
+                    <SelectItem value="MANUFACTURING">Manufacturing Subcontract (Archived)</SelectItem>
+                    <SelectItem value="ONSITE">On-Site Subcontract (Archived)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

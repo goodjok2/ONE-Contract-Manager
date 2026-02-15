@@ -176,48 +176,17 @@ export const Step9ReviewGenerate: React.FC = () => {
   const [isDownloading, setIsDownloading] = useState<string | null>(null);
   
   const handleDownload = async (contractType: string, contractName: string) => {
+    if (!draftProjectId) {
+      console.error('No project ID available for download');
+      return;
+    }
     try {
       setIsDownloading(contractType);
-      
-      const response = await fetch('/api/contracts/download-pdf', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          contractType,
-          projectId: draftProjectId,
-          projectData
-        }),
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to generate document');
-      }
-      
-      // Get filename from Content-Disposition header if available
-      const contentDisposition = response.headers.get('Content-Disposition');
-      let filename = `${projectData.projectNumber || 'DRAFT'}_${projectData.projectName?.replace(/\s+/g, '_') || 'Contract'}_${contractName.replace(/\s+/g, '_')}.pdf`;
-      if (contentDisposition) {
-        const match = contentDisposition.match(/filename="(.+)"/);
-        if (match) {
-          filename = match[1];
-        }
-      }
-      
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      window.open(`/api/contracts/download-pdf/${draftProjectId}/${contractType}`, '_blank');
     } catch (error) {
       console.error('Download error:', error);
     } finally {
-      setIsDownloading(null);
+      setTimeout(() => setIsDownloading(null), 2000);
     }
   };
   
@@ -274,49 +243,26 @@ export const Step9ReviewGenerate: React.FC = () => {
     }
   };
   
-  const contracts = [
-    { 
-      name: 'ONE Agreement', 
-      description: 'Master agreement between client and Dvele Partners LLC',
-      clauseCount: 47,
-      type: 'ONE',
-      clauses: [
-        { section: '1.0', name: 'Definitions', description: 'Key terms and definitions used throughout the agreement' },
-        { section: '2.0', name: 'Scope of Work', description: 'Description of services to be provided' },
-        { section: '3.0', name: 'Contract Price', description: 'Total contract value and payment terms' },
-        { section: '4.0', name: 'Payment Schedule', description: 'Milestone-based payment schedule' },
-        { section: '5.0', name: 'Project Timeline', description: 'Key dates and completion milestones' },
-        { section: '6.0', name: 'Warranties', description: 'Product and workmanship warranties' },
-        { section: '7.0', name: 'Dispute Resolution', description: 'Arbitration and legal jurisdiction' }
-      ]
-    },
-    { 
-      name: 'Manufacturing Subcontract', 
-      description: 'Factory production agreement',
-      clauseCount: 32,
-      type: 'MANUFACTURING',
-      clauses: [
-        { section: '1.0', name: 'Manufacturing Scope', description: 'Factory production specifications' },
-        { section: '2.0', name: 'Quality Standards', description: 'Quality control requirements' },
-        { section: '3.0', name: 'Production Schedule', description: 'Manufacturing timeline and milestones' },
-        { section: '4.0', name: 'Payment Terms', description: 'Manufacturing payment schedule' },
-        { section: '5.0', name: 'Delivery Terms', description: 'Shipping and delivery requirements' }
-      ]
-    },
-    { 
-      name: 'OnSite Subcontract', 
-      description: 'Installation and site work agreement',
-      clauseCount: 28,
-      type: 'ONSITE',
-      clauses: [
-        { section: '1.0', name: 'Site Work Scope', description: 'Installation and on-site work specifications' },
-        { section: '2.0', name: 'Site Preparation', description: 'Foundation and utility requirements' },
-        { section: '3.0', name: 'Installation Timeline', description: 'On-site work schedule' },
-        { section: '4.0', name: 'Inspections', description: 'Inspection and approval requirements' },
-        { section: '5.0', name: 'Completion Criteria', description: 'Project completion and handover' }
-      ]
-    }
-  ];
+  const contracts = useMemo(() => {
+    return [
+      { 
+        name: 'Master Purchase Agreement', 
+        description: 'Consolidated exhibit-first master purchase agreement',
+        clauseCount: generatedContracts.find(c => c.type === 'master_ef')?.clauseCount || 138,
+        type: 'master_ef',
+        clauses: [
+          { section: '1.0', name: 'General Provisions', description: 'Master agreement terms and definitions' },
+          { section: '2.0', name: 'Scope of Work', description: 'Complete project scope and deliverables' },
+          { section: '3.0', name: 'Commercial Terms', description: 'Pricing and payment terms (Exhibit A)' },
+          { section: '4.0', name: 'Home Specifications', description: 'Plans, specifications & finishes (Exhibit B)' },
+          { section: '5.0', name: 'GC/On-Site Scope', description: 'Responsibility matrix (Exhibit C)' },
+          { section: '6.0', name: 'Milestones & Schedule', description: 'Project timeline (Exhibit D)' },
+          { section: '7.0', name: 'Limited Warranty', description: 'Warranty terms (Exhibit E)' },
+          { section: '8.0', name: 'State Provisions', description: 'State-specific requirements (Exhibit F)' }
+        ]
+      }
+    ];
+  }, [generatedContracts]);
   
   if (generationState === 'generating') {
     return (

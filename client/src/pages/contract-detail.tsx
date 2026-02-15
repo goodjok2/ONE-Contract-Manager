@@ -196,12 +196,14 @@ function getStatusIndex(status: string): number {
 
 function getContractTypeName(type: string): string {
   const typeMap: Record<string, string> = {
-    'ONE': 'ONE Agreement',
-    'one_agreement': 'ONE Agreement',
-    'MANUFACTURING': 'Manufacturing Subcontract',
-    'manufacturing_sub': 'Manufacturing Subcontract',
-    'ONSITE': 'OnSite Subcontract',
-    'onsite_sub': 'OnSite Subcontract',
+    'master_ef': 'Master Purchase Agreement',
+    'MASTER_EF': 'Master Purchase Agreement',
+    'ONE': 'ONE Agreement (Archived)',
+    'one_agreement': 'ONE Agreement (Archived)',
+    'MANUFACTURING': 'Manufacturing Subcontract (Archived)',
+    'manufacturing_sub': 'Manufacturing Subcontract (Archived)',
+    'ONSITE': 'OnSite Subcontract (Archived)',
+    'onsite_sub': 'OnSite Subcontract (Archived)',
   };
   return typeMap[type] || type;
 }
@@ -274,17 +276,17 @@ export default function ContractDetail() {
   // Map contract type from stored format to API format
   const getContractTypeForApi = (contractType: string): string => {
     const typeMap: Record<string, string> = {
+      'master_ef': 'MASTER_EF',
+      'MASTER_EF': 'MASTER_EF',
+      'Master Ef': 'MASTER_EF',
       'one_agreement': 'ONE',
       'ONE': 'ONE',
       'manufacturing_sub': 'MANUFACTURING',
       'MANUFACTURING': 'MANUFACTURING',
       'onsite_sub': 'ONSITE',
       'ONSITE': 'ONSITE',
-      'ONE Agreement': 'ONE',
-      'Manufacturing Subcontract': 'MANUFACTURING',
-      'OnSite Subcontract': 'ONSITE',
     };
-    return typeMap[contractType] || 'ONE';
+    return typeMap[contractType] || contractType.toUpperCase();
   };
 
   const generatePdf = useCallback(async (): Promise<Blob | null> => {
@@ -334,7 +336,7 @@ export default function ContractDetail() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${contract?.projectNumber || 'Contract'}_${getContractTypeName(contract?.contractType || 'ONE').replace(/\s+/g, '_')}.pdf`;
+      a.download = `${contract?.projectNumber || 'Contract'}_${getContractTypeName(contract?.contractType || 'MASTER_EF').replace(/\s+/g, '_')}.pdf`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);

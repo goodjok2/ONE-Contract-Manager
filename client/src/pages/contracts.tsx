@@ -43,17 +43,17 @@ export default function Contracts() {
 
   const getContractTypeForApi = (type: string): string => {
     const typeMap: Record<string, string> = {
+      'master_ef': 'MASTER_EF',
+      'MASTER_EF': 'MASTER_EF',
+      'Master Ef': 'MASTER_EF',
       'one_agreement': 'ONE',
       'manufacturing_sub': 'MANUFACTURING',
       'onsite_sub': 'ONSITE',
-      'ONE Agreement': 'ONE',
-      'Manufacturing Subcontract': 'MANUFACTURING',
-      'OnSite Subcontract': 'ONSITE',
       'ONE': 'ONE',
       'MANUFACTURING': 'MANUFACTURING',
       'ONSITE': 'ONSITE',
     };
-    return typeMap[type] || 'ONE';
+    return typeMap[type] || type.toUpperCase();
   };
 
   const handleHtmlPreview = async (projectId: number, contractType: string, contractId: number) => {
@@ -85,29 +85,13 @@ export default function Contracts() {
   const handleDownloadPdf = async (projectId: number, contractType: string, contractId: number, projectNumber: string) => {
     setGeneratingContract(contractId);
     try {
-      const response = await fetch('/api/contracts/download-pdf', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contractType: getContractTypeForApi(contractType),
-          projectId,
-        }),
-      });
-      if (!response.ok) throw new Error('Failed to generate PDF');
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${projectNumber}_${formatContractType(contractType).replace(/\s+/g, '_')}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      const apiType = getContractTypeForApi(contractType);
+      window.open(`/api/contracts/download-pdf/${projectId}/${apiType}`, '_blank');
     } catch (error) {
       console.error('Download error:', error);
       toast({ title: "Download Failed", description: "Failed to download PDF.", variant: "destructive" });
     } finally {
-      setGeneratingContract(null);
+      setTimeout(() => setGeneratingContract(null), 2000);
     }
   };
 
@@ -135,9 +119,11 @@ export default function Contracts() {
   
   const formatContractType = (type: string) => {
     const typeMap: Record<string, string> = {
-      'one_agreement': 'ONE Agreement',
-      'manufacturing_sub': 'Manufacturing Subcontract',
-      'onsite_sub': 'OnSite Subcontract',
+      'master_ef': 'Master Purchase Agreement',
+      'MASTER_EF': 'Master Purchase Agreement',
+      'one_agreement': 'ONE Agreement (Archived)',
+      'manufacturing_sub': 'Manufacturing Subcontract (Archived)',
+      'onsite_sub': 'OnSite Subcontract (Archived)',
     };
     return typeMap[type] || type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
   };

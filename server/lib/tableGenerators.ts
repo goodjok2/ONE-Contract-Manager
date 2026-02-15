@@ -8,15 +8,15 @@
  * - ONE: Shows full master budget (all costs)
  */
 
-// Contract type for filtering pricing data
-export type ContractFilterType = 'ONE' | 'MANUFACTURING' | 'ONSITE';
+import { buildStyledTable, TABLE_STYLES } from './tableStyles';
+
+export type ContractFilterType = 'ONE' | 'MANUFACTURING' | 'ONSITE' | 'MASTER_EF';
 
 interface PricingBreakdown {
   totalDesignFee: number;
   totalOffsite: number;
   totalOnsite: number;
   totalCustomizations?: number;
-  // Optional detailed breakdown for subcontract filtering
   totalShipping?: number;
   totalInstallation?: number;
 }
@@ -38,12 +38,17 @@ interface PaymentMilestone {
 
 function formatCurrency(cents: number): string {
   const dollars = cents / 100;
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(dollars);
+  return formatCurrencyWhole(dollars);
+}
+
+function formatCurrencyWhole(value: number | string): string {
+  const num = typeof value === 'string' ? parseFloat(value) : value;
+  if (isNaN(num) || num === 0) return '$0';
+  return '$' + Math.round(num).toLocaleString('en-US');
+}
+
+function formatCurrencyFromDollars(dollars: number | string): string {
+  return formatCurrencyWhole(dollars);
 }
 
 /**
@@ -66,163 +71,56 @@ export function generatePricingTableHtml(
   const { breakdown, contractValue, serviceModel } = pricingSummary;
   const isCMOS = serviceModel === 'CMOS';
   
-  // Calculate filtered contract total based on contract type
   let filteredContractTotal = contractValue;
   if (contractType === 'MANUFACTURING') {
-    // Manufacturing subcontract: Design Fee + Offsite (Manufacturing)
     filteredContractTotal = breakdown.totalDesignFee + breakdown.totalOffsite;
   } else if (contractType === 'ONSITE') {
-    // Onsite subcontract: Onsite Services only (+ shipping/installation if available)
     filteredContractTotal = breakdown.totalOnsite + 
       (breakdown.totalShipping || 0) + 
       (breakdown.totalInstallation || 0);
   }
 
-  const tableStyle = `
-    width: 100%;
-    border-collapse: collapse;
-    font-family: Arial, sans-serif;
-    font-size: 11pt;
-    margin: 16px 0;
-  `.trim().replace(/\s+/g, ' ');
-
-  const headerCellStyle = `
-    background-color: #2c3e50;
-    color: white;
-    padding: 12px 16px;
-    text-align: left;
-    font-weight: bold;
-    border: 1px solid #2c3e50;
-  `.trim().replace(/\s+/g, ' ');
-
-  const headerCellRightStyle = `
-    background-color: #2c3e50;
-    color: white;
-    padding: 12px 16px;
-    text-align: right;
-    font-weight: bold;
-    border: 1px solid #2c3e50;
-  `.trim().replace(/\s+/g, ' ');
-
-  const cellStyle = `
-    padding: 10px 16px;
-    border: 1px solid #ddd;
-    text-align: left;
-  `.trim().replace(/\s+/g, ' ');
-
-  const cellRightStyle = `
-    padding: 10px 16px;
-    border: 1px solid #ddd;
-    text-align: right;
-  `.trim().replace(/\s+/g, ' ');
-
-  const totalRowStyle = `
-    background-color: #f8f9fa;
-    font-weight: bold;
-  `.trim().replace(/\s+/g, ' ');
-
-  const totalCellStyle = `
-    padding: 12px 16px;
-    border: 1px solid #2c3e50;
-    text-align: left;
-    font-weight: bold;
-    font-size: 12pt;
-  `.trim().replace(/\s+/g, ' ');
-
-  const totalCellRightStyle = `
-    padding: 12px 16px;
-    border: 1px solid #2c3e50;
-    text-align: right;
-    font-weight: bold;
-    font-size: 12pt;
-  `.trim().replace(/\s+/g, ' ');
-
-  let rows = '';
+  const rows: { cells: string[]; isBold?: boolean; isTotal?: boolean }[] = [];
   
-  // Build rows based on contract type
   if (contractType === 'ONE' || contractType === 'MANUFACTURING') {
-    // ONE and MANUFACTURING contracts include Design Fee
-    rows += `
-    <tr>
-      <td style="${cellStyle}">Design Fee</td>
-      <td style="${cellRightStyle}">${formatCurrency(breakdown.totalDesignFee)}</td>
-    </tr>
-    `;
+    rows.push({ cells: ['Design Fee', formatCurrency(breakdown.totalDesignFee)] });
   }
   
   if (contractType === 'ONE' || contractType === 'MANUFACTURING') {
-    // ONE and MANUFACTURING contracts include Offsite (Manufacturing)
-    rows += `
-    <tr>
-      <td style="${cellStyle}">Offsite (Manufacturing)</td>
-      <td style="${cellRightStyle}">${formatCurrency(breakdown.totalOffsite)}</td>
-    </tr>
-    `;
+    rows.push({ cells: ['Offsite (Manufacturing)', formatCurrency(breakdown.totalOffsite)] });
   }
 
-  // Include customizations for ONE and MANUFACTURING contracts
   if ((contractType === 'ONE' || contractType === 'MANUFACTURING') && 
       breakdown.totalCustomizations && breakdown.totalCustomizations > 0) {
-    rows += `
-    <tr>
-      <td style="${cellStyle}">Customizations</td>
-      <td style="${cellRightStyle}">${formatCurrency(breakdown.totalCustomizations)}</td>
-    </tr>
-    `;
+    rows.push({ cells: ['Customizations', formatCurrency(breakdown.totalCustomizations)] });
   }
   
-  // Onsite Services shown for ONE (if CMOS) and ONSITE contracts
   if ((contractType === 'ONE' && isCMOS && breakdown.totalOnsite > 0) || 
       contractType === 'ONSITE') {
-    rows += `
-    <tr>
-      <td style="${cellStyle}">Onsite Services</td>
-      <td style="${cellRightStyle}">${formatCurrency(breakdown.totalOnsite)}</td>
-    </tr>
-    `;
+    rows.push({ cells: ['Onsite Services', formatCurrency(breakdown.totalOnsite)] });
   }
   
-  // For ONSITE contracts, also show shipping and installation if available
   if (contractType === 'ONSITE') {
     if (breakdown.totalShipping && breakdown.totalShipping > 0) {
-      rows += `
-    <tr>
-      <td style="${cellStyle}">Shipping</td>
-      <td style="${cellRightStyle}">${formatCurrency(breakdown.totalShipping)}</td>
-    </tr>
-      `;
+      rows.push({ cells: ['Shipping', formatCurrency(breakdown.totalShipping)] });
     }
     if (breakdown.totalInstallation && breakdown.totalInstallation > 0) {
-      rows += `
-    <tr>
-      <td style="${cellStyle}">Installation</td>
-      <td style="${cellRightStyle}">${formatCurrency(breakdown.totalInstallation)}</td>
-    </tr>
-      `;
+      rows.push({ cells: ['Installation', formatCurrency(breakdown.totalInstallation)] });
     }
   }
 
-  // Determine contract total label based on contract type
   const totalLabel = contractType === 'ONE' ? 'Contract Total' : 
     contractType === 'MANUFACTURING' ? 'Manufacturing Contract Total' : 'Onsite Contract Total';
 
-  return `
-<table style="${tableStyle}">
-  <thead>
-    <tr>
-      <th style="${headerCellStyle}">Item</th>
-      <th style="${headerCellRightStyle}">Cost</th>
-    </tr>
-  </thead>
-  <tbody>
-    ${rows}
-    <tr style="${totalRowStyle}">
-      <td style="${totalCellStyle}">${totalLabel}</td>
-      <td style="${totalCellRightStyle}">${formatCurrency(filteredContractTotal)}</td>
-    </tr>
-  </tbody>
-</table>
-  `.trim();
+  rows.push({ cells: [totalLabel, formatCurrency(filteredContractTotal)], isBold: true, isTotal: true });
+
+  return buildStyledTable({
+    columns: [
+      { header: 'Item', align: 'left' },
+      { header: 'Cost', align: 'right' },
+    ],
+    rows,
+  });
 }
 
 /**
@@ -243,11 +141,9 @@ export function generatePaymentScheduleHtml(
     return 'No payment schedule data found.';
   }
   
-  // Filter milestones based on contract type
   let filteredMilestones = paymentSchedule;
   
   if (contractType === 'MANUFACTURING') {
-    // Manufacturing: Design and Production phases only
     filteredMilestones = paymentSchedule.filter(m => {
       const phase = (m.phase || '').toLowerCase();
       const name = (m.name || '').toLowerCase();
@@ -258,7 +154,6 @@ export function generatePaymentScheduleHtml(
              name.includes('production');
     });
   } else if (contractType === 'ONSITE') {
-    // Onsite: Onsite, Delivery, and Completion phases only
     filteredMilestones = paymentSchedule.filter(m => {
       const phase = (m.phase || '').toLowerCase();
       const name = (m.name || '').toLowerCase();
@@ -271,7 +166,6 @@ export function generatePaymentScheduleHtml(
     });
   }
   
-  // If we have a filtered contract total, recalculate milestone amounts proportionally
   if (filteredContractTotal && filteredContractTotal > 0 && filteredMilestones.length > 0) {
     const totalPercentage = filteredMilestones.reduce((sum, m) => sum + m.percentage, 0);
     if (totalPercentage > 0) {
@@ -282,123 +176,27 @@ export function generatePaymentScheduleHtml(
     }
   }
 
-  const tableStyle = `
-    width: 100%;
-    border-collapse: collapse;
-    font-family: Arial, sans-serif;
-    font-size: 11pt;
-    margin: 16px 0;
-  `.trim().replace(/\s+/g, ' ');
-
-  const headerCellStyle = `
-    background-color: #2c3e50;
-    color: white;
-    padding: 12px 16px;
-    text-align: left;
-    font-weight: bold;
-    border: 1px solid #2c3e50;
-  `.trim().replace(/\s+/g, ' ');
-
-  const headerCellCenterStyle = `
-    background-color: #2c3e50;
-    color: white;
-    padding: 12px 16px;
-    text-align: center;
-    font-weight: bold;
-    border: 1px solid #2c3e50;
-  `.trim().replace(/\s+/g, ' ');
-
-  const headerCellRightStyle = `
-    background-color: #2c3e50;
-    color: white;
-    padding: 12px 16px;
-    text-align: right;
-    font-weight: bold;
-    border: 1px solid #2c3e50;
-  `.trim().replace(/\s+/g, ' ');
-
-  const rows = filteredMilestones.map((milestone, index) => {
-    const isEven = index % 2 === 0;
-    const rowBg = isEven ? 'background-color: #ffffff;' : 'background-color: #f8f9fa;';
-    
-    const cellStyle = `
-      padding: 10px 16px;
-      border: 1px solid #ddd;
-      text-align: left;
-      ${rowBg}
-    `.trim().replace(/\s+/g, ' ');
-
-    const cellCenterStyle = `
-      padding: 10px 16px;
-      border: 1px solid #ddd;
-      text-align: center;
-      ${rowBg}
-    `.trim().replace(/\s+/g, ' ');
-
-    const cellRightStyle = `
-      padding: 10px 16px;
-      border: 1px solid #ddd;
-      text-align: right;
-      ${rowBg}
-    `.trim().replace(/\s+/g, ' ');
-
-    return `
-    <tr>
-      <td style="${cellStyle}">${milestone.name}</td>
-      <td style="${cellCenterStyle}">${milestone.percentage}%</td>
-      <td style="${cellRightStyle}">${formatCurrency(milestone.amount)}</td>
-    </tr>
-    `;
-  }).join('');
+  const rows: { cells: string[]; isBold?: boolean; isTotal?: boolean }[] = filteredMilestones.map(milestone => ({
+    cells: [milestone.name, `${milestone.percentage}%`, formatCurrency(milestone.amount)],
+  }));
 
   const total = filteredMilestones.reduce((sum, m) => sum + m.amount, 0);
   const totalPercent = filteredMilestones.reduce((sum, m) => sum + m.percentage, 0);
 
-  const totalRowStyle = `
-    background-color: #f0f0f0;
-    font-weight: bold;
-  `.trim().replace(/\s+/g, ' ');
+  rows.push({
+    cells: ['Total', `${totalPercent}%`, formatCurrency(total)],
+    isBold: true,
+    isTotal: true,
+  });
 
-  const totalCellStyle = `
-    padding: 12px 16px;
-    border: 1px solid #2c3e50;
-    text-align: left;
-    font-weight: bold;
-  `.trim().replace(/\s+/g, ' ');
-
-  const totalCellCenterStyle = `
-    padding: 12px 16px;
-    border: 1px solid #2c3e50;
-    text-align: center;
-    font-weight: bold;
-  `.trim().replace(/\s+/g, ' ');
-
-  const totalCellRightStyle = `
-    padding: 12px 16px;
-    border: 1px solid #2c3e50;
-    text-align: right;
-    font-weight: bold;
-  `.trim().replace(/\s+/g, ' ');
-
-  return `
-<table style="${tableStyle}">
-  <thead>
-    <tr>
-      <th style="${headerCellStyle}">Payment Milestone</th>
-      <th style="${headerCellCenterStyle}">%</th>
-      <th style="${headerCellRightStyle}">Amount</th>
-    </tr>
-  </thead>
-  <tbody>
-    ${rows}
-    <tr style="${totalRowStyle}">
-      <td style="${totalCellStyle}">Total</td>
-      <td style="${totalCellCenterStyle}">${totalPercent}%</td>
-      <td style="${totalCellRightStyle}">${formatCurrency(total)}</td>
-    </tr>
-  </tbody>
-</table>
-  `.trim();
+  return buildStyledTable({
+    columns: [
+      { header: 'Payment Milestone', align: 'left' },
+      { header: '%', align: 'center' },
+      { header: 'Amount', align: 'right' },
+    ],
+    rows,
+  });
 }
 
 /**
@@ -410,7 +208,7 @@ export interface UnitDetail {
   bedrooms?: number;
   bathrooms?: number;
   squareFootage?: number;
-  estimatedPrice: number; // in cents
+  estimatedPrice: number;
 }
 
 /**
@@ -422,67 +220,7 @@ export function generateUnitDetailsHtml(units: UnitDetail[] | null): string {
     return 'No units configured.';
   }
 
-  const tableStyle = `
-    width: 100%;
-    border-collapse: collapse;
-    font-family: Arial, sans-serif;
-    font-size: 11pt;
-    margin: 16px 0;
-  `.trim().replace(/\s+/g, ' ');
-
-  const headerCellStyle = `
-    background-color: #2c3e50;
-    color: white;
-    padding: 12px 16px;
-    text-align: left;
-    font-weight: bold;
-    border: 1px solid #2c3e50;
-  `.trim().replace(/\s+/g, ' ');
-
-  const headerCellCenterStyle = `
-    background-color: #2c3e50;
-    color: white;
-    padding: 12px 16px;
-    text-align: center;
-    font-weight: bold;
-    border: 1px solid #2c3e50;
-  `.trim().replace(/\s+/g, ' ');
-
-  const headerCellRightStyle = `
-    background-color: #2c3e50;
-    color: white;
-    padding: 12px 16px;
-    text-align: right;
-    font-weight: bold;
-    border: 1px solid #2c3e50;
-  `.trim().replace(/\s+/g, ' ');
-
-  const rows = units.map((unit, index) => {
-    const isEven = index % 2 === 0;
-    const rowBg = isEven ? 'background-color: #ffffff;' : 'background-color: #f8f9fa;';
-    
-    const cellStyle = `
-      padding: 10px 16px;
-      border: 1px solid #ddd;
-      text-align: left;
-      ${rowBg}
-    `.trim().replace(/\s+/g, ' ');
-
-    const cellCenterStyle = `
-      padding: 10px 16px;
-      border: 1px solid #ddd;
-      text-align: center;
-      ${rowBg}
-    `.trim().replace(/\s+/g, ' ');
-
-    const cellRightStyle = `
-      padding: 10px 16px;
-      border: 1px solid #ddd;
-      text-align: right;
-      ${rowBg}
-    `.trim().replace(/\s+/g, ' ');
-
-    // Format specs: "3 Bed / 2 Bath / 1,500 sqft"
+  const rows: { cells: string[]; isBold?: boolean; isTotal?: boolean }[] = units.map((unit, index) => {
     const specs: string[] = [];
     if (unit.bedrooms !== undefined && unit.bedrooms !== null) {
       specs.push(`${unit.bedrooms} Bed`);
@@ -495,54 +233,243 @@ export function generateUnitDetailsHtml(units: UnitDetail[] | null): string {
     }
     const specsStr = specs.length > 0 ? specs.join(' / ') : '-';
 
-    return `
-    <tr>
-      <td style="${cellStyle}">${unit.unitLabel || `Unit ${index + 1}`}</td>
-      <td style="${cellStyle}">${unit.modelName || '-'}</td>
-      <td style="${cellCenterStyle}">${specsStr}</td>
-      <td style="${cellRightStyle}">${formatCurrency(unit.estimatedPrice)}</td>
-    </tr>
-    `;
-  }).join('');
+    return {
+      cells: [
+        unit.unitLabel || `Unit ${index + 1}`,
+        unit.modelName || '-',
+        specsStr,
+        formatCurrency(unit.estimatedPrice),
+      ],
+    };
+  });
 
   const totalPrice = units.reduce((sum, u) => sum + (u.estimatedPrice || 0), 0);
 
-  const totalRowStyle = `
-    background-color: #f0f0f0;
-    font-weight: bold;
-  `.trim().replace(/\s+/g, ' ');
+  rows.push({
+    cells: [
+      `Total (${units.length} Unit${units.length !== 1 ? 's' : ''})`,
+      '',
+      '',
+      formatCurrency(totalPrice),
+    ],
+    isBold: true,
+    isTotal: true,
+  });
 
-  const totalCellStyle = `
-    padding: 12px 16px;
-    border: 1px solid #2c3e50;
-    text-align: left;
-    font-weight: bold;
-  `.trim().replace(/\s+/g, ' ');
+  return buildStyledTable({
+    columns: [
+      { header: 'Unit #', align: 'left' },
+      { header: 'Model Name', align: 'left' },
+      { header: 'Specs', align: 'center' },
+      { header: 'Estimated Price', align: 'right' },
+    ],
+    rows,
+  });
+}
 
-  const totalCellRightStyle = `
-    padding: 12px 16px;
-    border: 1px solid #2c3e50;
-    text-align: right;
-    font-weight: bold;
-  `.trim().replace(/\s+/g, ' ');
+export interface ProjectUnit {
+  modelName: string;
+  quantity?: number;
+}
 
-  return `
-<table style="${tableStyle}">
-  <thead>
-    <tr>
-      <th style="${headerCellStyle}">Unit #</th>
-      <th style="${headerCellStyle}">Model Name</th>
-      <th style="${headerCellCenterStyle}">Specs</th>
-      <th style="${headerCellRightStyle}">Estimated Price</th>
-    </tr>
-  </thead>
-  <tbody>
-    ${rows}
-    <tr style="${totalRowStyle}">
-      <td style="${totalCellStyle}" colspan="3">Total (${units.length} Unit${units.length !== 1 ? 's' : ''})</td>
-      <td style="${totalCellRightStyle}">${formatCurrency(totalPrice)}</td>
-    </tr>
-  </tbody>
-</table>
-  `.trim();
+export function generateExhibitA2TableHtml(
+  units: ProjectUnit[] | null,
+  siteAddress: string
+): string {
+  const modelGroups: Record<string, number> = {};
+  if (units && units.length > 0) {
+    for (const u of units) {
+      const name = u.modelName || 'Unknown';
+      modelGroups[name] = (modelGroups[name] || 0) + (u.quantity || 1);
+    }
+  }
+
+  const rows: { cells: string[]; isBold?: boolean; isTotal?: boolean }[] = [];
+  if (Object.keys(modelGroups).length > 0) {
+    for (const [model, qty] of Object.entries(modelGroups)) {
+      rows.push({
+        cells: ['P-1', siteAddress, 'Phase 1', model, String(qty), '', '', '', ''],
+      });
+    }
+  } else {
+    rows.push({ cells: ['No units configured', '', '', '', '', '', '', '', ''] });
+  }
+
+  return buildStyledTable({
+    columns: [
+      { header: 'Property ID', align: 'left' },
+      { header: 'Site Address', align: 'left' },
+      { header: 'Phase', align: 'left' },
+      { header: 'Home/Model', align: 'left' },
+      { header: 'Qty', align: 'center' },
+      { header: 'Est. Factory Start', align: 'left' },
+      { header: 'Est. Factory Complete', align: 'left' },
+      { header: 'Est. Delivery Window', align: 'left' },
+      { header: 'Target CO/Equivalent', align: 'left' },
+    ],
+    rows,
+  });
+}
+
+export function generateExhibitA4TableHtml(
+  pricingSummary: PricingSummary | null,
+  serviceModel: string
+): string {
+  if (!pricingSummary) return 'No pricing data available.';
+  const { breakdown } = pricingSummary;
+  const isCMOS = serviceModel === 'CMOS';
+
+  const designFee = formatCurrency(breakdown.totalDesignFee);
+  const productionPrice = formatCurrency(breakdown.totalOffsite);
+  const logisticsPrice = breakdown.totalShipping ? formatCurrency(breakdown.totalShipping) : '$0';
+  const onsitePrice = formatCurrency(breakdown.totalOnsite);
+  const totalProjectPrice = formatCurrency(
+    breakdown.totalDesignFee + breakdown.totalOffsite + (breakdown.totalShipping || 0) +
+    (isCMOS ? breakdown.totalOnsite : 0)
+  );
+
+  const rows: { cells: string[]; isBold?: boolean; isTotal?: boolean }[] = [
+    { cells: ['Design / Pre-Production Fee', designFee, '', 'Due at signing'] },
+    { cells: ['Offsite Services (Factory)', productionPrice, '', 'Per Phase'] },
+    { cells: ['Offsite Services (Delivery/Assembly)', logisticsPrice, '', 'Delivery/transport'] },
+  ];
+  
+  if (isCMOS) {
+    rows.push({ cells: ['On-site Services (CMOS)', onsitePrice, '', 'CMOS only'] });
+  }
+  
+  rows.push({ cells: ['Reimbursables (if any)', '', '', 'At cost plus admin fee'] });
+  rows.push({
+    cells: ['Total Project Price', totalProjectPrice, '', 'Subject to Change Orders'],
+    isBold: true,
+    isTotal: true,
+  });
+
+  return buildStyledTable({
+    columns: [
+      { header: 'Stage / Component', align: 'left' },
+      { header: 'Design / Estimate', align: 'right' },
+      { header: 'Final Price (Greenlight Approval)', align: 'left' },
+      { header: 'Notes', align: 'left' },
+    ],
+    rows,
+  });
+}
+
+export function generateExhibitA5TableHtml(
+  paymentSchedule: PaymentMilestone[] | null,
+  pricingSummary: PricingSummary | null,
+  serviceModel: string
+): string {
+  const isCMOS = serviceModel === 'CMOS';
+
+  if (!pricingSummary) return 'No pricing data available.';
+
+  const { breakdown } = pricingSummary;
+  const totalBase = breakdown.totalDesignFee + breakdown.totalOffsite +
+    (breakdown.totalShipping || 0) + (isCMOS ? breakdown.totalOnsite : 0);
+
+  const milestones = [
+    { payment: 'Design Fee', trigger: 'Execution', pct: '-', amount: formatCurrency(breakdown.totalDesignFee), due: 'Immediate' },
+    ...(paymentSchedule || [])
+      .filter(m => m.name.toLowerCase() !== 'design fee' && m.name.toLowerCase() !== 'deposit')
+      .map(m => ({
+        payment: m.name,
+        trigger: getMilestoneTrigger(m.name),
+        pct: m.percentage + '%',
+        amount: formatCurrencyWhole(m.amount / 100),
+        due: ''
+      }))
+  ];
+
+  if (!paymentSchedule || paymentSchedule.length === 0) {
+    const remainingAfterDesign = totalBase - breakdown.totalDesignFee;
+    const defaultMilestones = [
+      { name: 'Green Light Deposit', pct: 20, trigger: 'Green Light Notice' },
+      { name: 'Factory Start', pct: 20, trigger: 'First module fabrication' },
+      { name: 'Factory Completion', pct: 20, trigger: 'Dvele certification' },
+      { name: 'Delivery / Set', pct: 15, trigger: 'Delivery/set complete' },
+      { name: 'Retainage', pct: 5, trigger: 'CO/Equivalent' },
+    ];
+    for (const ms of defaultMilestones) {
+      milestones.push({
+        payment: ms.name,
+        trigger: ms.trigger,
+        pct: ms.pct + '%',
+        amount: formatCurrency(Math.round(remainingAfterDesign * ms.pct / 100 * 100)),
+        due: ''
+      });
+    }
+  }
+
+  const rows: { cells: string[]; isBold?: boolean; isTotal?: boolean }[] = milestones.map(m => ({
+    cells: ['P-1', '1', m.payment, m.trigger, m.pct, m.amount, m.due],
+  }));
+
+  const totalAmount = formatCurrency(totalBase);
+  rows.push({
+    cells: ['', '', 'Total', '', '100%', totalAmount, ''],
+    isBold: true,
+    isTotal: true,
+  });
+
+  return buildStyledTable({
+    columns: [
+      { header: 'Property ID', align: 'left' },
+      { header: 'Phase', align: 'left' },
+      { header: 'Payment', align: 'left' },
+      { header: 'Trigger', align: 'left' },
+      { header: '%', align: 'center' },
+      { header: 'Amount', align: 'right' },
+      { header: 'Due', align: 'left' },
+    ],
+    rows,
+  });
+}
+
+function getMilestoneTrigger(name: string): string {
+  const n = name.toLowerCase();
+  if (n.includes('green light') || n.includes('deposit')) return 'Green Light Notice';
+  if (n.includes('factory start') || n.includes('production')) return 'First module fabrication';
+  if (n.includes('factory comp') || n.includes('certification')) return 'Dvele certification';
+  if (n.includes('delivery') || n.includes('set')) return 'Delivery/set complete';
+  if (n.includes('retainage') || n.includes('co/')) return 'CO/Equivalent';
+  if (n.includes('completion')) return 'Issuance';
+  return '';
+}
+
+export function generateExhibitB1TableHtml(
+  units: ProjectUnit[] | null
+): string {
+  const modelGroups: Record<string, number> = {};
+  if (units && units.length > 0) {
+    for (const u of units) {
+      const name = u.modelName || 'Unknown';
+      modelGroups[name] = (modelGroups[name] || 0) + (u.quantity || 1);
+    }
+  }
+
+  const rows: { cells: string[]; isBold?: boolean; isTotal?: boolean }[] = [];
+  if (Object.keys(modelGroups).length > 0) {
+    for (const [model, qty] of Object.entries(modelGroups)) {
+      rows.push({
+        cells: ['P-1', '1', model, String(qty), '', '', ''],
+      });
+    }
+  } else {
+    rows.push({ cells: ['', '', '', '', '', '', ''] });
+  }
+
+  return buildStyledTable({
+    columns: [
+      { header: 'Property ID', align: 'left' },
+      { header: 'Phase', align: 'left' },
+      { header: 'Model', align: 'left' },
+      { header: 'Qty', align: 'center' },
+      { header: 'Plan Set Version', align: 'left' },
+      { header: 'Date', align: 'left' },
+      { header: 'Third-Party Review', align: 'left' },
+    ],
+    rows,
+  });
 }

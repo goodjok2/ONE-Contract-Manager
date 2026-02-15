@@ -1,0 +1,43 @@
+## Phase 3: Identify Mismatches
+
+### Step 3A: Find variables used in clauses but NOT in the canonical registry
+
+Compare the two lists:
+```bash
+comm -23 /tmp/clause_variables.txt /tmp/canonical_variables.txt > /tmp/mismatched_variables.txt
+cat /tmp/mismatched_variables.txt
+```
+
+### Step 3B: For each mismatched variable, find its probable canonical equivalent
+
+For each variable in the mismatch list, search for a likely match in the canonical list. Common patterns:
+
+| Used in Clause | Probable Canonical Name | How to Verify |
+|---|---|---|
+| `DELIVERY_ADDRESS` | `SITE_ADDRESS` | Check mapper.ts for address fields |
+| `DESIGN_FEE` | May need to be ADDED to mapper | Check if pricing engine provides this |
+| `PRELIMINARY_CONTRACT_PRICE` | May need to be ADDED | Check pricing engine output |
+| `PRELIMINARY_OFFSITE_PRICE` | May need to be ADDED | Check pricing engine output |
+| `PRELIMINARY_ONSITE_PRICE` | May need to be ADDED | Check pricing engine output |
+| `FINAL_CONTRACT_PRICE` | May need to be ADDED | Check pricing engine output |
+| `DESIGN_REVISION_ROUNDS` | May need to be ADDED | Check project_details fields |
+| `PROJECT_STATE` | Check if mapper uses this or `STATE` | grep mapper.ts |
+| `PROJECT_STATE_CODE` | May need to be ADDED | Check state disclosure logic |
+| `PROJECT_COUNTY` | Check if mapper uses `COUNTY` | grep mapper.ts |
+| `PROJECT_FEDERAL_DISTRICT` | May need to be ADDED | Check project_details fields |
+| `LIEN_LAW_STATE` | May need to be ADDED | Check state disclosure logic |
+| `BUILDING_CODE_REFERENCE` | May need to be ADDED | Check state disclosure logic |
+
+### Step 3C: Produce a resolution plan
+
+For each mismatch, determine one of two actions:
+
+**Action A — Rename in clause:** The canonical variable exists under a different name.
+Example: Clause uses `DELIVERY_ADDRESS`, mapper produces `SITE_ADDRESS` → update clause content.
+
+**Action B — Add to mapper:** The variable represents real data that the mapper should produce but doesn't.
+Example: `DESIGN_FEE` is a real value from the pricing engine that the mapper doesn't currently include → add it to mapper.ts as a new canonical variable.
+
+**Report the plan before making any changes.** List every mismatch with its resolution action (A or B) and the specific canonical name.
+
+---

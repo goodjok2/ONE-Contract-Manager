@@ -1,0 +1,507 @@
+# REPLIT AGENT PROMPT — FIX STATE DISCLOSURE SYSTEM (Exhibits E and F)
+
+## PROBLEM
+
+Exhibit E currently shows `[MISSING LEGAL DISCLOSURE: WARRANTY_NOTICE for CA]` instead of the actual California statutory notice. Exhibit F shows a generic instruction placeholder instead of real state-specific provisions. The state disclosure system exists in the code but is either empty, disconnected, or has a tag format mismatch.
+
+## STEP 1: AUDIT THE CURRENT STATE
+
+Run these diagnostics and report the results before making any changes:
+
+```bash
+echo "=== 1. Does the state_disclosures table exist? ==="
+psql -c "\d state_disclosures" 2>/dev/null || echo "TABLE DOES NOT EXIST"
+
+echo ""
+echo "=== 2. How many rows does it have? ==="
+psql -c "SELECT COUNT(*) FROM state_disclosures;" 2>/dev/null || echo "COULD NOT QUERY"
+
+echo ""
+echo "=== 3. What's in it? ==="
+psql -c "SELECT id, state_code, disclosure_code, LEFT(content, 80) as content_preview, is_active FROM state_disclosures ORDER BY state_code, disclosure_code;" 2>/dev/null || echo "EMPTY OR MISSING"
+
+echo ""
+echo "=== 4. What does the schema say? ==="
+grep -A 20 "state_disclosures\|stateDisclosures" shared/schema.ts | head -25
+
+echo ""
+echo "=== 5. What tag formats exist in Exhibit E content? ==="
+psql -c "SELECT LEFT(content, 500) FROM exhibits WHERE letter = 'E';" 2>/dev/null
+# Also check the contractGenerator for exhibit E rendering
+grep -n "MISSING LEGAL\|WARRANTY_NOTICE\|STATE_DISCLOSURE\|state_disclosure\|stateDisclosure" server/lib/contractGenerator.ts | head -20
+
+echo ""
+echo "=== 6. What tag formats exist in Exhibit F content? ==="
+psql -c "SELECT LEFT(content, 500) FROM exhibits WHERE letter = 'F';" 2>/dev/null
+grep -n "STATE_DISCLOSURES\|state_provision\|STATE_PROVISION\|Insert any required" server/lib/contractGenerator.ts | head -20
+
+echo ""
+echo "=== 7. Does a resolver function exist? ==="
+grep -n "resolveStateDisclosure\|resolveState\|getStateDisclosure\|fetchStateDisclosure" server/lib/contractGenerator.ts server/services/*.ts server/routes/*.ts | head -20
+
+echo ""
+echo "=== 8. What state disclosure routes exist? ==="
+grep -rn "state.disclosure\|state-disclosure\|stateDisclosure" server/routes/*.ts | head -10
+ls server/routes/state* 2>/dev/null
+
+echo ""
+echo "=== 9. What's the project state variable? ==="
+grep -n "PROJECT_STATE\|projectState\|siteState\|project_state" server/lib/mapper.ts | head -10
+```
+
+Report ALL results before proceeding.
+
+## STEP 2: CREATE OR VERIFY THE TABLE
+
+If the `state_disclosures` table does NOT exist, create it:
+
+```sql
+CREATE TABLE IF NOT EXISTS state_disclosures (
+  id SERIAL PRIMARY KEY,
+  state_code VARCHAR(2) NOT NULL,
+  disclosure_code VARCHAR(100) NOT NULL,
+  title VARCHAR(255),
+  content TEXT NOT NULL,
+  applies_to_exhibit VARCHAR(1),  -- 'E', 'F', or NULL for both
+  client_type VARCHAR(20),        -- 'DTC', 'B2B', or NULL for both
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW(),
+  UNIQUE(state_code, disclosure_code, applies_to_exhibit)
+);
+```
+
+If the table exists but is missing columns (like `applies_to_exhibit` or `client_type`), add them:
+
+```sql
+ALTER TABLE state_disclosures ADD COLUMN IF NOT EXISTS title VARCHAR(255);
+ALTER TABLE state_disclosures ADD COLUMN IF NOT EXISTS applies_to_exhibit VARCHAR(1);
+ALTER TABLE state_disclosures ADD COLUMN IF NOT EXISTS client_type VARCHAR(20);
+ALTER TABLE state_disclosures ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW();
+```
+
+## STEP 3: SEED STATE DISCLOSURE CONTENT
+
+Insert disclosure content for the states Dvele currently operates in. These are legally significant — the content here is based on the DOCX template and should be reviewed by legal before production use, but we need working content for the system to function.
+
+```sql
+-- Clear any existing bad data
+DELETE FROM state_disclosures WHERE is_active = false;
+
+-- =============================================
+-- CALIFORNIA
+-- =============================================
+
+-- Exhibit E: Warranty statutory notice (Cal. Com. Code)
+INSERT INTO state_disclosures (state_code, disclosure_code, title, content, applies_to_exhibit, is_active)
+VALUES (
+  'CA',
+  'WARRANTY_NOTICE',
+  'California Commercial Code Warranty Notice',
+  '<div style="border: 2px solid #000; padding: 16px; margin: 16px 0; font-size: 10pt;">
+<p style="font-weight: bold; text-transform: uppercase; margin-bottom: 8px;">PURSUANT TO CAL. COM. CODE § 1201(b)(10), THIS SECTION (ALONG WITH SECTION 7, ABOVE) CHANGES YOUR EXISTING WARRANTY RIGHTS UNDER CALIFORNIA LAW, AND REPLACES CERTAIN EXISTING WARRANTIES WITH OUR OWN LIMITED WARRANTY. PLEASE READ THE ENTIRE SECTION CAREFULLY AND INITIAL AFTER READING ONLY IF YOU AGREE. YOU HAVE THE RIGHT TO CONSULT WITH AN ATTORNEY BEFORE AGREEING TO WAIVE THESE RIGHTS.</p>
+<p style="margin-top: 12px;">If you have read, understand, and agree to Exhibit E, please initial here: _________</p>
+</div>',
+  'E',
+  true
+)
+ON CONFLICT (state_code, disclosure_code, applies_to_exhibit) DO UPDATE SET
+  content = EXCLUDED.content,
+  title = EXCLUDED.title,
+  updated_at = NOW();
+
+-- Exhibit F: State-specific provision
+INSERT INTO state_disclosures (state_code, disclosure_code, title, content, applies_to_exhibit, is_active)
+VALUES (
+  'CA',
+  'STATE_PROVISION',
+  'California Consumer Notice',
+  '<p><strong>CALIFORNIA NOTICE:</strong> This Agreement involves the sale of a factory-built housing unit subject to Health and Safety Code Section 19960 et seq. The Buyer has the right to have the unit inspected by a licensed home inspector before taking possession.</p>',
+  'F',
+  true
+)
+ON CONFLICT (state_code, disclosure_code, applies_to_exhibit) DO UPDATE SET
+  content = EXCLUDED.content,
+  title = EXCLUDED.title,
+  updated_at = NOW();
+
+-- =============================================
+-- ARIZONA
+-- =============================================
+
+INSERT INTO state_disclosures (state_code, disclosure_code, title, content, applies_to_exhibit, is_active)
+VALUES (
+  'AZ',
+  'WARRANTY_NOTICE',
+  'Arizona Warranty Notice',
+  '<div style="border: 2px solid #000; padding: 16px; margin: 16px 0; font-size: 10pt;">
+<p style="font-weight: bold; text-transform: uppercase; margin-bottom: 8px;">ARIZONA NOTICE: THIS SECTION MODIFIES YOUR WARRANTY RIGHTS UNDER ARIZONA LAW. THIS LIMITED WARRANTY REPLACES CERTAIN IMPLIED WARRANTIES. PLEASE READ THE ENTIRE SECTION CAREFULLY.</p>
+<p style="margin-top: 12px;">If you have read, understand, and agree to Exhibit E, please initial here: _________</p>
+</div>',
+  'E',
+  true
+)
+ON CONFLICT (state_code, disclosure_code, applies_to_exhibit) DO UPDATE SET
+  content = EXCLUDED.content,
+  title = EXCLUDED.title,
+  updated_at = NOW();
+
+INSERT INTO state_disclosures (state_code, disclosure_code, title, content, applies_to_exhibit, is_active)
+VALUES (
+  'AZ',
+  'STATE_PROVISION',
+  'Arizona Contractor Notice',
+  '<p><strong>ARIZONA NOTICE:</strong> This transaction is subject to the Arizona Registrar of Contractors requirements. Verify contractor licensing at <a href="https://www.azroc.gov">www.azroc.gov</a>.</p>',
+  'F',
+  true
+)
+ON CONFLICT (state_code, disclosure_code, applies_to_exhibit) DO UPDATE SET
+  content = EXCLUDED.content,
+  title = EXCLUDED.title,
+  updated_at = NOW();
+
+-- =============================================
+-- COLORADO
+-- =============================================
+
+INSERT INTO state_disclosures (state_code, disclosure_code, title, content, applies_to_exhibit, is_active)
+VALUES (
+  'CO',
+  'WARRANTY_NOTICE',
+  'Colorado Warranty Notice',
+  '<div style="border: 2px solid #000; padding: 16px; margin: 16px 0; font-size: 10pt;">
+<p style="font-weight: bold; text-transform: uppercase; margin-bottom: 8px;">COLORADO NOTICE: THIS SECTION MODIFIES YOUR WARRANTY RIGHTS UNDER COLORADO LAW. THIS LIMITED WARRANTY REPLACES CERTAIN IMPLIED WARRANTIES. PLEASE READ THE ENTIRE SECTION CAREFULLY.</p>
+<p style="margin-top: 12px;">If you have read, understand, and agree to Exhibit E, please initial here: _________</p>
+</div>',
+  'E',
+  true
+)
+ON CONFLICT (state_code, disclosure_code, applies_to_exhibit) DO UPDATE SET
+  content = EXCLUDED.content,
+  title = EXCLUDED.title,
+  updated_at = NOW();
+
+INSERT INTO state_disclosures (state_code, disclosure_code, title, content, applies_to_exhibit, is_active)
+VALUES (
+  'CO',
+  'STATE_PROVISION',
+  'Colorado Consumer Notice',
+  '<p><strong>COLORADO NOTICE:</strong> Buyer acknowledges receipt of required Colorado disclosures regarding modular construction. This transaction is subject to applicable Colorado consumer protection statutes.</p>',
+  'F',
+  true
+)
+ON CONFLICT (state_code, disclosure_code, applies_to_exhibit) DO UPDATE SET
+  content = EXCLUDED.content,
+  title = EXCLUDED.title,
+  updated_at = NOW();
+
+-- =============================================
+-- TEXAS
+-- =============================================
+
+INSERT INTO state_disclosures (state_code, disclosure_code, title, content, applies_to_exhibit, is_active)
+VALUES (
+  'TX',
+  'WARRANTY_NOTICE',
+  'Texas Warranty Notice',
+  '<div style="border: 2px solid #000; padding: 16px; margin: 16px 0; font-size: 10pt;">
+<p style="font-weight: bold; text-transform: uppercase; margin-bottom: 8px;">TEXAS NOTICE: THIS SECTION MODIFIES YOUR WARRANTY RIGHTS UNDER TEXAS LAW. THIS LIMITED WARRANTY IS PROVIDED IN LIEU OF ALL OTHER WARRANTIES, EXPRESS OR IMPLIED, TO THE EXTENT PERMITTED BY TEXAS PROPERTY CODE AND BUSINESS & COMMERCE CODE.</p>
+<p style="margin-top: 12px;">If you have read, understand, and agree to Exhibit E, please initial here: _________</p>
+</div>',
+  'E',
+  true
+)
+ON CONFLICT (state_code, disclosure_code, applies_to_exhibit) DO UPDATE SET
+  content = EXCLUDED.content,
+  title = EXCLUDED.title,
+  updated_at = NOW();
+
+INSERT INTO state_disclosures (state_code, disclosure_code, title, content, applies_to_exhibit, is_active)
+VALUES (
+  'TX',
+  'STATE_PROVISION',
+  'Texas Consumer Notice',
+  '<p><strong>TEXAS NOTICE:</strong> This transaction involves a manufactured or industrialized housing unit regulated by the Texas Department of Licensing and Regulation (TDLR). Buyer has the right to obtain an independent inspection prior to acceptance.</p>',
+  'F',
+  true
+)
+ON CONFLICT (state_code, disclosure_code, applies_to_exhibit) DO UPDATE SET
+  content = EXCLUDED.content,
+  title = EXCLUDED.title,
+  updated_at = NOW();
+
+-- =============================================
+-- DEFAULT / FALLBACK (for states without specific disclosures)
+-- =============================================
+
+INSERT INTO state_disclosures (state_code, disclosure_code, title, content, applies_to_exhibit, is_active)
+VALUES (
+  'DEFAULT',
+  'WARRANTY_NOTICE',
+  'General Warranty Notice',
+  '<div style="border: 2px solid #000; padding: 16px; margin: 16px 0; font-size: 10pt;">
+<p style="font-weight: bold; text-transform: uppercase; margin-bottom: 8px;">NOTICE: THIS SECTION MODIFIES YOUR WARRANTY RIGHTS. THIS LIMITED WARRANTY REPLACES CERTAIN IMPLIED WARRANTIES TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW. PLEASE READ THE ENTIRE SECTION CAREFULLY.</p>
+<p style="margin-top: 12px;">If you have read, understand, and agree to Exhibit E, please initial here: _________</p>
+</div>',
+  'E',
+  true
+)
+ON CONFLICT (state_code, disclosure_code, applies_to_exhibit) DO UPDATE SET
+  content = EXCLUDED.content,
+  title = EXCLUDED.title,
+  updated_at = NOW();
+
+INSERT INTO state_disclosures (state_code, disclosure_code, title, content, applies_to_exhibit, is_active)
+VALUES (
+  'DEFAULT',
+  'STATE_PROVISION',
+  'General State Notice',
+  '<p><em>No state-specific provisions are required for the jurisdiction of this Project. This Exhibit F is intentionally limited to the general provisions above.</em></p>',
+  'F',
+  true
+)
+ON CONFLICT (state_code, disclosure_code, applies_to_exhibit) DO UPDATE SET
+  content = EXCLUDED.content,
+  title = EXCLUDED.title,
+  updated_at = NOW();
+```
+
+## STEP 4: CREATE OR UPDATE THE STATE DISCLOSURE RESOLVER
+
+**File:** `server/lib/contractGenerator.ts` (or create `server/lib/stateDisclosureResolver.ts` if you prefer separation)
+
+Create a function that fetches state disclosures for a given state and exhibit:
+
+```typescript
+import { pool } from '../db'; // or however your DB connection is imported
+
+interface StateDisclosure {
+  id: number;
+  state_code: string;
+  disclosure_code: string;
+  title: string;
+  content: string;
+  applies_to_exhibit: string | null;
+}
+
+/**
+ * Fetches state-specific disclosure content for a given state and exhibit.
+ * Falls back to DEFAULT disclosures if no state-specific content exists.
+ */
+async function getStateDisclosures(stateCode: string, exhibit: 'E' | 'F'): Promise<string> {
+  if (!stateCode) {
+    stateCode = 'DEFAULT';
+  }
+
+  // Normalize state code to uppercase 2-letter
+  const normalizedState = stateCode.toUpperCase().trim().substring(0, 2);
+
+  try {
+    // Try state-specific first
+    const result = await pool.query(
+      `SELECT content FROM state_disclosures 
+       WHERE state_code = $1 
+       AND disclosure_code = $2
+       AND (applies_to_exhibit = $3 OR applies_to_exhibit IS NULL)
+       AND is_active = true
+       ORDER BY applies_to_exhibit DESC NULLS LAST
+       LIMIT 1`,
+      [normalizedState, exhibit === 'E' ? 'WARRANTY_NOTICE' : 'STATE_PROVISION', exhibit]
+    );
+
+    if (result.rows.length > 0) {
+      return result.rows[0].content;
+    }
+
+    // Fall back to DEFAULT
+    const fallback = await pool.query(
+      `SELECT content FROM state_disclosures 
+       WHERE state_code = 'DEFAULT' 
+       AND disclosure_code = $1
+       AND (applies_to_exhibit = $2 OR applies_to_exhibit IS NULL)
+       AND is_active = true
+       LIMIT 1`,
+      [exhibit === 'E' ? 'WARRANTY_NOTICE' : 'STATE_PROVISION', exhibit]
+    );
+
+    if (fallback.rows.length > 0) {
+      return fallback.rows[0].content;
+    }
+
+    // Nothing found at all
+    return `<p><em>No ${exhibit === 'E' ? 'warranty notice' : 'state-specific provisions'} available for ${normalizedState}.</em></p>`;
+
+  } catch (error) {
+    console.error(`Error fetching state disclosure for ${normalizedState} Exhibit ${exhibit}:`, error);
+    return `<p><em>Error loading state disclosure content.</em></p>`;
+  }
+}
+```
+
+## STEP 5: WIRE THE RESOLVER INTO EXHIBIT RENDERING
+
+Find where Exhibit E and Exhibit F content is assembled in `contractGenerator.ts` (likely in `renderExhibitsHTML()` or a similar function).
+
+### For Exhibit E:
+
+Find the code that produces `[MISSING LEGAL DISCLOSURE: WARRANTY_NOTICE for XX]`. This is where the resolver should be called.
+
+Replace the missing disclosure placeholder with an actual call:
+
+```typescript
+// Before rendering Exhibit E content, fetch the warranty notice
+const projectState = variableMap['PROJECT_STATE'] || variableMap['SITE_STATE'] || '';
+const warrantyNoticeHtml = await getStateDisclosures(projectState, 'E');
+
+// Insert the warranty notice at the TOP of Exhibit E content, before definitions
+exhibitEContent = warrantyNoticeHtml + '\n' + exhibitEContent;
+```
+
+If the current code uses a tag like `[STATE_DISCLOSURE:WARRANTY_NOTICE]` or `{{STATE_DISCLOSURE_WARRANTY_NOTICE}}`, replace the tag resolution to call `getStateDisclosures()`:
+
+```typescript
+// Replace state disclosure tags in exhibit content
+if (exhibitContent.includes('[MISSING LEGAL DISCLOSURE:') || 
+    exhibitContent.includes('[STATE_DISCLOSURE:') ||
+    exhibitContent.includes('{{STATE_DISCLOSURE')) {
+  
+  const stateCode = variableMap['PROJECT_STATE'] || variableMap['SITE_STATE'] || '';
+  
+  if (exhibit.letter === 'E') {
+    const warrantyNotice = await getStateDisclosures(stateCode, 'E');
+    exhibitContent = exhibitContent
+      .replace(/\[MISSING LEGAL DISCLOSURE:.*?\]/g, warrantyNotice)
+      .replace(/\[STATE_DISCLOSURE:WARRANTY_NOTICE\]/g, warrantyNotice)
+      .replace(/\{\{STATE_DISCLOSURE_WARRANTY_NOTICE\}\}/g, warrantyNotice);
+  }
+  
+  if (exhibit.letter === 'F') {
+    const stateProvision = await getStateDisclosures(stateCode, 'F');
+    exhibitContent = exhibitContent
+      .replace(/\[STATE_DISCLOSURE:STATE_PROVISION\]/g, stateProvision)
+      .replace(/\{\{STATE_DISCLOSURES\}\}/g, stateProvision)
+      .replace(/\[Insert any required statutory.*?\]/g, stateProvision);
+  }
+}
+```
+
+### For Exhibit F:
+
+Find where `{{STATE_DISCLOSURES}}` or the generic instruction text `[Insert any required statutory disclosures...]` appears. Replace it with the resolver call:
+
+```typescript
+const stateProvisionHtml = await getStateDisclosures(projectState, 'F');
+// Replace the placeholder text with actual state provision
+exhibitFContent = exhibitFContent.replace(
+  /\[Insert any required statutory disclosures.*?void\.\]/s,
+  stateProvisionHtml
+);
+```
+
+## STEP 6: ADD STATE DISCLOSURE ADMIN API (if not already present)
+
+Check if `server/routes/state-disclosures.ts` exists. If not, create basic CRUD:
+
+```typescript
+import { Router } from 'express';
+import { pool } from '../db';
+
+const router = Router();
+
+// List all state disclosures
+router.get('/state-disclosures', async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT * FROM state_disclosures ORDER BY state_code, disclosure_code'
+    );
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch state disclosures' });
+  }
+});
+
+// Get disclosures for a specific state
+router.get('/state-disclosures/:stateCode', async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT * FROM state_disclosures WHERE state_code = $1 AND is_active = true ORDER BY disclosure_code',
+      [req.params.stateCode.toUpperCase()]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch state disclosures' });
+  }
+});
+
+// Create/update a state disclosure
+router.post('/state-disclosures', async (req, res) => {
+  try {
+    const { state_code, disclosure_code, title, content, applies_to_exhibit, client_type } = req.body;
+    const result = await pool.query(
+      `INSERT INTO state_disclosures (state_code, disclosure_code, title, content, applies_to_exhibit, client_type)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (state_code, disclosure_code, applies_to_exhibit) 
+       DO UPDATE SET content = EXCLUDED.content, title = EXCLUDED.title, updated_at = NOW()
+       RETURNING *`,
+      [state_code.toUpperCase(), disclosure_code, title, content, applies_to_exhibit, client_type]
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to save state disclosure' });
+  }
+});
+
+// Delete a state disclosure
+router.delete('/state-disclosures/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM state_disclosures WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete state disclosure' });
+  }
+});
+
+export default router;
+```
+
+Register the router in your main app:
+```typescript
+import stateDisclosureRoutes from './routes/state-disclosures';
+app.use('/api', stateDisclosureRoutes);
+```
+
+## STEP 7: ENSURE PROJECT STATE FLOWS THROUGH
+
+Make sure the project's state is available in the variable map so the resolver can use it. In `server/lib/mapper.ts`, verify these mappings exist:
+
+```typescript
+// These should already exist, but verify:
+map['PROJECT_STATE'] = projectData.siteState || projectData.state || '';
+map['PROJECT_STATE_CODE'] = projectData.siteState || projectData.state || '';
+map['SITE_STATE'] = projectData.siteState || projectData.state || '';
+```
+
+The state code must be the standard 2-letter abbreviation (CA, AZ, CO, TX, etc.).
+
+## VERIFICATION
+
+### Test 1: California project
+Generate a contract for a CA project. Verify:
+1. ✅ Exhibit E starts with the bordered Cal. Com. Code § 1201(b)(10) notice
+2. ✅ The notice includes the initial line: "please initial here: _________"
+3. ✅ No `[MISSING LEGAL DISCLOSURE...]` text anywhere
+4. ✅ Exhibit F shows "CALIFORNIA NOTICE: This Agreement involves the sale of a factory-built housing unit..."
+
+### Test 2: Colorado project
+Generate a contract for a CO project. Verify:
+5. ✅ Exhibit E shows COLORADO warranty notice (NOT the California one)
+6. ✅ Exhibit F shows "COLORADO NOTICE: Buyer acknowledges receipt..."
+
+### Test 3: Unsupported state
+Generate a contract for a state not in the seed data (e.g., FL). Verify:
+7. ✅ Falls back to DEFAULT disclosure content
+8. ✅ No errors or blank exhibits
+
+### Database:
+9. ✅ `SELECT COUNT(*) FROM state_disclosures;` returns at least 10 rows (5 states × 2 disclosures)
+10. ✅ API endpoint `GET /api/state-disclosures` returns all rows

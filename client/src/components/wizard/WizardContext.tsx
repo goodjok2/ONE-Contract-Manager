@@ -121,6 +121,11 @@ export interface ProjectData {
   totalUnits: number;
   agreementDate: string;
   serviceModel: 'CRC' | 'CMOS';
+  contractType: 'MASTER_EF';
+  buyerType: 'end_customer' | 'developer';
+  storageFeePerDay: number;
+  storageFreedays: number;
+  adminFeePercent: number;
   clientLegalName: string;
   clientState: string;
   clientEntityType: string;
@@ -242,6 +247,7 @@ export interface GeneratedContract {
   downloadUrl: string;
   size: number;
   generatedAt: string;
+  clauseCount?: number;
 }
 
 // LLC data interface
@@ -332,6 +338,11 @@ export const initialProjectData: ProjectData = {
   totalUnits: 1,
   agreementDate: new Date().toISOString().split('T')[0],
   serviceModel: 'CRC',
+  contractType: 'MASTER_EF',
+  buyerType: 'end_customer',
+  storageFeePerDay: 15000,
+  storageFreedays: 14,
+  adminFeePercent: 10,
   clientLegalName: '',
   clientState: '',
   clientEntityType: 'Individual',
@@ -592,6 +603,11 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
           projectName: project?.name || '',
           projectNumber: project?.projectNumber || '',
           serviceModel: project?.onSiteSelection || 'CRC',
+          contractType: project?.contractType === 'MASTER_EF' ? 'MASTER_EF' : 'MASTER_EF',
+          buyerType: project?.buyerType || 'end_customer',
+          storageFeePerDay: project?.storageFeePerDay || 15000,
+          storageFreedays: project?.storageFreedays || 14,
+          adminFeePercent: project?.adminFeePercent || 10,
         };
         
         // Add client data if available
@@ -688,11 +704,11 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
           loadedData.totalUnits = totalUnits;
         }
         
-        // Load warranty terms
+        // Load warranty terms - API uses dvele* field names
         if (warranty) {
-          loadedData.warrantyFitFinishMonths = warranty.warrantyFitFinishMonths || 12;
-          loadedData.warrantyBuildingEnvelopeMonths = warranty.warrantyBuildingEnvelopeMonths || 24;
-          loadedData.warrantyStructuralMonths = warranty.warrantyStructuralMonths || 120;
+          loadedData.warrantyFitFinishMonths = warranty.dveleFitFinishMonths || warranty.warrantyFitFinishMonths || 24;
+          loadedData.warrantyBuildingEnvelopeMonths = warranty.dveleBuildingEnvelopeMonths || warranty.warrantyBuildingEnvelopeMonths || 60;
+          loadedData.warrantyStructuralMonths = warranty.dveleStructuralMonths || warranty.warrantyStructuralMonths || 120;
           loadedData.warrantyStartDate = warranty.warrantyStartDate || '';
           loadedData.arbitrationProvider = warranty.arbitrationProvider || 'JAMS';
         }
@@ -721,6 +737,66 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
           loadedData.targetDeliveryDate = details.estimatedDeliveryDate || '';
           loadedData.manufacturingStartDate = details.productionStartDate || '';
           loadedData.projectState = details.governingLawState || '';
+        }
+        
+        // Load schedule durations from project table
+        // Map database field names to wizard field names
+        if (project.designDuration) {
+          loadedData.designPhaseDays = project.designDuration;
+        }
+        if (project.productionDuration) {
+          loadedData.manufacturingDurationDays = project.productionDuration;
+        }
+        if (project.deliveryDuration) {
+          loadedData.onsiteDurationDays = project.deliveryDuration;
+        }
+        
+        // Ensure Step 8 validation fields have defaults if not loaded
+        if (!loadedData.designPhaseDays) {
+          loadedData.designPhaseDays = 60;
+        }
+        if (!loadedData.manufacturingDurationDays) {
+          loadedData.manufacturingDurationDays = 120;
+        }
+        if (!loadedData.onsiteDurationDays) {
+          loadedData.onsiteDurationDays = loadedData.serviceModel === 'CRC' ? 90 : 60;
+        }
+        if (!loadedData.estimatedCompletionMonths) {
+          loadedData.estimatedCompletionMonths = 12;
+        }
+        if (!loadedData.estimatedCompletionUnit) {
+          loadedData.estimatedCompletionUnit = 'months';
+        }
+        if (!loadedData.warrantyFitFinishMonths) {
+          loadedData.warrantyFitFinishMonths = 24;
+        }
+        if (!loadedData.warrantyBuildingEnvelopeMonths) {
+          loadedData.warrantyBuildingEnvelopeMonths = 60;
+        }
+        if (!loadedData.warrantyStructuralMonths) {
+          loadedData.warrantyStructuralMonths = 120;
+        }
+        if (!loadedData.arbitrationProvider) {
+          loadedData.arbitrationProvider = 'JAMS';
+        }
+        
+        // Set projectCounty from siteCounty if not set
+        if (!loadedData.projectCounty && loadedData.siteCounty) {
+          loadedData.projectCounty = loadedData.siteCounty;
+        }
+        
+        // Set projectState from siteState if not set
+        if (!loadedData.projectState && loadedData.siteState) {
+          loadedData.projectState = loadedData.siteState;
+        }
+        
+        // Auto-set federal district based on state
+        if (!loadedData.projectFederalDistrict) {
+          const state = loadedData.projectState || loadedData.siteState || '';
+          const districts = FEDERAL_DISTRICTS[state] || [];
+          if (districts.length > 0) {
+            loadedData.projectFederalDistrict = districts[0];
+          }
         }
         
         // For any resumed draft, mark all steps 1-8 as accessible
@@ -943,6 +1019,11 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
       projectName: pd.projectName,
       projectNumber: pd.projectNumber,
       serviceModel: pd.serviceModel,
+      contractType: pd.contractType,
+      buyerType: pd.buyerType,
+      storageFeePerDay: pd.storageFeePerDay,
+      storageFreedays: pd.storageFreedays,
+      adminFeePercent: pd.adminFeePercent,
       // Site info (saved to project details)
       siteAddress: pd.siteAddress,
       siteCity: pd.siteCity,
@@ -1026,6 +1107,11 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
           status: 'Draft',
           state: pd.siteState || null,
           onSiteSelection: pd.serviceModel || 'CRC',
+          contractType: pd.contractType || 'MASTER_EF',
+          buyerType: pd.buyerType || 'end_customer',
+          storageFeePerDay: pd.storageFeePerDay || 15000,
+          storageFreedays: pd.storageFreedays || 14,
+          adminFeePercent: pd.adminFeePercent || 10,
           // Schedule durations (will be 0 initially, updated in Step 6)
           designDuration: pd.designPhaseDays || 0,
           permittingDuration: pd.permittingDurationDays || 0,
@@ -1048,6 +1134,11 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
           name: pd.projectName,
           state: pd.siteState || null,
           onSiteSelection: pd.serviceModel || 'CRC',
+          contractType: pd.contractType || 'MASTER_EF',
+          buyerType: pd.buyerType || 'end_customer',
+          storageFeePerDay: pd.storageFeePerDay || 15000,
+          storageFreedays: pd.storageFreedays || 14,
+          adminFeePercent: pd.adminFeePercent || 10,
           // Schedule durations on project level
           designDuration: pd.designPhaseDays || 0,
           permittingDuration: pd.permittingDurationDays || 0,
@@ -1580,6 +1671,11 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
         status: 'Draft',
         state: pd.siteState || null,
         onSiteSelection: pd.serviceModel || 'CRC',
+        contractType: pd.contractType || 'MASTER_EF',
+        buyerType: pd.buyerType || 'end_customer',
+        storageFeePerDay: pd.storageFeePerDay || 15000,
+        storageFreedays: pd.storageFreedays || 14,
+        adminFeePercent: pd.adminFeePercent || 10,
       };
       
       const projectResponse = await apiRequest('POST', '/api/projects', projectPayload);
@@ -1791,6 +1887,11 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
           status: 'Draft',
           state: pd.siteState,
           onSiteSelection: pd.serviceModel || 'CRC',
+          contractType: pd.contractType || 'MASTER_EF',
+          buyerType: pd.buyerType || 'end_customer',
+          storageFeePerDay: pd.storageFeePerDay || 15000,
+          storageFreedays: pd.storageFreedays || 14,
+          adminFeePercent: pd.adminFeePercent || 10,
         };
         
         const projectResponse = await apiRequest('PATCH', `/api/projects/${draftProjectId}`, projectPayload);
@@ -1806,6 +1907,11 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
           status: 'Draft',
           state: pd.siteState,
           onSiteSelection: pd.serviceModel || 'CRC',
+          contractType: pd.contractType || 'MASTER_EF',
+          buyerType: pd.buyerType || 'end_customer',
+          storageFeePerDay: pd.storageFeePerDay || 15000,
+          storageFreedays: pd.storageFreedays || 14,
+          adminFeePercent: pd.adminFeePercent || 10,
         };
         
         const projectResponse = await apiRequest('POST', '/api/projects', projectPayload);
@@ -1986,18 +2092,43 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
       // Step 4: Generate contract documents and save to database
       setCurrentGenerationStep(4);
       
-      const contractTypes = ['one_agreement', 'manufacturing_sub'];
-      if (pd.serviceModel === 'CMOS') {
-        contractTypes.push('onsite_sub');
+      console.log('Contract Generation - contractType:', pd.contractType);
+      
+      const contractTypes: string[] = ['master_ef'];
+      
+      // Fetch available templates and map to contract types
+      const templateMap: Record<string, number> = {};
+      try {
+        const templatesResponse = await fetch('/api/contract-templates');
+        if (templatesResponse.ok) {
+          const templates = await templatesResponse.json();
+          // Build a map of contract_type -> template_id
+          for (const t of templates) {
+            if (t.contract_type && t.id) {
+              templateMap[t.contract_type.toUpperCase()] = t.id;
+              // Also map lowercase variants
+              templateMap[t.contract_type.toLowerCase()] = t.id;
+            }
+          }
+        }
+      } catch (templateError) {
+        console.warn('Could not fetch templates, using defaults:', templateError);
       }
+      
+      if (!templateMap['MASTER_EF']) templateMap['MASTER_EF'] = 26;
+      templateMap['master_ef'] = templateMap['MASTER_EF'];
       
       const generatedContractsList: GeneratedContract[] = [];
       const timestamp = new Date().toISOString();
       
       for (const contractType of contractTypes) {
+        // Get correct template based on contract type
+        const templateId = templateMap[contractType] || templateMap['MASTER_EF'] || 26;
+        
         const contractPayload = {
           projectId,
           contractType,
+          templateId,
           status: 'Draft',
           generatedBy: 'wizard',
           templateVersion: '1.0',
@@ -2009,11 +2140,12 @@ export const WizardProvider: React.FC<WizardProviderProps> = ({ children, loadPr
           const contract = await contractResponse.json();
           generatedContractsList.push({
             id: String(contract.id),
-            type: contractType === 'one_agreement' ? 'ONE' : contractType === 'manufacturing_sub' ? 'MANUFACTURING' : 'ONSITE',
-            filename: contract.fileName || contractPayload.fileName,
+            type: contractType,
+            filename: contract.fileName || contract.file_name || contractPayload.fileName,
             downloadUrl: `/api/contracts/${contract.id}/download`,
             size: 200000,
             generatedAt: timestamp,
+            clauseCount: contract.clauseCount || 0,
           });
         }
       }

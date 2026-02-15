@@ -256,7 +256,7 @@ async function ingestExhibitsFromDocument(filePath: string): Promise<number> {
       transformDocument: (document: any) => {
         const stack: any[] = [document];
         while (stack.length > 0) {
-          const node = stack.pop();
+          const node = stack.shift();
           if (node.type === "paragraph") {
             const styleName = node.styleName || "Normal";
             const textContent = extractTextFromElement(node);
@@ -395,7 +395,7 @@ async function ingestStateDisclosuresFromDocument(filePath: string): Promise<num
       transformDocument: (document: any) => {
         const stack: any[] = [document];
         while (stack.length > 0) {
-          const node = stack.pop();
+          const node = stack.shift();
           if (node.type === "paragraph") {
             const styleName = node.styleName || "Normal";
             const textContent = extractTextFromElement(node);
@@ -478,11 +478,25 @@ async function ingestStateDisclosuresFromDocument(filePath: string): Promise<num
     return 0;
   }
   
-  // TODO: State disclosures table temporarily removed in Phase A refactoring
-  // This functionality will be restored when state_disclosures table is re-added
-  console.log(`   ⚠️ State disclosure ingestion temporarily disabled (Phase A refactoring)`);
-  console.log(`   Found ${disclosuresList.length} disclosures but table is not available`);
-  return 0;
+  // Insert or update state disclosures
+  let insertedCount = 0;
+  for (const disclosure of disclosuresList) {
+    try {
+      await pool.query(
+        `INSERT INTO state_disclosures (state, code, content, organization_id)
+         VALUES ($1, $2, $3, 1)
+         ON CONFLICT (state, code) DO UPDATE SET content = $3, updated_at = NOW()`,
+        [disclosure.state, disclosure.code, disclosure.content]
+      );
+      console.log(`   ✓ Saved ${disclosure.code} for ${disclosure.state} (${disclosure.content.length} chars)`);
+      insertedCount++;
+    } catch (err) {
+      console.error(`   ✗ Failed to save ${disclosure.code} for ${disclosure.state}:`, err);
+    }
+  }
+  
+  console.log(`   Inserted/updated ${insertedCount} state disclosures`);
+  return insertedCount;
 }
 
 // Get list of existing templates
@@ -792,7 +806,7 @@ router.post("/contracts", async (req, res) => {
       return res.status(400).json({ error: "Missing templateId" });
     }
     
-    console.log("🚀 STARTING GENERATION. TemplateID:", templateId, "ProjectID:", projectId);
+    console.log("🚀 STARTING GENERATION. TemplateID:", templateId, "ProjectID:", projectId, "ContractType:", contractType);
     
     // Normalize status to ensure consistency
     const normalizedStatus = status === "draft" ? "Draft" : status;
@@ -825,18 +839,25 @@ router.post("/contracts", async (req, res) => {
       
       // Delete existing drafts for same project/type (version control)
       if (projectId && contractType && normalizedStatus === "Draft") {
-        const deleteResult = await client.query(
-          `DELETE FROM contracts 
-           WHERE project_id = $1 AND contract_type = $2 AND status = 'Draft'
-           RETURNING id`,
+        // First, find existing drafts
+        const findResult = await client.query(
+          `SELECT id FROM contracts 
+           WHERE project_id = $1 AND contract_type = $2 AND status = 'Draft'`,
           [projectId, contractType]
         );
         
-        if (deleteResult.rowCount && deleteResult.rowCount > 0) {
-          console.log(`🔄 Version control: Replacing ${deleteResult.rowCount} existing draft(s) for project ${projectId}, type ${contractType}`);
-          for (const row of deleteResult.rows) {
+        if (findResult.rowCount && findResult.rowCount > 0) {
+          console.log(`🔄 Version control: Replacing ${findResult.rowCount} existing draft(s) for project ${projectId}, type ${contractType}`);
+          // Delete contract_clauses FIRST (child records)
+          for (const row of findResult.rows) {
             await client.query('DELETE FROM contract_clauses WHERE contract_id = $1', [row.id]);
           }
+          // Then delete the contracts (parent records)
+          await client.query(
+            `DELETE FROM contracts 
+             WHERE project_id = $1 AND contract_type = $2 AND status = 'Draft'`,
+            [projectId, contractType]
+          );
         }
       }
       
@@ -1573,29 +1594,24 @@ router.post("/contracts/download-all-zip", async (req, res) => {
     const { generateContract, getContractFilename } = await import('../lib/contractGenerator');
     const archiver = (await import('archiver')).default;
     
-    const contractTypes: Array<'ONE' | 'MANUFACTURING' | 'ONSITE'> = ['ONE', 'MANUFACTURING', 'ONSITE'];
+    const projectContractType = ((fullProject as any).contractType || (fullProject as any).contract_type || 'MASTER_EF').toUpperCase();
+    const contractTypes: string[] = projectContractType === 'MASTER_EF' 
+      ? ['MASTER_EF'] 
+      : ['ONE', 'MANUFACTURING', 'ONSITE'];
+    
+    console.log(`Contract type for project: ${projectContractType}, generating: ${contractTypes.join(', ')}`);
     
     const generatedContracts: Array<{ buffer: Buffer; filename: string }> = [];
     
     for (const contractType of contractTypes) {
       try {
-        // Generate separate projectData for each contract type with filtered tables
-        const contractProjectData = mapProjectToVariables(fullProject, pricingSummary || undefined, contractType);
-        
-        // Apply the same enrichments as the main projectData
-        if (pricingSummary && pricingSummary.unitCount > 0) {
-          contractProjectData.DESIGN_FEE = centsToDollars(pricingSummary.breakdown.totalDesignFee);
-          contractProjectData.DESIGN_FEE_WRITTEN = formatCentsAsCurrency(pricingSummary.breakdown.totalDesignFee);
-          contractProjectData.PRELIM_OFFSITE = centsToDollars(pricingSummary.breakdown.totalOffsite);
-          contractProjectData.PRELIM_OFFSITE_WRITTEN = formatCentsAsCurrency(pricingSummary.breakdown.totalOffsite);
-          contractProjectData.PRELIMINARY_OFFSITE_PRICE = formatCentsAsCurrency(pricingSummary.breakdown.totalOffsite);
-          contractProjectData.PRELIM_ONSITE = centsToDollars(pricingSummary.breakdown.totalOnsite);
-          contractProjectData.PRELIM_ONSITE_WRITTEN = formatCentsAsCurrency(pricingSummary.breakdown.totalOnsite);
-          contractProjectData.PRELIMINARY_ONSITE_PRICE = formatCentsAsCurrency(pricingSummary.breakdown.totalOnsite);
-        }
+        const contractFilterType = contractType as 'ONE' | 'MANUFACTURING' | 'ONSITE' | 'MASTER_EF';
+        const contractProjectData = contractTypes.length === 1
+          ? projectData
+          : mapProjectToVariables(fullProject, pricingSummary || undefined, contractFilterType);
         
         const buffer = await generateContract({
-          contractType,
+          contractType: contractFilterType,
           projectData: contractProjectData,
           format: 'pdf'
         });
@@ -1669,7 +1685,7 @@ router.post("/contracts/download-pdf", async (req, res) => {
       
       // Now call mapProjectToVariables WITH the pricingSummary and contractType so tables are filtered correctly
       // Contract type filtering: ONE shows all, MANUFACTURING shows offsite only, ONSITE shows onsite only
-      const contractFilterType = contractType as 'ONE' | 'MANUFACTURING' | 'ONSITE';
+      const contractFilterType = contractType as 'ONE' | 'MANUFACTURING' | 'ONSITE' | 'MASTER_EF';
       projectData = mapProjectToVariables(fullProject, pricingSummary || undefined, contractFilterType);
       
       console.log(`\n=== Generating ${contractType} contract for project ${projectId} ===`);
@@ -1771,7 +1787,7 @@ router.post("/contracts/download-pdf", async (req, res) => {
     const { generateContract, getContractFilename } = await import('../lib/contractGenerator');
     
     const buffer = await generateContract({
-      contractType: contractType as 'ONE' | 'MANUFACTURING' | 'ONSITE',
+      contractType: contractType as 'ONE' | 'MANUFACTURING' | 'ONSITE' | 'MASTER_EF',
       projectData,
       format: 'pdf'
     });
@@ -1790,6 +1806,117 @@ router.post("/contracts/download-pdf", async (req, res) => {
       error: "Failed to generate document",
       message: error instanceof Error ? error.message : "Unknown error"
     });
+  }
+});
+
+// GET endpoint for mobile-friendly PDF download (browser navigates directly)
+router.get("/contracts/download-pdf/:projectId/:contractType", async (req, res) => {
+  try {
+    const projectId = parseInt(req.params.projectId);
+    const contractType = req.params.contractType;
+
+    if (!projectId || isNaN(projectId)) {
+      return res.status(400).json({ error: "Valid projectId is required" });
+    }
+    if (!contractType) {
+      return res.status(400).json({ error: "contractType is required" });
+    }
+
+    const fullProject = await getProjectWithRelations(projectId);
+    if (!fullProject) {
+      return res.status(404).json({ error: "Project not found" });
+    }
+
+    const { mapProjectToVariables, formatCentsAsCurrency, centsToDollars } = await import('../lib/mapper');
+    const { calculateProjectPricing } = await import('../services/pricingEngine');
+
+    let pricingSummary: any = null;
+    try {
+      pricingSummary = await calculateProjectPricing(projectId);
+    } catch (pricingError) {
+      console.warn(`⚠️ Pricing engine error (using fallback):`, pricingError);
+    }
+
+    const contractFilterType = contractType as 'ONE' | 'MANUFACTURING' | 'ONSITE' | 'MASTER_EF';
+    const projectData = mapProjectToVariables(fullProject, pricingSummary || undefined, contractFilterType);
+
+    try {
+      const projectUnitsData = await db
+        .select({
+          unitLabel: projectUnits.unitLabel,
+          modelName: homeModels.name,
+        })
+        .from(projectUnits)
+        .innerJoin(homeModels, eq(projectUnits.modelId, homeModels.id))
+        .where(eq(projectUnits.projectId, projectId));
+
+      if (pricingSummary && pricingSummary.unitCount > 0) {
+        projectData.DESIGN_FEE = centsToDollars(pricingSummary.breakdown.totalDesignFee);
+        projectData.DESIGN_FEE_WRITTEN = formatCentsAsCurrency(pricingSummary.breakdown.totalDesignFee);
+        projectData.PRELIM_OFFSITE = centsToDollars(pricingSummary.breakdown.totalOffsite);
+        projectData.PRELIM_OFFSITE_WRITTEN = formatCentsAsCurrency(pricingSummary.breakdown.totalOffsite);
+        projectData.PRELIMINARY_OFFSITE_PRICE = formatCentsAsCurrency(pricingSummary.breakdown.totalOffsite);
+        projectData.PRELIM_ONSITE = centsToDollars(pricingSummary.breakdown.totalOnsite);
+        projectData.PRELIM_ONSITE_WRITTEN = formatCentsAsCurrency(pricingSummary.breakdown.totalOnsite);
+        projectData.PRELIMINARY_ONSITE_PRICE = formatCentsAsCurrency(pricingSummary.breakdown.totalOnsite);
+        projectData.CONTRACT_PRICE = formatCentsAsCurrency(pricingSummary.contractValue);
+        projectData.PRELIM_CONTRACT_PRICE = centsToDollars(pricingSummary.contractValue);
+        projectData.PRELIM_CONTRACT_PRICE_WRITTEN = formatCentsAsCurrency(pricingSummary.contractValue);
+        projectData.PRELIMINARY_CONTRACT_PRICE = formatCentsAsCurrency(pricingSummary.contractValue);
+        projectData.PRELIMINARY_TOTAL_PRICE = formatCentsAsCurrency(pricingSummary.contractValue);
+        projectData.FINAL_CONTRACT_PRICE = centsToDollars(pricingSummary.contractValue);
+        projectData.FINAL_CONTRACT_PRICE_WRITTEN = formatCentsAsCurrency(pricingSummary.contractValue);
+        projectData.TOTAL_CONTRACT_PRICE = centsToDollars(pricingSummary.contractValue);
+        projectData.TOTAL_CONTRACT_PRICE_WRITTEN = formatCentsAsCurrency(pricingSummary.contractValue);
+        projectData.TOTAL_PROJECT_BUDGET = centsToDollars(pricingSummary.projectBudget);
+        projectData.TOTAL_PROJECT_BUDGET_WRITTEN = formatCentsAsCurrency(pricingSummary.projectBudget);
+
+        pricingSummary.paymentSchedule.forEach((milestone: { name: string; percentage: number; amount: number; phase?: string }, index: number) => {
+          const num = index + 1;
+          projectData[`MILESTONE_${num}_NAME`] = milestone.name;
+          projectData[`MILESTONE_${num}_PERCENT`] = `${milestone.percentage}%`;
+          projectData[`MILESTONE_${num}_AMOUNT`] = formatCentsAsCurrency(milestone.amount);
+          projectData[`MILESTONE_${num}_PHASE`] = milestone.phase;
+        });
+
+        const unitCounts: Record<string, { count: number; labels: string[] }> = {};
+        projectUnitsData.forEach(unit => {
+          if (!unitCounts[unit.modelName]) {
+            unitCounts[unit.modelName] = { count: 0, labels: [] };
+          }
+          unitCounts[unit.modelName].count++;
+          unitCounts[unit.modelName].labels.push(unit.unitLabel);
+        });
+        const unitSummaryParts = Object.entries(unitCounts).map(([model, data]) =>
+          `${data.count}x ${model} (${data.labels.join(', ')})`
+        );
+        projectData.HOME_MODEL = `${pricingSummary.unitCount} Unit${pricingSummary.unitCount !== 1 ? 's' : ''}: ${unitSummaryParts.join(', ')}`;
+        projectData.UNIT_MODEL_LIST = pricingSummary.unitModelSummary || projectData.HOME_MODEL;
+        projectData.TOTAL_UNITS = pricingSummary.unitCount;
+        projectData.PRICING_SERVICE_MODEL = pricingSummary.serviceModel;
+      }
+    } catch (pricingError) {
+      console.warn('Pricing enrichment failed for GET download:', pricingError);
+    }
+
+    const { generateContract, getContractFilename } = await import('../lib/contractGenerator');
+
+    const buffer = await generateContract({
+      contractType: contractFilterType,
+      projectData,
+      format: 'pdf'
+    });
+
+    const filename = getContractFilename(contractType, projectData, 'pdf');
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+    res.setHeader('Content-Length', buffer.length.toString());
+    res.send(buffer);
+
+  } catch (error) {
+    console.error("Error generating PDF (GET):", error);
+    res.status(500).send('Failed to generate PDF. Please try again.');
   }
 });
 
@@ -1827,7 +1954,7 @@ router.post("/contracts/draft-preview", async (req, res) => {
     
     // Map project to variables WITH pricingSummary and contractType (same as PDF route)
     // Contract type filtering: ONE shows all, MANUFACTURING shows offsite only, ONSITE shows onsite only
-    const contractFilterType = contractType as 'ONE' | 'MANUFACTURING' | 'ONSITE';
+    const contractFilterType = contractType as 'ONE' | 'MANUFACTURING' | 'ONSITE' | 'MASTER_EF';
     const projectData = mapProjectToVariables(fullProject, pricingSummary || undefined, contractFilterType);
     
     console.log(`\n=== Generating ${contractType} DRAFT PREVIEW for project ${projectId} ===`);
@@ -1920,7 +2047,7 @@ router.post("/contracts/draft-preview", async (req, res) => {
     const { generateContract } = await import('../lib/contractGenerator');
     
     const buffer = await generateContract({
-      contractType: contractType as 'ONE' | 'MANUFACTURING' | 'ONSITE',
+      contractType: contractType as 'ONE' | 'MANUFACTURING' | 'ONSITE' | 'MASTER_EF',
       projectData,
       format: 'html'
     });
@@ -2459,7 +2586,7 @@ router.get("/components/preview/:componentId", async (req, res) => {
     
     switch (componentId) {
       case "pricing_breakdown":
-        html = generatePricingTableHtml(pricingSummary, 'ONE');
+        html = generatePricingTableHtml(pricingSummary, 'MASTER_EF');
         break;
         
       case "payment_schedule":
@@ -2500,6 +2627,133 @@ router.get("/components/preview/:componentId", async (req, res) => {
   }
 });
 
+router.get("/components/preview-resolved/:componentId", async (req, res) => {
+  try {
+    const componentId = parseInt(req.params.componentId);
+    const { projectId } = req.query;
+
+    if (!projectId) {
+      return res.json({ html: "<p class='text-center text-gray-500 py-4'>Select a project to see live data</p>" });
+    }
+
+    const compResult = await pool.query("SELECT * FROM component_library WHERE id = $1", [componentId]);
+    if (compResult.rows.length === 0) {
+      return res.json({ html: "<p class='text-center text-red-500 py-4'>Component not found</p>" });
+    }
+
+    const component = compResult.rows[0];
+    const tagName = component.tag_name;
+    const pidNum = parseInt(projectId as string);
+
+    const DATA_DRIVEN_TAGS = [
+      "TABLE_PRICING_BREAKDOWN",
+      "TABLE_PAYMENT_SCHEDULE",
+      "TABLE_UNIT_DETAILS",
+    ];
+
+    if (component.is_system && DATA_DRIVEN_TAGS.includes(tagName)) {
+      const { generatePricingTableHtml, generatePaymentScheduleHtml, generateUnitDetailsHtml } = await import("../lib/tableGenerators");
+      const { calculateProjectPricing } = await import("../services/pricingEngine");
+
+      const projectResult = await pool.query(
+        `SELECT p.*, pd.*, f.*, c.legal_name as client_name
+         FROM projects p
+         LEFT JOIN project_details pd ON pd.project_id = p.id
+         LEFT JOIN financials f ON f.project_id = p.id
+         LEFT JOIN clients c ON c.project_id = p.id
+         WHERE p.id = $1`,
+        [pidNum]
+      );
+
+      if (projectResult.rows.length === 0) {
+        return res.json({ html: "<p class='text-center text-red-500 py-4'>Project not found</p>" });
+      }
+
+      let pricingSummary: any = null;
+      try {
+        pricingSummary = await calculateProjectPricing(pidNum);
+      } catch (e) {
+        console.error("Failed to calculate pricing for preview:", e);
+      }
+
+      let html = "";
+      switch (tagName) {
+        case "TABLE_PRICING_BREAKDOWN":
+          html = generatePricingTableHtml(pricingSummary, "MASTER_EF");
+          break;
+        case "TABLE_PAYMENT_SCHEDULE": {
+          const msResult = await pool.query(
+            `SELECT * FROM milestones WHERE project_id = $1 ORDER BY milestone_number, id`,
+            [pidNum]
+          );
+          if (msResult.rows.length > 0) {
+            const milestones = msResult.rows.map((m: any) => ({
+              name: m.name,
+              percentage: parseFloat(m.percentage || "0"),
+              amount: parseFloat(m.amount || "0"),
+              phase: m.phase || "",
+            }));
+            html = generatePaymentScheduleHtml(milestones);
+          } else {
+            const cv = pricingSummary?.contractValue || 0;
+            const defaults = [
+              { name: "Design Agreement Signing", percentage: 10, amount: cv * 0.10, phase: "Design" },
+              { name: "Green Light / Production Start", percentage: 40, amount: cv * 0.40, phase: "Production" },
+              { name: "Module Delivery", percentage: 40, amount: cv * 0.40, phase: "Delivery" },
+              { name: "Final Completion", percentage: 10, amount: cv * 0.10, phase: "Completion" },
+            ];
+            html = generatePaymentScheduleHtml(defaults);
+          }
+          break;
+        }
+        case "TABLE_UNIT_DETAILS": {
+          const unitsResult = await pool.query(
+            `SELECT pu.*, hm.name as model_name, hm.model_code, hm.bedrooms, hm.bathrooms, hm.sq_ft
+             FROM project_units pu
+             JOIN home_models hm ON hm.id = pu.model_id
+             WHERE pu.project_id = $1
+             ORDER BY pu.unit_label`,
+            [pidNum]
+          );
+          const formattedUnits = unitsResult.rows.map((u: any) => ({
+            unitLabel: u.unit_label,
+            modelName: u.model_name,
+            bedrooms: u.bedrooms,
+            bathrooms: u.bathrooms,
+            squareFootage: u.sq_ft,
+            estimatedPrice: (u.base_price_snapshot || 0) + (u.customization_total || 0),
+          }));
+          html = generateUnitDetailsHtml(formattedUnits);
+          break;
+        }
+      }
+
+      return res.json({ html });
+    }
+
+    let html = component.content || "";
+
+    const variables = html.match(/\{\{[A-Z_]+\}\}/g);
+    if (variables && variables.length > 0) {
+      const fullProject = await getProjectWithRelations(pidNum);
+      if (fullProject) {
+        const { mapProjectToVariables } = await import("../lib/mapper");
+        const projectData = mapProjectToVariables(fullProject);
+        for (const varTag of variables) {
+          const varName = varTag.replace(/\{\{|\}\}/g, "");
+          const value = (projectData as any)[varName] || `[${varName}]`;
+          html = html.replace(new RegExp(varTag.replace(/[{}]/g, '\\$&'), 'g'), value);
+        }
+      }
+    }
+
+    res.json({ html });
+  } catch (error: any) {
+    console.error("Component resolved preview error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ---------------------------------------------------------------------------
 // TABLE DEFINITIONS CRUD
 // ---------------------------------------------------------------------------
@@ -2535,17 +2789,17 @@ router.get("/table-definitions/:id", async (req, res) => {
 
 router.post("/table-definitions", async (req, res) => {
   try {
-    const { variable_name, display_name, description, columns } = req.body;
+    const { variable_name, display_name, description, columns, rows } = req.body;
     
     if (!variable_name || !display_name || !columns) {
       return res.status(400).json({ error: "variable_name, display_name, and columns are required" });
     }
     
     const result = await pool.query(
-      `INSERT INTO table_definitions (variable_name, display_name, description, columns)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO table_definitions (variable_name, display_name, description, columns, rows)
+       VALUES ($1, $2, $3, $4, $5)
        RETURNING *`,
-      [variable_name, display_name, description, JSON.stringify(columns)]
+      [variable_name, display_name, description, JSON.stringify(columns), rows ? JSON.stringify(rows) : null]
     );
     
     res.status(201).json(result.rows[0]);
@@ -2580,6 +2834,11 @@ router.patch("/table-definitions/:id", async (req, res) => {
     if (columns !== undefined) {
       updateFields.push(`columns = $${paramCount}`);
       values.push(JSON.stringify(columns));
+      paramCount++;
+    }
+    if (req.body.rows !== undefined) {
+      updateFields.push(`rows = $${paramCount}`);
+      values.push(req.body.rows ? JSON.stringify(req.body.rows) : null);
       paramCount++;
     }
     
@@ -2672,72 +2931,34 @@ router.post("/resolve-clause-tables", async (req, res) => {
       return res.json({ html: "" });
     }
     
-    const { renderDynamicTable, getAllTableDefinitions } = await import("../lib/tableBuilders");
-    const { generatePricingTableHtml, generatePaymentScheduleHtml, generateUnitDetailsHtml } = await import("../lib/tableGenerators");
-    const { calculateProjectPricing } = await import("../services/pricingEngine");
-    
     let resolvedContent = content;
     
     if (projectId) {
       const pid = parseInt(projectId);
-      
-      if (resolvedContent.includes("{{PRICING_BREAKDOWN_TABLE}}")) {
-        try {
-          const pricing = await calculateProjectPricing(pid);
-          const pricingHtml = generatePricingTableHtml(pricing, 'ONE');
-          resolvedContent = resolvedContent.replace(/\{\{PRICING_BREAKDOWN_TABLE\}\}/g, pricingHtml);
-        } catch {
-          resolvedContent = resolvedContent.replace(/\{\{PRICING_BREAKDOWN_TABLE\}\}/g, '<p class="text-muted-foreground">[Pricing - No data available]</p>');
-        }
-      }
-      
-      if (resolvedContent.includes("{{PAYMENT_SCHEDULE_TABLE}}")) {
-        try {
-          const pricing = await calculateProjectPricing(pid);
-          const milestones = [
-            { name: "Design Agreement Signing", percentage: 10, amount: pricing ? pricing.contractValue * 0.10 : 0, phase: "Design" },
-            { name: "Green Light / Production Start", percentage: 40, amount: pricing ? pricing.contractValue * 0.40 : 0, phase: "Production" },
-            { name: "Module Delivery", percentage: 40, amount: pricing ? pricing.contractValue * 0.40 : 0, phase: "Delivery" },
-            { name: "Final Completion", percentage: 10, amount: pricing ? pricing.contractValue * 0.10 : 0, phase: "Completion" },
-          ];
-          const scheduleHtml = generatePaymentScheduleHtml(milestones);
-          resolvedContent = resolvedContent.replace(/\{\{PAYMENT_SCHEDULE_TABLE\}\}/g, scheduleHtml);
-        } catch {
-          resolvedContent = resolvedContent.replace(/\{\{PAYMENT_SCHEDULE_TABLE\}\}/g, '<p class="text-muted-foreground">[Payment Schedule - No data available]</p>');
-        }
-      }
-      
-      if (resolvedContent.includes("{{UNIT_SPEC_TABLE}}")) {
-        try {
-          const unitsResult = await pool.query(
-            `SELECT pu.*, hm.name as model_name, hm.model_code, hm.bedrooms, hm.bathrooms, hm.sq_ft
-             FROM project_units pu
-             JOIN home_models hm ON hm.id = pu.model_id
-             WHERE pu.project_id = $1
-             ORDER BY pu.unit_label`,
-            [pid]
-          );
-          const formattedUnits = unitsResult.rows.map(u => ({
-            unitLabel: u.unit_label,
-            modelName: u.model_name,
-            bedrooms: u.bedrooms,
-            bathrooms: u.bathrooms,
-            squareFootage: u.sq_ft,
-            estimatedPrice: (u.base_price_snapshot || 0) + (u.customization_total || 0),
-          }));
-          const unitHtml = generateUnitDetailsHtml(formattedUnits);
-          resolvedContent = resolvedContent.replace(/\{\{UNIT_SPEC_TABLE\}\}/g, unitHtml);
-        } catch {
-          resolvedContent = resolvedContent.replace(/\{\{UNIT_SPEC_TABLE\}\}/g, '<p class="text-muted-foreground">[Unit Spec - No data available]</p>');
-        }
-      }
-      
-      const tableDefs = await getAllTableDefinitions();
-      for (const table of tableDefs) {
-        const pattern = new RegExp(`\\{\\{${table.variable_name}\\}\\}`, 'g');
-        if (pattern.test(resolvedContent)) {
-          const tableHtml = await renderDynamicTable(table.id, pid);
-          resolvedContent = resolvedContent.replace(pattern, tableHtml);
+      const { resolveComponentTags } = await import("../services/component-library");
+
+      resolvedContent = await resolveComponentTags(resolvedContent, {
+        projectId: pid,
+        organizationId: 1,
+        contractType: 'MASTER_EF',
+        onSiteType: 'CRC',
+      });
+
+      const remainingVars = resolvedContent.match(/\{\{[A-Z_]+\}\}/g);
+      if (remainingVars && remainingVars.length > 0) {
+        const fullProject = await getProjectWithRelations(pid);
+        if (fullProject) {
+          const { mapProjectToVariables } = await import("../lib/mapper");
+          const projectData = mapProjectToVariables(fullProject);
+          const uniqueVars = Array.from(new Set(remainingVars));
+          for (const varTag of uniqueVars) {
+            const varName = varTag.replace(/\{\{|\}\}/g, "");
+            const value = (projectData as any)[varName];
+            const replacement = (value !== undefined && value !== null && value !== '') 
+              ? String(value) 
+              : `[${varName}]`;
+            resolvedContent = resolvedContent.replace(new RegExp(varTag.replace(/[{}]/g, '\\$&'), 'g'), replacement);
+          }
         }
       }
     }

@@ -7,12 +7,21 @@ const router = Router();
 
 router.use(requireAuth);
 
+const selectFields = `
+  pu.id, pu.organization_id as "organizationId", pu.project_id as "projectId",
+  pu.model_id as "modelId", pu.unit_label as "unitLabel",
+  pu.base_price_snapshot as "basePriceSnapshot",
+  pu.customization_total as "customizationTotal",
+  pu.notes, pu.created_at as "createdAt",
+  hm.name as "modelName", hm.model_code as "modelCode"
+`;
+
 router.get("/project-units", async (req: Request, res: Response) => {
   try {
     const { projectId } = req.query;
     
     let query = `
-      SELECT pu.*, hm.name as model_name, hm.model_code
+      SELECT ${selectFields}
       FROM project_units pu
       LEFT JOIN home_models hm ON pu.model_id = hm.id
       WHERE pu.organization_id = $1`;
@@ -37,7 +46,7 @@ router.get("/project-units/:id", async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const result = await pool.query(
-      `SELECT pu.*, hm.name as model_name, hm.model_code
+      `SELECT ${selectFields}
        FROM project_units pu
        LEFT JOIN home_models hm ON pu.model_id = hm.id
        WHERE pu.id = $1 AND pu.organization_id = $2`,
@@ -55,6 +64,14 @@ router.get("/project-units/:id", async (req: Request, res: Response) => {
   }
 });
 
+const returningFields = `
+  id, organization_id as "organizationId", project_id as "projectId",
+  model_id as "modelId", unit_label as "unitLabel",
+  base_price_snapshot as "basePriceSnapshot",
+  customization_total as "customizationTotal",
+  notes, created_at as "createdAt"
+`;
+
 router.post("/project-units", async (req: Request, res: Response) => {
   try {
     const { projectId, modelId, unitLabel, basePriceSnapshot, customizationTotal, notes } = req.body;
@@ -62,7 +79,7 @@ router.post("/project-units", async (req: Request, res: Response) => {
     const result = await pool.query(
       `INSERT INTO project_units (organization_id, project_id, model_id, unit_label, base_price_snapshot, customization_total, notes)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING *`,
+       RETURNING ${returningFields}`,
       [req.organizationId, projectId, modelId, unitLabel, basePriceSnapshot, customizationTotal, notes]
     );
     
@@ -86,7 +103,7 @@ router.patch("/project-units/:id", async (req: Request, res: Response) => {
        customization_total = COALESCE($6, customization_total),
        notes = COALESCE($7, notes)
        WHERE id = $1 AND organization_id = $2
-       RETURNING *`,
+       RETURNING ${returningFields}`,
       [id, req.organizationId, modelId, unitLabel, basePriceSnapshot, customizationTotal, notes]
     );
     
@@ -107,8 +124,8 @@ router.delete("/project-units/:id", async (req: Request, res: Response) => {
     
     const result = await pool.query(
       `DELETE FROM project_units 
-       WHERE id = $1 AND organization_id = $2
-       RETURNING *`,
+       WHERE id = $1 AND (organization_id = $2 OR organization_id IS NULL)
+       RETURNING id`,
       [id, req.organizationId]
     );
     

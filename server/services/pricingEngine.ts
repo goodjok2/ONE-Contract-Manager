@@ -1,4 +1,5 @@
 import { db } from "../db/index";
+import { pool } from "../db";
 import { projects, projectDetails, financials, milestones } from "../../shared/schema";
 import { eq } from "drizzle-orm";
 
@@ -34,34 +35,87 @@ export async function calculateProjectPricing(projectId: number): Promise<Pricin
     throw new Error(`Project with id ${projectId} not found`);
   }
 
+  // Determine service model (CRC or CMOS)
+  const serviceModel: 'CRC' | 'CMOS' = (project.onSiteSelection === 'CMOS') ? 'CMOS' : 'CRC';
+
+  // Always fetch financials to get additional site work / buffer
   const [financial] = await db
     .select()
     .from(financials)
     .where(eq(financials.projectId, projectId));
+  
+  // Additional site work (stored in financials.prelimOnsite)
+  const additionalSiteWork = financial?.prelimOnsite || 0;
 
-  const [details] = await db
-    .select()
-    .from(projectDetails)
-    .where(eq(projectDetails.projectId, projectId));
+  // STEP 1: Query project_units + home_models to calculate pricing from units
+  const unitsResult = await pool.query(
+    `SELECT 
+      pu.id as unit_id,
+      pu.base_price_snapshot,
+      pu.customization_total,
+      hm.id as model_id,
+      hm.name as model_name,
+      hm.design_fee,
+      hm.offsite_base_price,
+      hm.onsite_est_price
+     FROM project_units pu
+     LEFT JOIN home_models hm ON pu.model_id = hm.id
+     WHERE pu.project_id = $1`,
+    [projectId]
+  );
 
-  const projectMilestones = await db
-    .select()
-    .from(milestones)
-    .where(eq(milestones.projectId, projectId));
+  const units = unitsResult.rows;
+  const unitCount = units.length;
 
-  // Determine service model (CRC or CMOS)
-  const serviceModel: 'CRC' | 'CMOS' = (project.onSiteSelection === 'CMOS') ? 'CMOS' : 'CRC';
+  let totalDesignFee = 0;
+  let totalOffsite = 0;
+  let totalOnsite = 0;
+  let totalCustomizations = 0;
+  let unitModelSummary = '';
 
-  // Get pricing from financials table
-  const totalDesignFee = financial?.designFee || 0;
-  const totalOffsite = financial?.prelimOffsite || financial?.finalOffsite || 0;
-  const totalOnsite = financial?.prelimOnsite || financial?.refinedOnsite || 0;
-  const totalCustomizations = financial?.homeCustomizations || 0;
+  if (unitCount > 0) {
+    // Calculate pricing by summing across all units
+    const modelCounts: Record<string, number> = {};
 
-  // Get unit info from project details
-  const unitCount = details?.totalUnits || 1;
-  const homeModel = details?.homeModel || 'Custom Home';
-  const unitModelSummary = `${unitCount}x ${homeModel}`;
+    for (const unit of units) {
+      // Use home_model prices (design_fee, offsite_base_price, onsite_est_price)
+      totalDesignFee += unit.design_fee || 0;
+      totalOffsite += unit.offsite_base_price || 0;
+      totalOnsite += unit.onsite_est_price || 0;
+      totalCustomizations += unit.customization_total || 0;
+
+      // Count models for summary
+      const modelName = unit.model_name || 'Unknown Model';
+      modelCounts[modelName] = (modelCounts[modelName] || 0) + 1;
+    }
+
+    // Build unit model summary like "2x Carmel, 1x Trinity"
+    unitModelSummary = Object.entries(modelCounts)
+      .map(([name, count]) => `${count}x ${name}`)
+      .join(', ');
+
+    // Add additional site work / buffer from financials
+    totalOnsite += additionalSiteWork;
+
+    console.log(`[PricingEngine] Project ${projectId}: Calculated from ${unitCount} units - designFee=${totalDesignFee}, offsite=${totalOffsite}, onsite=${totalOnsite} (includes ${additionalSiteWork} additional site work)`);
+  } else {
+    // FALLBACK: No units, use financials table (financial already fetched above)
+    const [details] = await db
+      .select()
+      .from(projectDetails)
+      .where(eq(projectDetails.projectId, projectId));
+
+    totalDesignFee = financial?.designFee || 0;
+    totalOffsite = financial?.prelimOffsite || financial?.finalOffsite || 0;
+    totalOnsite = financial?.prelimOnsite || financial?.refinedOnsite || 0;
+    totalCustomizations = financial?.homeCustomizations || 0;
+
+    const fallbackUnitCount = details?.totalUnits || 1;
+    const homeModel = details?.homeModel || 'Custom Home';
+    unitModelSummary = `${fallbackUnitCount}x ${homeModel}`;
+
+    console.log(`[PricingEngine] Project ${projectId}: No units found, using financials fallback - designFee=${totalDesignFee}, offsite=${totalOffsite}, onsite=${totalOnsite}`);
+  }
 
   // projectBudget = full cost of the project (design + offsite + onsite)
   const projectBudget = totalDesignFee + totalOffsite + totalOnsite;
@@ -76,7 +130,13 @@ export async function calculateProjectPricing(projectId: number): Promise<Pricin
   // grandTotal kept for backwards compatibility
   const grandTotal = projectBudget;
   
-  console.log(`[PricingEngine] Project ${projectId} (${serviceModel}): designFee=${totalDesignFee}, offsite=${totalOffsite}, onsite=${totalOnsite}, projectBudget=${projectBudget}, contractValue=${contractValue}`);
+  console.log(`[PricingEngine] Project ${projectId} (${serviceModel}): projectBudget=${projectBudget}, contractValue=${contractValue}`);
+
+  // Get milestones for payment schedule
+  const projectMilestones = await db
+    .select()
+    .from(milestones)
+    .where(eq(milestones.projectId, projectId));
 
   const paymentSchedule: PaymentScheduleItem[] = [];
 

@@ -74,7 +74,7 @@ router.post("/components", async (req: Request, res: Response) => {
 router.patch("/components/:id", async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { tagName, content, description, serviceModel, isSystem } = req.body;
+    const { tagName, content, description, serviceModel, isSystem, isActive } = req.body;
     
     const existingResult = await pool.query(
       `SELECT is_system FROM component_library WHERE id = $1 AND organization_id = $2`,
@@ -92,10 +92,46 @@ router.patch("/components/:id", async (req: Request, res: Response) => {
        description = COALESCE($5, description),
        service_model = COALESCE($6, service_model),
        is_system = COALESCE($7, is_system),
+       is_active = COALESCE($8, is_active),
        updated_at = NOW()
        WHERE id = $1 AND organization_id = $2
        RETURNING *`,
-      [id, req.organizationId, tagName, content, description, serviceModel, isSystem]
+      [id, req.organizationId, tagName, content, description, serviceModel, isSystem, isActive]
+    );
+    
+    res.json(result.rows[0]);
+  } catch (error: any) {
+    console.error("Error updating component:", error);
+    res.status(500).json({ error: "Failed to update component" });
+  }
+});
+
+router.put("/components/:id", async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { tagName, content, description, serviceModel, isSystem, isActive } = req.body;
+    
+    const existingResult = await pool.query(
+      `SELECT * FROM component_library WHERE id = $1 AND organization_id = $2`,
+      [id, req.organizationId]
+    );
+    
+    if (existingResult.rows.length === 0) {
+      return res.status(404).json({ error: "Component not found" });
+    }
+    
+    const result = await pool.query(
+      `UPDATE component_library SET 
+       tag_name = $3,
+       content = $4,
+       description = $5,
+       service_model = $6,
+       is_system = COALESCE($7, is_system),
+       is_active = COALESCE($8, is_active),
+       updated_at = NOW()
+       WHERE id = $1 AND organization_id = $2
+       RETURNING *`,
+      [id, req.organizationId, tagName, content, description, serviceModel || null, isSystem, isActive]
     );
     
     res.json(result.rows[0]);

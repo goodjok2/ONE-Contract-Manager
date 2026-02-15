@@ -15,7 +15,7 @@ router.get("/exhibits", async (req: Request, res: Response) => {
     const params: any[] = [req.organizationId];
     
     if (contractType) {
-      query += ` AND contract_types ? $2`;
+      query += ` AND contract_types @> ARRAY[$2]::text[]`;
       params.push(contractType);
     }
     

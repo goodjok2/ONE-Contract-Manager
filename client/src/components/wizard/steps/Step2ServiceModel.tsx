@@ -2,7 +2,7 @@ import { useWizard } from '../WizardContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowRightLeft, UserCheck, Briefcase, HelpCircle } from 'lucide-react';
+import { ArrowRightLeft, UserCheck, Briefcase, HelpCircle, Building2 } from 'lucide-react';
 
 export const Step2ServiceModel: React.FC = () => {
   const { 
@@ -15,6 +15,37 @@ export const Step2ServiceModel: React.FC = () => {
   
   return (
     <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Agreement Type</CardTitle>
+          <CardDescription>
+            All projects use the Master Purchase Agreement
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div
+            className="relative p-4 border-2 border-primary bg-primary/5 shadow-md rounded-lg overflow-visible"
+            data-testid="option-master-ef"
+          >
+            <div className="flex items-start gap-3">
+              <div className="w-5 h-5 rounded-full border-2 border-primary bg-primary flex items-center justify-center mt-0.5">
+                <div className="w-2.5 h-2.5 rounded-full bg-white" />
+              </div>
+              <div className="flex-1">
+                <div className="flex flex-wrap items-center gap-2 mb-1">
+                  <Building2 className="h-4 w-4 text-primary" />
+                  <h3 className="font-semibold">Master Purchase Agreement</h3>
+                  <Badge variant="secondary" className="text-xs">Exhibit-First</Badge>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Consolidated exhibit-first master purchase agreement with integrated exhibits
+                </p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+      
       <Card>
         <CardHeader>
           <CardTitle>Service Model Selection</CardTitle>
@@ -161,16 +192,16 @@ export const Step2ServiceModel: React.FC = () => {
                     {projectData.serviceModel === 'CRC' ? (
                       <>
                         <p>You'll provide contractor information in the next step</p>
-                        <p>On-Site Subcontract will be between your contractor and the SPV</p>
-                        <p>Excludes on-site pricing from the ONE Agreement</p>
-                        <p>Includes 3 CRC-specific clauses in contracts</p>
+                        <p>On-site work will be between your contractor and the SPV</p>
+                        <p>Excludes on-site pricing from the Master Purchase Agreement</p>
+                        <p>Includes CRC-specific clauses in the agreement</p>
                       </>
                     ) : (
                       <>
                         <p>No contractor information required</p>
-                        <p>On-Site Subcontract will be managed by Dvele</p>
+                        <p>On-site work will be managed by Dvele</p>
                         <p>Includes site prep, utilities, and completion pricing</p>
-                        <p>Includes 5 CMOS-specific clauses in contracts</p>
+                        <p>Includes CMOS-specific clauses in the agreement</p>
                       </>
                     )}
                   </div>

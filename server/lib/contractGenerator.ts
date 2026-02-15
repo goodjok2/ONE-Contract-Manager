@@ -1,7 +1,8 @@
 import puppeteer from 'puppeteer-core';
+import { buildSignatureBlock } from './tableStyles';
 
 interface ContractGenerationOptions {
-  contractType: 'ONE' | 'MANUFACTURING' | 'ONSITE';
+  contractType: 'MASTER_EF' | 'ONE' | 'MANUFACTURING' | 'ONSITE';
   projectData: Record<string, any>;
   format?: 'pdf' | 'html';
 }
@@ -31,6 +32,10 @@ let currentProjectState: string = '';
 
 // Current service model for conditional [IF] tag processing
 let currentServiceModel: string = '';
+let signatureComponentResolved: boolean = false;
+
+// Current contract type for rendering/numbering decisions
+let currentContractType: string = '';
 
 /**
  * Process [IF CMOS]/[IF CRC] conditional tags in content
@@ -115,7 +120,7 @@ async function resolveDynamicTableVariables(
     const { renderDynamicTable } = await import('./tableBuilders');
     
     // List of custom table variable names to resolve from table_definitions
-    const customTableVars = ['WHAT_HAPPENS_NEXT_TABLE'];
+    const customTableVars = ['WHAT_HAPPENS_NEXT_TABLE', 'CUSTOMER_ACKNOWLEDGE_TABLE'];
     
     for (const varName of customTableVars) {
       // Only resolve if not already set in the variable map
@@ -163,10 +168,11 @@ async function lookupStateDisclosure(disclosureCode: string, state: string): Pro
       .limit(1);
     
     if (result.length > 0 && result[0].content) {
+      console.log(`  Found disclosure: ${disclosureCode} for ${state} (${result[0].content.length} chars)`);
       stateDisclosureCache.set(cacheKey, result[0].content);
       return result[0].content;
     } else {
-      // Return missing disclosure warning
+      console.log(`  MISSING disclosure: ${disclosureCode} for ${state} (no rows returned)`);
       const missing = `<div class="missing-disclosure">[MISSING LEGAL DISCLOSURE: ${disclosureCode} for ${state}]</div>`;
       stateDisclosureCache.set(cacheKey, missing);
       return missing;
@@ -277,18 +283,11 @@ async function renderExhibitsHTML(
   let html = '';
   
   for (const exhibit of exhibits) {
-    // Page break before each exhibit
-    html += '<div style="page-break-before: always;"></div>';
-    
-    // Exhibit header
+    // Each exhibit starts on a new page - use exhibit-section class with page-break-before
     html += `
-      <div class="exhibit-header">
-        <div class="level-1 roman-section" style="text-align: center; font-size: 14pt; font-weight: bold; color: #1a73e8;">
-          EXHIBIT ${exhibit.letter}
-        </div>
-        <div class="exhibit-title" style="text-align: center; font-size: 12pt; font-weight: bold; margin-bottom: 20px;">
-          ${exhibit.title}
-        </div>
+      <div class="exhibit-section">
+        <div class="exhibit-letter">EXHIBIT ${exhibit.letter}</div>
+        <div class="exhibit-title">${exhibit.title}</div>
       </div>
     `;
     
@@ -321,6 +320,11 @@ async function renderExhibitsHTML(
     // Process conditional tags for service model (CRC/CMOS) in exhibits
     if (currentServiceModel && (content.includes('[IF ') || content.includes('[IF]'))) {
       content = processConditionalTags(content, currentServiceModel);
+    }
+    
+    // Resolve BLOCK_ component tags in exhibits (CRC/CMOS variants)
+    if (currentServiceModel && content.includes('{{BLOCK_')) {
+      content = resolveBlockTags(content, currentServiceModel);
     }
     
     // Clean debug/placeholder text from exhibits
@@ -357,12 +361,22 @@ export async function generateContract(options: ContractGenerationOptions): Prom
   // Set current project state for disclosure lookups
   currentProjectState = projectState;
   
+  // Set current contract type for numbering/rendering decisions (normalize to uppercase)
+  const contractTypeNormMap: Record<string, string> = {
+    'master_ef': 'MASTER_EF',
+    'one_agreement': 'ONE',
+    'manufacturing_sub': 'MANUFACTURING',
+    'onsite_sub': 'ONSITE',
+  };
+  currentContractType = contractTypeNormMap[contractType] || contractType.toUpperCase();
+  
   // Set current service model for [IF] tag processing
   currentServiceModel = (projectData.serviceModel || projectData.ON_SITE_SELECTION || 'CRC').toUpperCase();
   console.log(`📍 Service model for [IF] tag processing: ${currentServiceModel}`);
   
   // Clear and preload block components for this service model
   clearBlockComponentCache();
+  signatureComponentResolved = false;
   await preloadBlockComponents(projectData.organizationId || 1, currentServiceModel);
   
   // Preload exhibit content for {{EXHIBIT_A}} through {{EXHIBIT_G}} tags
@@ -542,74 +556,115 @@ function applyDynamicNumbering(
   level: number = 0,
   isInsideConditional: boolean = false
 ): void {
-  let visibleIndex = 0;
-  
-  // Reset global section counter at root level
-  if (level === 0) {
-    globalSectionCounter = 0;
+  if (currentContractType === 'MASTER_EF') {
+    applyMasterEFNumbering(nodes);
+    return;
   }
+  
+  let visibleIndex = 0;
   
   for (const node of nodes) {
     if (node.isHidden) continue;
     
     visibleIndex++;
     
-    // Use hierarchy_level from clause data if available, otherwise fall back to tree depth
     const hierarchyLevel = node.clause.hierarchy_level ?? (level + 1);
-    const blockType = node.clause.block_type || 'clause';
     const clauseName = node.clause.name || '';
-    
-    // Check if this is a conditional [IF] block
     const isConditionalBlock = clauseName.startsWith('[IF') || clauseName.includes('[IF ');
     
-    // Determine the number format based on hierarchy_level (not tree depth)
     let number: string;
     
-    if (hierarchyLevel === 1) {
-      // Level 1: Upper Roman for Agreement Parts (I, II, III)
-      // ABSOLUTE RULE: Reset all sub-counters when Level 1 is encountered
-      globalSectionCounter = 0; // Reset section counter
-      
-      const clauseCode = node.clause.clause_code || '';
-      const isRomanSection = /^[IVX]+\.?\s/.test(clauseCode) || /^[IVX]+\.?\s/.test(clauseName);
-      
-      if (isRomanSection) {
+    switch (hierarchyLevel) {
+      case 1:
         number = toRoman(visibleIndex);
-      } else {
+        break;
+      case 2:
         number = String(visibleIndex);
-      }
-    } else if (hierarchyLevel === 2) {
-      // Level 2: "Section X" for Major Sections, OR dot-notation if inside conditional [IF] tag
-      // ABSOLUTE RULE: If inside an [IF] tag, render as nested dot-notation (e.g., 5.1)
-      if (isInsideConditional || isConditionalBlock) {
-        // Inside conditional block - use dot-notation (parent.child format)
+        break;
+      case 3:
         number = parentNumber ? `${parentNumber}.${visibleIndex}` : String(visibleIndex);
-      } else {
-        // Regular Level 2 outside [IF] - use independent section numbering (Section 1, 2, 3...)
-        globalSectionCounter++;
-        number = String(globalSectionCounter);
-      }
-    } else if (hierarchyLevel === 5 || hierarchyLevel === 6) {
-      // Levels 5-6: No numbering (body text and conspicuous)
-      number = '';
-    } else if (hierarchyLevel === 7 || blockType === 'list_item') {
-      // Level 7 ONLY: Lowercase Roman numerals for Roman Lists (i., ii., iii.)
-      number = toLowerRoman(visibleIndex);
-    } else {
-      // Levels 3-4: Parent.Child format (e.g., 1.1, 1.1.1)
-      number = parentNumber ? `${parentNumber}.${visibleIndex}` : String(visibleIndex);
+        break;
+      case 4:
+        number = toAlpha(visibleIndex);
+        break;
+      case 5:
+        number = toLowerRoman(visibleIndex);
+        break;
+      case 6:
+        number = String(visibleIndex);
+        break;
+      case 7:
+        number = toUpperAlpha(visibleIndex);
+        break;
+      case 8:
+        number = '-';
+        break;
+      default:
+        number = String(visibleIndex);
     }
     
     node.dynamicNumber = number || undefined;
-    
-    // Mark if this node is inside a conditional block for rendering decisions
     node.isInsideConditional = isInsideConditional || isConditionalBlock;
     
-    // Recursively number children
-    // Pass down conditional context so children know they're inside an [IF] block
     if (node.children.length > 0) {
       const childConditionalContext = isInsideConditional || isConditionalBlock;
       applyDynamicNumbering(node.children, number, level + 1, childConditionalContext);
+    }
+  }
+}
+
+function applyMasterEFNumbering(nodes: BlockNode[]): void {
+  let sectionCounter = 0;
+  
+  for (const node of nodes) {
+    if (node.isHidden) continue;
+    
+    const clauseCode = node.clause.clause_code || '';
+    
+    const isPreamble = clauseCode === 'MASTER_EF_PREAMBLE';
+    const isRecitals = clauseCode === 'MASTER_EF_RECITALS';
+    
+    if (isPreamble || isRecitals) {
+      node.dynamicNumber = '';
+      if (node.children.length > 0) {
+        assignMasterEFNoNumbers(node.children);
+      }
+    } else {
+      sectionCounter++;
+      node.dynamicNumber = `${sectionCounter})`;
+      if (node.children.length > 0) {
+        assignMasterEFChildNumbers(node.children);
+      }
+    }
+  }
+}
+
+function assignMasterEFChildNumbers(siblings: BlockNode[]): void {
+  let counter = 0;
+  for (const node of siblings) {
+    if (node.isHidden) continue;
+    counter++;
+    const hierarchyLevel = node.clause.hierarchy_level ?? 2;
+    
+    if (hierarchyLevel === 2) {
+      node.dynamicNumber = `${toAlpha(counter)}.`;
+    } else if (hierarchyLevel === 3) {
+      node.dynamicNumber = `${toLowerRoman(counter)}.`;
+    } else {
+      node.dynamicNumber = '';
+    }
+    
+    if (node.children.length > 0) {
+      assignMasterEFChildNumbers(node.children);
+    }
+  }
+}
+
+function assignMasterEFNoNumbers(nodes: BlockNode[]): void {
+  for (const node of nodes) {
+    node.dynamicNumber = '';
+    if (node.children.length > 0) {
+      assignMasterEFNoNumbers(node.children);
     }
   }
 }
@@ -636,10 +691,26 @@ function toRoman(num: number): string {
 
 /**
  * Convert integer to lowercase Roman numeral (i, ii, iii, iv, v...)
- * Used for Level 4 list items
+ * Used for Level 5 paragraph items
  */
 function toLowerRoman(num: number): string {
   return toRoman(num).toLowerCase();
+}
+
+/**
+ * Convert integer to lowercase alpha (a, b, c, ...)
+ * Used for Level 4 sub-clause items
+ */
+function toAlpha(num: number): string {
+  return String.fromCharCode(96 + num); // 1='a', 2='b', ..., 26='z'
+}
+
+/**
+ * Convert integer to uppercase alpha (A, B, C, ...)
+ * Used for Level 7 items
+ */
+function toUpperAlpha(num: number): string {
+  return String.fromCharCode(64 + num); // 1='A', 2='B', ..., 26='Z'
 }
 
 /**
@@ -657,20 +728,24 @@ async function fetchClausesForContract(
   projectData: Record<string, any>
 ): Promise<Clause[]> {
   try {
-    // Contract types map from user-facing/internal names to database values
-    // Database stores human-readable names: 'ONE Agreement', 'Manufacturing Subcontract', 'OnSite Subcontract'
-    const contractTypeMap: Record<string, string> = {
-      'ONE': 'ONE Agreement',
-      'ONE_AGREEMENT': 'ONE Agreement',
-      'one_agreement': 'ONE Agreement',
-      'MANUFACTURING': 'Manufacturing Subcontract',
-      'manufacturing_sub': 'Manufacturing Subcontract',
-      'ONSITE': 'OnSite Subcontract',
-      'onsite_sub': 'OnSite Subcontract',
+    // Normalize to the short-form codes that match what's stored in clauses.contract_types
+    // Clauses store: ["ONE"], ["MANUFACTURING"], ["ONSITE"]
+    // Callers may pass various formats, normalize them all to the stored format
+    const contractTypeNormalizer: Record<string, string> = {
+      'ONE Agreement': 'ONE',
+      'ONE_AGREEMENT': 'ONE',
+      'one_agreement': 'ONE',
+      'Manufacturing Subcontract': 'MANUFACTURING',
+      'manufacturing_sub': 'MANUFACTURING',
+      'OnSite Subcontract': 'ONSITE',
+      'onsite_sub': 'ONSITE',
+      'Master EF Agreement': 'MASTER_EF',
+      'master_ef': 'MASTER_EF',
+      'MASTER_EF_AGREEMENT': 'MASTER_EF',
     };
-    const mappedType = contractTypeMap[contractType] || contractType;
+    const normalizedType = contractTypeNormalizer[contractType] || contractType;
     
-    const url = `http://localhost:5000/api/clauses?contractType=${encodeURIComponent(mappedType)}`;
+    const url = `http://localhost:5000/api/clauses?contractType=${encodeURIComponent(normalizedType)}`;
     console.log(`Fetching clauses from: ${url}`);
     
     const response = await fetch(url);
@@ -936,23 +1011,30 @@ function resolveExhibitTags(content: string): string {
  * Uses preloaded cache for synchronous resolution
  * Generic regex approach - matches ALL {{BLOCK_*}} tags
  */
-function resolveBlockTags(content: string, serviceModel: string): string {
+function resolveBlockTags(content: string, serviceModel: string, variableMap?: Record<string, string>): string {
   let result = content;
   
-  // Find ALL {{BLOCK_*}} tags using generic regex
-  const blockTagRegex = /\{\{(BLOCK_[A-Z0-9_.]+)\}\}/g;
-  const allMatches = Array.from(result.matchAll(blockTagRegex));
+  // Find ALL {{BLOCK_*}} and {{TABLE_*}} tags using generic regex
+  const componentTagRegex = /\{\{((?:BLOCK|TABLE)_[A-Z0-9_.]+)\}\}/g;
+  const allMatches = Array.from(result.matchAll(componentTagRegex));
   const uniqueTags = Array.from(new Set(allMatches.map(m => m[1])));
   
   for (const tagName of uniqueTags) {
-    const blockContent = blockComponentCache.get(tagName);
+    let blockContent = blockComponentCache.get(tagName);
     if (blockContent) {
-      // Escape dots in tag name for regex
+      if (variableMap) {
+        Object.entries(variableMap).forEach(([key, value]) => {
+          const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
+          blockContent = blockContent!.replace(regex, value || '');
+        });
+      }
       const escapedTagName = tagName.replace(/\./g, '\\.');
       result = result.replace(new RegExp(`\\{\\{${escapedTagName}\\}\\}`, 'g'), blockContent);
+      if (tagName.startsWith('TABLE_SIGNATURE')) {
+        signatureComponentResolved = true;
+      }
     } else {
       console.warn(`No cached component for {{${tagName}}} - leaving placeholder`);
-      // Leave the placeholder in place so it shows up as unresolved
     }
   }
   
@@ -964,9 +1046,10 @@ function replaceVariables(content: string, variableMap: Record<string, string>):
   
   let result = content;
   
-  // Process BLOCK_ component tags based on current service model
-  if (result.includes('{{BLOCK_')) {
-    result = resolveBlockTags(result, currentServiceModel);
+  // Process BLOCK_ and TABLE_ component tags based on current service model
+  // Pass variableMap so variables inside components are resolved without blue highlight markers
+  if (result.includes('{{BLOCK_') || result.includes('{{TABLE_')) {
+    result = resolveBlockTags(result, currentServiceModel, variableMap);
   }
   
   // Process EXHIBIT_ tags ({{EXHIBIT_A}} through {{EXHIBIT_G}})
@@ -1094,8 +1177,10 @@ function renderBlockTreeHTML(nodes: BlockNode[], projectData: Record<string, any
     html += renderBlockNode(node);
   }
   
-  // Add signature blocks at the end
-  html += renderSignatureBlocks(projectData);
+  // Add signature blocks at the end only if no component-based signature was resolved
+  if (!signatureComponentResolved) {
+    html += renderSignatureBlocks(projectData);
+  }
   
   // Add exhibits after signature blocks
   if (exhibitsHtml) {
@@ -1109,11 +1194,18 @@ function renderBlockTreeHTML(nodes: BlockNode[], projectData: Record<string, any
 
 /**
  * Render a single block node and its children recursively
- * Uses both block_type and hierarchy_level to determine rendering format
- * Supports 8-level hierarchy: Agreement Parts, Major Sections, Clauses, Sub-headers, Body, Conspicuous, Roman Lists
+ * Uses hierarchy_level to determine rendering format per the 8-Level spec:
+ * L1: "1. NAME" (uppercase, centered, blue)
+ * L2: "1.1 Name" (blue)
+ * L3: "1.1.1 Name" (blue)
+ * L4: "(a) Name content" (black, inline)
+ * L5: "(i) Name content" (black, inline)
+ * L6: "1. Name content" (black, inline)
+ * L7: "(A) Name content" (black, inline)
+ * L8: "- Name content" (black, inline)
  */
 function renderBlockNode(node: BlockNode): string {
-  const { clause, children, dynamicNumber, isInsideConditional } = node;
+  const { clause, children, dynamicNumber } = node;
   const blockType = clause.block_type || 'clause';
   const hierarchyLevel = clause.hierarchy_level ?? 1;
   const rawContent = clause.content || '';
@@ -1122,13 +1214,20 @@ function renderBlockNode(node: BlockNode): string {
   const disclosureCode = clause.disclosure_code || '';
   
   // Strip duplicate headers and format content
-  const strippedContent = stripDuplicateHeader(rawContent, clauseName, clauseCode);
+  let strippedContent = stripDuplicateHeader(rawContent, clauseName, clauseCode);
+  
+  // Strip raw underscore-based signature blocks from clause content (Fix 3)
+  // These get replaced by the formatted renderSignatureBlocks() output
+  if (strippedContent && /_{3,}/.test(strippedContent)) {
+    strippedContent = strippedContent
+      .replace(/^.*(?:Signature|By|Name\s*\(?Print\)?|Title|Date)\s*[:]\s*_{3,}.*$/gm, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  }
+  
   const content = strippedContent ? formatContent(strippedContent) : '';
   
   let html = '';
-  
-  // Check for Roman numeral sections
-  const isRomanSection = /^[IVX]+\.?\s/.test(clauseCode) || /^[IVX]+\.?\s/.test(clauseName);
   
   // Check for Exhibit sections (add page break)
   const exhibitMatch = clauseCode.match(/EXHIBIT-([A-G])$/);
@@ -1144,112 +1243,145 @@ function renderBlockNode(node: BlockNode): string {
     } else if (disclosureCode) {
       html += `<div class="missing-disclosure">[MISSING STATE: Cannot look up disclosure ${disclosureCode} without PROJECT_STATE]</div>`;
     }
-    // Fall through to render children
   }
-  // Handle conspicuous blocks - entirely bold legal disclaimers
-  else if (blockType === 'conspicuous') {
-    html += `<div class="level-6 conspicuous">${content}</div>`;
-  }
-  // Render based on block_type and hierarchy_level
-  else if (blockType === 'section') {
-    if (hierarchyLevel === 1 || isRomanSection) {
-      // Level 1: Agreement Parts - Center-aligned, Upper Roman (I, II, III)
-      html += `
-        <div class="level-1 roman-section">
-          ${dynamicNumber ? `${dynamicNumber}. ` : ''}${escapeHtml(clauseName.replace(/^[IVX]+\.?\s*/, '').toUpperCase())}
-        </div>
-        ${content ? `<p>${content}</p>` : ''}
-      `;
-    } else {
-      // Level 2: Major Sections
-      // ABSOLUTE RULE: If inside [IF] tag, use dot-notation (e.g., 5.1) instead of "Section X"
-      const displayName = clauseName.replace(/^Section\s*\d+\.?\s*/i, '');
-      const isConditionalClause = clauseName.startsWith('[IF') || clauseName.includes('[IF ');
-      
-      if (isInsideConditional || isConditionalClause) {
-        // Inside conditional block - use dot-notation, skip "Section" prefix
-        html += `
-          <div class="level-2 subsection-header">
-            ${dynamicNumber ? `${dynamicNumber}. ` : ''}${escapeHtml(displayName)}
-          </div>
-          ${content ? `<p>${content}</p>` : ''}
-        `;
-      } else {
-        // Regular Level 2 - use "Section X" format
-        html += `
-          <div class="level-2 subsection-header">
-            ${dynamicNumber ? `Section ${dynamicNumber}. ` : ''}${escapeHtml(displayName)}
-          </div>
-          ${content ? `<p>${content}</p>` : ''}
-        `;
-      }
-    }
-  } else if (blockType === 'clause') {
-    // Level 3: Clauses - Black, Bold, Dot-notation (1.1, 2.3)
-    const displayName = clauseName.replace(/^\d+\.\d+\.?\s*/i, '');
-    html += `
-      <div class="level-3 clause-header">
-        ${dynamicNumber ? `${dynamicNumber}. ` : ''}${escapeHtml(displayName)}
-      </div>
-      ${content ? `<p>${content}</p>` : ''}
-    `;
-  } else if (blockType === 'paragraph') {
-    // Level 4 or 5 depending on hierarchy
-    if (hierarchyLevel <= 4 && dynamicNumber) {
-      // Level 4: Sub-headers with dot-notation (1.1.1)
-      html += `
-        <div class="level-4 paragraph-numbered">
-          <span class="clause-number">${dynamicNumber}.</span> ${content}
-        </div>
-      `;
-    } else {
-      // Level 5: Body text with hanging indent
-      html += `<div class="level-5">${content}</div>`;
-    }
-  } else if (blockType === 'list_item') {
-    // Level 7: Roman numeral list items - Margin-Left: 60pt
-    html += `
-      <div class="level-7 list-item-roman">
-        <span class="list-marker">${dynamicNumber}.</span>${content}
-      </div>
-    `;
-  } else if (blockType === 'table') {
-    // Table - content should already be HTML
+  // Handle table blocks
+  else if (blockType === 'table') {
     html += content;
-  } else {
-    // Default: Use hierarchy_level as fallback for rendering decision
-    if (hierarchyLevel === 1) {
-      html += `<div class="level-1">${dynamicNumber ? `${dynamicNumber}. ` : ''}${escapeHtml(clauseName.toUpperCase())}</div>`;
-      if (content) html += `<p>${content}</p>`;
+  }
+  // MASTER_EF: Use 3-level numbering scheme with special RECITALS handling
+  else if (currentContractType === 'MASTER_EF') {
+    const isConspicuous = blockType === 'conspicuous';
+    const conspicuousClass = isConspicuous ? ' conspicuous' : '';
+    const isPreamble = clauseCode === 'MASTER_EF_PREAMBLE';
+    const isRecitals = clauseCode === 'MASTER_EF_RECITALS';
+    const isRecitalChild = clauseCode.startsWith('MASTER_EF_RECITAL_') && clauseCode !== 'MASTER_EF_RECITAL_THEREFORE';
+    const isNowTherefore = clauseCode === 'MASTER_EF_RECITAL_THEREFORE';
+    
+    if (isPreamble) {
+      if (content) html += `<div class="mef-preamble${conspicuousClass}">${content}</div>`;
+    } else if (isRecitals) {
+      html += `<div class="recitals-header">RECITALS</div>`;
+    } else if (isRecitalChild) {
+      if (content) html += `<div class="whereas-clause${conspicuousClass}">${content}</div>`;
+    } else if (isNowTherefore) {
+      if (content) html += `<div class="now-therefore${conspicuousClass}">${content}</div>`;
+    } else if (hierarchyLevel === 1) {
+      html += `<div class="mef-level-1${conspicuousClass}">${dynamicNumber} ${escapeHtml(clauseName.toUpperCase())}</div>`;
+      if (content) html += `<div class="mef-level-1-body">${content}</div>`;
     } else if (hierarchyLevel === 2) {
-      // ABSOLUTE RULE: If inside [IF] tag, use dot-notation instead of "Section X"
-      const isConditionalClause = clauseName.startsWith('[IF') || clauseName.includes('[IF ');
-      if (isInsideConditional || isConditionalClause) {
-        html += `<div class="level-2">${dynamicNumber ? `${dynamicNumber}. ` : ''}${escapeHtml(clauseName)}</div>`;
-      } else {
-        html += `<div class="level-2">${dynamicNumber ? `Section ${dynamicNumber}. ` : ''}${escapeHtml(clauseName)}</div>`;
+      const inlineContent = stripBlockWrappers(content);
+      html += `<div class="mef-level-2${conspicuousClass}">`;
+      html += `<span class="mef-level-2-marker">${dynamicNumber} </span>`;
+      if (clauseName) {
+        html += `<span class="mef-level-2-header">${escapeHtml(clauseName)}.</span>`;
+        if (inlineContent) {
+          html += ` ${inlineContent}`;
+        }
+      } else if (inlineContent) {
+        html += inlineContent;
       }
-      if (content) html += `<p>${content}</p>`;
+      html += `</div>`;
     } else if (hierarchyLevel === 3) {
-      html += `<div class="level-3">${dynamicNumber ? `${dynamicNumber}. ` : ''}${escapeHtml(clauseName)}</div>`;
-      if (content) html += `<p>${content}</p>`;
-    } else if (hierarchyLevel === 4) {
-      html += `<div class="level-4 paragraph-numbered"><span class="clause-number">${dynamicNumber}.</span> ${content}</div>`;
-    } else if (hierarchyLevel === 5) {
-      html += `<div class="level-5">${content}</div>`;
-    } else if (hierarchyLevel === 6) {
-      html += `<div class="level-6 conspicuous">${content}</div>`;
-    } else if (hierarchyLevel === 7) {
-      html += `<div class="level-7 list-item-roman"><span class="list-marker">${dynamicNumber}.</span>${content}</div>`;
-    } else if (clauseName && clauseName.trim() && content) {
-      html += `
-        <div class="inline-clause">
-          <span style="font-weight: bold;">${dynamicNumber ? `${dynamicNumber}. ` : ''}${escapeHtml(clauseName)}.</span>
-          ${content}
-        </div>
-      `;
-    } else if (content) {
-      html += `<p class="indented">${content}</p>`;
+      const inlineContent = stripBlockWrappers(content);
+      html += `<div class="mef-level-3${conspicuousClass}">`;
+      html += `<span class="mef-level-3-marker">${dynamicNumber} </span>`;
+      if (clauseName) {
+        html += `<span class="mef-level-3-header">${escapeHtml(clauseName)}.</span>`;
+        if (inlineContent) {
+          html += ` ${inlineContent}`;
+        }
+      } else if (inlineContent) {
+        html += inlineContent;
+      }
+      html += `</div>`;
+    } else {
+      if (clauseName && content) {
+        html += `<div class="mef-body${conspicuousClass}">${escapeHtml(clauseName)} ${content}</div>`;
+      } else if (content) {
+        html += `<div class="mef-body${conspicuousClass}">${content}</div>`;
+      }
+    }
+  }
+  // Handle all hierarchy levels per the 8-Level spec (ONE, MANUFACTURING, ONSITE)
+  else {
+    const isConspicuous = blockType === 'conspicuous';
+    const conspicuousClass = isConspicuous ? ' conspicuous' : '';
+    
+    if (!clauseName.trim() && content) {
+      if (hierarchyLevel === 2) {
+        const inlineContentNoName = stripBlockWrappers(content);
+        html += `<div class="level-2${conspicuousClass}"><span class="level-2-marker">${dynamicNumber}. </span>${inlineContentNoName}</div>`;
+      } else if (hierarchyLevel === 3) {
+        const inlineContentNoName = stripBlockWrappers(content);
+        html += `<div class="level-3${conspicuousClass}"><span class="level-3-marker">${dynamicNumber} </span>${inlineContentNoName}</div>`;
+      } else {
+        html += `<div class="level-${hierarchyLevel}-body${conspicuousClass}">${content}</div>`;
+      }
+    }
+    else {
+      const l2DisplayName = clauseName.replace(/^Section\s*\d+\.?\s*/i, '').trim();
+      
+      switch (hierarchyLevel) {
+      case 1:
+        html += `<div class="level-1${conspicuousClass}">${dynamicNumber}. ${escapeHtml(clauseName.toUpperCase())}</div>`;
+        if (content) html += `<div class="level-1-body">${content}</div>`;
+        break;
+        
+      case 2: {
+        const inlineContent2 = stripBlockWrappers(content);
+        html += `<div class="level-2${conspicuousClass}">`;
+        html += `<span class="level-2-marker">${dynamicNumber}. </span>`;
+        html += `<span class="level-2-header">${escapeHtml(l2DisplayName)}</span>`;
+        if (inlineContent2) {
+          html += ` ${inlineContent2}`;
+        }
+        html += `</div>`;
+        break;
+      }
+        
+      case 3: {
+        const inlineContent3 = stripBlockWrappers(content);
+        html += `<div class="level-3${conspicuousClass}">`;
+        html += `<span class="level-3-marker">${dynamicNumber} </span>`;
+        if (clauseName) {
+          html += `<span class="level-3-header">${escapeHtml(clauseName)}</span>`;
+          if (inlineContent3) {
+            html += ` ${inlineContent3}`;
+          }
+        } else if (inlineContent3) {
+          html += inlineContent3;
+        }
+        html += `</div>`;
+        break;
+      }
+        
+      case 4:
+        html += `<div class="level-4${conspicuousClass}">(${dynamicNumber}) ${clauseName ? escapeHtml(clauseName) : ''}${content ? ' ' + content : ''}</div>`;
+        break;
+        
+      case 5:
+        html += `<div class="level-5${conspicuousClass}">${clauseName ? escapeHtml(clauseName) + ' ' : ''}${content || ''}</div>`;
+        break;
+        
+      case 6:
+        html += `<div class="level-6${conspicuousClass}">${dynamicNumber}. ${clauseName ? escapeHtml(clauseName) : ''}${content ? ' ' + content : ''}</div>`;
+        break;
+        
+      case 7:
+        html += `<div class="level-7${conspicuousClass}">(${dynamicNumber}) ${clauseName ? escapeHtml(clauseName) : ''}${content ? ' ' + content : ''}</div>`;
+        break;
+        
+      case 8:
+        html += `<div class="level-8${conspicuousClass}">- ${clauseName ? escapeHtml(clauseName) : ''}${content ? ' ' + content : ''}</div>`;
+        break;
+        
+      default:
+        if (clauseName && content) {
+          html += `<div class="level-${hierarchyLevel}${conspicuousClass}">${dynamicNumber ? dynamicNumber + '. ' : ''}${escapeHtml(clauseName)} ${content}</div>`;
+        } else if (content) {
+          html += `<div class="level-${hierarchyLevel}${conspicuousClass}">${content}</div>`;
+        }
+      }
     }
   }
   
@@ -1365,10 +1497,8 @@ function getContractStyles(): string {
     
     /* === 8-LEVEL HIERARCHICAL STYLING === */
     
-    /* Level 1 (H1): Agreement Parts - Blue, Bold, Center-align, Upper Roman (I, II, III) */
-    .level-1,
-    .roman-section,
-    .section-header {
+    /* Level 1 (Article): Bold, uppercase, blue, centered, border */
+    .level-1 {
       font-size: 14pt;
       font-weight: bold;
       color: #1a73e8;
@@ -1379,66 +1509,225 @@ function getContractStyles(): string {
       padding-bottom: 6pt;
       border-bottom: 2px solid #1a73e8;
       page-break-after: avoid;
-      text-indent: 0;
-      margin-left: 0;
     }
     
-    /* Level 2 (H2): Major Sections - Blue, Bold, Prefix "Section X. " */
-    .level-2,
-    .subsection-header {
-      font-size: 12pt;
-      font-weight: bold;
-      color: #1a73e8;
+    .level-1-body {
+      font-size: 11pt;
+      font-weight: normal;
+      color: #000000;
+      margin-bottom: 10pt;
+      line-height: 1.4;
+    }
+    
+    /* Level 2 (Section): Inline header+body with hanging indent */
+    .level-2 {
+      font-size: 11pt;
+      font-weight: normal;
+      color: #000000;
       margin-top: 20pt;
       margin-bottom: 10pt;
-      page-break-after: avoid;
+      margin-left: 0.5in;
+      padding-left: 0.3in;
+      text-indent: -0.3in;
+      line-height: 1.5;
+    }
+    .level-2-marker {
+      display: inline-block;
+      width: 0.3in;
       text-indent: 0;
-      margin-left: 0;
+      font-weight: normal;
+    }
+    .level-2-header {
+      text-decoration: underline;
+      font-weight: normal;
     }
     
-    /* Level 3: Clauses - Blue, Bold, Dot-notation (1.1, 2.3) */
-    .level-3,
-    .clause-header {
+    /* Level 3 (Clause): Inline header+body with deeper hanging indent */
+    .level-3 {
       font-size: 11pt;
-      font-weight: bold;
-      color: #1a73e8;
-      margin-top: 14pt;
+      font-weight: normal;
+      color: #000000;
       margin-bottom: 8pt;
-      page-break-after: avoid;
+      margin-left: 1.0in;
+      padding-left: 0.4in;
+      text-indent: -0.4in;
+      line-height: 1.5;
+    }
+    .level-3-marker {
+      display: inline-block;
+      width: 0.4in;
       text-indent: 0;
-      margin-left: 0;
+      font-weight: normal;
+    }
+    .level-3-header {
+      text-decoration: underline;
+      font-weight: normal;
     }
     
-    /* Level 4: Sub-headers - Black, Bold, Dot-notation (1.1.1) */
-    .level-4,
-    .paragraph-numbered {
+    /* Level 4 (Sub-Clause): Bold, BLACK, indented with hanging indent */
+    .level-4 {
       font-size: 11pt;
       font-weight: bold;
-      color: #1a73e8;
-      margin-bottom: 10pt;
-      line-height: 1.15;
-      margin-left: 0;
+      color: #000000;
+      margin-bottom: 8pt;
+      margin-left: 0.35in;
       padding-left: 0.35in;
       text-indent: -0.35in;
     }
     
-    .paragraph-header {
-      font-size: 11pt;
-      font-weight: bold;
-      display: inline;
-    }
-    
-    /* Level 5: Body Text - Left-flush, justified with proper line-height */
+    /* Level 5 (Paragraph): Normal weight, black, more indented */
     .level-5 {
       font-size: 11pt;
       font-weight: normal;
-      margin-bottom: 10pt;
-      text-align: justify;
-      line-height: 1.5;
+      color: #000000;
+      margin-bottom: 8pt;
+      margin-left: 0.7in;
+      padding-left: 0.3in;
+      text-indent: -0.3in;
+      line-height: 1.4;
+    }
+    
+    /* Level 6 (Sub-Paragraph): Normal weight, black, more indented */
+    .level-6 {
+      font-size: 11pt;
+      font-weight: normal;
+      color: #000000;
+      margin-bottom: 8pt;
+      margin-left: 1.0in;
+      padding-left: 0.25in;
+      text-indent: -0.25in;
+      line-height: 1.4;
+    }
+    
+    /* Level 7 (Item): Normal weight, black, deeply indented */
+    .level-7 {
+      font-size: 11pt;
+      font-weight: normal;
+      color: #000000;
+      margin-bottom: 6pt;
+      margin-left: 1.25in;
+      padding-left: 0.3in;
+      text-indent: -0.3in;
+      line-height: 1.4;
+    }
+    
+    /* Level 8 (Sub-Item): Normal weight, black, most indented, dash marker */
+    .level-8 {
+      font-size: 11pt;
+      font-weight: normal;
+      color: #000000;
+      margin-bottom: 6pt;
+      margin-left: 1.5in;
+      padding-left: 0.2in;
+      text-indent: -0.2in;
+      line-height: 1.4;
+    }
+    
+    /* Conspicuous: Bold legal disclaimers - applied in addition to level class */
+    .conspicuous {
+      font-weight: bold !important;
+    }
+    
+    /* === MASTER_EF 3-LEVEL STYLES === */
+    .mef-preamble {
+      font-size: 11pt;
+      font-weight: normal;
+      color: #000000;
+      margin-bottom: 12pt;
+      line-height: 1.4;
+    }
+    .recitals-header {
+      font-size: 12pt;
+      font-weight: bold;
+      color: #000000;
+      margin-top: 18pt;
+      margin-bottom: 8pt;
+    }
+    .whereas-clause {
+      font-size: 11pt;
+      font-weight: normal;
+      color: #000000;
+      margin-bottom: 8pt;
+      margin-left: 0.5in;
+      line-height: 1.4;
+    }
+    .now-therefore {
+      font-size: 11pt;
+      font-weight: bold;
+      color: #000000;
+      margin-top: 12pt;
+      margin-bottom: 12pt;
+      line-height: 1.4;
+    }
+    .mef-level-1 {
+      font-size: 12pt;
+      font-weight: bold;
+      color: #000000;
+      margin-top: 18pt;
+      margin-bottom: 8pt;
+      page-break-after: avoid;
+    }
+    .mef-level-1-body {
+      font-size: 11pt;
+      font-weight: normal;
+      color: #000000;
+      margin-bottom: 8pt;
+      margin-left: 0.5in;
+      line-height: 1.4;
+    }
+    .mef-level-2 {
+      font-size: 11pt;
+      font-weight: normal;
+      color: #000000;
+      margin-bottom: 8pt;
+      margin-left: 0.5in;
+      padding-left: 0.3in;
+      text-indent: -0.3in;
+      line-height: 1.4;
+    }
+    .mef-level-2-marker {
+      display: inline-block;
+      width: 0.3in;
       text-indent: 0;
-      margin-left: 0;
-      padding-left: 0.35in;
-      word-wrap: break-word;
+      font-weight: normal;
+    }
+    .mef-level-2-header {
+      text-decoration: underline;
+      font-weight: normal;
+    }
+    .mef-level-2.conspicuous {
+      font-weight: bold;
+    }
+    .mef-level-3 {
+      font-size: 11pt;
+      font-weight: normal;
+      color: #000000;
+      margin-bottom: 6pt;
+      margin-left: 1.0in;
+      padding-left: 0.4in;
+      text-indent: -0.4in;
+      line-height: 1.4;
+    }
+    .mef-level-3-marker {
+      display: inline-block;
+      width: 0.4in;
+      text-indent: 0;
+      font-weight: normal;
+    }
+    .mef-level-3-header {
+      text-decoration: underline;
+      font-weight: normal;
+    }
+    .mef-level-3.conspicuous {
+      font-weight: bold;
+    }
+    .mef-body {
+      font-size: 11pt;
+      font-weight: normal;
+      color: #000000;
+      margin-bottom: 8pt;
+      margin-left: 0.5in;
+      line-height: 1.4;
     }
     
     /* Regular paragraphs - Left-justified, no indent */
@@ -1452,40 +1741,6 @@ function getContractStyles(): string {
     
     p.indented {
       margin-left: 0.25in;
-    }
-    
-    /* Level 6: Conspicuous/Legal Disclaimers - Left-flush, justified, ENTIRELY BOLD */
-    .level-6,
-    .conspicuous {
-      font-size: 11pt;
-      font-weight: bold;
-      margin-bottom: 10pt;
-      text-align: justify;
-      line-height: 1.5;
-      text-indent: 0;
-      margin-left: 0;
-      padding-left: 0.35in;
-      text-transform: none;
-      word-wrap: break-word;
-    }
-    
-    /* Level 7 (H5): Roman Lists - Margin-Left: 60pt, text-indent: -20pt, Lower Roman (i., ii., iii.) */
-    .level-7,
-    .list-item-roman {
-      font-size: 11pt;
-      font-weight: normal;
-      margin-bottom: 8pt;
-      line-height: 1.5;
-      margin-left: 60pt;
-      text-indent: -20pt;
-      list-style-type: lower-roman;
-      word-wrap: break-word;
-    }
-    
-    .list-item-roman .list-marker {
-      display: inline-block;
-      width: 0.35in;
-      text-align: left;
     }
     
     /* Dynamic Disclosure - Missing disclosure warning */
@@ -1544,21 +1799,21 @@ function getContractStyles(): string {
     }
     
     table thead {
-      background-color: #1a73e8;
+      background-color: #3b82f6;
     }
     
     table th {
-      background-color: #1a73e8;
+      background-color: #3b82f6;
       color: #fff;
       font-weight: bold;
       padding: 8pt 10pt;
       text-align: left;
       vertical-align: middle;
-      border: 1px solid #1a73e8;
+      border: 1px solid #3b82f6;
     }
     
     table td {
-      border: 1px solid #dadce0;
+      border: 1px solid #dee2e6;
       padding: 8pt 10pt;
       text-align: left;
       vertical-align: top;
@@ -1568,8 +1823,8 @@ function getContractStyles(): string {
       background-color: #f8f9fa;
     }
     
-    table tr:hover {
-      background-color: #e8f0fe;
+    table tr:nth-child(odd) {
+      background-color: #ffffff;
     }
     
     /* Financial tables */
@@ -1594,12 +1849,11 @@ function getContractStyles(): string {
     
     /* Totals row styling */
     table tr.total-row {
-      background-color: #e8f0fe !important;
       font-weight: bold;
     }
     
     table tr.total-row td {
-      border-top: 2px solid #1a73e8;
+      border-top: 2px solid #3b82f6;
     }
     
     /* Signature Block */
@@ -1630,15 +1884,31 @@ function getContractStyles(): string {
       color: #666;
     }
     
-    /* Exhibit/Schedule headers */
-    .exhibit-header {
+    /* Exhibit sections - each exhibit starts on a new page */
+    .exhibit-section {
+      page-break-before: always;
+      text-align: center;
+      margin-bottom: 24pt;
+    }
+    
+    .exhibit-letter {
       font-size: 16pt;
       font-weight: bold;
       text-align: center;
       color: #1a73e8;
-      margin-top: 24pt;
-      margin-bottom: 16pt;
-      page-break-before: always;
+      margin-bottom: 8pt;
+    }
+    
+    .exhibit-title {
+      font-size: 12pt;
+      font-weight: bold;
+      text-align: center;
+      margin-bottom: 20pt;
+    }
+    
+    .exhibit-content {
+      text-align: left;
+      margin-top: 16pt;
     }
     
     /* Recitals / Whereas clauses */
@@ -1856,10 +2126,8 @@ function generateHTMLFromClauses(
     
     /* === 8-LEVEL HIERARCHICAL STYLING === */
     
-    /* Level 1 (H1): Agreement Parts - Blue, Bold, Center-align, Upper Roman (I, II, III) */
-    .level-1,
-    .roman-section,
-    .section-header {
+    /* Level 1 (Article): Bold, uppercase, blue, centered, border */
+    .level-1 {
       font-size: 14pt;
       font-weight: bold;
       color: #1a73e8;
@@ -1870,66 +2138,225 @@ function generateHTMLFromClauses(
       padding-bottom: 6pt;
       border-bottom: 2px solid #1a73e8;
       page-break-after: avoid;
-      text-indent: 0;
-      margin-left: 0;
     }
     
-    /* Level 2 (H2): Major Sections - Blue, Bold, Prefix "Section X. " */
-    .level-2,
-    .subsection-header {
-      font-size: 12pt;
-      font-weight: bold;
-      color: #1a73e8;
+    .level-1-body {
+      font-size: 11pt;
+      font-weight: normal;
+      color: #000000;
+      margin-bottom: 10pt;
+      line-height: 1.4;
+    }
+    
+    /* Level 2 (Section): Inline header+body with hanging indent */
+    .level-2 {
+      font-size: 11pt;
+      font-weight: normal;
+      color: #000000;
       margin-top: 20pt;
       margin-bottom: 10pt;
-      page-break-after: avoid;
+      margin-left: 0.5in;
+      padding-left: 0.3in;
+      text-indent: -0.3in;
+      line-height: 1.5;
+    }
+    .level-2-marker {
+      display: inline-block;
+      width: 0.3in;
       text-indent: 0;
-      margin-left: 0;
+      font-weight: normal;
+    }
+    .level-2-header {
+      text-decoration: underline;
+      font-weight: normal;
     }
     
-    /* Level 3: Clauses - Blue, Bold, Dot-notation (1.1, 2.3) */
-    .level-3,
-    .clause-header {
+    /* Level 3 (Clause): Inline header+body with deeper hanging indent */
+    .level-3 {
       font-size: 11pt;
-      font-weight: bold;
-      color: #1a73e8;
-      margin-top: 14pt;
+      font-weight: normal;
+      color: #000000;
       margin-bottom: 8pt;
-      page-break-after: avoid;
+      margin-left: 1.0in;
+      padding-left: 0.4in;
+      text-indent: -0.4in;
+      line-height: 1.5;
+    }
+    .level-3-marker {
+      display: inline-block;
+      width: 0.4in;
       text-indent: 0;
-      margin-left: 0;
+      font-weight: normal;
+    }
+    .level-3-header {
+      text-decoration: underline;
+      font-weight: normal;
     }
     
-    /* Level 4: Sub-headers - Black, Bold, Dot-notation (1.1.1) */
-    .level-4,
-    .paragraph-numbered {
+    /* Level 4 (Sub-Clause): Bold, BLACK, indented with hanging indent */
+    .level-4 {
       font-size: 11pt;
       font-weight: bold;
-      color: #1a73e8;
-      margin-bottom: 10pt;
-      line-height: 1.15;
-      margin-left: 0;
+      color: #000000;
+      margin-bottom: 8pt;
+      margin-left: 0.35in;
       padding-left: 0.35in;
       text-indent: -0.35in;
     }
     
-    .paragraph-header {
-      font-size: 11pt;
-      font-weight: bold;
-      display: inline;
-    }
-    
-    /* Level 5: Body Text - Left-flush, justified with proper line-height */
+    /* Level 5 (Paragraph): Normal weight, black, more indented */
     .level-5 {
       font-size: 11pt;
       font-weight: normal;
-      margin-bottom: 10pt;
-      text-align: justify;
-      line-height: 1.5;
+      color: #000000;
+      margin-bottom: 8pt;
+      margin-left: 0.7in;
+      padding-left: 0.3in;
+      text-indent: -0.3in;
+      line-height: 1.4;
+    }
+    
+    /* Level 6 (Sub-Paragraph): Normal weight, black, more indented */
+    .level-6 {
+      font-size: 11pt;
+      font-weight: normal;
+      color: #000000;
+      margin-bottom: 8pt;
+      margin-left: 1.0in;
+      padding-left: 0.25in;
+      text-indent: -0.25in;
+      line-height: 1.4;
+    }
+    
+    /* Level 7 (Item): Normal weight, black, deeply indented */
+    .level-7 {
+      font-size: 11pt;
+      font-weight: normal;
+      color: #000000;
+      margin-bottom: 6pt;
+      margin-left: 1.25in;
+      padding-left: 0.3in;
+      text-indent: -0.3in;
+      line-height: 1.4;
+    }
+    
+    /* Level 8 (Sub-Item): Normal weight, black, most indented, dash marker */
+    .level-8 {
+      font-size: 11pt;
+      font-weight: normal;
+      color: #000000;
+      margin-bottom: 6pt;
+      margin-left: 1.5in;
+      padding-left: 0.2in;
+      text-indent: -0.2in;
+      line-height: 1.4;
+    }
+    
+    /* Conspicuous: Bold legal disclaimers - applied in addition to level class */
+    .conspicuous {
+      font-weight: bold !important;
+    }
+    
+    /* === MASTER_EF 3-LEVEL STYLES === */
+    .mef-preamble {
+      font-size: 11pt;
+      font-weight: normal;
+      color: #000000;
+      margin-bottom: 12pt;
+      line-height: 1.4;
+    }
+    .recitals-header {
+      font-size: 12pt;
+      font-weight: bold;
+      color: #000000;
+      margin-top: 18pt;
+      margin-bottom: 8pt;
+    }
+    .whereas-clause {
+      font-size: 11pt;
+      font-weight: normal;
+      color: #000000;
+      margin-bottom: 8pt;
+      margin-left: 0.5in;
+      line-height: 1.4;
+    }
+    .now-therefore {
+      font-size: 11pt;
+      font-weight: bold;
+      color: #000000;
+      margin-top: 12pt;
+      margin-bottom: 12pt;
+      line-height: 1.4;
+    }
+    .mef-level-1 {
+      font-size: 12pt;
+      font-weight: bold;
+      color: #000000;
+      margin-top: 18pt;
+      margin-bottom: 8pt;
+      page-break-after: avoid;
+    }
+    .mef-level-1-body {
+      font-size: 11pt;
+      font-weight: normal;
+      color: #000000;
+      margin-bottom: 8pt;
+      margin-left: 0.5in;
+      line-height: 1.4;
+    }
+    .mef-level-2 {
+      font-size: 11pt;
+      font-weight: normal;
+      color: #000000;
+      margin-bottom: 8pt;
+      margin-left: 0.5in;
+      padding-left: 0.3in;
+      text-indent: -0.3in;
+      line-height: 1.4;
+    }
+    .mef-level-2-marker {
+      display: inline-block;
+      width: 0.3in;
       text-indent: 0;
-      margin-left: 0;
-      padding-left: 0.35in;
-      word-wrap: break-word;
+      font-weight: normal;
+    }
+    .mef-level-2-header {
+      text-decoration: underline;
+      font-weight: normal;
+    }
+    .mef-level-2.conspicuous {
+      font-weight: bold;
+    }
+    .mef-level-3 {
+      font-size: 11pt;
+      font-weight: normal;
+      color: #000000;
+      margin-bottom: 6pt;
+      margin-left: 1.0in;
+      padding-left: 0.4in;
+      text-indent: -0.4in;
+      line-height: 1.4;
+    }
+    .mef-level-3-marker {
+      display: inline-block;
+      width: 0.4in;
+      text-indent: 0;
+      font-weight: normal;
+    }
+    .mef-level-3-header {
+      text-decoration: underline;
+      font-weight: normal;
+    }
+    .mef-level-3.conspicuous {
+      font-weight: bold;
+    }
+    .mef-body {
+      font-size: 11pt;
+      font-weight: normal;
+      color: #000000;
+      margin-bottom: 8pt;
+      margin-left: 0.5in;
+      line-height: 1.4;
     }
     
     /* Regular paragraphs - Left-justified, no indent */
@@ -1943,40 +2370,6 @@ function generateHTMLFromClauses(
     
     p.indented {
       margin-left: 0.25in;
-    }
-    
-    /* Level 6: Conspicuous/Legal Disclaimers - Left-flush, justified, ENTIRELY BOLD */
-    .level-6,
-    .conspicuous {
-      font-size: 11pt;
-      font-weight: bold;
-      margin-bottom: 10pt;
-      text-align: justify;
-      line-height: 1.5;
-      text-indent: 0;
-      margin-left: 0;
-      padding-left: 0.35in;
-      text-transform: none;
-      word-wrap: break-word;
-    }
-    
-    /* Level 7 (H5): Roman Lists - Margin-Left: 60pt, text-indent: -20pt, Lower Roman (i., ii., iii.) */
-    .level-7,
-    .list-item-roman {
-      font-size: 11pt;
-      font-weight: normal;
-      margin-bottom: 8pt;
-      line-height: 1.5;
-      margin-left: 60pt;
-      text-indent: -20pt;
-      list-style-type: lower-roman;
-      word-wrap: break-word;
-    }
-    
-    .list-item-roman .list-marker {
-      display: inline-block;
-      width: 0.35in;
-      text-align: left;
     }
     
     /* Dynamic Disclosure - Missing disclosure warning */
@@ -2035,21 +2428,21 @@ function generateHTMLFromClauses(
     }
     
     table thead {
-      background-color: #1a73e8;
+      background-color: #3b82f6;
     }
     
     table th {
-      background-color: #1a73e8;
+      background-color: #3b82f6;
       color: #fff;
       font-weight: bold;
       padding: 8pt 10pt;
       text-align: left;
       vertical-align: middle;
-      border: 1px solid #1a73e8;
+      border: 1px solid #3b82f6;
     }
     
     table td {
-      border: 1px solid #dadce0;
+      border: 1px solid #dee2e6;
       padding: 8pt 10pt;
       text-align: left;
       vertical-align: top;
@@ -2059,8 +2452,8 @@ function generateHTMLFromClauses(
       background-color: #f8f9fa;
     }
     
-    table tr:hover {
-      background-color: #e8f0fe;
+    table tr:nth-child(odd) {
+      background-color: #ffffff;
     }
     
     /* Financial tables */
@@ -2085,12 +2478,11 @@ function generateHTMLFromClauses(
     
     /* Totals row styling */
     table tr.total-row {
-      background-color: #e8f0fe !important;
       font-weight: bold;
     }
     
     table tr.total-row td {
-      border-top: 2px solid #1a73e8;
+      border-top: 2px solid #3b82f6;
     }
     
     /* Signature Block */
@@ -2121,15 +2513,31 @@ function generateHTMLFromClauses(
       color: #666;
     }
     
-    /* Exhibit/Schedule headers */
-    .exhibit-header {
+    /* Exhibit sections - each exhibit starts on a new page */
+    .exhibit-section {
+      page-break-before: always;
+      text-align: center;
+      margin-bottom: 24pt;
+    }
+    
+    .exhibit-letter {
       font-size: 16pt;
       font-weight: bold;
       text-align: center;
       color: #1a73e8;
-      margin-top: 24pt;
-      margin-bottom: 16pt;
-      page-break-before: always;
+      margin-bottom: 8pt;
+    }
+    
+    .exhibit-title {
+      font-size: 12pt;
+      font-weight: bold;
+      text-align: center;
+      margin-bottom: 20pt;
+    }
+    
+    .exhibit-content {
+      text-align: left;
+      margin-top: 16pt;
     }
     
     /* Recitals / Whereas clauses */
@@ -2247,9 +2655,29 @@ function generateHTMLFromClauses(
 }
 
 function renderTitlePage(title: string, projectData: Record<string, any>): string {
-  // Support both uppercase (from mapper) and camelCase (legacy) variable names
   const projectNumber = projectData.PROJECT_NUMBER || projectData.projectNumber || '[NUMBER]';
   const projectName = projectData.PROJECT_NAME || projectData.projectName || '[PROJECT NAME]';
+  
+  if (currentContractType === 'MASTER_EF') {
+    return `
+      <div class="title-page">
+        <div class="contract-title">
+          ${escapeHtml(title)}
+        </div>
+        <div class="project-info">
+          <div style="font-size: 16pt; color: #333; margin-bottom: 8pt;">
+            ${escapeHtml(projectNumber)} - ${escapeHtml(projectName)}
+          </div>
+        </div>
+        
+        ${(projectData.AGREEMENT_EXECUTION_DATE || projectData.agreementDate) ? `
+          <div class="date-line">
+            ${formatDate(projectData.AGREEMENT_EXECUTION_DATE || projectData.agreementDate)}
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }
   
   return `
     <div class="title-page">
@@ -2296,11 +2724,10 @@ function stripDuplicateHeader(content: string, clauseName: string, clauseCode: s
     
     const normalizedLine = normalizeForCompare(line);
     
-    // If line matches clause name or code (or is very similar), skip it
     if (normalizedLine === normalizedName || 
         normalizedLine === normalizedCode ||
-        normalizedName.includes(normalizedLine) ||
-        normalizedLine.includes(normalizedName)) {
+        (normalizedName.length > 3 && normalizedName.includes(normalizedLine)) ||
+        (normalizedName.length > 3 && normalizedLine.includes(normalizedName) && normalizedLine.length <= normalizedName.length * 2)) {
       startIndex = i + 1;
       break;
     }
@@ -2404,8 +2831,10 @@ function renderClausesHTML(clauses: Clause[], projectData: Record<string, any>):
     }
   }
   
-  // Add signature blocks
-  html += renderSignatureBlocks(projectData);
+  // Add signature blocks only if no component-based signature was resolved
+  if (!signatureComponentResolved) {
+    html += renderSignatureBlocks(projectData);
+  }
   
   html += '</div>';
   return html;
@@ -2477,49 +2906,19 @@ function renderRecitals(projectData: Record<string, any>): string {
 }
 
 function renderSignatureBlocks(projectData: Record<string, any>): string {
-  // Support both uppercase (from mapper) and camelCase (legacy) variable names
   const clientName = projectData.CLIENT_LEGAL_NAME || projectData.clientLegalName || projectData.clientFullName || '[CLIENT NAME]';
-  const llcName = projectData.CHILD_LLC_LEGAL_NAME || projectData.childLlcName || 'Dvele Partners LLC';
+  const companyName = projectData.DVELE_LEGAL_NAME || projectData.COMPANY_NAME || 'Dvele, Inc.';
   const clientSignerName = projectData.CLIENT_SIGNER_NAME || projectData.clientSignerName || '';
   const clientTitle = projectData.CLIENT_TITLE || projectData.clientTitle || '';
   
-  return `
-    <div class="signature-section" style="margin-top: 48pt; page-break-inside: avoid;">
-      <p style="font-weight: bold; margin-bottom: 24pt;">
-        IN WITNESS WHEREOF, the parties hereto have executed this Agreement as of the date first written above.
-      </p>
-      
-      <table style="width: 100%; border: none; margin-top: 24pt;">
-        <tr>
-          <td style="width: 48%; border: none; vertical-align: top; padding-right: 20pt;">
-            <div style="font-weight: bold; color: #1a73e8; margin-bottom: 8pt;">COMPANY:</div>
-            <div style="font-weight: bold; margin-bottom: 24pt;">${escapeHtml(llcName)}</div>
-            <div style="border-bottom: 1px solid #000; margin-bottom: 4pt; height: 24pt;"></div>
-            <div style="font-size: 9pt; color: #666;">Signature</div>
-            <div style="margin-top: 16pt; border-bottom: 1px solid #000; margin-bottom: 4pt; height: 18pt;"></div>
-            <div style="font-size: 9pt; color: #666;">Name (Print)</div>
-            <div style="margin-top: 16pt; border-bottom: 1px solid #000; margin-bottom: 4pt; height: 18pt;"></div>
-            <div style="font-size: 9pt; color: #666;">Title</div>
-            <div style="margin-top: 16pt; border-bottom: 1px solid #000; margin-bottom: 4pt; height: 18pt;"></div>
-            <div style="font-size: 9pt; color: #666;">Date</div>
-          </td>
-          <td style="width: 4%; border: none;"></td>
-          <td style="width: 48%; border: none; vertical-align: top;">
-            <div style="font-weight: bold; color: #1a73e8; margin-bottom: 8pt;">CLIENT:</div>
-            <div style="font-weight: bold; margin-bottom: 24pt;">${escapeHtml(clientName)}</div>
-            <div style="border-bottom: 1px solid #000; margin-bottom: 4pt; height: 24pt;"></div>
-            <div style="font-size: 9pt; color: #666;">Signature</div>
-            <div style="margin-top: 16pt; border-bottom: 1px solid #000; margin-bottom: 4pt; height: 18pt;"></div>
-            <div style="font-size: 9pt; color: #666;">Name (Print): ${clientSignerName ? escapeHtml(clientSignerName) : ''}</div>
-            <div style="margin-top: 16pt; border-bottom: 1px solid #000; margin-bottom: 4pt; height: 18pt;"></div>
-            <div style="font-size: 9pt; color: #666;">Title: ${clientTitle ? escapeHtml(clientTitle) : ''}</div>
-            <div style="margin-top: 16pt; border-bottom: 1px solid #000; margin-bottom: 4pt; height: 18pt;"></div>
-            <div style="font-size: 9pt; color: #666;">Date</div>
-          </td>
-        </tr>
-      </table>
-    </div>
-  `;
+  return buildSignatureBlock({
+    leftTitle: 'COMPANY:',
+    rightTitle: 'CLIENT:',
+    companyName: escapeHtml(companyName),
+    clientName: escapeHtml(clientName),
+    clientSignerName: clientSignerName ? escapeHtml(clientSignerName) : undefined,
+    clientTitle: clientTitle ? escapeHtml(clientTitle) : undefined,
+  });
 }
 
 function formatContent(content: string): string {
@@ -2708,6 +3107,14 @@ function formatContent(content: string): string {
   }
   
   return html;
+}
+
+function stripBlockWrappers(html: string): string {
+  if (!html) return '';
+  let result = html.trim();
+  result = result.replace(/^<p[^>]*>([\s\S]*)<\/p>$/i, '$1');
+  result = result.replace(/^<div[^>]*>([\s\S]*)<\/div>$/i, '$1');
+  return result.trim();
 }
 
 function formatInlineStyles(text: string): string {
@@ -3010,7 +3417,8 @@ function getContractTitle(contractType: string): string {
   const titles: Record<string, string> = {
     'ONE': 'MASTER PURCHASE AGREEMENT',
     'MANUFACTURING': 'MANUFACTURING SUBCONTRACTOR AGREEMENT',
-    'ONSITE': 'ON-SITE INSTALLATION SUBCONTRACTOR AGREEMENT'
+    'ONSITE': 'ON-SITE INSTALLATION SUBCONTRACTOR AGREEMENT',
+    'MASTER_EF': 'Master Purchase Agreement'
   };
   return titles[contractType] || 'CONTRACT AGREEMENT';
 }
@@ -3489,6 +3897,7 @@ export function getContractFilename(contractType: string, projectData: Record<st
   const projectName = (projectData.PROJECT_NAME || projectData.projectName || 'Contract').toString().replace(/[^a-z0-9\s]/gi, '').replace(/\s+/g, '_');
   
   const typeMap: Record<string, string> = {
+    'MASTER_EF': 'Master_Purchase_Agreement',
     'ONE': 'ONE_Agreement',
     'MANUFACTURING': 'Manufacturing_Subcontract',
     'ONSITE': 'OnSite_Subcontract'

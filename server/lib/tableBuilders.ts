@@ -1,4 +1,5 @@
 import { pool } from "../db";
+import { TABLE_STYLES } from './tableStyles';
 
 function escapeHtml(text: string): string {
   if (!text) return "";
@@ -23,7 +24,12 @@ interface TableDefinition {
   display_name: string;
   description: string | null;
   columns: TableColumn[];
+  rows?: TableRow[];
   is_active: boolean;
+}
+
+interface TableRow {
+  values: Record<string, string>;  // column header -> value
 }
 
 interface ProjectData {
@@ -131,34 +137,49 @@ export async function renderDynamicTable(
     projectData = await fetchProjectData(projectId);
   }
 
-  const headerRow = columns
-    .map(col => {
-      const width = col.width ? `width: ${escapeHtml(col.width)};` : (col.type === "signature" ? "width: 120px;" : "");
-      return `<th style="${width}">${escapeHtml(col.header)}</th>`;
-    })
-    .join("");
+  const tableRows: TableRow[] = Array.isArray(tableDef.rows)
+    ? tableDef.rows
+    : typeof tableDef.rows === 'string'
+      ? JSON.parse(tableDef.rows)
+      : [];
 
-  const dataRow = columns
-    .map(col => {
-      const width = col.width ? `width: ${escapeHtml(col.width)};` : (col.type === "signature" ? "width: 120px;" : "");
-      const value = resolveColumnValue(col, projectData);
-      return `<td style="${width}">${value}</td>`;
-    })
-    .join("");
+  const headerCells = columns.map(col => {
+    const width = col.width ? `width: ${col.width};` : (col.type === "signature" ? "width: 120px;" : "");
+    return `<th style="background-color: ${TABLE_STYLES.headerBg}; color: ${TABLE_STYLES.headerText}; ${TABLE_STYLES.headerFont} ${TABLE_STYLES.cellPadding} ${width} text-align: left; border: ${TABLE_STYLES.headerBorder};">${escapeHtml(col.header)}</th>`;
+  }).join("");
+
+  let bodyRows: string;
+
+  if (tableRows.length > 0) {
+    bodyRows = tableRows.map((row, rowIdx) => {
+      const bgColor = rowIdx % 2 === 0 ? TABLE_STYLES.evenRowBg : TABLE_STYLES.oddRowBg;
+      const cells = columns.map(col => {
+        const width = col.width ? `width: ${col.width};` : (col.type === "signature" ? "width: 120px;" : "");
+        const value = row.values?.[col.header] ?? resolveColumnValue(col, projectData);
+        return `<td style="background-color: ${bgColor}; ${TABLE_STYLES.cellPadding} ${width} text-align: left; border-bottom: ${TABLE_STYLES.border};">${value}</td>`;
+      }).join("");
+      return `<tr>${cells}</tr>`;
+    }).join("");
+  } else {
+    const dataRow = columns
+      .map(col => {
+        const width = col.width ? `width: ${col.width};` : (col.type === "signature" ? "width: 120px;" : "");
+        const value = resolveColumnValue(col, projectData);
+        return `<td style="background-color: ${TABLE_STYLES.evenRowBg}; ${TABLE_STYLES.cellPadding} ${width} text-align: left; border-bottom: ${TABLE_STYLES.border};">${value}</td>`;
+      })
+      .join("");
+    bodyRows = `<tr>${dataRow}</tr>`;
+  }
 
   return `
-    <table class="contract-table" style="width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 14px;">
+    <table style="${TABLE_STYLES.tableBase}">
       <thead>
-        <tr style="background-color: #f2f2f2;">${headerRow}</tr>
+        <tr>${headerCells}</tr>
       </thead>
       <tbody>
-        <tr>${dataRow}</tr>
+        ${bodyRows}
       </tbody>
     </table>
-    <style>
-      .contract-table th, .contract-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-      .contract-table .signature-box { font-family: monospace; white-space: nowrap; }
-    </style>
   `;
 }
 
@@ -186,33 +207,29 @@ export async function renderTableFromColumns(
     projectData = await fetchProjectData(projectId);
   }
 
-  const headerRow = columns
+  const headerCells2 = columns
     .map(col => {
-      const width = col.width ? `width: ${escapeHtml(col.width)};` : (col.type === "signature" ? "width: 120px;" : "");
-      return `<th style="${width}">${escapeHtml(col.header)}</th>`;
+      const width = col.width ? `width: ${col.width};` : (col.type === "signature" ? "width: 120px;" : "");
+      return `<th style="background-color: ${TABLE_STYLES.headerBg}; color: ${TABLE_STYLES.headerText}; ${TABLE_STYLES.headerFont} ${TABLE_STYLES.cellPadding} ${width} text-align: left; border: ${TABLE_STYLES.headerBorder};">${escapeHtml(col.header)}</th>`;
     })
     .join("");
 
   const dataRow = columns
     .map(col => {
-      const width = col.width ? `width: ${escapeHtml(col.width)};` : (col.type === "signature" ? "width: 120px;" : "");
+      const width = col.width ? `width: ${col.width};` : (col.type === "signature" ? "width: 120px;" : "");
       const value = resolveColumnValue(col, projectData);
-      return `<td style="${width}">${value}</td>`;
+      return `<td style="background-color: ${TABLE_STYLES.evenRowBg}; ${TABLE_STYLES.cellPadding} ${width} text-align: left; border-bottom: ${TABLE_STYLES.border};">${value}</td>`;
     })
     .join("");
 
   return `
-    <table class="contract-table" style="width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 14px;">
+    <table style="${TABLE_STYLES.tableBase}">
       <thead>
-        <tr style="background-color: #f2f2f2;">${headerRow}</tr>
+        <tr>${headerCells2}</tr>
       </thead>
       <tbody>
         <tr>${dataRow}</tr>
       </tbody>
     </table>
-    <style>
-      .contract-table th, .contract-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-      .contract-table .signature-box { font-family: monospace; white-space: nowrap; }
-    </style>
   `;
 }

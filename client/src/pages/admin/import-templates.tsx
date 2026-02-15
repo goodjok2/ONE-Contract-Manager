@@ -45,11 +45,10 @@ interface ParsedClause {
 }
 
 const CONTRACT_TYPES = [
-  { value: "ONE", label: "ONE Agreement" },
-  { value: "CMOS", label: "CMOS Contract" },
-  { value: "CRC", label: "CRC Contract" },
-  { value: "ONSITE", label: "Onsite Sub" },
-  { value: "MFG", label: "Manufacturing Sub" },
+  { value: "MASTER_EF", label: "Master Purchase Agreement" },
+  { value: "ONE", label: "ONE Agreement (Archived)" },
+  { value: "ONSITE", label: "Onsite Sub (Archived)" },
+  { value: "MFG", label: "Manufacturing Sub (Archived)" },
 ];
 
 export default function ImportTemplates() {

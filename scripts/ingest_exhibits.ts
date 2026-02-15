@@ -293,7 +293,7 @@ async function parseExhibitsFromDocument(docxPath: string): Promise<ParsedExhibi
       transformDocument: (document: any) => {
         const stack: any[] = [document];
         while (stack.length > 0) {
-          const node = stack.pop();
+          const node = stack.shift();
           if (node.type === 'paragraph') {
             const styleName = node.styleName || 'Normal';
             const textContent = extractTextFromElement(node);
@@ -366,7 +366,7 @@ async function parseExhibitsFromDocument(docxPath: string): Promise<ParsedExhibi
         content: '',
         isDynamic: false,
         disclosureCode: null,
-        contractTypes: ['ONE', 'MANUFACTURING', 'ONSITE'],
+        contractTypes: ['ONE'],
         sortOrder: sortOrder++,
       };
       contentBuilder = [];
@@ -461,12 +461,15 @@ async function ingestExhibits(docxPath: string, clearExisting: boolean = true): 
   
   for (const exhibit of parsedExhibits) {
     await db.insert(exhibits).values({
+      organizationId: 1,
+      exhibitCode: `EXHIBIT_${exhibit.letter}`,
+      name: exhibit.title,
       letter: exhibit.letter,
       title: exhibit.title,
       content: exhibit.content,
       isDynamic: exhibit.isDynamic,
       disclosureCode: exhibit.disclosureCode,
-      contractTypes: exhibit.contractTypes,
+      contractTypes: sql`ARRAY['ONE']::text[]`,
       sortOrder: exhibit.sortOrder,
       isActive: true,
     });

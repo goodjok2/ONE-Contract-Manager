@@ -1,0 +1,69 @@
+## Prompt 4: Port Unit Management API Routes
+
+**Goal:** Ensure API routes exist for managing project units (add/remove home models on a project).
+
+**Instructions:**
+
+1. Check `server/routes/projects.ts` for these endpoints:
+   - `GET /api/home-models` — List all active home models
+   - `GET /api/projects/:projectId/units` — List units for a project (joined with home_models)
+   - `POST /api/projects/:projectId/units` — Add a unit to a project
+   - `DELETE /api/project-units/:unitId` — Remove a unit from a project
+   - `GET /api/projects/:projectId/pricing-summary` — Get calculated pricing
+
+2. If any are missing, add them. Here's the logic for each:
+
+**GET /api/home-models:**
+```typescript
+const models = await db.select().from(homeModels).where(eq(homeModels.isActive, true));
+res.json(models);
+```
+
+**GET /api/projects/:projectId/units:**
+```typescript
+const units = await db.select({
+  id: projectUnits.id,
+  projectId: projectUnits.projectId,
+  modelId: projectUnits.modelId,
+  unitLabel: projectUnits.unitLabel,
+  basePriceSnapshot: projectUnits.basePriceSnapshot,
+  customizationTotal: projectUnits.customizationTotal,
+  model: {
+    id: homeModels.id,
+    name: homeModels.name,
+    modelCode: homeModels.modelCode,
+    bedrooms: homeModels.bedrooms,
+    bathrooms: homeModels.bathrooms,
+    sqFt: homeModels.sqFt,
+    designFee: homeModels.designFee,
+    offsiteBasePrice: homeModels.offsiteBasePrice,
+    onsiteEstPrice: homeModels.onsiteEstPrice,
+  }
+})
+.from(projectUnits)
+.innerJoin(homeModels, eq(projectUnits.modelId, homeModels.id))
+.where(eq(projectUnits.projectId, projectId));
+```
+
+**POST /api/projects/:projectId/units:**
+- Look up the home model by `modelId` from request body
+- Count existing units to generate `unitLabel` (e.g., "Unit A", "Unit B")
+- Insert into `project_units` with `basePriceSnapshot` = model's `offsiteBasePrice`
+- Return the new unit joined with model data
+
+**DELETE /api/project-units/:unitId:**
+- Delete the unit by ID
+- Return success
+
+**GET /api/projects/:projectId/pricing-summary:**
+```typescript
+import { calculateProjectPricing } from '../services/pricingEngine';
+const summary = await calculateProjectPricing(projectId);
+res.json(summary);
+```
+
+3. Also check for `GET /api/projects/:projectId/financials` and `PATCH /api/projects/:projectId/financials` — these allow the wizard to read/write additional site work costs.
+
+**Do not modify any wizard UI files. Only add/verify API routes.**
+
+---

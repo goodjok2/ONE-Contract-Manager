@@ -1,0 +1,98 @@
+# REPLIT AGENT PROMPT — STANDARDIZE ALL TABLE HEADERS TO BLUE
+
+## PROBLEM
+
+The contract generator produces tables with inconsistent header colors. Some tables have dark navy (#2c3e50) headers, others have blue (#3b82f6) headers. ALL tables should use the same blue (#3b82f6) header color.
+
+## THE FIX
+
+### Step 1: Update `server/lib/tableStyles.ts`
+
+Find the header color constant:
+```typescript
+headerBg: '#2c3e50',
+```
+
+Replace with:
+```typescript
+headerBg: '#3b82f6',
+```
+
+That's the primary fix. If `tableStyles.ts` is the shared source (from the consolidation prompt), every table that imports from it should pick up the new color.
+
+### Step 2: Search for ANY remaining hardcoded header colors
+
+Run this search across the entire server directory:
+
+```bash
+grep -rn "2c3e50\|#2c3e50" server/
+grep -rn "f2f2f2\|#f2f2f2" server/
+grep -rn "background-color.*header\|headerBg\|header.*background" server/
+```
+
+Replace ALL occurrences of `#2c3e50` with `#3b82f6` in table-related contexts.
+
+Also check for `#f2f2f2` (the old gray header from the component library / tableBuilders). Replace any gray table headers with `#3b82f6` as well.
+
+Files most likely to have hardcoded header colors:
+- `server/lib/tableGenerators.ts` — the pricing/payment/unit table generators
+- `server/lib/tableBuilders.ts` — the component library table renderer
+- `server/lib/tableStyles.ts` — the shared style constants (primary fix)
+- `server/lib/contractGenerator.ts` — inline exhibit tables (A.1, A.2, B.1, C.2, D.1, D.2, etc.)
+- `server/lib/mapper.ts` — may have hardcoded table HTML (e.g., WHAT_HAPPENS_NEXT_TABLE)
+- `server/services/component-library.ts` — may have inline styles
+
+### Step 3: Verify the full style set
+
+After replacing the header color, make sure the complete table style is consistent. Every table should use:
+
+```
+Header row:     background-color: #3b82f6; color: #ffffff; font-weight: bold;
+Even rows:      background-color: #ffffff;
+Odd rows:       background-color: #f8f9fa;
+Borders:        1px solid #dee2e6;
+Total/bold row: font-weight: bold; (same background pattern as other rows)
+```
+
+### Step 4: Check component_library table content in the database
+
+If any static table content was stored in the `component_library` database table with inline styles containing `#2c3e50` or `#f2f2f2`, those need to be updated too:
+
+```sql
+-- Find any component library entries with old header colors
+SELECT id, tag_name, content FROM component_library 
+WHERE content LIKE '%2c3e50%' OR content LIKE '%f2f2f2%';
+
+-- Update them to blue
+UPDATE component_library 
+SET content = REPLACE(content, '#2c3e50', '#3b82f6')
+WHERE content LIKE '%2c3e50%';
+
+UPDATE component_library 
+SET content = REPLACE(content, '#f2f2f2', '#3b82f6')
+WHERE content LIKE '%f2f2f2%';
+```
+
+Also check `table_definitions` if it stores any rendered HTML:
+```sql
+SELECT id, variable_name FROM table_definitions
+WHERE columns::text LIKE '%2c3e50%' OR rows::text LIKE '%2c3e50%';
+```
+
+## VERIFICATION
+
+Generate a contract and check that EVERY table has the same blue header:
+
+1. ✅ A.1 Project Overview table — blue header
+2. ✅ A.2 Property & Phase Matrix — blue header  
+3. ✅ A.3 Scope Summary — blue header
+4. ✅ A.4 Pricing Summary — blue header
+5. ✅ A.5 Payment Schedule — blue header
+6. ✅ B.1 Plan Set Index — blue header
+7. ✅ C.2 Responsibility Allocation Matrix — blue header
+8. ✅ C.4 Interfaces & Dependencies — blue header
+9. ✅ D.1 Design Milestones — blue header
+10. ✅ D.2 Production Milestones — blue header
+11. ✅ E Warranty Scope table — blue header
+12. ✅ Signature blocks — no colored headers (these are line-based, not table headers)
+13. ✅ No table anywhere in the contract has a dark navy (#2c3e50) or gray (#f2f2f2) header

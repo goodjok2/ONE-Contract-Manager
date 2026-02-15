@@ -4,7 +4,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -13,7 +12,9 @@ import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -48,143 +49,81 @@ import {
   Calendar,
   Plus,
   Trash2,
-  GripVertical,
-  Type,
-  Database,
-  PenTool,
-  Save,
   Edit,
   Table,
   FileCode,
   Copy,
   ChevronRight,
   ChevronDown,
+  Database,
+  Save,
+  ToggleLeft,
+  Power,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-// =============================================================================
-// INTERFACES
-// =============================================================================
-
-interface Project {
-  id: number;
-  project_number: string;
-  name: string;
-  status: string;
-}
-
-interface TableColumn {
-  header: string;
-  type: "text" | "data_field" | "signature";
-  width?: string;
-  value: string;
-}
-
-interface TableDefinition {
-  id: number;
-  variable_name: string;
-  display_name: string;
-  description: string | null;
-  columns: TableColumn[];
-  is_active: boolean;
-}
-
-interface BlockComponent {
+interface ComponentRow {
   id: number;
   tag_name: string;
   content: string;
-  description?: string;
-  service_model?: string;
+  description: string | null;
+  service_model: string | null;
   is_system: boolean;
+  is_active: boolean;
 }
 
-interface BuiltinComponent {
+interface BuiltinTable {
   id: string;
   variableName: string;
   displayName: string;
   description: string;
-  category: string;
   columns: string[];
   icon: React.ReactNode;
-  isBuiltin: true;
 }
 
-type SelectedItem = 
-  | { type: "block"; data: BlockComponent }
-  | { type: "builtin"; data: BuiltinComponent }
-  | { type: "table"; data: TableDefinition };
+type SelectedItem =
+  | { type: "block"; data: ComponentRow }
+  | { type: "table"; data: ComponentRow }
+  | { type: "builtin"; data: BuiltinTable };
 
-// =============================================================================
-// CONSTANTS
-// =============================================================================
-
-const BUILTIN_COMPONENTS: BuiltinComponent[] = [
+const BUILTIN_TABLES: BuiltinTable[] = [
   {
     id: "pricing_breakdown",
     variableName: "{{PRICING_BREAKDOWN_TABLE}}",
     displayName: "Pricing Breakdown Table",
     description: "Displays the itemized pricing breakdown including base price, customizations, and totals.",
-    category: "Financial",
     columns: ["Item", "Description", "Amount"],
     icon: <DollarSign className="h-4 w-4" />,
-    isBuiltin: true,
   },
   {
     id: "payment_schedule",
     variableName: "{{PAYMENT_SCHEDULE_TABLE}}",
     displayName: "Payment Schedule Table",
     description: "Shows the milestone-based payment schedule with dates and amounts.",
-    category: "Financial",
     columns: ["Milestone", "Due Date", "Percentage", "Amount"],
     icon: <Calendar className="h-4 w-4" />,
-    isBuiltin: true,
   },
   {
     id: "unit_spec",
     variableName: "{{UNIT_SPEC_TABLE}}",
     displayName: "Unit Specification Table",
     description: "Lists all home units with their model, specifications, and pricing.",
-    category: "Project",
     columns: ["Unit", "Model", "Bed/Bath", "Sq Ft", "Base Price", "Customizations", "Total"],
     icon: <Layers className="h-4 w-4" />,
-    isBuiltin: true,
   },
 ];
 
-const COLUMN_TYPES = [
-  { value: "text", label: "Static Text", icon: Type, description: "Fixed text content" },
-  { value: "data_field", label: "Project Variable", icon: Database, description: "Dynamic data from project" },
-  { value: "signature", label: "Signature Box", icon: PenTool, description: "Line for signatures/initials" },
-];
-
-// =============================================================================
-// BLOCK COMPONENT FORM SCHEMA
-// =============================================================================
-
-const blockComponentSchema = z.object({
-  tagName: z.string().min(1, "Tag name is required").regex(/^BLOCK_[A-Z0-9_.]+$/, "Tag name must start with BLOCK_ and contain only uppercase letters, numbers, underscores, and dots"),
+const componentFormSchema = z.object({
+  tagName: z.string().min(1, "Tag name is required").regex(/^(BLOCK|TABLE)_[A-Z0-9_.]+$/, "Tag name must start with BLOCK_ or TABLE_ and contain only uppercase letters, numbers, underscores, and dots"),
   content: z.string().min(1, "Content is required"),
   description: z.string().optional(),
   serviceModel: z.string().optional(),
 });
 
-type BlockComponentFormValues = z.infer<typeof blockComponentSchema>;
+type ComponentFormValues = z.infer<typeof componentFormSchema>;
 
-// =============================================================================
-// HELPER FUNCTIONS
-// =============================================================================
-
-function slugifyToVariable(name: string): string {
-  return name
-    .toUpperCase()
-    .replace(/[^A-Z0-9\s]/g, "")
-    .replace(/\s+/g, "_")
-    .replace(/_+/g, "_")
-    .replace(/^_|_$/g, "") + "_TABLE";
-}
-
-function groupBlocksByTagName(blocks: BlockComponent[]): Map<string, BlockComponent[]> {
-  const grouped = new Map<string, BlockComponent[]>();
+function groupBlocksByTagName(blocks: ComponentRow[]): Map<string, ComponentRow[]> {
+  const grouped = new Map<string, ComponentRow[]>();
   for (const block of blocks) {
     const existing = grouped.get(block.tag_name) || [];
     existing.push(block);
@@ -193,65 +132,35 @@ function groupBlocksByTagName(blocks: BlockComponent[]): Map<string, BlockCompon
   return grouped;
 }
 
-// =============================================================================
-// MAIN COMPONENT
-// =============================================================================
-
 export default function ComponentLibrary() {
   const { toast } = useToast();
-  
-  // Selection state
+
   const [selectedItem, setSelectedItem] = useState<SelectedItem | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
-  
-  // Sidebar expansion state
+
   const [blocksExpanded, setBlocksExpanded] = useState(true);
+  const [tablesExpanded, setTablesExpanded] = useState(true);
   const [builtinExpanded, setBuiltinExpanded] = useState(true);
-  const [customExpanded, setCustomExpanded] = useState(true);
-  
-  // Block component dialog state
-  const [isBlockDialogOpen, setIsBlockDialogOpen] = useState(false);
-  const [editingBlock, setEditingBlock] = useState<BlockComponent | null>(null);
-  const [deleteBlock, setDeleteBlock] = useState<BlockComponent | null>(null);
-  const [duplicateFrom, setDuplicateFrom] = useState<BlockComponent | null>(null);
-  
-  // Table component state
-  const [isTableDialogOpen, setIsTableDialogOpen] = useState(false);
-  const [isEditMode, setIsEditMode] = useState(false);
-  const [editingTable, setEditingTable] = useState<TableDefinition | null>(null);
-  const [deleteTable, setDeleteTable] = useState<TableDefinition | null>(null);
-  
-  const [newTableName, setNewTableName] = useState("");
-  const [newTableDescription, setNewTableDescription] = useState("");
-  const [newTableColumns, setNewTableColumns] = useState<TableColumn[]>([
-    { header: "Column 1", type: "text", value: "", width: "" }
-  ]);
-  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
-  // =============================================================================
-  // DATA QUERIES
-  // =============================================================================
+  const [isFormDialogOpen, setIsFormDialogOpen] = useState(false);
+  const [editingComponent, setEditingComponent] = useState<ComponentRow | null>(null);
+  const [deleteComponent, setDeleteComponent] = useState<ComponentRow | null>(null);
 
-  const { data: projects, isLoading: projectsLoading } = useQuery<Project[]>({
+  const { data: projects } = useQuery<{ id: number; project_number: string; name: string; status: string }[]>({
     queryKey: ["/api/projects"],
   });
 
-  const { data: blockComponents, isLoading: blocksLoading } = useQuery<BlockComponent[]>({
+  const { data: allComponents, isLoading: componentsLoading } = useQuery<ComponentRow[]>({
     queryKey: ["/api/components"],
   });
 
-  const { data: customTables, isLoading: tablesLoading } = useQuery<TableDefinition[]>({
-    queryKey: ["/api/table-definitions"],
-  });
+  const blockComponents = allComponents?.filter(c => c.tag_name.startsWith("BLOCK_")) || [];
+  const tableComponents = allComponents?.filter(c => c.tag_name.startsWith("TABLE_")) || [];
+  const groupedBlocks = groupBlocksByTagName(blockComponents);
+  const uniqueBlockTagNames = new Set(blockComponents.map(b => b.tag_name));
 
-  const groupedBlocks = blockComponents ? groupBlocksByTagName(blockComponents) : new Map();
-
-  // =============================================================================
-  // BLOCK COMPONENT FORM
-  // =============================================================================
-
-  const blockForm = useForm<BlockComponentFormValues>({
-    resolver: zodResolver(blockComponentSchema),
+  const form = useForm<ComponentFormValues>({
+    resolver: zodResolver(componentFormSchema),
     defaultValues: {
       tagName: "",
       content: "",
@@ -260,1038 +169,697 @@ export default function ComponentLibrary() {
     },
   });
 
-  const createBlockMutation = useMutation({
-    mutationFn: async (data: BlockComponentFormValues) => {
+  const createMutation = useMutation({
+    mutationFn: async (data: ComponentFormValues) => {
       return apiRequest("POST", "/api/components", {
-        ...data,
+        tagName: data.tagName,
+        content: data.content,
+        description: data.description || null,
         serviceModel: data.serviceModel || null,
+        isSystem: false,
       });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/components"] });
-      setIsBlockDialogOpen(false);
-      setDuplicateFrom(null);
-      blockForm.reset();
-      toast({ title: "Block component created successfully" });
+      setIsFormDialogOpen(false);
+      form.reset();
+      toast({ title: "Component created successfully" });
     },
     onError: (error: any) => {
       toast({ title: "Error", description: error.message || "Failed to create component", variant: "destructive" });
     },
   });
 
-  const updateBlockMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: number; data: BlockComponentFormValues }) => {
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: ComponentFormValues }) => {
       return apiRequest("PUT", `/api/components/${id}`, {
-        ...data,
+        tagName: data.tagName,
+        content: data.content,
+        description: data.description || null,
         serviceModel: data.serviceModel || null,
       });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/components"] });
-      setIsBlockDialogOpen(false);
-      setEditingBlock(null);
-      blockForm.reset();
-      toast({ title: "Block component updated successfully" });
+      setIsFormDialogOpen(false);
+      setEditingComponent(null);
+      form.reset();
+      toast({ title: "Component updated successfully" });
     },
     onError: (error: any) => {
       toast({ title: "Error", description: error.message || "Failed to update component", variant: "destructive" });
     },
   });
 
-  const deleteBlockMutation = useMutation({
+  const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
       return apiRequest("DELETE", `/api/components/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/components"] });
-      setDeleteBlock(null);
-      if (selectedItem?.type === "block" && selectedItem.data.id === deleteBlock?.id) {
+      if (selectedItem && selectedItem.type !== "builtin" && selectedItem.data.id === deleteComponent?.id) {
         setSelectedItem(null);
       }
-      toast({ title: "Block component deleted" });
+      setDeleteComponent(null);
+      toast({ title: "Component deleted" });
     },
     onError: (error: any) => {
       toast({ title: "Error", description: error.message || "Failed to delete component", variant: "destructive" });
     },
   });
 
-  // =============================================================================
-  // TABLE MUTATIONS
-  // =============================================================================
-
-  const createTableMutation = useMutation({
-    mutationFn: async (data: { variable_name: string; display_name: string; description: string; columns: TableColumn[] }) => {
-      return apiRequest("POST", "/api/table-definitions", data);
+  const toggleActiveMutation = useMutation({
+    mutationFn: async ({ id, isActive }: { id: number; isActive: boolean }) => {
+      return apiRequest("PATCH", `/api/components/${id}`, { isActive });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/table-definitions"] });
-      setIsTableDialogOpen(false);
-      resetTableForm();
-      toast({ title: "Success", description: "Table component created successfully" });
+      queryClient.invalidateQueries({ queryKey: ["/api/components"] });
+      toast({ title: "Component status updated" });
     },
     onError: (error: any) => {
-      toast({ title: "Error", description: error.message || "Failed to create table", variant: "destructive" });
+      toast({ title: "Error", description: error.message || "Failed to update status", variant: "destructive" });
     },
   });
 
-  const updateTableMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: number; data: Partial<TableDefinition> }) => {
-      return apiRequest("PATCH", `/api/table-definitions/${id}`, data);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/table-definitions"] });
-      setIsEditMode(false);
-      setEditingTable(null);
-      toast({ title: "Success", description: "Table component updated successfully" });
-    },
-    onError: (error: any) => {
-      toast({ title: "Error", description: error.message || "Failed to update table", variant: "destructive" });
-    },
-  });
-
-  const deleteTableMutation = useMutation({
-    mutationFn: async (id: number) => {
-      return apiRequest("DELETE", `/api/table-definitions/${id}`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/table-definitions"] });
-      setDeleteTable(null);
-      if (selectedItem?.type === "table" && selectedItem.data.id === deleteTable?.id) {
-        setSelectedItem(null);
-      }
-      toast({ title: "Success", description: "Table component deleted" });
-    },
-    onError: (error: any) => {
-      toast({ title: "Error", description: error.message || "Failed to delete table", variant: "destructive" });
-    },
-  });
-
-  // =============================================================================
-  // PREVIEW QUERY
-  // =============================================================================
-
-  const getPreviewQueryKey = () => {
-    if (!selectedItem) return null;
-    if (selectedItem.type === "block") {
-      return ["block-preview", selectedItem.data.id];
-    }
-    if (selectedItem.type === "builtin") {
-      return ["/api/components/preview", selectedItem.data.id, selectedProjectId];
-    }
-    if (selectedItem.type === "table") {
-      const cols = isEditMode && editingTable ? editingTable.columns : selectedItem.data.columns;
-      return ["/api/components/preview", `custom_${selectedItem.data.id}`, selectedProjectId, JSON.stringify(cols)];
-    }
-    return null;
-  };
-
-  const { data: previewHtml, isLoading: previewLoading } = useQuery<{ html: string }>({
-    queryKey: getPreviewQueryKey() || ["no-preview"],
+  const { data: builtinPreview, isLoading: previewLoading } = useQuery<{ html: string }>({
+    queryKey: ["/api/components/preview", selectedItem?.type === "builtin" ? selectedItem.data.id : "", selectedProjectId],
     queryFn: async () => {
-      if (!selectedItem) return { html: "" };
-      
-      if (selectedItem.type === "block") {
-        // Block components show their HTML content directly
-        return { html: selectedItem.data.content };
-      }
-      
-      if (!selectedProjectId) {
-        return { html: "<p class='text-muted-foreground text-center py-8'>Select a project to preview live data</p>" };
-      }
-      
-      if (selectedItem.type === "builtin") {
-        const response = await fetch(`/api/components/preview/${selectedItem.data.id}?projectId=${selectedProjectId}`);
-        if (!response.ok) throw new Error("Failed to fetch preview");
-        return response.json();
-      }
-      
-      if (selectedItem.type === "table") {
-        const cols = isEditMode && editingTable ? editingTable.columns : selectedItem.data.columns;
-        const response = await fetch("/api/table-definitions/preview-columns", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ columns: cols, projectId: selectedProjectId }),
-        });
-        if (!response.ok) throw new Error("Failed to fetch preview");
-        return response.json();
-      }
-      
-      return { html: "" };
+      if (selectedItem?.type !== "builtin" || !selectedProjectId) return { html: "" };
+      const response = await fetch(`/api/components/preview/${selectedItem.data.id}?projectId=${selectedProjectId}`);
+      if (!response.ok) throw new Error("Failed to fetch preview");
+      return response.json();
     },
-    enabled: !!selectedItem,
+    enabled: selectedItem?.type === "builtin" && !!selectedProjectId,
   });
 
-  // =============================================================================
-  // HANDLERS
-  // =============================================================================
+  const isDbComponent = selectedItem?.type === "table" || selectedItem?.type === "block";
+  const { data: resolvedPreview, isLoading: resolvedPreviewLoading } = useQuery<{ html: string }>({
+    queryKey: ["/api/components/preview-resolved", isDbComponent ? selectedItem.data.id : "", selectedProjectId],
+    queryFn: async () => {
+      if (!isDbComponent || !selectedProjectId) return { html: "" };
+      const response = await fetch(`/api/components/preview-resolved/${selectedItem.data.id}?projectId=${selectedProjectId}`);
+      if (!response.ok) throw new Error("Failed to fetch resolved preview");
+      return response.json();
+    },
+    enabled: isDbComponent && !!selectedProjectId,
+  });
 
-  const resetTableForm = () => {
-    setNewTableName("");
-    setNewTableDescription("");
-    setNewTableColumns([{ header: "Column 1", type: "text", value: "", width: "" }]);
+  const openCreateDialog = (prefix: "BLOCK" | "TABLE") => {
+    setEditingComponent(null);
+    form.reset({ tagName: `${prefix}_`, content: "", description: "", serviceModel: "" });
+    setIsFormDialogOpen(true);
   };
 
-  const openCreateBlockDialog = () => {
-    setEditingBlock(null);
-    setDuplicateFrom(null);
-    blockForm.reset({ tagName: "", content: "", description: "", serviceModel: "" });
-    setIsBlockDialogOpen(true);
-  };
-
-  const openEditBlockDialog = (block: BlockComponent) => {
-    setEditingBlock(block);
-    setDuplicateFrom(null);
-    blockForm.reset({
-      tagName: block.tag_name,
-      content: block.content,
-      description: block.description || "",
-      serviceModel: block.service_model || "",
+  const openEditDialog = (component: ComponentRow) => {
+    setEditingComponent(component);
+    form.reset({
+      tagName: component.tag_name,
+      content: component.content,
+      description: component.description || "",
+      serviceModel: component.service_model || "",
     });
-    setIsBlockDialogOpen(true);
+    setIsFormDialogOpen(true);
   };
 
-  const openDuplicateBlockDialog = (block: BlockComponent) => {
-    setEditingBlock(null);
-    setDuplicateFrom(block);
-    blockForm.reset({
-      tagName: block.tag_name,
-      content: block.content,
-      description: block.description || "",
-      serviceModel: block.service_model === "CRC" ? "CMOS" : "CRC", // Flip the service model
+  const openDuplicateDialog = (component: ComponentRow) => {
+    setEditingComponent(null);
+    form.reset({
+      tagName: component.tag_name,
+      content: component.content,
+      description: component.description || "",
+      serviceModel: component.service_model === "CRC" ? "CMOS" : "CRC",
     });
-    setIsBlockDialogOpen(true);
+    setIsFormDialogOpen(true);
   };
 
-  const handleBlockSubmit = (values: BlockComponentFormValues) => {
-    if (editingBlock) {
-      updateBlockMutation.mutate({ id: editingBlock.id, data: values });
+  const handleFormSubmit = (values: ComponentFormValues) => {
+    if (editingComponent) {
+      updateMutation.mutate({ id: editingComponent.id, data: values });
     } else {
-      createBlockMutation.mutate(values);
+      createMutation.mutate(values);
     }
   };
 
-  const handleTableCreate = () => {
-    if (!newTableName.trim()) {
-      toast({ title: "Error", description: "Table name is required", variant: "destructive" });
-      return;
-    }
-    createTableMutation.mutate({
-      variable_name: slugifyToVariable(newTableName),
-      display_name: newTableName,
-      description: newTableDescription,
-      columns: newTableColumns,
-    });
+  const getServiceModelBadge = (items: ComponentRow[]) => {
+    const models = items.map(i => i.service_model).filter(Boolean);
+    if (models.length === 0) return "ALL";
+    if (models.length === 1) return models[0];
+    return models.join("/");
   };
 
-  const handleTableSave = () => {
-    if (!editingTable) return;
-    updateTableMutation.mutate({
-      id: editingTable.id,
-      data: {
-        display_name: editingTable.display_name,
-        description: editingTable.description,
-        columns: editingTable.columns,
-      },
-    });
+  const isBlockSelected = (tagName: string) => {
+    if (!selectedItem || selectedItem.type !== "block") return false;
+    return selectedItem.data.tag_name === tagName;
   };
 
-  const addColumn = () => {
-    const cols = isEditMode && editingTable ? editingTable.columns : newTableColumns;
-    const newCol: TableColumn = { header: `Column ${cols.length + 1}`, type: "text", value: "", width: "" };
-    if (isEditMode && editingTable) {
-      setEditingTable({ ...editingTable, columns: [...cols, newCol] });
-    } else {
-      setNewTableColumns([...cols, newCol]);
-    }
+  const isTableSelected = (id: number) => {
+    if (!selectedItem || selectedItem.type !== "table") return false;
+    return selectedItem.data.id === id;
   };
 
-  const removeColumn = (index: number) => {
-    const cols = isEditMode && editingTable ? editingTable.columns : newTableColumns;
-    if (cols.length <= 1) return;
-    const updated = cols.filter((_, i) => i !== index);
-    if (isEditMode && editingTable) {
-      setEditingTable({ ...editingTable, columns: updated });
-    } else {
-      setNewTableColumns(updated);
-    }
+  const isBuiltinSelected = (id: string) => {
+    if (!selectedItem || selectedItem.type !== "builtin") return false;
+    return selectedItem.data.id === id;
   };
 
-  const updateColumn = (index: number, field: keyof TableColumn, value: string) => {
-    const cols = isEditMode && editingTable ? [...editingTable.columns] : [...newTableColumns];
-    cols[index] = { ...cols[index], [field]: value };
-    if (isEditMode && editingTable) {
-      setEditingTable({ ...editingTable, columns: cols });
-    } else {
-      setNewTableColumns(cols);
-    }
-  };
-
-  const handleDragStart = (index: number) => {
-    setDraggedIndex(index);
-  };
-
-  const handleDragOver = (e: React.DragEvent, index: number) => {
-    e.preventDefault();
-    if (draggedIndex === null || draggedIndex === index) return;
-    
-    const cols = isEditMode && editingTable ? [...editingTable.columns] : [...newTableColumns];
-    const [draggedItem] = cols.splice(draggedIndex, 1);
-    cols.splice(index, 0, draggedItem);
-    
-    if (isEditMode && editingTable) {
-      setEditingTable({ ...editingTable, columns: cols });
-    } else {
-      setNewTableColumns(cols);
-    }
-    setDraggedIndex(index);
-  };
-
-  const handleDragEnd = () => {
-    setDraggedIndex(null);
-  };
-
-  const startTableEdit = (table: TableDefinition) => {
-    setEditingTable({ ...table });
-    setIsEditMode(true);
-  };
-
-  const cancelTableEdit = () => {
-    setEditingTable(null);
-    setIsEditMode(false);
-  };
-
-  // =============================================================================
-  // RENDER
-  // =============================================================================
-
-  return (
-    <div className="flex h-full" data-testid="component-library-page">
-      {/* Sidebar */}
-      <div className="w-80 border-r flex flex-col bg-muted/30">
-        <div className="p-4 border-b bg-background">
-          <h1 className="text-lg font-semibold flex items-center gap-2">
-            <Box className="h-5 w-5" />
-            Component Library
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Manage block components and table templates
-          </p>
+  const renderDetailPanel = () => {
+    if (!selectedItem) {
+      return (
+        <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-3" data-testid="empty-state">
+          <Box className="h-12 w-12 opacity-30" />
+          <p className="text-sm">Select a component to view details</p>
         </div>
-        
-        <ScrollArea className="flex-1">
-          <div className="p-2">
-            {/* Block Components Section */}
-            <div className="mb-4">
-              <button
-                onClick={() => setBlocksExpanded(!blocksExpanded)}
-                className="flex items-center justify-between w-full p-2 rounded hover-elevate"
-                data-testid="toggle-blocks-section"
-              >
-                <span className="flex items-center gap-2 font-medium text-sm">
-                  {blocksExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                  <FileCode className="h-4 w-4" />
-                  Block Components
-                </span>
-                <Badge variant="secondary" className="text-xs">
-                  {blockComponents?.length || 0}
-                </Badge>
-              </button>
-              
-              {blocksExpanded && (
-                <div className="ml-4 mt-1 space-y-1">
-                  {blocksLoading ? (
-                    <div className="space-y-2 p-2">
-                      <Skeleton className="h-6 w-full" />
-                      <Skeleton className="h-6 w-full" />
-                    </div>
-                  ) : (
-                    <>
-                      {Array.from(groupedBlocks.entries()).map(([tagName, variants]) => (
-                        <div key={tagName} className="space-y-0.5">
-                          <div className="text-xs text-muted-foreground px-2 pt-2 font-mono truncate" title={tagName}>
-                            {tagName}
-                          </div>
-                          {variants.map((block: BlockComponent) => (
-                            <button
-                              key={block.id}
-                              onClick={() => setSelectedItem({ type: "block", data: block })}
-                              className={`w-full text-left p-2 rounded text-sm flex items-center justify-between gap-2 ${
-                                selectedItem?.type === "block" && selectedItem.data.id === block.id
-                                  ? "bg-primary/10 text-primary"
-                                  : "hover-elevate"
-                              }`}
-                              data-testid={`block-${block.id}`}
-                            >
-                              <span className="truncate">{block.description || tagName}</span>
-                              <Badge variant={block.service_model === "CRC" ? "default" : "secondary"} className="text-xs shrink-0">
-                                {block.service_model || "ALL"}
-                              </Badge>
-                            </button>
-                          ))}
-                        </div>
-                      ))}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="w-full justify-start text-muted-foreground mt-2"
-                        onClick={openCreateBlockDialog}
-                        data-testid="button-create-block"
-                      >
-                        <Plus className="h-4 w-4 mr-2" />
-                        Add Block Component
-                      </Button>
-                    </>
-                  )}
-                </div>
-              )}
+      );
+    }
+
+    if (selectedItem.type === "block") {
+      const comp = selectedItem.data;
+      return (
+        <div className="flex flex-col h-full">
+          <div className="flex items-center justify-between gap-2 flex-wrap p-4 border-b">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-lg font-semibold" data-testid="detail-tag-name">{comp.tag_name}</h2>
+              {comp.service_model && <Badge variant="secondary" data-testid="detail-service-model">{comp.service_model}</Badge>}
+              {comp.is_system && <Badge variant="outline" data-testid="detail-system-badge">System</Badge>}
             </div>
-            
-            <Separator className="my-2" />
-            
-            {/* Built-in Tables Section */}
-            <div className="mb-4">
-              <button
-                onClick={() => setBuiltinExpanded(!builtinExpanded)}
-                className="flex items-center justify-between w-full p-2 rounded hover-elevate"
-                data-testid="toggle-builtin-section"
-              >
-                <span className="flex items-center gap-2 font-medium text-sm">
-                  {builtinExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                  <Table className="h-4 w-4" />
-                  Built-in Tables
-                </span>
-                <Badge variant="outline" className="text-xs">
-                  {BUILTIN_COMPONENTS.length}
-                </Badge>
-              </button>
-              
-              {builtinExpanded && (
-                <div className="ml-4 mt-1 space-y-1">
-                  {BUILTIN_COMPONENTS.map((comp) => (
-                    <button
-                      key={comp.id}
-                      onClick={() => setSelectedItem({ type: "builtin", data: comp })}
-                      className={`w-full text-left p-2 rounded text-sm flex items-center gap-2 ${
-                        selectedItem?.type === "builtin" && selectedItem.data.id === comp.id
-                          ? "bg-primary/10 text-primary"
-                          : "hover-elevate"
-                      }`}
-                      data-testid={`builtin-${comp.id}`}
-                    >
-                      {comp.icon}
-                      <span className="truncate">{comp.displayName}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            
-            <Separator className="my-2" />
-            
-            {/* Custom Tables Section */}
-            <div>
-              <button
-                onClick={() => setCustomExpanded(!customExpanded)}
-                className="flex items-center justify-between w-full p-2 rounded hover-elevate"
-                data-testid="toggle-custom-section"
-              >
-                <span className="flex items-center gap-2 font-medium text-sm">
-                  {customExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                  <Layers className="h-4 w-4" />
-                  Custom Tables
-                </span>
-                <Badge variant="secondary" className="text-xs">
-                  {customTables?.length || 0}
-                </Badge>
-              </button>
-              
-              {customExpanded && (
-                <div className="ml-4 mt-1 space-y-1">
-                  {tablesLoading ? (
-                    <div className="space-y-2 p-2">
-                      <Skeleton className="h-6 w-full" />
-                    </div>
-                  ) : (
-                    <>
-                      {customTables?.map((table) => (
-                        <button
-                          key={table.id}
-                          onClick={() => setSelectedItem({ type: "table", data: table })}
-                          className={`w-full text-left p-2 rounded text-sm flex items-center gap-2 ${
-                            selectedItem?.type === "table" && selectedItem.data.id === table.id
-                              ? "bg-primary/10 text-primary"
-                              : "hover-elevate"
-                          }`}
-                          data-testid={`table-${table.id}`}
-                        >
-                          <Table className="h-4 w-4 shrink-0" />
-                          <span className="truncate">{table.display_name}</span>
-                        </button>
-                      ))}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="w-full justify-start text-muted-foreground mt-2"
-                        onClick={() => setIsTableDialogOpen(true)}
-                        data-testid="button-create-table"
-                      >
-                        <Plus className="h-4 w-4 mr-2" />
-                        Add Custom Table
-                      </Button>
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        </ScrollArea>
-      </div>
-      
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col min-h-0">
-        {/* Header with project selector */}
-        <div className="p-4 border-b bg-background flex items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <Label className="text-sm whitespace-nowrap">Preview with Project:</Label>
+            <div className="flex items-center gap-2 flex-wrap">
               <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
-                <SelectTrigger className="w-64" data-testid="select-preview-project">
-                  <SelectValue placeholder="Select a project..." />
+                <SelectTrigger className="w-[200px]" data-testid="select-project">
+                  <SelectValue placeholder="Select project..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {projects?.map((p) => (
-                    <SelectItem key={p.id} value={p.id.toString()}>
+                  {projects?.map(p => (
+                    <SelectItem key={p.id} value={String(p.id)} data-testid={`project-option-${p.id}`}>
                       {p.project_number} - {p.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-          </div>
-          
-          {/* Action buttons based on selection */}
-          {selectedItem?.type === "block" && (
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => openDuplicateBlockDialog(selectedItem.data)}
-                data-testid="button-duplicate-block"
-              >
-                <Copy className="h-4 w-4 mr-2" />
-                Duplicate
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => openEditBlockDialog(selectedItem.data)}
-                data-testid="button-edit-block"
-              >
-                <Edit className="h-4 w-4 mr-2" />
-                Edit
-              </Button>
-              {!selectedItem.data.is_system && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setDeleteBlock(selectedItem.data)}
-                  className="text-destructive hover:text-destructive"
-                  data-testid="button-delete-block"
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete
-                </Button>
+              {!comp.is_system && (
+                <>
+                  <Button size="icon" variant="ghost" onClick={() => openEditDialog(comp)} data-testid="button-edit-component">
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                  <Button size="icon" variant="ghost" onClick={() => openDuplicateDialog(comp)} data-testid="button-duplicate-component">
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                  <Button size="icon" variant="ghost" onClick={() => setDeleteComponent(comp)} data-testid="button-delete-component">
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </>
               )}
             </div>
-          )}
-          
-          {selectedItem?.type === "table" && !isEditMode && (
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => startTableEdit(selectedItem.data)}
-                data-testid="button-edit-table"
-              >
-                <Edit className="h-4 w-4 mr-2" />
-                Edit
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setDeleteTable(selectedItem.data)}
-                className="text-destructive hover:text-destructive"
-                data-testid="button-delete-table"
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Delete
-              </Button>
+          </div>
+          <ScrollArea className="flex-1">
+            <div className="p-4 space-y-4">
+              {comp.description && (
+                <div>
+                  <Label className="text-xs text-muted-foreground">Description</Label>
+                  <p className="text-sm mt-1" data-testid="detail-description">{comp.description}</p>
+                </div>
+              )}
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <Code className="h-4 w-4 text-muted-foreground" />
+                  <Label className="text-xs text-muted-foreground">HTML Content</Label>
+                </div>
+                <pre className="bg-muted rounded-md p-3 text-xs overflow-x-auto whitespace-pre-wrap" data-testid="detail-code-block">
+                  {comp.content}
+                </pre>
+              </div>
+              <Separator />
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <Eye className="h-4 w-4 text-muted-foreground" />
+                  <Label className="text-xs text-muted-foreground">Rendered Preview</Label>
+                </div>
+                {selectedProjectId && resolvedPreviewLoading ? (
+                  <Skeleton className="h-40 w-full" />
+                ) : selectedProjectId && resolvedPreview?.html ? (
+                  <div
+                    className="border rounded-md p-4 bg-white"
+                    data-testid="detail-preview"
+                    dangerouslySetInnerHTML={{ __html: resolvedPreview.html }}
+                  />
+                ) : (
+                  <div
+                    className="border rounded-md p-4 bg-white"
+                    data-testid="detail-preview"
+                    dangerouslySetInnerHTML={{ __html: comp.content }}
+                  />
+                )}
+              </div>
             </div>
-          )}
-          
-          {isEditMode && editingTable && (
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" size="sm" onClick={cancelTableEdit}>
-                Cancel
-              </Button>
-              <Button size="sm" onClick={handleTableSave} disabled={updateTableMutation.isPending}>
-                <Save className="h-4 w-4 mr-2" />
-                Save Changes
-              </Button>
-            </div>
-          )}
+          </ScrollArea>
         </div>
-        
-        {/* Content area */}
-        <div className="flex-1 flex min-h-0">
-          {!selectedItem ? (
-            <div className="flex-1 flex items-center justify-center text-muted-foreground">
-              <div className="text-center">
-                <Box className="h-12 w-12 mx-auto mb-4 opacity-30" />
-                <p className="text-lg">Select a component from the sidebar</p>
-                <p className="text-sm mt-1">Choose a block component or table to view details</p>
+      );
+    }
+
+    if (selectedItem.type === "table") {
+      const comp = selectedItem.data;
+      const freshComp = allComponents?.find(c => c.id === comp.id) || comp;
+      return (
+        <div className="flex flex-col h-full">
+          <div className="flex items-center justify-between gap-2 flex-wrap p-4 border-b">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-lg font-semibold" data-testid="detail-tag-name">{freshComp.tag_name}</h2>
+              {freshComp.is_system && <Badge variant="outline" data-testid="detail-system-badge">System</Badge>}
+              {!freshComp.is_system && (
+                <div className="flex items-center gap-2">
+                  <Label className="text-xs text-muted-foreground">Active</Label>
+                  <Switch
+                    checked={freshComp.is_active}
+                    onCheckedChange={(checked) => toggleActiveMutation.mutate({ id: freshComp.id, isActive: checked })}
+                    data-testid="toggle-active"
+                  />
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
+                <SelectTrigger className="w-[200px]" data-testid="select-project">
+                  <SelectValue placeholder="Select project..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {projects?.map(p => (
+                    <SelectItem key={p.id} value={String(p.id)} data-testid={`project-option-${p.id}`}>
+                      {p.project_number} - {p.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {!freshComp.is_system && (
+                <>
+                  <Button size="icon" variant="ghost" onClick={() => openEditDialog(freshComp)} data-testid="button-edit-component">
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                  <Button size="icon" variant="ghost" onClick={() => setDeleteComponent(freshComp)} data-testid="button-delete-component">
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+          <ScrollArea className="flex-1">
+            <div className="p-4 space-y-4">
+              {freshComp.description && (
+                <div>
+                  <Label className="text-xs text-muted-foreground">Description</Label>
+                  <p className="text-sm mt-1" data-testid="detail-description">{freshComp.description}</p>
+                </div>
+              )}
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <Code className="h-4 w-4 text-muted-foreground" />
+                  <Label className="text-xs text-muted-foreground">HTML Content</Label>
+                </div>
+                <pre className="bg-muted rounded-md p-3 text-xs overflow-x-auto whitespace-pre-wrap" data-testid="detail-code-block">
+                  {freshComp.content}
+                </pre>
+              </div>
+              <Separator />
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <Eye className="h-4 w-4 text-muted-foreground" />
+                  <Label className="text-xs text-muted-foreground">Rendered Preview</Label>
+                </div>
+                {!selectedProjectId ? (
+                  <div
+                    className="border rounded-md p-4 bg-white"
+                    data-testid="detail-preview"
+                    dangerouslySetInnerHTML={{ __html: freshComp.content }}
+                  />
+                ) : resolvedPreviewLoading ? (
+                  <Skeleton className="h-40 w-full" />
+                ) : resolvedPreview?.html ? (
+                  <div
+                    className="border rounded-md p-4 bg-white"
+                    data-testid="detail-preview"
+                    dangerouslySetInnerHTML={{ __html: resolvedPreview.html }}
+                  />
+                ) : (
+                  <div
+                    className="border rounded-md p-4 bg-white"
+                    data-testid="detail-preview"
+                    dangerouslySetInnerHTML={{ __html: freshComp.content }}
+                  />
+                )}
               </div>
             </div>
-          ) : (
-            <div className="flex-1 flex">
-              {/* Detail Panel */}
-              <div className="w-1/2 border-r flex flex-col min-h-0">
-                <div className="p-2 border-b bg-muted/30 flex-shrink-0">
-                  <h3 className="text-xs font-medium text-muted-foreground flex items-center gap-2">
-                    <Code className="h-3 w-3" />
-                    {selectedItem.type === "block" ? "Block Content" : selectedItem.type === "builtin" ? "Table Info" : "Column Editor"}
-                  </h3>
-                </div>
-                <ScrollArea className="flex-1">
-                  <div className="p-4">
-                    {selectedItem.type === "block" && (
-                      <div className="space-y-4">
-                        <div>
-                          <Label className="text-xs text-muted-foreground">Tag Name</Label>
-                          <div className="font-mono text-sm mt-1 p-2 bg-muted rounded">
-                            {`{{${selectedItem.data.tag_name}}}`}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge variant={selectedItem.data.service_model === "CRC" ? "default" : "secondary"}>
-                            {selectedItem.data.service_model || "ALL"}
-                          </Badge>
-                          {selectedItem.data.is_system && (
-                            <Badge variant="outline">System</Badge>
-                          )}
-                        </div>
-                        {selectedItem.data.description && (
-                          <div>
-                            <Label className="text-xs text-muted-foreground">Description</Label>
-                            <p className="text-sm mt-1">{selectedItem.data.description}</p>
-                          </div>
-                        )}
-                        <div>
-                          <Label className="text-xs text-muted-foreground">HTML Content</Label>
-                          <pre className="text-xs mt-1 p-3 bg-muted rounded overflow-auto max-h-96 whitespace-pre-wrap">
-                            {selectedItem.data.content}
-                          </pre>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {selectedItem.type === "builtin" && (
-                      <div className="space-y-4">
-                        <div>
-                          <Label className="text-xs text-muted-foreground">Variable Name</Label>
-                          <div className="font-mono text-sm mt-1 p-2 bg-muted rounded">
-                            {selectedItem.data.variableName}
-                          </div>
-                        </div>
-                        <div>
-                          <Label className="text-xs text-muted-foreground">Description</Label>
-                          <p className="text-sm mt-1">{selectedItem.data.description}</p>
-                        </div>
-                        <div>
-                          <Label className="text-xs text-muted-foreground">Columns</Label>
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {selectedItem.data.columns.map((col) => (
-                              <Badge key={col} variant="outline">{col}</Badge>
-                            ))}
-                          </div>
-                        </div>
-                        <div className="text-xs text-muted-foreground italic">
-                          This is a built-in table component and cannot be edited.
-                        </div>
-                      </div>
-                    )}
-                    
-                    {selectedItem.type === "table" && (
-                      <div className="space-y-4">
-                        <div>
-                          <Label className="text-xs text-muted-foreground">Variable Name</Label>
-                          <div className="font-mono text-sm mt-1 p-2 bg-muted rounded">
-                            {`{{${selectedItem.data.variable_name}}}`}
-                          </div>
-                        </div>
-                        {isEditMode && editingTable ? (
-                          <div className="space-y-4">
-                            <div>
-                              <Label>Display Name</Label>
-                              <Input
-                                value={editingTable.display_name}
-                                onChange={(e) => setEditingTable({ ...editingTable, display_name: e.target.value })}
-                                className="mt-1"
-                              />
-                            </div>
-                            <div>
-                              <Label>Description</Label>
-                              <Textarea
-                                value={editingTable.description || ""}
-                                onChange={(e) => setEditingTable({ ...editingTable, description: e.target.value })}
-                                className="mt-1"
-                              />
-                            </div>
-                            <div>
-                              <div className="flex items-center justify-between mb-2">
-                                <Label>Columns</Label>
-                                <Button variant="outline" size="sm" onClick={addColumn}>
-                                  <Plus className="h-3 w-3 mr-1" />
-                                  Add Column
-                                </Button>
-                              </div>
-                              <div className="space-y-2">
-                                {editingTable.columns.map((col, idx) => (
-                                  <div
-                                    key={idx}
-                                    draggable
-                                    onDragStart={() => handleDragStart(idx)}
-                                    onDragOver={(e) => handleDragOver(e, idx)}
-                                    onDragEnd={handleDragEnd}
-                                    className="flex items-center gap-2 p-2 border rounded bg-background"
-                                  >
-                                    <GripVertical className="h-4 w-4 text-muted-foreground cursor-move" />
-                                    <Input
-                                      value={col.header}
-                                      onChange={(e) => updateColumn(idx, "header", e.target.value)}
-                                      placeholder="Header"
-                                      className="flex-1"
-                                    />
-                                    <Select
-                                      value={col.type}
-                                      onValueChange={(v) => updateColumn(idx, "type", v)}
-                                    >
-                                      <SelectTrigger className="w-32">
-                                        <SelectValue />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {COLUMN_TYPES.map((t) => (
-                                          <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
-                                    <Input
-                                      value={col.value}
-                                      onChange={(e) => updateColumn(idx, "value", e.target.value)}
-                                      placeholder="Value/Variable"
-                                      className="flex-1"
-                                    />
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      onClick={() => removeColumn(idx)}
-                                      disabled={editingTable.columns.length <= 1}
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="space-y-4">
-                            <div>
-                              <Label className="text-xs text-muted-foreground">Description</Label>
-                              <p className="text-sm mt-1">{selectedItem.data.description || "No description"}</p>
-                            </div>
-                            <div>
-                              <Label className="text-xs text-muted-foreground">Columns</Label>
-                              <div className="mt-2 space-y-1">
-                                {selectedItem.data.columns.map((col, idx) => (
-                                  <div key={idx} className="flex items-center gap-2 text-sm">
-                                    <Badge variant="outline" className="font-mono text-xs">{col.header}</Badge>
-                                    <span className="text-muted-foreground">
-                                      {COLUMN_TYPES.find(t => t.value === col.type)?.label || col.type}
-                                    </span>
-                                    {col.value && <span className="font-mono text-xs text-primary">{col.value}</span>}
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </ScrollArea>
+          </ScrollArea>
+        </div>
+      );
+    }
+
+    if (selectedItem.type === "builtin") {
+      const item = selectedItem.data;
+      return (
+        <div className="flex flex-col h-full">
+          <div className="flex items-center justify-between gap-2 flex-wrap p-4 border-b">
+            <div className="flex items-center gap-2 flex-wrap">
+              {item.icon}
+              <h2 className="text-lg font-semibold" data-testid="detail-tag-name">{item.displayName}</h2>
+              <Badge variant="outline">Data-Driven</Badge>
+            </div>
+            <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
+              <SelectTrigger className="w-[200px]" data-testid="select-project">
+                <SelectValue placeholder="Select project..." />
+              </SelectTrigger>
+              <SelectContent>
+                {projects?.map(p => (
+                  <SelectItem key={p.id} value={String(p.id)} data-testid={`project-option-${p.id}`}>
+                    {p.project_number} - {p.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <ScrollArea className="flex-1">
+            <div className="p-4 space-y-4">
+              <div>
+                <Label className="text-xs text-muted-foreground">Variable Name</Label>
+                <p className="text-sm font-mono mt-1" data-testid="detail-variable-name">{item.variableName}</p>
               </div>
-              
-              {/* Preview Panel */}
-              <div className="w-1/2 flex flex-col min-h-0">
-                <div className="p-2 border-b bg-muted/30 flex-shrink-0">
-                  <h3 className="text-xs font-medium text-muted-foreground flex items-center gap-2">
-                    <Eye className="h-3 w-3" />
-                    HTML Preview
-                  </h3>
+              <div>
+                <Label className="text-xs text-muted-foreground">Description</Label>
+                <p className="text-sm mt-1" data-testid="detail-description">{item.description}</p>
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">Columns</Label>
+                <div className="flex gap-1 flex-wrap mt-1">
+                  {item.columns.map(col => (
+                    <Badge key={col} variant="secondary">{col}</Badge>
+                  ))}
                 </div>
-                <ScrollArea className="flex-1">
-                  <div className="p-4">
-                    {previewLoading ? (
-                      <Skeleton className="h-32 w-full" />
+              </div>
+              <Separator />
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <Eye className="h-4 w-4 text-muted-foreground" />
+                  <Label className="text-xs text-muted-foreground">Live Preview</Label>
+                </div>
+                {!selectedProjectId ? (
+                  <p className="text-sm text-muted-foreground text-center py-8" data-testid="preview-no-project">
+                    Select a project to preview live data
+                  </p>
+                ) : previewLoading ? (
+                  <Skeleton className="h-40 w-full" />
+                ) : builtinPreview?.html ? (
+                  <div
+                    className="border rounded-md p-4 bg-white"
+                    data-testid="detail-preview"
+                    dangerouslySetInnerHTML={{ __html: builtinPreview.html }}
+                  />
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-8">No preview available</p>
+                )}
+              </div>
+            </div>
+          </ScrollArea>
+        </div>
+      );
+    }
+
+    return null;
+  };
+
+  return (
+    <ResizablePanelGroup direction="horizontal" className="h-full" data-testid="component-library-page">
+      <ResizablePanel defaultSize={25} minSize={15} maxSize={40}>
+        <div className="h-full flex flex-col bg-muted/30">
+          <div className="p-4 border-b bg-background">
+            <h1 className="text-lg font-semibold flex items-center gap-2">
+              <Box className="h-5 w-5" />
+              Component Library
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Manage block components and table templates
+            </p>
+          </div>
+
+          <ScrollArea className="flex-1">
+            <div className="p-2">
+              <div className="mb-4">
+                <button
+                  onClick={() => setBlocksExpanded(!blocksExpanded)}
+                  className="flex items-center justify-between gap-2 w-full p-2 rounded hover-elevate"
+                  data-testid="toggle-blocks-section"
+                >
+                  <span className="flex items-center gap-2 font-medium text-sm">
+                    {blocksExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                    <FileCode className="h-4 w-4" />
+                    Text Blocks
+                  </span>
+                  <Badge variant="secondary">{uniqueBlockTagNames.size}</Badge>
+                </button>
+
+                {blocksExpanded && (
+                  <div className="mt-1 space-y-0.5 pl-2">
+                    {componentsLoading ? (
+                      Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-8 w-full mb-1" />)
                     ) : (
-                      <div
-                        className="prose prose-sm dark:prose-invert max-w-none"
-                        dangerouslySetInnerHTML={{ __html: previewHtml?.html || "<p class='text-muted-foreground'>No preview available</p>" }}
-                      />
+                      <>
+                        {Array.from(groupedBlocks.entries()).map(([tagName, items]) => (
+                          <button
+                            key={tagName}
+                            onClick={() => setSelectedItem({ type: "block", data: items[0] })}
+                            className={`flex items-center justify-between gap-2 w-full p-2 rounded text-sm hover-elevate ${isBlockSelected(tagName) ? "bg-primary/10" : ""}`}
+                            data-testid={`sidebar-block-${tagName}`}
+                          >
+                            <span className="truncate text-left">{tagName}</span>
+                            <Badge variant="outline" className="text-xs shrink-0">
+                              {getServiceModelBadge(items)}
+                            </Badge>
+                          </button>
+                        ))}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="w-full justify-start gap-2 mt-1"
+                          onClick={() => openCreateDialog("BLOCK")}
+                          data-testid="button-add-block"
+                        >
+                          <Plus className="h-4 w-4" />
+                          Add Block Component
+                        </Button>
+                      </>
                     )}
                   </div>
-                </ScrollArea>
+                )}
+              </div>
+
+              <Separator className="my-2" />
+
+              <div className="mb-4">
+                <button
+                  onClick={() => setTablesExpanded(!tablesExpanded)}
+                  className="flex items-center justify-between gap-2 w-full p-2 rounded hover-elevate"
+                  data-testid="toggle-tables-section"
+                >
+                  <span className="flex items-center gap-2 font-medium text-sm">
+                    {tablesExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                    <Table className="h-4 w-4" />
+                    Table Components
+                  </span>
+                  <Badge variant="secondary">{tableComponents.length}</Badge>
+                </button>
+
+                {tablesExpanded && (
+                  <div className="mt-1 space-y-0.5 pl-2">
+                    {componentsLoading ? (
+                      Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-8 w-full mb-1" />)
+                    ) : (
+                      <>
+                        {tableComponents.map(comp => (
+                          <button
+                            key={comp.id}
+                            onClick={() => setSelectedItem({ type: "table", data: comp })}
+                            className={`flex items-center justify-between gap-2 w-full p-2 rounded text-sm hover-elevate ${isTableSelected(comp.id) ? "bg-primary/10" : ""}`}
+                            data-testid={`sidebar-table-${comp.id}`}
+                          >
+                            <span className="truncate text-left flex items-center gap-1.5">
+                              {!comp.is_active && <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40 shrink-0" />}
+                              {comp.tag_name}
+                            </span>
+                            <div className="flex items-center gap-1 shrink-0">
+                              {comp.is_system && <Badge variant="outline" className="text-xs">System</Badge>}
+                            </div>
+                          </button>
+                        ))}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="w-full justify-start gap-2 mt-1"
+                          onClick={() => openCreateDialog("TABLE")}
+                          data-testid="button-add-table"
+                        >
+                          <Plus className="h-4 w-4" />
+                          Add Table Component
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <Separator className="my-2" />
+
+              <div className="mb-4">
+                <button
+                  onClick={() => setBuiltinExpanded(!builtinExpanded)}
+                  className="flex items-center justify-between gap-2 w-full p-2 rounded hover-elevate"
+                  data-testid="toggle-builtin-section"
+                >
+                  <span className="flex items-center gap-2 font-medium text-sm">
+                    {builtinExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                    <Database className="h-4 w-4" />
+                    Data-Driven Tables
+                  </span>
+                  <Badge variant="outline">3</Badge>
+                </button>
+
+                {builtinExpanded && (
+                  <div className="mt-1 space-y-0.5 pl-2">
+                    {BUILTIN_TABLES.map(item => (
+                      <button
+                        key={item.id}
+                        onClick={() => setSelectedItem({ type: "builtin", data: item })}
+                        className={`flex items-center gap-2 w-full p-2 rounded text-sm hover-elevate ${isBuiltinSelected(item.id) ? "bg-primary/10" : ""}`}
+                        data-testid={`sidebar-builtin-${item.id}`}
+                      >
+                        {item.icon}
+                        <span className="truncate text-left">{item.displayName}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
-          )}
+          </ScrollArea>
         </div>
-      </div>
-      
-      {/* Block Component Dialog */}
-      <Dialog open={isBlockDialogOpen} onOpenChange={setIsBlockDialogOpen}>
-        <DialogContent className="max-w-2xl">
+      </ResizablePanel>
+
+      <ResizableHandle withHandle />
+
+      <ResizablePanel defaultSize={75}>
+        <div className="h-full bg-background">
+          {renderDetailPanel()}
+        </div>
+      </ResizablePanel>
+
+      <Dialog open={isFormDialogOpen} onOpenChange={setIsFormDialogOpen}>
+        <DialogContent className="max-w-lg" data-testid="component-form-dialog">
           <DialogHeader>
-            <DialogTitle>
-              {editingBlock ? "Edit Block Component" : duplicateFrom ? "Duplicate Block Component" : "Create Block Component"}
-            </DialogTitle>
+            <DialogTitle>{editingComponent ? "Edit Component" : "Create Component"}</DialogTitle>
             <DialogDescription>
-              {editingBlock ? "Update the block component content." : "Create a new block component for contract generation."}
+              {editingComponent ? "Update the component details below." : "Fill in the details to create a new component."}
             </DialogDescription>
           </DialogHeader>
-          <Form {...blockForm}>
-            <form onSubmit={blockForm.handleSubmit(handleBlockSubmit)} className="space-y-4">
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-4">
               <FormField
-                control={blockForm.control}
+                control={form.control}
                 name="tagName"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Tag Name</FormLabel>
                     <FormControl>
-                      <Input
-                        {...field}
-                        placeholder="BLOCK_SECTION_NAME"
-                        disabled={!!editingBlock}
-                        className="font-mono"
-                      />
+                      <Input placeholder="BLOCK_MY_COMPONENT or TABLE_MY_TABLE" {...field} data-testid="input-tag-name" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+
               <FormField
-                control={blockForm.control}
+                control={form.control}
                 name="serviceModel"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Service Model</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
+                    <Select value={field.value || ""} onValueChange={(val) => field.onChange(val === "none" ? "" : val)}>
                       <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select service model..." />
+                        <SelectTrigger data-testid="select-service-model">
+                          <SelectValue placeholder="None (applies to all)" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="CRC">CRC (Client-Retained Contractor)</SelectItem>
-                        <SelectItem value="CMOS">CMOS (Company-Managed On-Site)</SelectItem>
+                        <SelectItem value="none">None (applies to all)</SelectItem>
+                        <SelectItem value="CRC">CRC</SelectItem>
+                        <SelectItem value="CMOS">CMOS</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+
               <FormField
-                control={blockForm.control}
+                control={form.control}
                 name="description"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Description</FormLabel>
                     <FormControl>
-                      <Input {...field} placeholder="Brief description of this component" />
+                      <Input placeholder="Optional description" {...field} data-testid="input-description" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+
               <FormField
-                control={blockForm.control}
+                control={form.control}
                 name="content"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>HTML Content</FormLabel>
+                    <FormLabel>Content (HTML)</FormLabel>
                     <FormControl>
                       <Textarea
+                        placeholder="<p>Your HTML content here...</p>"
+                        className="min-h-[200px] font-mono text-xs"
                         {...field}
-                        placeholder="<p>Enter HTML content here...</p>"
-                        className="font-mono min-h-[200px]"
+                        data-testid="textarea-content"
                       />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+
               <DialogFooter>
-                <Button type="button" variant="ghost" onClick={() => setIsBlockDialogOpen(false)}>
+                <Button type="button" variant="outline" onClick={() => setIsFormDialogOpen(false)} data-testid="button-cancel-form">
                   Cancel
                 </Button>
-                <Button type="submit" disabled={createBlockMutation.isPending || updateBlockMutation.isPending}>
-                  {editingBlock ? "Save Changes" : "Create Component"}
+                <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending} data-testid="button-submit-form">
+                  <Save className="h-4 w-4 mr-2" />
+                  {editingComponent ? "Update" : "Create"}
                 </Button>
               </DialogFooter>
             </form>
           </Form>
         </DialogContent>
       </Dialog>
-      
-      {/* Table Create Dialog */}
-      <Dialog open={isTableDialogOpen} onOpenChange={setIsTableDialogOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Create Custom Table</DialogTitle>
-            <DialogDescription>Define a new table component for contracts.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label>Table Name</Label>
-              <Input
-                value={newTableName}
-                onChange={(e) => setNewTableName(e.target.value)}
-                placeholder="e.g., Warranty Terms Table"
-                className="mt-1"
-              />
-              {newTableName && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  Variable: <span className="font-mono">{`{{${slugifyToVariable(newTableName)}}}`}</span>
-                </p>
-              )}
-            </div>
-            <div>
-              <Label>Description</Label>
-              <Textarea
-                value={newTableDescription}
-                onChange={(e) => setNewTableDescription(e.target.value)}
-                placeholder="What does this table display?"
-                className="mt-1"
-              />
-            </div>
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <Label>Columns</Label>
-                <Button variant="outline" size="sm" onClick={addColumn}>
-                  <Plus className="h-3 w-3 mr-1" />
-                  Add Column
-                </Button>
-              </div>
-              <div className="space-y-2">
-                {newTableColumns.map((col, idx) => (
-                  <div
-                    key={idx}
-                    draggable
-                    onDragStart={() => handleDragStart(idx)}
-                    onDragOver={(e) => handleDragOver(e, idx)}
-                    onDragEnd={handleDragEnd}
-                    className="flex items-center gap-2 p-2 border rounded bg-background"
-                  >
-                    <GripVertical className="h-4 w-4 text-muted-foreground cursor-move" />
-                    <Input
-                      value={col.header}
-                      onChange={(e) => updateColumn(idx, "header", e.target.value)}
-                      placeholder="Header"
-                      className="flex-1"
-                    />
-                    <Select value={col.type} onValueChange={(v) => updateColumn(idx, "type", v)}>
-                      <SelectTrigger className="w-32">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {COLUMN_TYPES.map((t) => (
-                          <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Input
-                      value={col.value}
-                      onChange={(e) => updateColumn(idx, "value", e.target.value)}
-                      placeholder="Value/Variable"
-                      className="flex-1"
-                    />
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => removeColumn(idx)}
-                      disabled={newTableColumns.length <= 1}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => { setIsTableDialogOpen(false); resetTableForm(); }}>
-              Cancel
-            </Button>
-            <Button onClick={handleTableCreate} disabled={createTableMutation.isPending}>
-              Create Table
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      
-      {/* Delete Block Confirmation */}
-      <AlertDialog open={!!deleteBlock} onOpenChange={() => setDeleteBlock(null)}>
-        <AlertDialogContent>
+
+      <AlertDialog open={!!deleteComponent} onOpenChange={(open) => !open && setDeleteComponent(null)}>
+        <AlertDialogContent data-testid="delete-confirm-dialog">
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Block Component?</AlertDialogTitle>
+            <AlertDialogTitle>Delete Component</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete the block component "{deleteBlock?.tag_name}" ({deleteBlock?.service_model}). 
-              This action cannot be undone.
+              Are you sure you want to delete "{deleteComponent?.tag_name}"? This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => deleteBlock && deleteBlockMutation.mutate(deleteBlock.id)}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deleteComponent && deleteMutation.mutate(deleteComponent.id)}
+              data-testid="button-confirm-delete"
             >
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      
-      {/* Delete Table Confirmation */}
-      <AlertDialog open={!!deleteTable} onOpenChange={() => setDeleteTable(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Custom Table?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently delete the table "{deleteTable?.display_name}". 
-              This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => deleteTable && deleteTableMutation.mutate(deleteTable.id)}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </div>
+    </ResizablePanelGroup>
   );
 }
