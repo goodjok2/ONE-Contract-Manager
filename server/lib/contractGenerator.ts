@@ -168,10 +168,11 @@ async function lookupStateDisclosure(disclosureCode: string, state: string): Pro
       .limit(1);
     
     if (result.length > 0 && result[0].content) {
+      console.log(`  Found disclosure: ${disclosureCode} for ${state} (${result[0].content.length} chars)`);
       stateDisclosureCache.set(cacheKey, result[0].content);
       return result[0].content;
     } else {
-      // Return missing disclosure warning
+      console.log(`  MISSING disclosure: ${disclosureCode} for ${state} (no rows returned)`);
       const missing = `<div class="missing-disclosure">[MISSING LEGAL DISCLOSURE: ${disclosureCode} for ${state}]</div>`;
       stateDisclosureCache.set(cacheKey, missing);
       return missing;
