@@ -1798,21 +1798,21 @@ function getContractStyles(): string {
     }
     
     table thead {
-      background-color: #1a73e8;
+      background-color: #3b82f6;
     }
     
     table th {
-      background-color: #1a73e8;
+      background-color: #3b82f6;
       color: #fff;
       font-weight: bold;
       padding: 8pt 10pt;
       text-align: left;
       vertical-align: middle;
-      border: 1px solid #1a73e8;
+      border: 1px solid #3b82f6;
     }
     
     table td {
-      border: 1px solid #dadce0;
+      border: 1px solid #dee2e6;
       padding: 8pt 10pt;
       text-align: left;
       vertical-align: top;
@@ -1822,8 +1822,8 @@ function getContractStyles(): string {
       background-color: #f8f9fa;
     }
     
-    table tr:hover {
-      background-color: #e8f0fe;
+    table tr:nth-child(odd) {
+      background-color: #ffffff;
     }
     
     /* Financial tables */
@@ -1848,12 +1848,11 @@ function getContractStyles(): string {
     
     /* Totals row styling */
     table tr.total-row {
-      background-color: #e8f0fe !important;
       font-weight: bold;
     }
     
     table tr.total-row td {
-      border-top: 2px solid #1a73e8;
+      border-top: 2px solid #3b82f6;
     }
     
     /* Signature Block */
@@ -2428,21 +2427,21 @@ function generateHTMLFromClauses(
     }
     
     table thead {
-      background-color: #1a73e8;
+      background-color: #3b82f6;
     }
     
     table th {
-      background-color: #1a73e8;
+      background-color: #3b82f6;
       color: #fff;
       font-weight: bold;
       padding: 8pt 10pt;
       text-align: left;
       vertical-align: middle;
-      border: 1px solid #1a73e8;
+      border: 1px solid #3b82f6;
     }
     
     table td {
-      border: 1px solid #dadce0;
+      border: 1px solid #dee2e6;
       padding: 8pt 10pt;
       text-align: left;
       vertical-align: top;
@@ -2452,8 +2451,8 @@ function generateHTMLFromClauses(
       background-color: #f8f9fa;
     }
     
-    table tr:hover {
-      background-color: #e8f0fe;
+    table tr:nth-child(odd) {
+      background-color: #ffffff;
     }
     
     /* Financial tables */
@@ -2478,12 +2477,11 @@ function generateHTMLFromClauses(
     
     /* Totals row styling */
     table tr.total-row {
-      background-color: #e8f0fe !important;
       font-weight: bold;
     }
     
     table tr.total-row td {
-      border-top: 2px solid #1a73e8;
+      border-top: 2px solid #3b82f6;
     }
     
     /* Signature Block */

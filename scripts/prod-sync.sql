@@ -1,6 +1,6 @@
 -- ==============================================
 -- Dev → Production Sync Script
--- Generated: 2026-02-15T18:35:32.230Z
+-- Generated: 2026-02-15T18:40:32.475Z
 -- ==============================================
 
 BEGIN;
@@ -4573,7 +4573,7 @@ VALUES (30, 1, 'TABLE_SIGNATURE_SECTION14', '
       <table style="width: 100%; border: none; margin-top: 24pt;">
         <tr>
           <td style="width: 47%; border: none; vertical-align: top; padding: 12pt;">
-            <div style="font-weight: bold; color: #1a73e8; margin-bottom: 8pt;">COMPANY:</div>
+            <div style="font-weight: bold; color: #3b82f6; margin-bottom: 8pt;">COMPANY:</div>
             <div style="font-weight: bold; color: #666; margin-bottom: 24pt;">{{DVELE_PARTNERS_XYZ_LEGAL_NAME}}</div>
             <div style="border-bottom: 1px solid #000; margin-bottom: 4pt; height: 20pt;"></div>
             <div style="font-size: 9pt; color: #666; margin-bottom: 2pt;">Signature</div>
@@ -4586,7 +4586,7 @@ VALUES (30, 1, 'TABLE_SIGNATURE_SECTION14', '
           </td>
           <td style="width: 6%; border: none;"></td>
           <td style="width: 47%; border: none; vertical-align: top; padding: 12pt;">
-            <div style="font-weight: bold; color: #1a73e8; margin-bottom: 8pt;">CLIENT:</div>
+            <div style="font-weight: bold; color: #3b82f6; margin-bottom: 8pt;">CLIENT:</div>
             <div style="font-weight: bold; color: #666; margin-bottom: 24pt;">{{CLIENT_LEGAL_NAME}}</div>
             <div style="border-bottom: 1px solid #000; margin-bottom: 4pt; height: 20pt;"></div>
             <div style="font-size: 9pt; color: #666; margin-bottom: 2pt;">Signature</div>
@@ -4615,7 +4615,7 @@ VALUES (31, 1, 'TABLE_SIGNATURE_EXHIBIT_A', '
       <table style="width: 100%; border: none; margin-top: 24pt;">
         <tr>
           <td style="width: 47%; border: none; vertical-align: top; padding: 8pt;">
-            <div style="font-weight: bold; color: #1a73e8; margin-bottom: 8pt;">Accepted and agreed:</div>
+            <div style="font-weight: bold; color: #3b82f6; margin-bottom: 8pt;">Accepted and agreed:</div>
             <div style="font-weight: bold; margin-bottom: 24pt;">{{DVELE_PARTNERS_XYZ_LEGAL_NAME}}</div>
             <div style="border-bottom: 1px solid #000; margin-bottom: 4pt; height: 20pt;"></div>
             <div style="font-size: 9pt; color: #666; margin-bottom: 2pt;">Signature</div>
@@ -4628,7 +4628,7 @@ VALUES (31, 1, 'TABLE_SIGNATURE_EXHIBIT_A', '
           </td>
           <td style="width: 6%; border: none;"></td>
           <td style="width: 47%; border: none; vertical-align: top; padding: 8pt;">
-            <div style="font-weight: bold; color: #1a73e8; margin-bottom: 8pt;">Post Design Approval (Greenlight):</div>
+            <div style="font-weight: bold; color: #3b82f6; margin-bottom: 8pt;">Post Design Approval (Greenlight):</div>
             <div style="font-weight: bold; margin-bottom: 24pt;">{{CLIENT_LEGAL_NAME}}</div>
             <div style="border-bottom: 1px solid #000; margin-bottom: 4pt; height: 20pt;"></div>
             <div style="font-size: 9pt; color: #666; margin-bottom: 2pt;">Signature</div>
