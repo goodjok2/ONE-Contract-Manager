@@ -1192,7 +1192,7 @@ ON CONFLICT (id) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO clauses (id, slug, header_text, body_html, level, parent_id, "order", contract_types, tags)
-VALUES (2139, 'one-staging-940', 'Staging', '<p>Note: Any such optional service selected by the Client will be contracted for in a separate agreement and for an additional charge.        	</p>', 2, 2136, 20, '["ONE"]'::jsonb, '[]'::jsonb)
+VALUES (2139, 'one-staging-940', 'Staging', '<p>Note: Any such optional service selected by the Client will be contracted for in a separate agreement and for an additional charge.             </p>', 2, 2136, 20, '["ONE"]'::jsonb, '[]'::jsonb)
 ON CONFLICT (id) DO UPDATE SET
   slug = EXCLUDED.slug,
   header_text = EXCLUDED.header_text,
@@ -4686,6 +4686,32 @@ ON CONFLICT (id) DO UPDATE SET
 
 -- OPTIONAL: Uncomment to delete components that no longer exist in dev
 -- DELETE FROM component_library WHERE id NOT IN (5,6,7,8,9,10,11,12,13,14,15,16,21,22,23,24,25,26,27,28,29,30,31,32,33,34);
+
+-- ============ STATE DISCLOSURES (MASTER_EF_NOTICES - CA comprehensive update) ============
+
+UPDATE state_disclosures SET content = '
+<h4 class="exhibit-clause">CA-1: Factory-Built Housing Notice</h4>
+<p class="conspicuous">CALIFORNIA NOTICE: This Agreement involves the sale of a factory-built housing unit subject to Health and Safety Code Section 19960 et seq. The Buyer has the right to have the unit inspected by a licensed home inspector before taking possession.</p>
+
+<h4 class="exhibit-clause">CA-2: Right to Cancel</h4>
+<p class="exhibit-body">Pursuant to California Civil Code Section 1689.5 et seq., you, the Buyer, may cancel this transaction at any time prior to midnight of the third business day after the date of this transaction. To cancel, mail or deliver a signed and dated copy of a cancellation notice to the Company at the address specified in Exhibit A. If you cancel, any payments made by you will be returned within ten (10) business days following receipt of the cancellation notice.</p>
+
+<h4 class="exhibit-clause">CA-3: Contractor''s License Disclosure</h4>
+<p class="exhibit-body">Contractors are required by law to be licensed and regulated by the Contractors'' State License Board which has jurisdiction to investigate complaints against contractors if a complaint regarding a patent act or omission is filed within four (4) years of the date of the alleged violation. A complaint regarding a latent act or omission pertaining to structural defects must be filed within ten (10) years of the date of the alleged violation. Any questions concerning a contractor may be referred to the Registrar, Contractors'' State License Board, P.O. Box 26000, Sacramento, CA 95826.</p>
+
+<h4 class="exhibit-clause">CA-4: Mechanics Lien Warning</h4>
+<p class="conspicuous">UNDER CALIFORNIA CIVIL CODE SECTION 8044, ANYONE WHO HELPS IMPROVE YOUR PROPERTY, BUT WHO IS NOT PAID, MAY RECORD WHAT IS KNOWN AS A MECHANIC''S LIEN ON YOUR PROPERTY. A MECHANIC''S LIEN IS A CLAIM, LIKE A MORTGAGE OR HOME EQUITY LOAN, MADE AGAINST YOUR PROPERTY AND RECORDED WITH THE COUNTY RECORDER. TO PROTECT YOURSELF, YOU SHOULD OBTAIN APPROPRIATE LIEN RELEASES AND ENSURE THAT ALL SUBCONTRACTORS AND MATERIAL SUPPLIERS ARE PAID.</p>
+
+<h4 class="exhibit-clause">CA-5: Home Improvement Contract Requirements</h4>
+<p class="exhibit-body">This contract is subject to California Business and Professions Code Sections 7150-7168. The contract includes the approximate start and completion dates for the project as set forth in Exhibit D. The total contract price and payment schedule are set forth in Exhibit A. The Buyer has the right to require the Company to have a performance and payment bond.</p>
+
+<h4 class="exhibit-clause">CA-6: Consumer Protection Provisions</h4>
+<p class="exhibit-body">Client is protected under the California Consumer Legal Remedies Act (Civil Code Section 1750 et seq.). Company must provide proof of insurance and contractor licensing upon request. Company warrants that it holds a valid California contractor''s license and maintains all insurance coverage required by law.</p>
+
+<h4 class="exhibit-clause">CA-7: Arbitration Disclosure</h4>
+<p class="conspicuous">BY AGREEING TO ARBITRATION, THE PARTIES ARE GIVING UP THE RIGHT TO HAVE THE DISPUTE DECIDED BY A JUDGE OR JURY. THE PARTIES ALSO GIVE UP THE RIGHT TO DISCOVERY AND APPEAL EXCEPT AS PROVIDED BY THE ARBITRATION RULES. IF EITHER PARTY REFUSES TO SUBMIT TO ARBITRATION AFTER AGREEING TO THIS PROVISION, THAT PARTY MAY BE COMPELLED TO ARBITRATE UNDER CALIFORNIA CODE OF CIVIL PROCEDURE SECTION 1281.2.</p>
+', updated_at = NOW()
+WHERE code = 'MASTER_EF_NOTICES' AND state = 'CA';
 
 -- Reset sequences
 SELECT setval('clauses_id_seq', (SELECT COALESCE(MAX(id), 1) FROM clauses));
