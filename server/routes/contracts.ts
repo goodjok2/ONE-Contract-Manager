@@ -2642,11 +2642,100 @@ router.get("/components/preview-resolved/:componentId", async (req, res) => {
     }
 
     const component = compResult.rows[0];
+    const tagName = component.tag_name;
+    const pidNum = parseInt(projectId as string);
+
+    const DATA_DRIVEN_TAGS = [
+      "TABLE_PRICING_BREAKDOWN",
+      "TABLE_PAYMENT_SCHEDULE",
+      "TABLE_UNIT_DETAILS",
+    ];
+
+    if (component.is_system && DATA_DRIVEN_TAGS.includes(tagName)) {
+      const { generatePricingTableHtml, generatePaymentScheduleHtml, generateUnitDetailsHtml } = await import("../lib/tableGenerators");
+      const { calculateProjectPricing } = await import("../services/pricingEngine");
+
+      const projectResult = await pool.query(
+        `SELECT p.*, pd.*, f.*, c.legal_name as client_name
+         FROM projects p
+         LEFT JOIN project_details pd ON pd.project_id = p.id
+         LEFT JOIN financials f ON f.project_id = p.id
+         LEFT JOIN clients c ON c.project_id = p.id
+         WHERE p.id = $1`,
+        [pidNum]
+      );
+
+      if (projectResult.rows.length === 0) {
+        return res.json({ html: "<p class='text-center text-red-500 py-4'>Project not found</p>" });
+      }
+
+      let pricingSummary: any = null;
+      try {
+        pricingSummary = await calculateProjectPricing(pidNum);
+      } catch (e) {
+        console.error("Failed to calculate pricing for preview:", e);
+      }
+
+      let html = "";
+      switch (tagName) {
+        case "TABLE_PRICING_BREAKDOWN":
+          html = generatePricingTableHtml(pricingSummary, "MASTER_EF");
+          break;
+        case "TABLE_PAYMENT_SCHEDULE": {
+          const msResult = await pool.query(
+            `SELECT * FROM milestones WHERE project_id = $1 ORDER BY milestone_number, id`,
+            [pidNum]
+          );
+          if (msResult.rows.length > 0) {
+            const milestones = msResult.rows.map((m: any) => ({
+              name: m.name,
+              percentage: parseFloat(m.percentage || "0"),
+              amount: parseFloat(m.amount || "0"),
+              phase: m.phase || "",
+            }));
+            html = generatePaymentScheduleHtml(milestones);
+          } else {
+            const cv = pricingSummary?.contractValue || 0;
+            const defaults = [
+              { name: "Design Agreement Signing", percentage: 10, amount: cv * 0.10, phase: "Design" },
+              { name: "Green Light / Production Start", percentage: 40, amount: cv * 0.40, phase: "Production" },
+              { name: "Module Delivery", percentage: 40, amount: cv * 0.40, phase: "Delivery" },
+              { name: "Final Completion", percentage: 10, amount: cv * 0.10, phase: "Completion" },
+            ];
+            html = generatePaymentScheduleHtml(defaults);
+          }
+          break;
+        }
+        case "TABLE_UNIT_DETAILS": {
+          const unitsResult = await pool.query(
+            `SELECT pu.*, hm.name as model_name, hm.model_code, hm.bedrooms, hm.bathrooms, hm.sq_ft
+             FROM project_units pu
+             JOIN home_models hm ON hm.id = pu.model_id
+             WHERE pu.project_id = $1
+             ORDER BY pu.unit_label`,
+            [pidNum]
+          );
+          const formattedUnits = unitsResult.rows.map((u: any) => ({
+            unitLabel: u.unit_label,
+            modelName: u.model_name,
+            bedrooms: u.bedrooms,
+            bathrooms: u.bathrooms,
+            squareFootage: u.sq_ft,
+            estimatedPrice: (u.base_price_snapshot || 0) + (u.customization_total || 0),
+          }));
+          html = generateUnitDetailsHtml(formattedUnits);
+          break;
+        }
+      }
+
+      return res.json({ html });
+    }
+
     let html = component.content || "";
 
     const variables = html.match(/\{\{[A-Z_]+\}\}/g);
     if (variables && variables.length > 0) {
-      const fullProject = await getProjectWithRelations(parseInt(projectId as string));
+      const fullProject = await getProjectWithRelations(pidNum);
       if (fullProject) {
         const { mapProjectToVariables } = await import("../lib/mapper");
         const projectData = mapProjectToVariables(fullProject);
